@@ -8,9 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const registerPhoneCode = document.getElementById('register-phone-code');
     const registerTelefono = document.getElementById('register-telefono');
-    const registerRoleInput = document.getElementById('register-role'); 
-    
-    const toggleInputVisibility = (toggleId, containerId, inputId) => {
+    const registerRoleInput = document.getElementById('register-role');
+
+    const setupFieldVisibility = (toggleId, containerId, inputId) => {
         const toggle = document.getElementById(toggleId);
         const container = document.getElementById(containerId);
         const input = document.getElementById(inputId);
@@ -18,51 +18,53 @@ document.addEventListener('DOMContentLoaded', () => {
         if (toggle && container && input) {
             toggle.addEventListener('change', () => {
                 if (toggle.checked) {
+                    container.classList.add('d-none');
+                    input.value = '';
+                    input.required = false;
+                } else {
                     container.classList.remove('d-none');
                     input.required = true;
                     input.focus();
-                } else {
-                    container.classList.add('d-none');
-                    input.required = false;
-                    input.value = '';
                 }
             });
         }
     };
 
-    toggleInputVisibility('toggle-segundo-nombre', 'container-segundo-nombre', 'register-segundo-nombre');
-    toggleInputVisibility('toggle-segundo-apellido', 'container-segundo-apellido', 'register-segundo-apellido');
+    // Inicializar
+    setupFieldVisibility('toggle-segundo-nombre', 'container-segundo-nombre', 'register-segundo-nombre');
+    setupFieldVisibility('toggle-segundo-apellido', 'container-segundo-apellido', 'register-segundo-apellido');
+    // ----------------------------------------------
 
     const countryPhoneCodes = [
         { code: '+54', name: 'Argentina', flag: '\uD83C\uDDE6\uD83C\uDDF7' },
-        { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
-        { code: '+55', name: 'Brasil', flag: '🇧🇷' },
-        { code: '+56', name: 'Chile', flag: '🇨🇱' },
-        { code: '+57', name: 'Colombia', flag: '🇨🇴' },
-        { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
-        { code: '+53', name: 'Cuba', flag: '🇨🇺' },
-        { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
-        { code: '+503', name: 'El Salvador', flag: '🇸🇻' },
-        { code: '+502', name: 'Guatemala', flag: '🇬🇹' },
-        { code: '+504', name: 'Honduras', flag: '🇭🇳' },
-        { code: '+52', name: 'México', flag: '🇲🇽' },
-        { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
-        { code: '+507', name: 'Panamá', flag: '🇵🇦' },
-        { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
-        { code: '+51', name: 'Perú', flag: '🇵🇪' },
-        { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
-        { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
-        { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' }
+        { code: '+591', name: 'Bolivia', flag: '\uD83C\uDDE7\uD83C\uDDF4' },
+        { code: '+55', name: 'Brasil', flag: '\uD83C\uDDE7\uD83C\uDDF7' },
+        { code: '+56', name: 'Chile', flag: '\uD83C\uDDE8\uD83C\uDDF1' },
+        { code: '+57', name: 'Colombia', flag: '\uD83C\uDDE8\uD83C\uDDF4' },
+        { code: '+506', name: 'Costa Rica', flag: '\uD83C\uDDE8\uD83C\uDDF7' },
+        { code: '+53', name: 'Cuba', flag: '\uD83C\uDDE8\uD83C\uDDFA' },
+        { code: '+593', name: 'Ecuador', flag: '\uD83C\uDDEA\uD83C\uDDE8' },
+        { code: '+503', name: 'El Salvador', flag: '\uD83C\uDDF8\uD83C\uDDFB' },
+        { code: '+502', name: 'Guatemala', flag: '\uD83C\uDDEC\uD83C\uDDF9' },
+        { code: '+504', name: 'Honduras', flag: '\uD83C\uDDED\uD83C\uDDF3' },
+        { code: '+52', name: 'México', flag: '\uD83C\uDDF2\uD83C\uDDFD' },
+        { code: '+505', name: 'Nicaragua', flag: '\uD83C\uDDF3\uD83C\uDDEE' },
+        { code: '+507', name: 'Panamá', flag: '\uD83C\uDDF5\uD83C\uDDE6' },
+        { code: '+595', name: 'Paraguay', flag: '\uD83C\uDDF5\uD83C\uDDFE' },
+        { code: '+51', name: 'Perú', flag: '\uD83C\uDDF5\uD83C\uDDEA' },
+        { code: '+1', name: 'Puerto Rico', flag: '\uD83C\uDDF5\uD83C\uDDF7' },
+        { code: '+1', name: 'Rep. Dominicana', flag: '\uD83C\uDDE9\uD83C\uDDF4' },
+        { code: '+598', name: 'Uruguay', flag: '\uD83C\uDDFA\uD83C\uDDFE' },
+        { code: '+58', name: 'Venezuela', flag: '\uD83C\uDDFB\uD83C\uDDEA' },
+        { code: '+1', name: 'EE.UU.', flag: '\uD83C\uDDFA\uD83C\uDDF8' }
     ];
 
     const loadPhoneCodes = (selectElement) => {
         if (!selectElement) return;
 
         countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
-        
-        selectElement.innerHTML = '<option value="">Código...</option>';
+
+        selectElement.innerHTML = '<option value="">C\u00F3digo...</option>';
         countryPhoneCodes.forEach(country => {
             if (country.code) {
                 selectElement.innerHTML += `<option value="${country.code}">${country.flag} ${country.code}</option>`;
@@ -73,7 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
     registerTelefono?.addEventListener('input', (e) => {
         e.target.value = e.target.value.replace(/\D/g, '');
     });
-
 
     const loadDocumentTypes = async () => {
         try {
@@ -138,7 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-
     loginForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         loginFeedback.textContent = '';
@@ -178,6 +178,28 @@ document.addEventListener('DOMContentLoaded', () => {
         registerFeedback.textContent = '';
 
         const submitButton = registerForm.querySelector('button[type="submit"]');
+        const secNameInput = document.getElementById('register-segundo-nombre');
+        const secLastInput = document.getElementById('register-segundo-apellido');
+        let missingFields = [];
+
+        if (!secNameInput.value.trim()) missingFields.push("Segundo Nombre");
+        if (!secLastInput.value.trim()) missingFields.push("Segundo Apellido");
+
+        if (missingFields.length > 0) {
+            const camposFaltantes = missingFields.join(' ni ');
+            const msg = `El beneficiario o cliente no tiene ${camposFaltantes}, \u00BFest\u00E1 seguro?`;
+            let confirmed = false;
+            if (window.showInfoModal && window.showConfirmModal) {
+                confirmed = await window.showConfirmModal('Confirmar Acci\u00F3n', msg);
+            } else {
+                confirmed = confirm(msg);
+            }
+
+            if (!confirmed) {
+                return;
+            }
+        }
+
         submitButton.disabled = true;
         submitButton.textContent = 'Registrando...';
 
@@ -204,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
             submitButton.textContent = 'Registrar Cuenta';
             return;
         }
-        
+
         const wasReadOnly = registerRoleInput.readOnly;
         if (wasReadOnly) {
             registerRoleInput.readOnly = false;
