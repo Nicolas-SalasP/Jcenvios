@@ -26,7 +26,8 @@ class TransactionRepository
 
         $estadoInicialID = $data['estadoID'] ?? 1;
 
-        $stmt->bind_param("iiidsdsiisssss", 
+        $stmt->bind_param(
+            "iiidsdsiisssss",
             $data['userID'],
             $data['cuentaID'],
             $data['tasaID'],
@@ -44,8 +45,8 @@ class TransactionRepository
         );
 
         if (!$stmt->execute()) {
-             error_log("Error al crear la transacción: " . $stmt->error . " - Data: " . print_r($data, true));
-             throw new Exception("No se pudo registrar la orden. Inténtalo de nuevo.");
+            error_log("Error al crear la transacción: " . $stmt->error . " - Data: " . print_r($data, true));
+            throw new Exception("No se pudo registrar la orden. Inténtalo de nuevo.");
         }
         $newId = $stmt->insert_id;
         $stmt->close();
@@ -100,13 +101,14 @@ class TransactionRepository
 
     public function uploadUserReceipt(int $transactionId, int $userId, string $dbPath, string $fileHash, int $estadoEnVerificacionID, int $estadoPendienteID): int
     {
-        $sql = "UPDATE transacciones SET ComprobanteURL = ?, ComprobanteHash = ?, EstadoID = ?
+        $sql = "UPDATE transacciones SET ComprobanteURL = ?, ComprobanteHash = ?, EstadoID = ?, FechaSubidaComprobante = NOW()
                 WHERE TransaccionID = ? AND UserID = ? AND EstadoID IN (?, ?)";
-        
+
         $stmt = $this->db->prepare($sql);
-        
-        $stmt->bind_param("ssiiiii", 
-            $dbPath, 
+
+        $stmt->bind_param(
+            "ssiiiii",
+            $dbPath,
             $fileHash,
             $estadoEnVerificacionID,
             $transactionId,
@@ -176,11 +178,10 @@ class TransactionRepository
         return $result;
     }
 
-     // --- MÉTODOS PARA ESTADÍSTICAS  ---
-
     public function countByStatus(array $statusIDs): int
     {
-        if (empty($statusIDs)) return 0;
+        if (empty($statusIDs))
+            return 0;
         $placeholders = implode(',', array_fill(0, count($statusIDs), '?'));
         $sql = "SELECT COUNT(TransaccionID) as total FROM transacciones WHERE EstadoID IN ($placeholders)";
         $stmt = $this->db->prepare($sql);
@@ -188,7 +189,7 @@ class TransactionRepository
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return (int)($result['total'] ?? 0);
+        return (int) ($result['total'] ?? 0);
     }
 
     public function countCompletedToday(int $estadoPagadoID): int
@@ -199,32 +200,30 @@ class TransactionRepository
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return (int)($result['total'] ?? 0);
+        return (int) ($result['total'] ?? 0);
     }
 
     public function getTotalVolume(int $estadoPagadoID): float
     {
         $sql = "SELECT SUM(MontoOrigen) as total_volumen FROM transacciones WHERE EstadoID = ?";
         $stmt = $this->db->prepare($sql);
-         $stmt->bind_param("i", $estadoPagadoID);
+        $stmt->bind_param("i", $estadoPagadoID);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return (float)($result['total_volumen'] ?? 0.0);
+        return (float) ($result['total_volumen'] ?? 0.0);
     }
 
     public function findEstadoTransaccionIdByName(string $nombreEstado): ?int
     {
-         $sql = "SELECT EstadoID FROM estados_transaccion WHERE NombreEstado = ? LIMIT 1";
-         $stmt = $this->db->prepare($sql);
-         $stmt->bind_param("s", $nombreEstado);
-         $stmt->execute();
-         $result = $stmt->get_result()->fetch_assoc();
-         $stmt->close();
-         return $result['EstadoID'] ?? null;
+        $sql = "SELECT EstadoID FROM estados_transaccion WHERE NombreEstado = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("s", $nombreEstado);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result['EstadoID'] ?? null;
     }
-
-    // --- MÉTODOS PARA DASHBOARD ---
 
     public function getTopCountries(string $direction = 'Destino', int $limit = 5): array
     {
@@ -265,20 +264,20 @@ class TransactionRepository
                 GROUP BY Mes
                 ORDER BY TotalMes DESC
                 LIMIT 1";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        
+
         if (!$result) {
             return ['PromedioDiario' => 0, 'MesMasConcurrido' => 'N/A', 'TotalMesMasConcurrido' => 0];
         }
 
         return [
-            'PromedioDiario' => (float)($result['PromedioDiario'] ?? 0),
+            'PromedioDiario' => (float) ($result['PromedioDiario'] ?? 0),
             'MesMasConcurrido' => $result['Mes'] ?? 'N/A',
-            'TotalMesMasConcurrido' => (int)($result['TotalMes'] ?? 0)
+            'TotalMesMasConcurrido' => (int) ($result['TotalMes'] ?? 0)
         ];
     }
 
@@ -294,7 +293,7 @@ class TransactionRepository
                 GROUP BY U.UserID, NombreCompleto, U.Email
                 ORDER BY TotalTransacciones DESC
                 LIMIT ?";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $limit);
         $stmt->execute();
@@ -307,30 +306,77 @@ class TransactionRepository
     {
         $sql = "SELECT
                     T.TransaccionID,
-                    T.FechaTransaccion,
-                    ET.NombreEstado AS Estado,
                     CONCAT(U.PrimerNombre, ' ', U.PrimerApellido) AS ClienteNombre,
-                    U.Email AS ClienteEmail,
                     T.MontoOrigen,
-                    T.MonedaOrigen,
                     TS.ValorTasa,
                     T.MontoDestino,
                     T.ComisionDestino,
-                    T.MonedaDestino,
-                    T.BeneficiarioNombre,
-                    T.BeneficiarioDocumento,
+                    (SELECT Timestamp FROM logs 
+                     WHERE Detalles LIKE CONCAT('TX ID: ', T.TransaccionID, '.%')
+                     AND Accion LIKE 'Admin completó%' 
+                     ORDER BY LogID DESC LIMIT 1) as FechaCompletado,
+                     
+                    COALESCE(CBA.Banco, FP.Nombre) AS BancoOrigenReal,
+                    
                     T.BeneficiarioBanco,
                     T.BeneficiarioNumeroCuenta
                 FROM transacciones T
                 JOIN usuarios U ON T.UserID = U.UserID
                 JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID
-                LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
+                LEFT JOIN formas_pago FP ON T.FormaPagoID = FP.FormaPagoID
+                LEFT JOIN cuentas_bancarias_admin CBA ON T.FormaPagoID = CBA.FormaPagoID AND TS.PaisOrigenID = CBA.PaisID AND CBA.Activo = 1
                 ORDER BY T.FechaTransaccion DESC";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_all(\MYSQLI_ASSOC);
         $stmt->close();
         return $result;
+    }
+
+    public function findPendingByAmount(float $monto, int $horasTolerancia): array
+    {
+        $sql = "SELECT TransaccionID, UserID, MontoOrigen, Email, PrimerNombre, Telefono 
+                FROM transacciones t
+                JOIN usuarios u ON t.UserID = u.UserID
+                WHERE t.MontoOrigen = ? 
+                AND t.EstadoID IN (1, 2) 
+                AND t.FechaTransaccion >= DATE_SUB(NOW(), INTERVAL ? HOUR)";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("di", $monto, $horasTolerancia);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(\MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
+    public function isEmailProcessed(string $messageId): bool
+    {
+        $sql = "SELECT TransaccionID FROM transacciones WHERE EmailMessageID = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("s", $messageId);
+        $stmt->execute();
+        $stmt->store_result();
+        $exists = $stmt->num_rows > 0;
+        $stmt->close();
+        return $exists;
+    }
+
+    public function updateStatusToProcessingWithProof(int $txId, int $newStatusId, string $proofPath, string $messageId): bool
+    {
+        $sql = "UPDATE transacciones 
+                SET EstadoID = ?, 
+                    ComprobanteBancoURL = ?, 
+                    EmailMessageID = ?,
+                    ComprobanteURL = IF(ComprobanteURL IS NULL OR ComprobanteURL = '', ?, ComprobanteURL),
+                    FechaSubidaComprobante = NOW()
+                WHERE TransaccionID = ?";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("isssi", $newStatusId, $proofPath, $messageId, $proofPath, $txId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
     }
 }

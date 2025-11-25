@@ -23,60 +23,79 @@ try {
     $sheet->setTitle('Transacciones');
 
     $headers = [
-        'ID Transaccion', 'Fecha', 'Estado', 'Cliente', 'Email Cliente',
-        'Monto Origen', 'Moneda Origen', 'Tasa Aplicada', 'Monto Destino',
-        'Comision (Destino)', 'Moneda Destino', 'Beneficiario', 'Documento Beneficiario',
-        'Banco Beneficiario', 'Cuenta Beneficiario'
+        'Nombre y apellido del cliente',
+        'Cantidad enviada',
+        'Tasa de envió',
+        'Cantidad destino',
+        'Comisión',
+        'Fecha de envió de comprobante admin',
+        'Hora de envió de comprobante admin',
+        'Banco de origen',
+        'Banco de destino',
+        'Cuenta beneficiario'
     ];
     $sheet->fromArray($headers, NULL, 'A1');
 
     $rowNumber = 2;
     foreach ($data as $row) {
-        $sheet->setCellValue('A' . $rowNumber, $row['TransaccionID']);
-        
-        $sheet->setCellValue('B' . $rowNumber, \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($row['FechaTransaccion']));
-        $sheet->getStyle('B' . $rowNumber)->getNumberFormat()->setFormatCode('dd/mm/yyyy hh:mm');
-        
-        $sheet->setCellValue('C' . $rowNumber, $row['Estado']);
-        $sheet->setCellValue('D' . $rowNumber, $row['ClienteNombre']);
-        $sheet->setCellValue('E' . $rowNumber, $row['ClienteEmail']);
-        
-        $sheet->setCellValue('F' . $rowNumber, (float)$row['MontoOrigen']);
-        $sheet->getStyle('F' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
-        
-        $sheet->setCellValue('G' . $rowNumber, $row['MonedaOrigen']);
-        
-        $sheet->setCellValue('H' . $rowNumber, (float)$row['ValorTasa']);
-        $sheet->getStyle('H' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.000000');
-        
-        $sheet->setCellValue('I' . $rowNumber, (float)$row['MontoDestino']);
-        $sheet->getStyle('I' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
+        // 1. Nombre y apellido del cliente
+        $sheet->setCellValue('A' . $rowNumber, $row['ClienteNombre']);
 
-        $sheet->setCellValue('J' . $rowNumber, (float)$row['ComisionDestino']);
-        $sheet->getStyle('J' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
+        // 2. Cantidad enviada
+        $sheet->setCellValue('B' . $rowNumber, (float) $row['MontoOrigen']);
+        $sheet->getStyle('B' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
 
-        $sheet->setCellValue('K' . $rowNumber, $row['MonedaDestino']);
-        
-        $sheet->setCellValue('L' . $rowNumber, $row['BeneficiarioNombre']);
-        
-        $sheet->setCellValueExplicit('M' . $rowNumber, $row['BeneficiarioDocumento'], DataType::TYPE_STRING);
-        $sheet->setCellValue('N' . $rowNumber, $row['BeneficiarioBanco']);
-        $sheet->setCellValueExplicit('O' . $rowNumber, $row['BeneficiarioCuenta'], DataType::TYPE_STRING);
-        
+        // 3. Tasa de envio
+        $sheet->setCellValue('C' . $rowNumber, (float) $row['ValorTasa']);
+        $sheet->getStyle('C' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.000000');
+
+        // 4. Cantidad destino
+        $sheet->setCellValue('D' . $rowNumber, (float) $row['MontoDestino']);
+        $sheet->getStyle('D' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
+
+        // 5. Comisión
+        $sheet->setCellValue('E' . $rowNumber, (float) $row['ComisionDestino']);
+        $sheet->getStyle('E' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
+
+        // 6 y 7. Fecha y Hora
+        if (!empty($row['FechaCompletado'])) {
+            $timestamp = strtotime($row['FechaCompletado']);
+
+            // Fecha
+            $sheet->setCellValue('F' . $rowNumber, \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($timestamp));
+            $sheet->getStyle('F' . $rowNumber)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+
+            // Hora
+            $sheet->setCellValue('G' . $rowNumber, \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($timestamp));
+            $sheet->getStyle('G' . $rowNumber)->getNumberFormat()->setFormatCode('HH:mm:ss');
+        } else {
+            $sheet->setCellValue('F' . $rowNumber, '-');
+            $sheet->setCellValue('G' . $rowNumber, '-');
+        }
+
+        // 8. Banco de origen (Nombre del Banco Real de la Cuenta Admin)
+        $sheet->setCellValue('H' . $rowNumber, $row['BancoOrigenReal'] ?? 'N/A');
+
+        // 9. Banco de destino
+        $sheet->setCellValue('I' . $rowNumber, $row['BeneficiarioBanco']);
+
+        // 10. Cuenta beneficiario
+        $sheet->setCellValueExplicit('J' . $rowNumber, $row['BeneficiarioNumeroCuenta'], DataType::TYPE_STRING);
+
         $rowNumber++;
     }
 
-    foreach (range('A', 'O') as $col) {
+    foreach (range('A', 'J') as $col) {
         $sheet->getColumnDimension($col)->setAutoSize(true);
     }
-    
-    $filename = "Reporte_Transacciones_" . date('Y-m-d') . ".xlsx";
+
+    $filename = "Reporte_Transacciones_" . date('Y-m-d_His') . ".xlsx";
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: max-age=0');
-    
+
     $writer = new Xlsx($spreadsheet);
-    
+
     ob_end_clean();
     $writer->save('php://output');
     exit();
