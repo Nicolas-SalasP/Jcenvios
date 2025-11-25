@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ultimaActualizacionEl = document.getElementById('rate-ultima-actualizacion');
     const ctx = document.getElementById('rate-history-chart');
     const countrySelect = document.getElementById('country-select-dropdown');
-    
+
     if (!rateContainer || !ctx || !countrySelect) {
         console.warn('Elementos del gráfico de tasa no encontrados en esta página.');
         return;
@@ -19,13 +19,13 @@ document.addEventListener('DOMContentLoaded', () => {
         valorActualEl.innerHTML = `<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div>`;
         descriptionEl.textContent = 'Cargando tasa...';
         ultimaActualizacionEl.textContent = '';
-        
+
         if (rateChartInstance) {
             rateChartInstance.destroy();
         }
 
         try {
-            const response = await fetch(`api/?accion=getDolarBcv&origenId=${origenId}&destinoId=${destinoId}`); 
+            const response = await fetch(`api/?accion=getDolarBcv&origenId=${origenId}&destinoId=${destinoId}`);
 
             if (!response.ok) {
                 let errorMsg = `No se pudo obtener la data del gráfico. Código: ${response.status}`;
@@ -39,25 +39,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const monedaDestino = data.monedaDestino || 'VES';
             const monedaOrigen = data.monedaOrigen || 'CLP';
 
-            // --- LÓGICA DE VISUALIZACIÓN (RANGO vs ÚNICA) ---
             if (data.textoTasa) {
-                // Caso A: Hay múltiples tasas (Ej: 23.21 - 25.00)
                 valorActualEl.textContent = `${data.textoTasa} ${monedaDestino}`;
                 descriptionEl.textContent = `Dependiendo del monto enviado.`;
             } else {
-                // Caso B: Tasa única
                 const valorActual = parseFloat(data.valorActual) || 0;
                 const valorFormateado = new Intl.NumberFormat('es-ES', {
                     style: 'currency',
                     currency: monedaDestino,
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 4
+                    minimumFractionDigits: 5,
+                    maximumFractionDigits: 5
                 }).format(valorActual);
 
                 valorActualEl.textContent = valorFormateado;
                 descriptionEl.textContent = `1 ${monedaOrigen} = ${valorFormateado}`;
             }
-            
+
             ultimaActualizacionEl.textContent = `Tasa de referencia actual.`;
 
             rateChartInstance = new Chart(ctx, {
@@ -88,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("Error al obtener el valor de la tasa:", error);
             if (rateContainer) {
-                 rateContainer.innerHTML = `<h3 class="card-title text-center mb-3">Tasa de Referencia</h3><p class="text-center text-danger p-3">${error.message}</p>`;
+                rateContainer.innerHTML = `<h3 class="card-title text-center mb-3">Tasa de Referencia</h3><p class="text-center text-danger p-3">${error.message}</p>`;
             }
         }
     };
@@ -97,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('api/?accion=getActiveDestinationCountries');
             const paises = await response.json();
-            
+
             if (!paises || paises.length === 0) {
                 countrySelect.innerHTML = '<option value="">No hay países</option>';
                 return;
@@ -113,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 option.textContent = pais.NombrePais;
                 option.dataset.moneda = pais.CodigoMoneda;
                 countrySelect.appendChild(option);
-                
+
                 if (pais.NombrePais.toLowerCase() === 'venezuela') {
                     defaultDestinoId = pais.PaisID;
                     defaultDestinoMoneda = pais.CodigoMoneda;
@@ -138,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedOption = countrySelect.options[countrySelect.selectedIndex];
         const destinoId = selectedOption.value;
         const destinoMoneda = selectedOption.dataset.moneda;
-        
+
         renderizarGraficoTasa(defaultOrigenId, destinoId, destinoMoneda);
     });
 

@@ -38,34 +38,26 @@ try {
 
     $rowNumber = 2;
     foreach ($data as $row) {
-        // 1. Nombre y apellido del cliente
         $sheet->setCellValue('A' . $rowNumber, $row['ClienteNombre']);
 
-        // 2. Cantidad enviada
         $sheet->setCellValue('B' . $rowNumber, (float) $row['MontoOrigen']);
         $sheet->getStyle('B' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
 
-        // 3. Tasa de envio
         $sheet->setCellValue('C' . $rowNumber, (float) $row['ValorTasa']);
-        $sheet->getStyle('C' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.000000');
+        $sheet->getStyle('C' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00000');
 
-        // 4. Cantidad destino
         $sheet->setCellValue('D' . $rowNumber, (float) $row['MontoDestino']);
         $sheet->getStyle('D' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
 
-        // 5. Comisión
         $sheet->setCellValue('E' . $rowNumber, (float) $row['ComisionDestino']);
         $sheet->getStyle('E' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
 
-        // 6 y 7. Fecha y Hora
         if (!empty($row['FechaCompletado'])) {
             $timestamp = strtotime($row['FechaCompletado']);
 
-            // Fecha
             $sheet->setCellValue('F' . $rowNumber, \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($timestamp));
             $sheet->getStyle('F' . $rowNumber)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
 
-            // Hora
             $sheet->setCellValue('G' . $rowNumber, \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($timestamp));
             $sheet->getStyle('G' . $rowNumber)->getNumberFormat()->setFormatCode('HH:mm:ss');
         } else {
@@ -73,13 +65,8 @@ try {
             $sheet->setCellValue('G' . $rowNumber, '-');
         }
 
-        // 8. Banco de origen (Nombre del Banco Real de la Cuenta Admin)
         $sheet->setCellValue('H' . $rowNumber, $row['BancoOrigenReal'] ?? 'N/A');
-
-        // 9. Banco de destino
         $sheet->setCellValue('I' . $rowNumber, $row['BeneficiarioBanco']);
-
-        // 10. Cuenta beneficiario
         $sheet->setCellValueExplicit('J' . $rowNumber, $row['BeneficiarioNumeroCuenta'], DataType::TYPE_STRING);
 
         $rowNumber++;
@@ -90,6 +77,7 @@ try {
     }
 
     $filename = "Reporte_Transacciones_" . date('Y-m-d_His') . ".xlsx";
+
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: max-age=0');

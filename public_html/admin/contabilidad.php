@@ -15,35 +15,41 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         <h1 class="mb-0">Contabilidad y Saldos</h1>
     </div>
 
-    <div class="card shadow-sm border-primary mb-4">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-bank"></i> Bancos (Recaudación)</h5>
-            <button class="btn btn-sm btn-light text-primary fw-bold" data-bs-toggle="modal"
-                data-bs-target="#modalRecargaBanco">
-                <i class="bi bi-plus-circle"></i> Recargar Saldo
-            </button>
-        </div>
-        <div class="card-body">
-            <div id="bancos-loading" class="text-center p-2">
-                <div class="spinner-border text-primary"></div>
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-bank"></i> Bancos (Recaudación)</h5>
+                    <button class="btn btn-sm btn-light text-primary fw-bold" data-bs-toggle="modal"
+                        data-bs-target="#modalRecargaBanco">
+                        <i class="bi bi-plus-circle"></i> Recargar Saldo
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="bancos-loading" class="text-center p-2">
+                        <div class="spinner-border text-primary"></div>
+                    </div>
+                    <div id="bancos-container" class="row d-none"></div>
+                </div>
             </div>
-            <div id="bancos-container" class="row d-none"></div>
         </div>
-    </div>
 
-    <div class="card shadow-sm border-success mb-4">
-        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-wallet2"></i> Cajas Destino (Dispersión)</h5>
-            <button class="btn btn-sm btn-light text-success fw-bold" data-bs-toggle="modal"
-                data-bs-target="#modalRetiroPais">
-                <i class="bi bi-dash-circle"></i> Retiro / Gasto
-            </button>
-        </div>
-        <div class="card-body">
-            <div id="saldos-loading" class="text-center p-2">
-                <div class="spinner-border text-success"></div>
+        <div class="col-12 mb-4">
+            <div class="card shadow-sm border-success">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-wallet2"></i> Cajas Destino (Dispersión)</h5>
+                    <button class="btn btn-sm btn-light text-success fw-bold" data-bs-toggle="modal"
+                        data-bs-target="#modalRetiroPais">
+                        <i class="bi bi-dash-circle"></i> Retiro / Gasto
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="saldos-loading" class="text-center p-2">
+                        <div class="spinner-border text-success"></div>
+                    </div>
+                    <div id="saldos-container" class="row d-none"></div>
+                </div>
             </div>
-            <div id="saldos-container" class="row d-none"></div>
         </div>
     </div>
 
