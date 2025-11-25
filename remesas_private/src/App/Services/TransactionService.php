@@ -6,6 +6,7 @@ use App\Repositories\UserRepository;
 use App\Repositories\EstadoTransaccionRepository;
 use App\Repositories\FormaPagoRepository;
 use App\Repositories\CuentasBeneficiariasRepository;
+use App\Repositories\CuentasAdminRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -23,6 +24,7 @@ class TransactionService
     private EstadoTransaccionRepository $estadoTxRepo;
     private FormaPagoRepository $formaPagoRepo;
     private ContabilidadService $contabilidadService;
+    private CuentasAdminRepository $cuentasAdminRepo;
 
     private const ESTADO_PENDIENTE_PAGO = 'Pendiente de Pago';
     private const ESTADO_EN_VERIFICACION = 'En Verificación';
@@ -39,7 +41,8 @@ class TransactionService
         EstadoTransaccionRepository $estadoTxRepo,
         FormaPagoRepository $formaPagoRepo,
         ContabilidadService $contabilidadService,
-        CuentasBeneficiariasRepository $cuentasRepo
+        CuentasBeneficiariasRepository $cuentasRepo,
+        CuentasAdminRepository $cuentasAdminRepo
     ) {
         $this->txRepository = $txRepository;
         $this->userRepository = $userRepository;
@@ -50,6 +53,7 @@ class TransactionService
         $this->formaPagoRepo = $formaPagoRepo;
         $this->contabilidadService = $contabilidadService;
         $this->cuentasRepo = $cuentasRepo;
+        $this->cuentasAdminRepo = $cuentasAdminRepo;
     }
 
     private function getEstadoId(string $nombreEstado): int
@@ -63,6 +67,7 @@ class TransactionService
 
     public function createTransaction(array $data): int
     {
+        // Validaciones básicas de usuario
         $client = $this->userRepository->findUserById($data['userID']);
         if (!$client)
             throw new Exception("Usuario no encontrado.", 404);
@@ -71,6 +76,7 @@ class TransactionService
         if (empty($client['Telefono']))
             throw new Exception("Falta tu número de teléfono en el perfil.", 400);
 
+        // Validar campos obligatorios
         $requiredFields = ['userID', 'cuentaID', 'tasaID', 'montoOrigen', 'monedaOrigen', 'montoDestino', 'monedaDestino', 'formaDePago'];
         foreach ($requiredFields as $field) {
             if (!isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '')) {
@@ -82,23 +88,34 @@ class TransactionService
             throw new Exception("El monto debe ser mayor a cero.", 400);
         }
 
+        // Lógica de Revendedor
+        if ($client['UsuarioRolNombre'] === 'Revendedor' || (isset($client['RolID']) && $client['RolID'] == 4)) {
+            $porcentaje = $client['PorcentajeComision'] ?? 0;
+            if ($porcentaje > 0) {
+                $ganancia = ($data['montoOrigen'] * $porcentaje) / 100;
+                if (method_exists($this->userRepository, 'addGanancia')) {
+                    $this->userRepository->addGanancia($client['UserID'], $ganancia);
+                }
+            }
+        }
+
+        // Obtener datos del beneficiario
         $beneficiario = $this->cuentasRepo->findByIdAndUserId((int) $data['cuentaID'], (int) $data['userID']);
         if (!$beneficiario) {
             throw new Exception("Beneficiario no encontrado o no te pertenece.", 404);
         }
 
+        // Preparar datos para inserción
         $data['beneficiarioNombre'] = trim(implode(' ', [
             $beneficiario['TitularPrimerNombre'],
             $beneficiario['TitularSegundoNombre'],
             $beneficiario['TitularPrimerApellido'],
             $beneficiario['TitularSegundoApellido']
         ]));
-
         $data['beneficiarioDocumento'] = $beneficiario['TitularNumeroDocumento'];
         $data['beneficiarioBanco'] = $beneficiario['NombreBanco'];
         $data['beneficiarioNumeroCuenta'] = $beneficiario['NumeroCuenta'];
         $data['beneficiarioTelefono'] = $beneficiario['NumeroTelefono'];
-
 
         $formaPagoID = $this->formaPagoRepo->findIdByName($data['formaDePago']);
         if (!$formaPagoID) {
@@ -108,6 +125,7 @@ class TransactionService
         $data['estadoID'] = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
 
         try {
+            // Crear Transacción
             $transactionId = $this->txRepository->create($data);
             $txData = $this->txRepository->getFullTransactionDetails($transactionId);
             if (!$txData)
@@ -115,6 +133,7 @@ class TransactionService
 
             $txData['TelefonoCliente'] = $client['Telefono'];
 
+            // Generar PDF y enviar notificaciones
             $pdfContent = $this->pdfService->generateOrder($txData);
             $pdfUrl = $this->fileHandler->savePdfTemporarily($pdfContent, $transactionId);
 
@@ -143,6 +162,7 @@ class TransactionService
             throw new Exception("Error al analizar el archivo del comprobante.", 500);
         }
 
+        // Evitar duplicados exactos
         $existingTx = $this->txRepository->findByHash($fileHash);
         if ($existingTx) {
             throw new Exception("Este comprobante ya fue subido para la transacción #" . $existingTx['TransaccionID'] . ".", 409);
@@ -223,26 +243,63 @@ class TransactionService
             throw new Exception("No se pudo confirmar el pago.", 500);
         }
 
+        // --- CONTABILIDAD: REGISTRAR INGRESO EN BANCO DE ORIGEN ---
+        $txData = $this->txRepository->getFullTransactionDetails($txId);
+
+        if (isset($txData['FormaPagoID'])) {
+            $paisOrigenId = $txData['PaisOrigenID'] ?? 1;
+
+            $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais(
+                (int) $txData['FormaPagoID'],
+                (int) $paisOrigenId
+            );
+
+            if ($cuentaAdmin) {
+                $this->contabilidadService->registrarIngresoVenta(
+                    (int) $cuentaAdmin['CuentaAdminID'],
+                    (float) $txData['MontoOrigen'],
+                    $adminId,
+                    $txId
+                );
+            } else {
+                error_log("Advertencia Contabilidad: No se encontró cuenta admin para FormaPago {$txData['FormaPagoID']} y País {$paisOrigenId}. No se sumó saldo.");
+            }
+        }
+
         $this->notificationService->logAdminAction($adminId, 'Admin confirmó pago', "TX ID: $txId. Estado cambiado a 'En Proceso'.");
         return true;
     }
 
-    public function adminRejectPayment(int $adminId, int $txId): bool
+    public function adminRejectPayment(int $adminId, int $txId, string $reason = '', bool $isSoftReject = false): bool
     {
         $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
+        $estadoPendienteID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
         $estadoEnVerificacionID = $this->getEstadoId(self::ESTADO_EN_VERIFICACION);
-        $affectedRows = $this->txRepository->updateStatus($txId, $estadoCanceladoID, $estadoEnVerificacionID);
+
+        $nuevoEstadoID = $isSoftReject ? $estadoPendienteID : $estadoCanceladoID;
+
+        $txData = $this->txRepository->getFullTransactionDetails($txId);
+        if (!$txData)
+            throw new Exception("Transacción no encontrada.", 404);
+
+        $affectedRows = $this->txRepository->updateStatus($txId, $nuevoEstadoID, $estadoEnVerificacionID);
 
         if ($affectedRows === 0) {
-            $txExists = $this->txRepository->getFullTransactionDetails($txId);
-            if (!$txExists)
-                throw new Exception("La transacción no existe.", 404);
-            if ($txExists['EstadoID'] !== $estadoEnVerificacionID)
-                throw new Exception("El estado de la transacción es '{$txExists['Estado']}', no 'En Verificación'.", 409);
-            throw new Exception("No se pudo rechazar el pago.", 500);
+            throw new Exception("No se pudo rechazar. Verifica que la orden esté en 'En Verificación'.", 409);
         }
 
-        $this->notificationService->logAdminAction($adminId, 'Admin rechazó pago', "TX ID: $txId. Estado cambiado a 'Cancelado'.");
+        $userEmail = $txData['Email'];
+        $userName = $txData['PrimerNombre'];
+        $logDetails = "TX ID: $txId. Motivo: $reason";
+
+        if ($isSoftReject) {
+            $this->notificationService->sendCorrectionRequestEmail($userEmail, $userName, $txId, $reason);
+            $this->notificationService->logAdminAction($adminId, 'Solicitud Corrección Pago', $logDetails . " -> Estado: Pendiente.");
+        } else {
+            $this->notificationService->sendCancellationEmail($userEmail, $userName, $txId, $reason);
+            $this->notificationService->logAdminAction($adminId, 'Admin rechazó pago', $logDetails . " -> Estado: Cancelado.");
+        }
+
         return true;
     }
 
@@ -274,6 +331,7 @@ class TransactionService
             throw new Exception("No se pudo actualizar la transacción como pagada.", 500);
         }
 
+        // CONTABILIDAD: Registrar Gasto (Salida de Caja Destino)
         $txData = $this->txRepository->getFullTransactionDetails($txId);
 
         if ($txData && !empty($txData['PaisDestinoID'])) {
@@ -288,13 +346,9 @@ class TransactionService
             $this->notificationService->logAdminAction($adminId, 'Error Contabilidad', "TX ID $txId: No se pudo registrar gasto (faltan datos de País Destino).");
         }
 
-        if ($txData && !empty($txData['TelefonoCliente'])) {
-            // $this->notificationService->sendPaymentConfirmationToClientWhatsApp($txData);
-        } else {
-            $this->notificationService->logAdminAction($adminId, 'Advertencia Notificación', "TX ID $txId: No se pudo notificar al cliente sobre el pago (faltan datos).");
-        }
-
+        $this->notificationService->sendPaymentConfirmationToClientWhatsApp($txData);
         $this->notificationService->logAdminAction($adminId, 'Admin completó transacción', "TX ID: $txId. Comprobante envío: $relativePath. Comisión: $comisionDestino. Estado: 'Pagado'.");
+
         return true;
     }
 
@@ -318,6 +372,7 @@ class TransactionService
             throw new Exception("Error al actualizar la comisión en la base de datos.", 500);
         }
 
+        // Ajustar Contabilidad
         if (!empty($txData['PaisDestinoID'])) {
             $this->contabilidadService->corregirGastoComision(
                 (int) $txData['PaisDestinoID'],

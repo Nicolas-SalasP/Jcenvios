@@ -119,7 +119,8 @@ class Container
                 $this->get(EstadoTransaccionRepository::class),
                 $this->get(FormaPagoRepository::class),
                 $this->get(ContabilidadService::class),
-                $this->get(CuentasBeneficiariasRepository::class)
+                $this->get(CuentasBeneficiariasRepository::class),
+                $this->get(CuentasAdminRepository::class)
             ),
             DashboardService::class => new DashboardService(
                 $this->get(TransactionRepository::class),
@@ -221,6 +222,8 @@ try {
 
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
         'agregarFondos' => [ContabilidadController::class, 'agregarFondos', 'POST'],
+        'compraDivisas' => [ContabilidadController::class, 'compraDivisas', 'POST'],
+        'registrarGastoVario' => [ContabilidadController::class, 'registrarGastoVario', 'POST'],
         'getResumenContable' => [ContabilidadController::class, 'getResumenMensual', 'GET'],
     ];
 

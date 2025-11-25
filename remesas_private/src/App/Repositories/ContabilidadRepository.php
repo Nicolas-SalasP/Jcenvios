@@ -13,6 +13,7 @@ class ContabilidadRepository
         $this->db = $db;
     }
 
+    // --- SALDOS ---
     public function getSaldoPorPais(int $paisId): ?array
     {
         $sql = "SELECT s.*, p.NombrePais 
@@ -42,12 +43,42 @@ class ContabilidadRepository
         return $result;
     }
 
-    public function registrarMovimiento(int $saldoId, ?int $adminId, ?int $txId, string $tipo, float $monto, float $saldoAnterior, float $saldoNuevo): bool
+    public function getSaldosBancos(): array
     {
-        $sql = "INSERT INTO contabilidad_movimientos (SaldoID, AdminUserID, TransaccionID, TipoMovimiento, Monto, SaldoAnterior, SaldoNuevo)
-                VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $sql = "SELECT c.CuentaAdminID, c.Banco, c.Titular, c.SaldoActual, 
+                       p.CodigoMoneda, p.NombrePais
+                FROM cuentas_bancarias_admin c
+                JOIN paises p ON c.PaisID = p.PaisID
+                WHERE c.Activo = 1
+                ORDER BY p.NombrePais, c.Banco";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iiisddd", $saldoId, $adminId, $txId, $tipo, $monto, $saldoAnterior, $saldoNuevo);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
+    // --- REGISTRO DE MOVIMIENTOS ---
+
+    public function registrarMovimiento(int $saldoId, ?int $adminId, ?int $txId, string $tipoCodigo, float $monto, float $saldoAnterior, float $saldoNuevo): bool
+    {
+        $sql = "INSERT INTO contabilidad_movimientos 
+                (SaldoID, AdminUserID, TransaccionID, TipoMovimientoID, Monto, SaldoAnterior, SaldoNuevo)
+                VALUES (?, ?, ?, (SELECT TipoMovimientoID FROM tipos_movimiento WHERE Codigo = ? LIMIT 1), ?, ?, ?)";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iiisddd", $saldoId, $adminId, $txId, $tipoCodigo, $monto, $saldoAnterior, $saldoNuevo);
+        return $stmt->execute();
+    }
+
+    public function registrarMovimientoBanco(int $cuentaAdminId, int $adminId, ?int $txId, string $tipoCodigo, float $monto, float $saldoAnterior, float $saldoNuevo): bool
+    {
+        $sql = "INSERT INTO contabilidad_movimientos 
+                (CuentaAdminID, AdminUserID, TransaccionID, TipoMovimientoID, Monto, SaldoAnterior, SaldoNuevo)
+                VALUES (?, ?, ?, (SELECT TipoMovimientoID FROM tipos_movimiento WHERE Codigo = ? LIMIT 1), ?, ?, ?)";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iiisddd", $cuentaAdminId, $adminId, $txId, $tipoCodigo, $monto, $saldoAnterior, $saldoNuevo);
         return $stmt->execute();
     }
 
@@ -72,14 +103,18 @@ class ContabilidadRepository
         return $newId;
     }
 
+    // --- CONSULTAS PARA HISTORIAL ---
+
     public function getGastosMensuales(int $saldoId, string $mes, string $anio): float
     {
-        $sql = "SELECT SUM(Monto) as TotalGastado 
-                FROM contabilidad_movimientos
-                WHERE SaldoID = ? 
-                  AND (TipoMovimiento = 'GASTO_TX' OR TipoMovimiento = 'GASTO_COMISION')
-                  AND YEAR(Timestamp) = ? 
-                  AND MONTH(Timestamp) = ?";
+        $sql = "SELECT SUM(m.Monto) as TotalGastado 
+                FROM contabilidad_movimientos m
+                JOIN tipos_movimiento tm ON m.TipoMovimientoID = tm.TipoMovimientoID
+                WHERE m.SaldoID = ? 
+                  AND (tm.Codigo = 'GASTO_TX' OR tm.Codigo = 'GASTO_COMISION' OR tm.Codigo = 'GASTO_VARIO')
+                  AND YEAR(m.Timestamp) = ? 
+                  AND MONTH(m.Timestamp) = ?";
+
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("iss", $saldoId, $anio, $mes);
         $stmt->execute();
@@ -88,11 +123,14 @@ class ContabilidadRepository
         return (float) ($result['TotalGastado'] ?? 0.0);
     }
 
+    // Historial para PAÍSES (Cajas Destino)
     public function getMovimientosDelMes(int $saldoId, string $mes, string $anio): array
     {
         $sql = "SELECT 
                     m.Timestamp, 
-                    m.TipoMovimiento, 
+                    tm.Codigo AS TipoMovimiento,
+                    tm.NombreVisible,
+                    tm.Color, 
                     m.Monto,
                     m.TransaccionID,
                     CONCAT(cb.TitularPrimerNombre, ' ', cb.TitularPrimerApellido) AS BeneficiarioNombre,
@@ -100,6 +138,7 @@ class ContabilidadRepository
                     u.PrimerApellido AS AdminApellido,
                     u.Email AS AdminEmail
                 FROM contabilidad_movimientos m
+                JOIN tipos_movimiento tm ON m.TipoMovimientoID = tm.TipoMovimientoID
                 LEFT JOIN transacciones t ON m.TransaccionID = t.TransaccionID
                 LEFT JOIN cuentas_beneficiarias cb ON t.CuentaBeneficiariaID = cb.CuentaID
                 LEFT JOIN usuarios u ON m.AdminUserID = u.UserID
@@ -110,6 +149,35 @@ class ContabilidadRepository
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("iss", $saldoId, $anio, $mes);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
+    // Historial para BANCOS (Cajas Origen)
+    public function getMovimientosBancoDelMes(int $cuentaAdminId, string $mes, string $anio): array
+    {
+        $sql = "SELECT 
+                    m.Timestamp, 
+                    tm.Codigo AS TipoMovimiento,
+                    tm.NombreVisible,
+                    tm.Color, 
+                    m.Monto,
+                    m.TransaccionID,
+                    u.PrimerNombre AS AdminNombre,
+                    u.PrimerApellido AS AdminApellido,
+                    u.Email AS AdminEmail
+                FROM contabilidad_movimientos m
+                JOIN tipos_movimiento tm ON m.TipoMovimientoID = tm.TipoMovimientoID
+                LEFT JOIN usuarios u ON m.AdminUserID = u.UserID
+                WHERE m.CuentaAdminID = ? 
+                  AND YEAR(m.Timestamp) = ? 
+                  AND MONTH(m.Timestamp) = ?
+                ORDER BY m.Timestamp DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iss", $cuentaAdminId, $anio, $mes);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
