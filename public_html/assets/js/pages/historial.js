@@ -4,33 +4,111 @@ document.addEventListener('DOMContentLoaded', () => {
     const transactionIdField = document.getElementById('transactionIdField');
     const modalTxIdLabel = document.getElementById('modal-tx-id');
 
-    if (uploadModalElement && uploadForm && transactionIdField && modalTxIdLabel) {
+    const cameraSection = document.getElementById('camera-section');
+    const videoEl = document.getElementById('camera-video');
+    const canvasEl = document.getElementById('camera-canvas');
+    const btnStartCamera = document.getElementById('btn-start-camera');
+    const btnCapture = document.getElementById('btn-capture');
+    const btnCancelCamera = document.getElementById('btn-cancel-camera');
+    const cameraToggleContainer = document.getElementById('camera-toggle-container');
+    const fileInput = document.getElementById('receiptFile');
+
+    let stream = null;
+
+    if (uploadModalElement && uploadForm) {
         let uploadModalInstance = null;
+
+        const stopCamera = () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            videoEl.srcObject = null;
+            cameraSection.classList.add('d-none');
+
+            if (!cameraToggleContainer.classList.contains('force-hidden')) {
+                cameraToggleContainer.classList.remove('d-none');
+            }
+        };
+
+        const startCamera = async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: 'environment' }
+                    }
+                });
+                videoEl.srcObject = stream;
+                cameraSection.classList.remove('d-none');
+                cameraToggleContainer.classList.add('d-none');
+            } catch (err) {
+                console.error("Error cámara:", err);
+                alert("No se pudo iniciar la cámara. Asegúrate de dar permisos o usa el botón 'Seleccionar archivo'.");
+            }
+        };
+
+        const takePhoto = () => {
+            if (!stream) return;
+
+            const MAX_WIDTH = 1024;
+            let width = videoEl.videoWidth;
+            let height = videoEl.videoHeight;
+
+            if (width > MAX_WIDTH) {
+                height = height * (MAX_WIDTH / width);
+                width = MAX_WIDTH;
+            }
+
+            canvasEl.width = width;
+            canvasEl.height = height;
+
+            const ctx = canvasEl.getContext('2d');
+            ctx.drawImage(videoEl, 0, 0, width, height);
+            canvasEl.toBlob((blob) => {
+                const txId = transactionIdField.value || 'temp';
+                const timestamp = new Date().getTime();
+                const fileName = `foto_comprobante_${txId}_${timestamp}.jpg`;
+
+                const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileInput.files = dataTransfer.files;
+
+                stopCamera();
+
+            }, 'image/jpeg', 0.70);
+        };
+
+        if (btnStartCamera) btnStartCamera.addEventListener('click', startCamera);
+        if (btnCapture) btnCapture.addEventListener('click', takePhoto);
+        if (btnCancelCamera) btnCancelCamera.addEventListener('click', stopCamera);
 
         uploadModalElement.addEventListener('show.bs.modal', function (event) {
             uploadModalInstance = bootstrap.Modal.getInstance(uploadModalElement) || new bootstrap.Modal(uploadModalElement);
             const button = event.relatedTarget;
+
             const transactionId = button.getAttribute('data-tx-id');
+
             transactionIdField.value = transactionId;
             modalTxIdLabel.textContent = transactionId;
             uploadForm.reset();
+            cameraToggleContainer.classList.remove('d-none');
+            cameraToggleContainer.classList.remove('force-hidden');
+
+            cameraSection.classList.add('d-none');
         });
 
-        uploadForm.addEventListener('submit', async function(e) {
+        uploadModalElement.addEventListener('hidden.bs.modal', function () {
+            stopCamera();
+        });
+
+        uploadForm.addEventListener('submit', async function (e) {
             e.preventDefault();
             const formData = new FormData(uploadForm);
             const submitButton = uploadModalElement.querySelector('button[type="submit"][form="upload-receipt-form"]');
-            const transactionId = transactionIdField.value;
 
-            if (!submitButton) {
-                console.error("No se encontró el botón de submit para el formulario de subida.");
-                if (window.showInfoModal) {
-                    window.showInfoModal('Error Interno', 'No se pudo encontrar el botón de envío. Refresca la página.', false);
-                } else {
-                    alert('Error: Botón de envío no encontrado.');
-                }
-                return;
-            }
+            if (!submitButton) return;
 
             submitButton.disabled = true;
             submitButton.textContent = 'Subiendo...';
@@ -42,51 +120,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 let result;
-                try {
-                     result = await response.json();
-                } catch(jsonError) {
-                     console.error("Error al parsear JSON en subida:", jsonError);
-                     result = { success: false, error: 'Respuesta inválida del servidor al subir.' };
-                }
+                try { result = await response.json(); } catch (e) { result = { success: false, error: 'Error servidor.' }; }
 
-                if(uploadModalInstance) uploadModalInstance.hide();
+                if (uploadModalInstance) uploadModalInstance.hide();
 
                 if (response.ok && result.success) {
                     if (window.showInfoModal) {
-                        window.showInfoModal(
-                            '¡Éxito!',
-                            `Comprobante para la transacción #${transactionId} subido con éxito. La página se recargará.`,
-                            true,
-                            () => { window.location.reload(); }
-                        );
+                        window.showInfoModal('¡Éxito!', `Comprobante subido correctamente.`, true, () => { window.location.reload(); });
                     } else {
-                        alert(`¡Comprobante para la transacción #${transactionId} subido con éxito! La página se recargará.`);
+                        alert(`Comprobante subido correctamente.`);
                         window.location.reload();
                     }
                 } else {
-                    const errorMsg = result.error || `Error ${response.status}: No se pudo subir el archivo.`;
-                    if (window.showInfoModal) {
-                        window.showInfoModal('Error al Subir', errorMsg, false);
-                    } else {
-                        alert('Error al subir el archivo: ' + errorMsg);
-                    }
+                    if (window.showInfoModal) window.showInfoModal('Error', result.error || 'Fallo al subir.', false);
+                    else alert(result.error);
                     submitButton.disabled = false;
-                    submitButton.textContent = 'Subir Archivo';
+                    submitButton.textContent = 'Confirmar Subida';
                 }
             } catch (error) {
-                console.error('Error de red al subir comprobante:', error);
-                if(uploadModalInstance) uploadModalInstance.hide();
-                if (window.showInfoModal) {
-                     window.showInfoModal('Error de Conexión', 'No se pudo conectar con el servidor para subir el archivo.', false);
-                } else {
-                    alert('No se pudo conectar con el servidor.');
-                }
+                if (uploadModalInstance) uploadModalInstance.hide();
+                if (window.showInfoModal) window.showInfoModal('Error', 'Error de conexión.', false);
                 submitButton.disabled = false;
-                submitButton.textContent = 'Subir Archivo';
+                submitButton.textContent = 'Confirmar Subida';
             }
         });
-    } else {
-        console.warn("No se encontraron elementos para el modal de subida.");
     }
 
     const cancelButtons = document.querySelectorAll('.cancel-btn');
@@ -112,40 +169,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     let result;
-                    try {
-                         result = await response.json();
-                    } catch(jsonError) {
-                         console.error("Error al parsear JSON en cancelación:", jsonError);
-                         result = { success: false, error: 'Respuesta inválida del servidor al cancelar.' };
-                    }
-
+                    try { result = await response.json(); } catch (e) { result = { success: false }; }
 
                     if (response.ok && result.success) {
-                         if (window.showInfoModal) {
-                             window.showInfoModal('Éxito', 'Transacción cancelada con éxito. La página se recargará.', true, () => window.location.reload());
-                         } else {
-                            alert('Transacción cancelada con éxito. La página se recargará.');
-                            window.location.reload();
-                         }
+                        if (window.showInfoModal) window.showInfoModal('Éxito', 'Transacción cancelada.', true, () => window.location.reload());
+                        else location.reload();
                     } else {
-                        const errorMsg = result.error || 'No se pudo cancelar la transacción.';
-                        if (window.showInfoModal) {
-                             window.showInfoModal('Error', errorMsg, false);
-                        } else {
-                            alert('Error: ' + errorMsg);
-                        }
+                        if (window.showInfoModal) window.showInfoModal('Error', result.error || 'Error al cancelar.', false);
                         e.target.closest('button').disabled = false;
                         e.target.closest('button').innerHTML = '<i class="bi bi-x-circle"></i> Cancelar';
                     }
                 } catch (error) {
-                     console.error('Error de red al cancelar:', error);
-                     if(window.showInfoModal) {
-                        window.showInfoModal('Error de Conexión', 'No se pudo conectar con el servidor.', false);
-                     } else {
-                        alert('Error de conexión con el servidor.');
-                     }
-                     e.target.closest('button').disabled = false;
-                     e.target.closest('button').innerHTML = '<i class="bi bi-x-circle"></i> Cancelar';
+                    if (window.showInfoModal) window.showInfoModal('Error', 'Error de conexión.', false);
+                    e.target.closest('button').disabled = false;
+                    e.target.closest('button').innerHTML = '<i class="bi bi-x-circle"></i> Cancelar';
                 }
             }
         });
@@ -153,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
-        const viewModalInstance = new bootstrap.Modal(viewModalElement);
         const modalContent = document.getElementById('comprobante-content');
         const modalPlaceholder = document.getElementById('comprobante-placeholder');
         const downloadButton = document.getElementById('download-comprobante');
@@ -163,72 +199,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const nextButton = document.getElementById('next-comprobante');
         const indicatorSpan = document.getElementById('comprobante-indicator');
         const modalLabel = document.getElementById('viewComprobanteModalLabel');
-
         let comprobantes = [];
         let currentIndex = 0;
         let currentTxId = null;
 
         const showComprobante = (index) => {
             modalContent.innerHTML = '';
-            modalPlaceholder.textContent = 'Cargando comprobante...';
-            modalPlaceholder.classList.remove('d-none', 'text-danger');
+            modalPlaceholder.classList.remove('d-none');
             downloadButton.classList.add('disabled');
-            downloadButton.href = '#';
-            filenameSpan.textContent = '';
-
-
-            if (!comprobantes[index]) {
-                 console.error("Índice de comprobante inválido:", index);
-                 modalPlaceholder.textContent = 'Error: No se encontró información del comprobante.';
-                 modalPlaceholder.classList.add('text-danger');
-                 return;
-            };
-
+            if (!comprobantes[index]) return;
             currentIndex = index;
             const current = comprobantes[index];
-            const originalUrl = current.url;
             const type = current.type;
-
-            // ***** INICIO CORRECCIÓN USO baseUrlJs *****
-            // Verificar si baseUrlJs está definida globalmente
-            if (typeof baseUrlJs === 'undefined') {
-                console.error('baseUrlJs no está definida. Asegúrate de que se define en footer.php.');
-                modalPlaceholder.textContent = 'Error de configuración: No se pudo determinar la URL base.';
-                modalPlaceholder.classList.add('text-danger');
-                return;
-            }
+            if (typeof baseUrlJs === 'undefined') return;
             const secureUrl = `${baseUrlJs}/dashboard/ver-comprobante.php?id=${currentTxId}&type=${type}`;
-            // ***** FIN CORRECCIÓN USO baseUrlJs *****
-
-            const fileName = decodeURIComponent(originalUrl.split('/').pop().split('?')[0]);
+            const fileName = decodeURIComponent(current.url.split('/').pop().split('?')[0]);
             const fileExtension = fileName.split('.').pop().toLowerCase();
             const typeText = type === 'user' ? 'Comprobante de Pago' : 'Comprobante de Envío';
-
             modalLabel.textContent = `${typeText} (Transacción #${currentTxId})`;
             downloadButton.href = secureUrl;
             downloadButton.download = fileName;
             filenameSpan.textContent = fileName;
-
             try {
                 if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(fileExtension)) {
                     const img = document.createElement('img');
                     img.src = secureUrl;
                     img.alt = typeText;
-                    img.classList.add('img-fluid', 'rounded');
+                    img.classList.add('img-fluid', 'rounded', 'd-block', 'mx-auto');
                     img.style.maxHeight = '75vh';
+                    img.style.maxWidth = '100%';
+                    img.style.objectFit = 'contain';
                     img.style.display = 'none';
                     img.onload = () => {
                         modalPlaceholder.classList.add('d-none');
                         img.style.display = 'block';
                         downloadButton.classList.remove('disabled');
                     };
-                    img.onerror = () => {
-                         console.error("Error al cargar imagen desde:", secureUrl);
-                         modalPlaceholder.textContent = `Error al cargar la imagen. Verifica que el archivo exista y los permisos sean correctos.`;
-                         modalPlaceholder.classList.add('text-danger');
-                         modalPlaceholder.classList.remove('d-none');
-                         downloadButton.classList.remove('disabled');
-                    }
                     modalContent.appendChild(img);
                 } else if (fileExtension === 'pdf') {
                     const iframe = document.createElement('iframe');
@@ -236,130 +242,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     iframe.style.width = '100%';
                     iframe.style.height = '75vh';
                     iframe.style.border = 'none';
-                    iframe.title = typeText;
                     iframe.onload = () => {
                         modalPlaceholder.classList.add('d-none');
                         downloadButton.classList.remove('disabled');
                     }
-                    iframe.innerHTML = '<p class="p-3 text-warning">Tu navegador no soporta la previsualización de PDF. Usa el botón de descarga.</p>';
                     modalContent.appendChild(iframe);
-
-                    setTimeout(() => {
-                        if (modalPlaceholder.classList.contains('d-none')) {
-                             downloadButton.classList.remove('disabled');
-                        } else {
-                            modalPlaceholder.textContent = 'La previsualización del PDF está tardando o no es compatible. Intenta descargarlo.';
-                            modalPlaceholder.classList.remove('d-none');
-                            downloadButton.classList.remove('disabled');
-                        }
-                    }, 5000);
-
-                } else {
-                    modalPlaceholder.textContent = `No se puede previsualizar este tipo de archivo (${fileExtension}).`;
-                    modalPlaceholder.classList.remove('d-none');
-                    downloadButton.classList.remove('disabled');
                 }
-            } catch (e) {
-                 console.error("Error al crear elemento de visualización:", e);
-                 modalPlaceholder.textContent = 'Ocurrió un error al intentar mostrar el archivo.';
-                 modalPlaceholder.classList.add('text-danger');
-                 modalPlaceholder.classList.remove('d-none');
-                 downloadButton.classList.add('disabled');
-                 downloadButton.href = '#';
-            }
-
-
+            } catch (e) { }
             if (comprobantes.length > 1) {
                 indicatorSpan.textContent = `${index + 1} / ${comprobantes.length}`;
                 prevButton.disabled = (index === 0);
                 nextButton.disabled = (index === comprobantes.length - 1);
             } else {
-                 prevButton.disabled = true;
-                 nextButton.disabled = true;
+                prevButton.disabled = true;
+                nextButton.disabled = true;
             }
         };
 
         viewModalElement.addEventListener('show.bs.modal', (event) => {
             const button = event.relatedTarget;
             if (!button) return;
-
             const userUrl = button.dataset.comprobanteUrl || '';
             const adminUrl = button.dataset.envioUrl || '';
-            const startType = button.dataset.startType || 'user';
             currentTxId = button.dataset.txId || 'N/A';
-
             comprobantes = [];
-            if (userUrl) {
-                comprobantes.push({ type: 'user', url: userUrl, name: 'Comprobante de Pago' });
-            }
-            if (adminUrl) {
-                comprobantes.push({ type: 'admin', url: adminUrl, name: 'Comprobante de Envío' });
-            }
-
-            if (comprobantes.length > 1) {
-                navigationDiv.classList.remove('d-none');
-            } else {
-                navigationDiv.classList.add('d-none');
-            }
-
+            if (userUrl) comprobantes.push({ type: 'user', url: userUrl });
+            if (adminUrl) comprobantes.push({ type: 'admin', url: adminUrl });
+            if (comprobantes.length > 1) navigationDiv.classList.remove('d-none');
+            else navigationDiv.classList.add('d-none');
             currentIndex = 0;
-            if (startType === 'admin' && adminUrl) {
-                const adminIndex = comprobantes.findIndex(c => c.type === 'admin');
-                if (adminIndex !== -1) {
-                    currentIndex = adminIndex;
-                }
-            }
-
+            if (button.dataset.startType === 'admin' && adminUrl) currentIndex = comprobantes.findIndex(c => c.type === 'admin');
             modalContent.innerHTML = '';
-            modalPlaceholder.classList.remove('d-none', 'text-danger');
-            modalPlaceholder.textContent = 'Cargando comprobante...';
-            downloadButton.href = '#';
-            downloadButton.classList.add('disabled');
-            filenameSpan.textContent = '';
-            modalLabel.textContent = `Visor de Comprobantes (Transacción #${currentTxId})`;
-
-
-            if (comprobantes.length > 0) {
-                 setTimeout(() => showComprobante(currentIndex), 100);
-            } else {
-                modalPlaceholder.textContent = 'No hay comprobantes disponibles para esta transacción.';
-                modalPlaceholder.classList.remove('d-none');
+            modalPlaceholder.classList.remove('d-none');
+            if (comprobantes.length > 0) setTimeout(() => showComprobante(currentIndex), 100);
+            else {
+                modalPlaceholder.textContent = 'No hay comprobantes.';
                 downloadButton.classList.add('disabled');
-                navigationDiv.classList.add('d-none');
             }
         });
 
-        prevButton.addEventListener('click', () => {
-            if (currentIndex > 0) {
-                showComprobante(currentIndex - 1);
-            }
+        prevButton.addEventListener('click', () => { if (currentIndex > 0) showComprobante(currentIndex - 1); });
+        nextButton.addEventListener('click', () => { if (currentIndex < comprobantes.length - 1) showComprobante(currentIndex + 1); });
+        viewModalElement.addEventListener('hidden.bs.modal', () => {
+            modalContent.innerHTML = '';
+            modalPlaceholder.classList.remove('d-none');
         });
-
-        nextButton.addEventListener('click', () => {
-            if (currentIndex < comprobantes.length - 1) {
-                showComprobante(currentIndex + 1);
-            }
-        });
-
-         viewModalElement.addEventListener('hidden.bs.modal', () => {
-             modalContent.innerHTML = '';
-              const mediaElement = modalContent.querySelector('iframe, embed, img');
-              if (mediaElement) mediaElement.src = 'about:blank';
-
-             modalPlaceholder.classList.remove('d-none', 'text-danger');
-             modalPlaceholder.textContent = 'Cargando comprobante...';
-             downloadButton.href = '#';
-             downloadButton.classList.remove('disabled');
-             filenameSpan.textContent = '';
-             navigationDiv.classList.add('d-none');
-             modalLabel.textContent = 'Visor de Comprobantes';
-             comprobantes = [];
-             currentIndex = 0;
-             currentTxId = null;
-         });
-
-    } else {
-         console.warn("No se encontró el elemento para el modal de visualización.");
     }
-
 });
