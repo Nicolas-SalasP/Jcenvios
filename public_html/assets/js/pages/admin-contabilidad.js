@@ -8,14 +8,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const resumenResultado = document.getElementById('resumen-resultado');
     const resumenTotalGastado = document.getElementById('resumen-total-gastado');
     const resumenTextoInfo = document.getElementById('resumen-texto-info');
-    
+
     const historialContainer = document.getElementById('historial-container');
     const resumenMovimientosTbody = document.getElementById('resumen-movimientos-tbody');
 
     const numberFormatter = (currencyCode, value) => {
         if (!currencyCode) currencyCode = 'USD';
-        return new Intl.NumberFormat('es-ES', { 
-            style: 'currency', 
+        return new Intl.NumberFormat('es-ES', {
+            style: 'currency',
             currency: currencyCode,
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             saldosLoading.classList.remove('d-none');
             saldosContainer.classList.add('d-none');
-            
+
             const response = await fetch('../api/?accion=getSaldosContables');
             const result = await response.json();
 
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const saldoActual = parseFloat(saldo.SaldoActual || 0);
                 const umbral = parseFloat(saldo.UmbralAlerta || 50000);
                 const isLow = saldoActual < umbral;
-                
+
                 const cardHtml = `
                     <div class="col-md-4 mb-3">
                         <div class="card ${isLow ? 'border-danger shadow' : 'shadow-sm'}">
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 saldoPaisSelect.innerHTML += optionHtml;
                 resumenPaisSelect.innerHTML += optionHtml;
             });
-            
+
             saldosLoading.classList.add('d-none');
             saldosContainer.classList.remove('d-none');
 
@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await response.json();
             if (!result.success) throw new Error(result.error);
-            
+
             window.showInfoModal('Éxito', 'Fondos agregados correctamente.', true);
             formAgregarFondos.reset();
             cargarSaldos();
@@ -118,14 +118,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const paisId = resumenPaisSelect.value;
         const [anio, mes] = document.getElementById('resumen-mes').value.split('-');
-        
+
         try {
             const response = await fetch(`../api/?accion=getResumenContable&paisId=${paisId}&mes=${mes}&anio=${anio}`);
             const result = await response.json();
             if (!result.success) throw new Error(result.error);
 
             const data = result.resumen;
-            
+
             resumenTotalGastado.textContent = numberFormatter(data.Moneda, data.TotalGastado);
             resumenTextoInfo.textContent = `Total gastado en ${data.Pais} para ${mes}/${anio}`;
             resumenResultado.style.display = 'block';
@@ -139,7 +139,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const monto = parseFloat(mov.Monto);
                     const fecha = new Date(mov.Timestamp).toLocaleString('es-CL');
 
-                    switch(mov.TipoMovimiento) {
+                    // --- DATOS DEL RESPONSABLE ---
+                    const nombreResp = mov.AdminNombre ? `${mov.AdminNombre} ${mov.AdminApellido}` : 'Sistema';
+                    const emailResp = mov.AdminEmail ? `(${mov.AdminEmail})` : '';
+                    const responsableStr = `<small><strong>${nombreResp}</strong><br>${emailResp}</small>`;
+                    // -----------------------------
+
+                    switch (mov.TipoMovimiento) {
                         case 'GASTO_TX':
                             colorClass = 'text-danger';
                             montoStr = `- ${numberFormatter(data.Moneda, monto)}`;
@@ -171,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>${fecha}</td>
                             <td><span class="fw-bold ${colorClass}">${tipoStr}</span></td>
                             <td>${detalleStr}</td>
+                            <td>${responsableStr}</td>
                             <td class="text-end fw-bold ${colorClass} text-nowrap">${montoStr}</td>
                         </tr>
                     `;
@@ -178,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 historialContainer.style.display = 'block';
             } else {
-                resumenMovimientosTbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No se encontraron movimientos para este mes.</td></tr>';
+                resumenMovimientosTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No se encontraron movimientos para este mes.</td></tr>';
                 historialContainer.style.display = 'block';
             }
 

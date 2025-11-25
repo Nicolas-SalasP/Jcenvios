@@ -379,4 +379,14 @@ class TransactionRepository
         $stmt->close();
         return $success;
     }
+
+    public function updateCommission(int $txId, float $newCommission): bool
+    {
+        $sql = "UPDATE transacciones SET ComisionDestino = ? WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("di", $newCommission, $txId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
 }

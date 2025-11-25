@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- Lógica de Verificación de Usuarios ---
+    // ==========================================
+    // 1. GESTIÓN DE VERIFICACIONES (KYC)
+    // ==========================================
     const verificationModalElement = document.getElementById('verificationModal');
     if (verificationModalElement) {
         let verificationModalInstance = null;
@@ -23,8 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgReverso = button.dataset.imgReverso || '';
             modalImgFrente.src = imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(imgFrente)}` : '';
             modalImgReverso.src = imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(imgReverso)}` : '';
-
-            // Ajuste visual para documentos
             modalImgFrente.style.objectFit = 'contain';
             modalImgFrente.style.maxHeight = '300px';
             modalImgReverso.style.objectFit = 'contain';
@@ -59,12 +59,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Gestión de Países (Estado y Rol) ---
+    // ==========================================
+    // 2. GESTIÓN DE PAÍSES
+    // ==========================================
+
+    // Toggle Estado (Activo/Inactivo)
     document.querySelectorAll('.toggle-status-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
             const paisId = btn.dataset.paisId;
             const newStatus = btn.dataset.currentStatus === '1' ? 0 : 1;
+
             if (await window.showConfirmModal('Confirmar', '¿Cambiar estado del país?')) {
                 try {
                     const res = await fetch('../api/?accion=togglePaisStatus', {
@@ -84,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Cambiar Rol de País
     document.querySelectorAll('.role-select').forEach(select => {
         let original = select.value;
         select.addEventListener('focus', () => original = select.value);
@@ -108,7 +114,76 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Gestión de Usuarios (Bloqueo, Rol, Eliminar) ---
+    // Modal Añadir País
+    const addPaisForm = document.getElementById('add-pais-form');
+    if (addPaisForm) {
+        addPaisForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = addPaisForm.querySelector('button[type="submit"]');
+            const formData = new FormData(addPaisForm);
+            const data = Object.fromEntries(formData.entries());
+
+            btn.disabled = true; btn.textContent = 'Añadiendo...';
+            try {
+                const res = await fetch('../api/?accion=addPais', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (res.ok && result.success) window.showInfoModal('Éxito', 'País añadido.', true, () => window.location.reload());
+                else throw new Error(result.error);
+            } catch (error) {
+                window.showInfoModal('Error', error.message, false);
+                btn.disabled = false; btn.textContent = 'Añadir País';
+            }
+        });
+    }
+
+    // Modal Editar País
+    const editPaisModalElement = document.getElementById('editPaisModal');
+    if (editPaisModalElement) {
+        const editPaisModal = new bootstrap.Modal(editPaisModalElement);
+        const editForm = document.getElementById('edit-pais-form');
+        const inputId = document.getElementById('edit-pais-id');
+        const inputNombre = document.getElementById('edit-nombrePais');
+        const inputMoneda = document.getElementById('edit-codigoMoneda');
+
+        document.querySelectorAll('.edit-pais-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const t = e.currentTarget;
+                inputId.value = t.dataset.paisId;
+                inputNombre.value = t.dataset.nombre;
+                inputMoneda.value = t.dataset.moneda;
+            });
+        });
+
+        editForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = editForm.querySelector('button[type="submit"]');
+            const data = { paisId: inputId.value, nombrePais: inputNombre.value, codigoMoneda: inputMoneda.value };
+
+            btn.disabled = true; btn.textContent = 'Guardando...';
+            try {
+                const res = await fetch('../api/?accion=updatePais', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    editPaisModal.hide();
+                    window.showInfoModal('Éxito', 'País actualizado.', true, () => window.location.reload());
+                } else throw new Error(result.error);
+            } catch (error) {
+                window.showInfoModal('Error', error.message, false);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Guardar Cambios';
+            }
+        });
+    }
+
+    // ==========================================
+    // 3. GESTIÓN DE USUARIOS
+    // ==========================================
+
+    // Bloquear/Desbloquear
     document.querySelectorAll('.block-user-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
@@ -127,25 +202,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Cambiar Rol de Usuario (Con manejo especial para Límite de Admins)
     document.querySelectorAll('.admin-role-select').forEach(select => {
         let original = select.value;
-        
+
         select.addEventListener('focus', () => original = select.value);
-        
+
         select.addEventListener('change', async (e) => {
             const confirmed = await window.showConfirmModal('Confirmar', '¿Cambiar rol de usuario?');
-            
+
             if (confirmed) {
                 try {
                     const response = await fetch('../api/?accion=updateUserRole', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            userId: e.target.dataset.userId, 
-                            newRoleId: e.target.value 
+                        body: JSON.stringify({
+                            userId: e.target.dataset.userId,
+                            newRoleId: e.target.value
                         })
                     });
-                    
+
                     const result = await response.json();
 
                     if (result.success) {
@@ -155,15 +231,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.target.value = original;
                         if (result.error && result.error.includes('Limite alcanzado')) {
                             window.showInfoModal(
-                                'Límite de Administradores', 
-                                "Máximo de 3 Administradores alcanzado.\n\nPor seguridad y política de la empresa, no se pueden asignar más administradores.\n\nSi necesita ampliar este cupo, por favor contacte con el soporte informático.", 
-                                false 
+                                'Límite de Administradores',
+                                "Máximo de 3 Administradores alcanzado.\n\nPor seguridad y política de la empresa, no se pueden asignar más administradores.\n\nSi necesita ampliar este cupo, por favor contacte con el soporte informático.",
+                                false
                             );
                         } else {
                             window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
                         }
                     }
-                } catch (error) { 
+                } catch (error) {
                     console.error(error);
                     e.target.value = original;
                     window.showInfoModal('Error', 'Error de comunicación con el servidor.', false);
@@ -174,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Eliminar Usuario (Lógico)
     document.querySelectorAll('.admin-delete-user-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const userId = e.currentTarget.dataset.userId;
@@ -195,7 +272,49 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Gestión de Transacciones (Confirmar Pago) ---
+    // Modal Detalles Usuario
+    const userDetailsModalElement = document.getElementById('userDetailsModal');
+    if (userDetailsModalElement) {
+        const modalTitle = document.getElementById('userDetailsModalLabel');
+        const els = {
+            nombre: document.getElementById('modalUserNombreCompleto'),
+            email: document.getElementById('modalUserEmail'),
+            tel: document.getElementById('modalUserTelefono'),
+            fecha: document.getElementById('modalUserFechaRegistro'),
+            verif: document.getElementById('modalUserVerificacion'),
+            tfa: document.getElementById('modalUser2FA'),
+            docF: document.getElementById('modalUserDocFrenteContainer'),
+            docR: document.getElementById('modalUserDocReversoContainer')
+        };
+
+        userDetailsModalElement.addEventListener('show.bs.modal', (e) => {
+            const btn = e.relatedTarget;
+            if (!btn || !btn.classList.contains('view-user-details-btn')) return;
+
+            modalTitle.textContent = `Ficha Usuario: #${btn.dataset.userId}`;
+            els.nombre.textContent = btn.dataset.nombreCompleto;
+            els.email.textContent = btn.dataset.email;
+            els.tel.textContent = btn.dataset.telefono;
+            els.fecha.textContent = btn.dataset.fechaRegistro;
+
+            els.verif.textContent = btn.dataset.verificacionStatus;
+            els.verif.className = `badge ${btn.dataset.verificacionStatus === 'Verificado' ? 'bg-success' : 'bg-secondary'}`;
+
+            els.tfa.textContent = btn.dataset.twoFaStatus === '1' ? 'Activado' : 'Inactivo';
+            els.tfa.className = `badge ${btn.dataset.twoFaStatus === '1' ? 'bg-success' : 'bg-secondary'}`;
+
+            const createImg = (url) => url ? `<a href="../admin/view_secure_file.php?file=${encodeURIComponent(url)}" target="_blank"><img src="../admin/view_secure_file.php?file=${encodeURIComponent(url)}" class="img-fluid rounded" style="max-height: 150px;"></a>` : '<span class="text-muted small">No subido</span>';
+
+            els.docF.innerHTML = createImg(btn.dataset.docFrente);
+            els.docR.innerHTML = createImg(btn.dataset.docReverso);
+        });
+    }
+
+    // ==========================================
+    // 4. GESTIÓN DE TRANSACCIONES
+    // ==========================================
+
+    // Confirmar Pago (Paso a "En Proceso")
     document.querySelectorAll('.process-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const txId = e.currentTarget.dataset.txId;
@@ -212,6 +331,66 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- Editar Comisión (Modal) ---
+    const editCommissionModalElement = document.getElementById('editCommissionModal');
+    if (editCommissionModalElement) {
+        const editCommissionModal = new bootstrap.Modal(editCommissionModalElement);
+        const form = document.getElementById('edit-commission-form');
+        const txIdLabel = document.getElementById('modal-commission-tx-id-label');
+        const txIdInput = document.getElementById('commission-tx-id');
+        const commissionInput = document.getElementById('new-commission-input');
+
+        document.querySelectorAll('.edit-commission-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const button = e.currentTarget;
+                const txId = button.dataset.txId;
+                const currentVal = button.dataset.currentVal;
+
+                txIdLabel.textContent = `#${txId}`;
+                txIdInput.value = txId;
+                commissionInput.value = currentVal;
+
+                editCommissionModal.show();
+            });
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Guardando...';
+
+            const txId = txIdInput.value;
+            const newCommission = parseFloat(commissionInput.value);
+
+            try {
+                const response = await fetch('../api/?accion=updateTxCommission', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        transactionId: txId,
+                        newCommission: newCommission
+                    })
+                });
+
+                const result = await response.json();
+                editCommissionModal.hide();
+
+                if (result.success) {
+                    window.showInfoModal('Éxito', 'Comisión actualizada correctamente.', true, () => window.location.reload());
+                } else {
+                    window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
+                }
+            } catch (error) {
+                window.showInfoModal('Error', 'Error de conexión.', false);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Guardar Cambios';
+            }
+        });
+    }
+
+    // Modal de Rechazo
     const rejectionModalElement = document.getElementById('rejectionModal');
     if (rejectionModalElement) {
         const rejectionModal = new bootstrap.Modal(rejectionModalElement);
@@ -269,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Subida de Comprobante Admin (Finalizar) ---
+    // Modal Subir Comprobante Admin
     const adminUploadModalElement = document.getElementById('adminUploadModal');
     if (adminUploadModalElement) {
         let adminUploadModalInstance = null;
@@ -314,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Visor de Comprobantes ---
+    // Visor de Comprobantes
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
         const modalContent = document.getElementById('comprobante-content');
@@ -423,107 +602,6 @@ document.addEventListener('DOMContentLoaded', () => {
         viewModalElement.addEventListener('hidden.bs.modal', () => {
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');
-        });
-    }
-
-    // --- Modales de País y Detalles Usuario ---
-    const addPaisForm = document.getElementById('add-pais-form');
-    if (addPaisForm) {
-        addPaisForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = addPaisForm.querySelector('button[type="submit"]');
-            const formData = new FormData(addPaisForm);
-            const data = Object.fromEntries(formData.entries());
-
-            btn.disabled = true; btn.textContent = 'Añadiendo...';
-            try {
-                const res = await fetch('../api/?accion=addPais', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-                });
-                const result = await res.json();
-                if (res.ok && result.success) window.showInfoModal('Éxito', 'País añadido.', true, () => window.location.reload());
-                else throw new Error(result.error);
-            } catch (error) {
-                window.showInfoModal('Error', error.message, false);
-                btn.disabled = false; btn.textContent = 'Añadir País';
-            }
-        });
-    }
-
-    const editPaisModalElement = document.getElementById('editPaisModal');
-    if (editPaisModalElement) {
-        const editPaisModal = new bootstrap.Modal(editPaisModalElement);
-        const editForm = document.getElementById('edit-pais-form');
-        const inputId = document.getElementById('edit-pais-id');
-        const inputNombre = document.getElementById('edit-nombrePais');
-        const inputMoneda = document.getElementById('edit-codigoMoneda');
-
-        document.querySelectorAll('.edit-pais-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const t = e.currentTarget;
-                inputId.value = t.dataset.paisId;
-                inputNombre.value = t.dataset.nombre;
-                inputMoneda.value = t.dataset.moneda;
-            });
-        });
-
-        editForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = editForm.querySelector('button[type="submit"]');
-            const data = { paisId: inputId.value, nombrePais: inputNombre.value, codigoMoneda: inputMoneda.value };
-
-            btn.disabled = true; btn.textContent = 'Guardando...';
-            try {
-                const res = await fetch('../api/?accion=updatePais', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-                });
-                const result = await res.json();
-                if (res.ok && result.success) {
-                    editPaisModal.hide();
-                    window.showInfoModal('Éxito', 'País actualizado.', true, () => window.location.reload());
-                } else throw new Error(result.error);
-            } catch (error) {
-                window.showInfoModal('Error', error.message, false);
-            } finally {
-                btn.disabled = false; btn.textContent = 'Guardar Cambios';
-            }
-        });
-    }
-
-    const userDetailsModalElement = document.getElementById('userDetailsModal');
-    if (userDetailsModalElement) {
-        const modalTitle = document.getElementById('userDetailsModalLabel');
-        const els = {
-            nombre: document.getElementById('modalUserNombreCompleto'),
-            email: document.getElementById('modalUserEmail'),
-            tel: document.getElementById('modalUserTelefono'),
-            fecha: document.getElementById('modalUserFechaRegistro'),
-            verif: document.getElementById('modalUserVerificacion'),
-            tfa: document.getElementById('modalUser2FA'),
-            docF: document.getElementById('modalUserDocFrenteContainer'),
-            docR: document.getElementById('modalUserDocReversoContainer')
-        };
-
-        userDetailsModalElement.addEventListener('show.bs.modal', (e) => {
-            const btn = e.relatedTarget;
-            if (!btn || !btn.classList.contains('view-user-details-btn')) return;
-
-            modalTitle.textContent = `Ficha Usuario: #${btn.dataset.userId}`;
-            els.nombre.textContent = btn.dataset.nombreCompleto;
-            els.email.textContent = btn.dataset.email;
-            els.tel.textContent = btn.dataset.telefono;
-            els.fecha.textContent = btn.dataset.fechaRegistro;
-
-            els.verif.textContent = btn.dataset.verificacionStatus;
-            els.verif.className = `badge ${btn.dataset.verificacionStatus === 'Verificado' ? 'bg-success' : 'bg-secondary'}`;
-
-            els.tfa.textContent = btn.dataset.twoFaStatus === '1' ? 'Activado' : 'Inactivo';
-            els.tfa.className = `badge ${btn.dataset.twoFaStatus === '1' ? 'bg-success' : 'bg-secondary'}`;
-
-            const createImg = (url) => url ? `<a href="../admin/view_secure_file.php?file=${encodeURIComponent(url)}" target="_blank"><img src="../admin/view_secure_file.php?file=${encodeURIComponent(url)}" class="img-fluid rounded" style="max-height: 150px;"></a>` : '<span class="text-muted small">No subido</span>';
-
-            els.docF.innerHTML = createImg(btn.dataset.docFrente);
-            els.docR.innerHTML = createImg(btn.dataset.docReverso);
         });
     }
 });

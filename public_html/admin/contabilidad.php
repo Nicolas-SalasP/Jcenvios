@@ -16,7 +16,9 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 
     <div class="card shadow-sm mb-4">
-        <div class="card-header"><h5 class="mb-0">Saldos Actuales (Cajas de Destino)</h5></div>
+        <div class="card-header">
+            <h5 class="mb-0">Saldos Actuales (Cajas de Destino)</h5>
+        </div>
         <div class="card-body">
             <div id="saldos-loading" class="text-center p-4">
                 <div class="spinner-border text-primary" role="status">
@@ -31,7 +33,9 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     <div class="row">
         <div class="col-md-5 mb-4">
             <div class="card shadow-sm h-100">
-                <div class="card-header"><h5 class="mb-0">Gestión de Fondos (Recargas)</h5></div>
+                <div class="card-header">
+                    <h5 class="mb-0">Gestión de Fondos (Recargas)</h5>
+                </div>
                 <div class="card-body">
                     <form id="form-agregar-fondos">
                         <div class="mb-3">
@@ -47,11 +51,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <div class="mb-3">
                             <label class="form-label">Tipo de Movimiento</label>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="tipoMovimiento" id="tipo-recarga" value="recarga" checked>
+                                <input class="form-check-input" type="radio" name="tipoMovimiento" id="tipo-recarga"
+                                    value="recarga" checked>
                                 <label class="form-check-label" for="tipo-recarga">Recarga (Agregar fondos)</label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="tipoMovimiento" id="tipo-inicial" value="inicial">
+                                <input class="form-check-input" type="radio" name="tipoMovimiento" id="tipo-inicial"
+                                    value="inicial">
                                 <label class="form-check-label" for="tipo-inicial">Ajuste / Saldo Inicial</label>
                             </div>
                         </div>
@@ -63,18 +69,21 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
         <div class="col-md-7 mb-4">
             <div class="card shadow-sm h-100">
-                <div class="card-header"><h5 class="mb-0">Resumen de Gastos Mensuales</h5></div>
+                <div class="card-header">
+                    <h5 class="mb-0">Resumen de Gastos Mensuales</h5>
+                </div>
                 <div class="card-body">
                     <form id="form-resumen-gastos" class="row g-2">
                         <div class="col-md-5">
                             <label for="resumen-pais-id" class="form-label">País</label>
                             <select id="resumen-pais-id" class="form-select" required>
-                                 <option value="">Cargando...</option>
+                                <option value="">Cargando...</option>
                             </select>
                         </div>
                         <div class="col-md-4">
                             <label for="resumen-mes" class="form-label">Mes</label>
-                            <input type="month" class="form-control" id="resumen-mes" required value="<?php echo date('Y-m'); ?>">
+                            <input type="month" class="form-control" id="resumen-mes" required
+                                value="<?php echo date('Y-m'); ?>">
                         </div>
                         <div class="col-md-3 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">Consultar</button>
@@ -91,7 +100,9 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 
     <div class="card shadow-sm mb-4" id="historial-container" style="display:none;">
-        <div class="card-header"><h5 class="mb-0">Historial de Movimientos del Mes</h5></div>
+        <div class="card-header">
+            <h5 class="mb-0">Historial de Movimientos del Mes</h5>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle">
@@ -100,7 +111,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                             <th>Fecha</th>
                             <th>Tipo</th>
                             <th>Detalle</th>
-                            <th class.text-end">Monto</th>
+                            <th>Responsable</th>
+                            <th class="text-end">Monto</th>
                         </tr>
                     </thead>
                     <tbody id="resumen-movimientos-tbody">

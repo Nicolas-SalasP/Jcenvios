@@ -40,33 +40,37 @@ use App\Controllers\{
 
 header('Content-Type: application/json');
 
-class Container {
+class Container
+{
     private array $instances = [];
     private ?Database $db = null;
 
-    public function getDb(): Database {
+    public function getDb(): Database
+    {
         if ($this->db === null) {
             $this->db = Database::getInstance();
         }
         return $this->db;
     }
 
-    public function get(string $className) {
+    public function get(string $className)
+    {
         if (!isset($this->instances[$className])) {
             $this->instances[$className] = $this->createInstance($className);
         }
         return $this->instances[$className];
     }
 
-    private function createInstance(string $className) {
+    private function createInstance(string $className)
+    {
         return match ($className) {
-            // Repositorios
+                // Repositorios
             UserRepository::class => new UserRepository($this->getDb()),
             RateRepository::class => new RateRepository($this->getDb()),
             CountryRepository::class => new CountryRepository($this->getDb()),
             CuentasBeneficiariasRepository::class => new CuentasBeneficiariasRepository($this->getDb()),
             TransactionRepository::class => new TransactionRepository($this->getDb()),
-            RolRepository::class => new RolRepository($this->getDb()), 
+            RolRepository::class => new RolRepository($this->getDb()),
             EstadoVerificacionRepository::class => new EstadoVerificacionRepository($this->getDb()),
             TipoDocumentoRepository::class => new TipoDocumentoRepository($this->getDb()),
             EstadoTransaccionRepository::class => new EstadoTransaccionRepository($this->getDb()),
@@ -76,7 +80,7 @@ class Container {
             TasasHistoricoRepository::class => new TasasHistoricoRepository($this->getDb()),
             CuentasAdminRepository::class => new CuentasAdminRepository($this->getDb()),
 
-            // Services
+                // Services
             LogService::class => new LogService($this->getDb()),
             NotificationService::class => new NotificationService($this->get(LogService::class)),
             PDFService::class => new PDFService(),
@@ -126,7 +130,7 @@ class Container {
                 $this->get(TasasHistoricoRepository::class)
             ),
 
-            // Controllers
+                // Controllers
             AuthController::class => new AuthController($this->get(UserService::class)),
             ClientController::class => new ClientController(
                 $this->get(TransactionService::class),
@@ -163,60 +167,61 @@ class Container {
 try {
     $container = new Container();
     $accion = $_GET['accion'] ?? '';
-    $requestMethod = $_SERVER['REQUEST_METHOD']; 
+    $requestMethod = $_SERVER['REQUEST_METHOD'];
 
     $routes = [
-        'loginUser'             => [AuthController::class, 'loginUser', 'POST'],
-        'registerUser'          => [AuthController::class, 'registerUser', 'POST'],
-        'requestPasswordReset'  => [AuthController::class, 'requestPasswordReset', 'POST'],
-        'performPasswordReset'  => [AuthController::class, 'performPasswordReset', 'POST'],
-        'verify2FACode'         => [AuthController::class, 'verify2FACode', 'POST'], 
-        'submitContactForm'     => [ClientController::class, 'handleContactForm', 'POST'],
+        'loginUser' => [AuthController::class, 'loginUser', 'POST'],
+        'registerUser' => [AuthController::class, 'registerUser', 'POST'],
+        'requestPasswordReset' => [AuthController::class, 'requestPasswordReset', 'POST'],
+        'performPasswordReset' => [AuthController::class, 'performPasswordReset', 'POST'],
+        'verify2FACode' => [AuthController::class, 'verify2FACode', 'POST'],
+        'submitContactForm' => [ClientController::class, 'handleContactForm', 'POST'],
 
-        'getTasa'               => [ClientController::class, 'getTasa', 'GET'],
-        'getPaises'             => [ClientController::class, 'getPaises', 'GET'],
-        'getDolarBcv'           => [DashboardController::class, 'getDolarBcvData', 'GET'],
+        'getTasa' => [ClientController::class, 'getTasa', 'GET'],
+        'getPaises' => [ClientController::class, 'getPaises', 'GET'],
+        'getDolarBcv' => [DashboardController::class, 'getDolarBcvData', 'GET'],
         'getActiveDestinationCountries' => [ClientController::class, 'getActiveDestinationCountries', 'GET'],
-        'getCuentas'            => [ClientController::class, 'getCuentas', 'GET'],
+        'getCuentas' => [ClientController::class, 'getCuentas', 'GET'],
         'getBeneficiaryDetails' => [ClientController::class, 'getBeneficiaryDetails', 'GET'],
-        'addCuenta'             => [ClientController::class, 'addCuenta', 'POST'],
-        'updateBeneficiary'     => [ClientController::class, 'updateBeneficiary', 'POST'],
-        'deleteBeneficiary'     => [ClientController::class, 'deleteBeneficiary', 'POST'],
-        'createTransaccion'     => [ClientController::class, 'createTransaccion', 'POST'],
-        'cancelTransaction'     => [ClientController::class, 'cancelTransaction', 'POST'],
-        'uploadReceipt'         => [ClientController::class, 'uploadReceipt', 'POST'],
-        'getUserProfile'        => [ClientController::class, 'getUserProfile', 'GET'],
-        'updateUserProfile'     => [ClientController::class, 'updateUserProfile', 'POST'],
-        'uploadVerificationDocs'=> [ClientController::class, 'uploadVerificationDocs', 'POST'],
-        'getFormasDePago'       => [ClientController::class, 'getFormasDePago', 'GET'],
-        'getBeneficiaryTypes'   => [ClientController::class, 'getBeneficiaryTypes', 'GET'],
-        'getDocumentTypes'      => [ClientController::class, 'getDocumentTypes', 'GET'],
-        'getAssignableRoles'    => [ClientController::class, 'getAssignableRoles', 'GET'],
-        'generate2FASecret'     => [ClientController::class, 'generate2FASecret', 'POST'],
-        'enable2FA'             => [ClientController::class, 'enable2FA', 'POST'],
-        'disable2FA'            => [ClientController::class, 'disable2FA', 'POST'],
+        'addCuenta' => [ClientController::class, 'addCuenta', 'POST'],
+        'updateBeneficiary' => [ClientController::class, 'updateBeneficiary', 'POST'],
+        'deleteBeneficiary' => [ClientController::class, 'deleteBeneficiary', 'POST'],
+        'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
+        'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
+        'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
+        'getUserProfile' => [ClientController::class, 'getUserProfile', 'GET'],
+        'updateUserProfile' => [ClientController::class, 'updateUserProfile', 'POST'],
+        'uploadVerificationDocs' => [ClientController::class, 'uploadVerificationDocs', 'POST'],
+        'getFormasDePago' => [ClientController::class, 'getFormasDePago', 'GET'],
+        'getBeneficiaryTypes' => [ClientController::class, 'getBeneficiaryTypes', 'GET'],
+        'getDocumentTypes' => [ClientController::class, 'getDocumentTypes', 'GET'],
+        'getAssignableRoles' => [ClientController::class, 'getAssignableRoles', 'GET'],
+        'generate2FASecret' => [ClientController::class, 'generate2FASecret', 'POST'],
+        'enable2FA' => [ClientController::class, 'enable2FA', 'POST'],
+        'disable2FA' => [ClientController::class, 'disable2FA', 'POST'],
 
-        'updateRate'            => [AdminController::class, 'upsertRate', 'POST'],
-        'deleteRate'            => [AdminController::class, 'deleteRate', 'POST'],
-        'addPais'               => [AdminController::class, 'addPais', 'POST'],
-        'updatePais'            => [AdminController::class, 'updatePais', 'POST'],
-        'updatePaisRol'         => [AdminController::class, 'updatePaisRol', 'POST'],
-        'togglePaisStatus'      => [AdminController::class, 'togglePaisStatus', 'POST'],
-        'processTransaction'    => [AdminController::class, 'processTransaction', 'POST'],
-        'rejectTransaction'     => [AdminController::class, 'rejectTransaction', 'POST'],
-        'adminUploadProof'      => [AdminController::class, 'adminUploadProof', 'POST'],
+        'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
+        'deleteRate' => [AdminController::class, 'deleteRate', 'POST'],
+        'addPais' => [AdminController::class, 'addPais', 'POST'],
+        'updatePais' => [AdminController::class, 'updatePais', 'POST'],
+        'updatePaisRol' => [AdminController::class, 'updatePaisRol', 'POST'],
+        'togglePaisStatus' => [AdminController::class, 'togglePaisStatus', 'POST'],
+        'processTransaction' => [AdminController::class, 'processTransaction', 'POST'],
+        'rejectTransaction' => [AdminController::class, 'rejectTransaction', 'POST'],
+        'adminUploadProof' => [AdminController::class, 'adminUploadProof', 'POST'],
         'updateVerificationStatus' => [AdminController::class, 'updateVerificationStatus', 'POST'],
-        'toggleUserBlock'       => [AdminController::class, 'toggleUserBlock', 'POST'],
-        'getDashboardStats'     => [AdminController::class, 'getDashboardStats', 'GET'],
-        'updateUserRole'        => [AdminController::class, 'updateUserRole', 'POST'],
-        'deleteUser'            => [AdminController::class, 'deleteUser', 'POST'],
-        'getCuentasAdmin'       => [AdminController::class, 'getCuentasAdmin', 'GET'],
-        'saveCuentaAdmin'       => [AdminController::class, 'saveCuentaAdmin', 'POST'],
-        'deleteCuentaAdmin'     => [AdminController::class, 'deleteCuentaAdmin', 'POST'],
+        'toggleUserBlock' => [AdminController::class, 'toggleUserBlock', 'POST'],
+        'getDashboardStats' => [AdminController::class, 'getDashboardStats', 'GET'],
+        'updateUserRole' => [AdminController::class, 'updateUserRole', 'POST'],
+        'deleteUser' => [AdminController::class, 'deleteUser', 'POST'],
+        'getCuentasAdmin' => [AdminController::class, 'getCuentasAdmin', 'GET'],
+        'saveCuentaAdmin' => [AdminController::class, 'saveCuentaAdmin', 'POST'],
+        'deleteCuentaAdmin' => [AdminController::class, 'deleteCuentaAdmin', 'POST'],
+        'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
 
-        'getSaldosContables'    => [ContabilidadController::class, 'getSaldos', 'GET'],
-        'agregarFondos'         => [ContabilidadController::class, 'agregarFondos', 'POST'],
-        'getResumenContable'    => [ContabilidadController::class, 'getResumenMensual', 'GET'],
+        'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
+        'agregarFondos' => [ContabilidadController::class, 'agregarFondos', 'POST'],
+        'getResumenContable' => [ContabilidadController::class, 'getResumenMensual', 'GET'],
     ];
 
     if (isset($routes[$accion])) {

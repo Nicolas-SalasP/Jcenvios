@@ -64,14 +64,17 @@ class TransactionService
     public function createTransaction(array $data): int
     {
         $client = $this->userRepository->findUserById($data['userID']);
-        if (!$client) throw new Exception("Usuario no encontrado.", 404);
-        if ($client['VerificacionEstado'] !== 'Verificado') throw new Exception("Tu cuenta debe estar verificada para realizar transacciones.", 403);
-        if (empty($client['Telefono'])) throw new Exception("Falta tu número de teléfono en el perfil.", 400);
+        if (!$client)
+            throw new Exception("Usuario no encontrado.", 404);
+        if ($client['VerificacionEstado'] !== 'Verificado')
+            throw new Exception("Tu cuenta debe estar verificada para realizar transacciones.", 403);
+        if (empty($client['Telefono']))
+            throw new Exception("Falta tu número de teléfono en el perfil.", 400);
 
         $requiredFields = ['userID', 'cuentaID', 'tasaID', 'montoOrigen', 'monedaOrigen', 'montoDestino', 'monedaDestino', 'formaDePago'];
         foreach ($requiredFields as $field) {
             if (!isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '')) {
-                 throw new Exception("Faltan datos para crear la transacción: $field", 400);
+                throw new Exception("Faltan datos para crear la transacción: $field", 400);
             }
         }
 
@@ -99,7 +102,7 @@ class TransactionService
 
         $formaPagoID = $this->formaPagoRepo->findIdByName($data['formaDePago']);
         if (!$formaPagoID) {
-             throw new Exception("Forma de pago '{$data['formaDePago']}' no válida.", 400);
+            throw new Exception("Forma de pago '{$data['formaDePago']}' no válida.", 400);
         }
         $data['formaPagoID'] = $formaPagoID;
         $data['estadoID'] = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
@@ -107,7 +110,8 @@ class TransactionService
         try {
             $transactionId = $this->txRepository->create($data);
             $txData = $this->txRepository->getFullTransactionDetails($transactionId);
-            if (!$txData) throw new Exception("No se pudieron obtener los detalles de la transacción #{$transactionId}.", 500);
+            if (!$txData)
+                throw new Exception("No se pudieron obtener los detalles de la transacción #{$transactionId}.", 500);
 
             $txData['TelefonoCliente'] = $client['Telefono'];
 
@@ -131,7 +135,7 @@ class TransactionService
     public function handleUserReceiptUpload(int $txId, int $userId, array $fileData): bool
     {
         if (empty($fileData) || $fileData['error'] === UPLOAD_ERR_NO_FILE) {
-             throw new Exception("No se recibió ningún archivo.", 400);
+            throw new Exception("No se recibió ningún archivo.", 400);
         }
 
         $fileHash = hash_file('sha256', $fileData['tmp_name']);
@@ -157,8 +161,8 @@ class TransactionService
         try {
             $affectedRows = $this->txRepository->uploadUserReceipt($txId, $userId, $relativePath, $fileHash, $estadoEnVerificacionID, $estadoPendienteID);
         } catch (\mysqli_sql_exception $e) {
-            @unlink($this->fileHandler->getAbsolutePath($relativePath)); 
-            if ($e->getCode() == 1062) { 
+            @unlink($this->fileHandler->getAbsolutePath($relativePath));
+            if ($e->getCode() == 1062) {
                 $existingTx = $this->txRepository->findByHash($fileHash);
                 $txMsg = $existingTx ? " la transacción #" . $existingTx['TransaccionID'] : " otra transacción";
                 throw new Exception("Este comprobante ya fue subido para" . $txMsg . ".", 409);
@@ -167,10 +171,11 @@ class TransactionService
         }
 
         if ($affectedRows === 0) {
-            @unlink($this->fileHandler->getAbsolutePath($relativePath)); 
-            
+            @unlink($this->fileHandler->getAbsolutePath($relativePath));
+
             $txExists = $this->txRepository->getFullTransactionDetails($txId);
-            if (!$txExists || $txExists['UserID'] != $userId) throw new Exception("La transacción no existe o no te pertenece.", 404);
+            if (!$txExists || $txExists['UserID'] != $userId)
+                throw new Exception("La transacción no existe o no te pertenece.", 404);
 
             $allowedStates = [$estadoPendienteID, $estadoEnVerificacionID];
             if (!in_array($txExists['EstadoID'], $allowedStates)) {
@@ -192,8 +197,10 @@ class TransactionService
 
         if ($affectedRows === 0) {
             $txExists = $this->txRepository->getFullTransactionDetails($txId);
-            if (!$txExists || $txExists['UserID'] != $userId) throw new Exception("La transacción no existe o no te pertenece.", 404);
-            if ($txExists['EstadoID'] !== $estadoPendienteID) throw new Exception("No se puede cancelar. El estado actual es '{$txExists['Estado']}'.", 409);
+            if (!$txExists || $txExists['UserID'] != $userId)
+                throw new Exception("La transacción no existe o no te pertenece.", 404);
+            if ($txExists['EstadoID'] !== $estadoPendienteID)
+                throw new Exception("No se puede cancelar. El estado actual es '{$txExists['Estado']}'.", 409);
             throw new Exception("No se pudo cancelar la transacción.", 500);
         }
 
@@ -209,8 +216,10 @@ class TransactionService
 
         if ($affectedRows === 0) {
             $txExists = $this->txRepository->getFullTransactionDetails($txId);
-            if (!$txExists) throw new Exception("La transacción no existe.", 404);
-            if ($txExists['EstadoID'] !== $estadoEnVerificacionID) throw new Exception("El estado de la transacción es '{$txExists['Estado']}', no 'En Verificación'.", 409);
+            if (!$txExists)
+                throw new Exception("La transacción no existe.", 404);
+            if ($txExists['EstadoID'] !== $estadoEnVerificacionID)
+                throw new Exception("El estado de la transacción es '{$txExists['Estado']}', no 'En Verificación'.", 409);
             throw new Exception("No se pudo confirmar el pago.", 500);
         }
 
@@ -226,8 +235,10 @@ class TransactionService
 
         if ($affectedRows === 0) {
             $txExists = $this->txRepository->getFullTransactionDetails($txId);
-            if (!$txExists) throw new Exception("La transacción no existe.", 404);
-            if ($txExists['EstadoID'] !== $estadoEnVerificacionID) throw new Exception("El estado de la transacción es '{$txExists['Estado']}', no 'En Verificación'.", 409);
+            if (!$txExists)
+                throw new Exception("La transacción no existe.", 404);
+            if ($txExists['EstadoID'] !== $estadoEnVerificacionID)
+                throw new Exception("El estado de la transacción es '{$txExists['Estado']}', no 'En Verificación'.", 409);
             throw new Exception("No se pudo rechazar el pago.", 500);
         }
 
@@ -237,8 +248,8 @@ class TransactionService
 
     public function handleAdminProofUpload(int $adminId, int $txId, array $fileData, float $comisionDestino): bool
     {
-         if (empty($fileData) || $fileData['error'] === UPLOAD_ERR_NO_FILE) {
-             throw new Exception("No se recibió ningún archivo.", 400);
+        if (empty($fileData) || $fileData['error'] === UPLOAD_ERR_NO_FILE) {
+            throw new Exception("No se recibió ningún archivo.", 400);
         }
 
         $relativePath = "";
@@ -250,14 +261,16 @@ class TransactionService
 
         $estadoPagadoID = $this->getEstadoId(self::ESTADO_PAGADO);
         $estadoEnProcesoID = $this->getEstadoId(self::ESTADO_EN_PROCESO);
-        
+
         $affectedRows = $this->txRepository->uploadAdminProof($txId, $relativePath, $estadoPagadoID, $estadoEnProcesoID, $comisionDestino);
 
         if ($affectedRows === 0) {
             @unlink($this->fileHandler->getAbsolutePath($relativePath));
             $txExists = $this->txRepository->getFullTransactionDetails($txId);
-            if (!$txExists) throw new Exception("La transacción no existe.", 404);
-            if ($txExists['EstadoID'] !== $estadoEnProcesoID) throw new Exception("El estado de la transacción es '{$txExists['Estado']}', no 'En Proceso'.", 409);
+            if (!$txExists)
+                throw new Exception("La transacción no existe.", 404);
+            if ($txExists['EstadoID'] !== $estadoEnProcesoID)
+                throw new Exception("El estado de la transacción es '{$txExists['Estado']}', no 'En Proceso'.", 409);
             throw new Exception("No se pudo actualizar la transacción como pagada.", 500);
         }
 
@@ -265,9 +278,9 @@ class TransactionService
 
         if ($txData && !empty($txData['PaisDestinoID'])) {
             $this->contabilidadService->registrarGasto(
-                (int)$txData['PaisDestinoID'],
-                (float)$txData['MontoDestino'],
-                (float)$txData['ComisionDestino'],
+                (int) $txData['PaisDestinoID'],
+                (float) $txData['MontoDestino'],
+                (float) $txData['ComisionDestino'],
                 $adminId,
                 $txId
             );
@@ -278,10 +291,43 @@ class TransactionService
         if ($txData && !empty($txData['TelefonoCliente'])) {
             // $this->notificationService->sendPaymentConfirmationToClientWhatsApp($txData);
         } else {
-             $this->notificationService->logAdminAction($adminId, 'Advertencia Notificación', "TX ID $txId: No se pudo notificar al cliente sobre el pago (faltan datos).");
+            $this->notificationService->logAdminAction($adminId, 'Advertencia Notificación', "TX ID $txId: No se pudo notificar al cliente sobre el pago (faltan datos).");
         }
 
         $this->notificationService->logAdminAction($adminId, 'Admin completó transacción', "TX ID: $txId. Comprobante envío: $relativePath. Comisión: $comisionDestino. Estado: 'Pagado'.");
         return true;
+    }
+
+    public function adminUpdateCommission(int $adminId, int $txId, float $newCommission): void
+    {
+        $txData = $this->txRepository->getFullTransactionDetails($txId);
+        if (!$txData) {
+            throw new Exception("Transacción no encontrada.", 404);
+        }
+        if (!in_array($txData['EstadoID'], [3, 4])) {
+            throw new Exception("Solo se puede editar la comisión en órdenes 'En Proceso' o 'Pagadas'.", 400);
+        }
+
+        $oldCommission = (float) $txData['ComisionDestino'];
+
+        if ($oldCommission === $newCommission) {
+            return;
+        }
+
+        if (!$this->txRepository->updateCommission($txId, $newCommission)) {
+            throw new Exception("Error al actualizar la comisión en la base de datos.", 500);
+        }
+
+        if (!empty($txData['PaisDestinoID'])) {
+            $this->contabilidadService->corregirGastoComision(
+                (int) $txData['PaisDestinoID'],
+                $oldCommission,
+                $newCommission,
+                $adminId,
+                $txId
+            );
+        }
+
+        $this->notificationService->logAdminAction($adminId, 'Admin editó comisión', "TX ID: $txId. De $oldCommission a $newCommission.");
     }
 }

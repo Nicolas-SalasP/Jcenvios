@@ -26,7 +26,7 @@ class ContabilidadRepository
         $stmt->close();
         return $result;
     }
-    
+
     public function getSaldosDashboard(): array
     {
         $sql = "SELECT p.PaisID, p.NombrePais, p.CodigoMoneda, 
@@ -71,7 +71,7 @@ class ContabilidadRepository
         $stmt->close();
         return $newId;
     }
-    
+
     public function getGastosMensuales(int $saldoId, string $mes, string $anio): float
     {
         $sql = "SELECT SUM(Monto) as TotalGastado 
@@ -85,7 +85,7 @@ class ContabilidadRepository
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return (float)($result['TotalGastado'] ?? 0.0);
+        return (float) ($result['TotalGastado'] ?? 0.0);
     }
 
     public function getMovimientosDelMes(int $saldoId, string $mes, string $anio): array
@@ -95,15 +95,19 @@ class ContabilidadRepository
                     m.TipoMovimiento, 
                     m.Monto,
                     m.TransaccionID,
-                    CONCAT(cb.TitularPrimerNombre, ' ', cb.TitularPrimerApellido) AS BeneficiarioNombre
+                    CONCAT(cb.TitularPrimerNombre, ' ', cb.TitularPrimerApellido) AS BeneficiarioNombre,
+                    u.PrimerNombre AS AdminNombre,
+                    u.PrimerApellido AS AdminApellido,
+                    u.Email AS AdminEmail
                 FROM contabilidad_movimientos m
                 LEFT JOIN transacciones t ON m.TransaccionID = t.TransaccionID
                 LEFT JOIN cuentas_beneficiarias cb ON t.CuentaBeneficiariaID = cb.CuentaID
+                LEFT JOIN usuarios u ON m.AdminUserID = u.UserID
                 WHERE m.SaldoID = ? 
                   AND YEAR(m.Timestamp) = ? 
                   AND MONTH(m.Timestamp) = ?
                 ORDER BY m.Timestamp DESC";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("iss", $saldoId, $anio, $mes);
         $stmt->execute();
