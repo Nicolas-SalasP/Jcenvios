@@ -133,6 +133,16 @@ class TransactionService
 
             $txData['TelefonoCliente'] = $client['Telefono'];
 
+            if (!empty($txData['FormaPagoID']) && !empty($txData['PaisOrigenID'])) {
+                $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais(
+                    (int)$txData['FormaPagoID'], 
+                    (int)$txData['PaisOrigenID']
+                );
+                if ($cuentaAdmin) {
+                    $txData['CuentaAdmin'] = $cuentaAdmin;
+                }
+            }
+
             // Generar PDF y enviar notificaciones
             $pdfContent = $this->pdfService->generateOrder($txData);
             $pdfUrl = $this->fileHandler->savePdfTemporarily($pdfContent, $transactionId);

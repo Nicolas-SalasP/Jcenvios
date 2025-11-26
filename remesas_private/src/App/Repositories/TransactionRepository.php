@@ -69,8 +69,11 @@ class TransactionRepository
             T.BeneficiarioBanco,
             T.BeneficiarioNumeroCuenta,
             T.BeneficiarioTelefono,
+            T.FormaPagoID,
 
             TS.ValorTasa,
+            TS.PaisOrigenID, 
+            
             ET.EstadoID, ET.NombreEstado AS Estado,
             FP.FormaPagoID, FP.Nombre AS FormaDePago,
 

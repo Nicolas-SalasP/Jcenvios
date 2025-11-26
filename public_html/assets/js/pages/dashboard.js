@@ -1,42 +1,65 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ==========================================
+    // 1. SELECTORES DEL FLUJO DE TRANSACCIÓN
+    // ==========================================
     const formSteps = document.querySelectorAll('.form-step');
     const nextBtn = document.getElementById('next-btn');
     const prevBtn = document.getElementById('prev-btn');
     const submitBtn = document.getElementById('submit-order-btn');
+
     const paisOrigenSelect = document.getElementById('pais-origen');
     const paisDestinoSelect = document.getElementById('pais-destino');
     const beneficiaryListDiv = document.getElementById('beneficiary-list');
+
     const montoOrigenInput = document.getElementById('monto-origen');
     const montoDestinoInput = document.getElementById('monto-destino');
     const tasaDisplayInput = document.getElementById('tasa-display');
     const currencyLabelDestino = document.getElementById('currency-label-destino');
     const swapCurrencyBtn = document.getElementById('swap-currency-btn');
     const formaDePagoSelect = document.getElementById('forma-pago');
+
     const summaryContainer = document.getElementById('summary-container');
     const transaccionIdFinal = document.getElementById('transaccion-id-final');
+
     const userIdInput = document.getElementById('user-id');
     const selectedTasaIdInput = document.getElementById('selected-tasa-id');
     const selectedCuentaIdInput = document.getElementById('selected-cuenta-id');
+    const stepperWrapper = document.querySelector('.stepper-wrapper');
+    const stepperItems = document.querySelectorAll('.stepper-item');
+
+    // ==========================================
+    // 2. SELECTORES DEL MODAL DE BENEFICIARIO (NUEVO)
+    // ==========================================
     const addAccountBtn = document.getElementById('add-account-btn');
     const addAccountModalElement = document.getElementById('addAccountModal');
     const addBeneficiaryForm = document.getElementById('add-beneficiary-form');
+
     const benefPaisIdInput = document.getElementById('benef-pais-id');
     const phoneCodeSelect = document.getElementById('benef-phone-code');
     const phoneNumberInput = document.getElementById('benef-phone-number');
     const benefTipoSelect = document.getElementById('benef-tipo');
     const benefDocTypeSelect = document.getElementById('benef-doc-type');
     const benefDocNumberInput = document.getElementById('benef-doc-number');
-    const stepperWrapper = document.querySelector('.stepper-wrapper');
-    const stepperItems = document.querySelectorAll('.stepper-item');
+    const benefDocPrefix = document.getElementById('benef-doc-prefix');
 
+    // Contenedores dinámicos del modal
+    const containerAccountNum = document.getElementById('container-account-number');
+    const containerPhoneNum = document.getElementById('container-phone-number');
+    const inputAccountNum = document.getElementById('benef-account-num');
+
+    // ==========================================
+    // 3. VARIABLES GLOBALES Y UTILIDADES
+    // ==========================================
     let currentStep = 1;
     let activeInput = 'origen';
     let currentRate = 0;
     let isCalculating = false;
     let fetchRateTimer = null;
+    let allDocumentTypes = [];
     const LOGGED_IN_USER_ID = userIdInput ? userIdInput.value : null;
 
     const numberFormatter = new Intl.NumberFormat('es-ES', { style: 'decimal', maximumFractionDigits: 2, minimumFractionDigits: 2 });
+
     const cleanNumber = (value) => {
         if (typeof value !== 'string' || !value) return '';
         return value.replace(/\./g, '').replace(',', '.');
@@ -67,6 +90,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
 
+    // ==========================================
+    // 4. LÓGICA DE VISTA (STEPS)
+    // ==========================================
     const updateView = () => {
         formSteps.forEach((step, index) => {
             step.classList.toggle('active', (index + 1) === currentStep);
@@ -92,6 +118,144 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // ==========================================
+    // 5. LÓGICA DEL MODAL DE BENEFICIARIO
+    // ==========================================
+
+    const toggleInputVisibility = (toggleId, containerId, inputId, fieldName) => {
+        const toggle = document.getElementById(toggleId);
+        const container = document.getElementById(containerId);
+        const input = document.getElementById(inputId);
+
+        if (toggle && container && input) {
+            toggle.checked = false;
+            container.classList.remove('d-none');
+            input.required = true;
+            toggle.addEventListener('change', async (e) => {
+                if (toggle.checked) {
+                    // Usamos el modal de confirmación en lugar de confirm()
+                    const confirmed = await window.showConfirmModal('Confirmar Acción', `El beneficiario no tiene ${fieldName}, ¿está seguro?`);
+
+                    if (confirmed) {
+                        container.classList.add('d-none');
+                        input.required = false;
+                        input.value = '';
+                    } else {
+                        toggle.checked = false;
+                    }
+                } else {
+                    container.classList.remove('d-none');
+                    input.required = true;
+                }
+            });
+        }
+    };
+
+    toggleInputVisibility('toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname', 'segundo nombre');
+    toggleInputVisibility('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname', 'segundo apellido');
+
+    const updatePaymentFields = () => {
+        if (!benefTipoSelect) return;
+        const typeText = benefTipoSelect.options[benefTipoSelect.selectedIndex]?.text.toLowerCase() || '';
+        const isMobile = typeText.includes('móvil') || typeText.includes('movil');
+
+        if (isMobile) {
+            containerAccountNum.classList.add('d-none');
+            inputAccountNum.required = false;
+            inputAccountNum.value = 'PAGO MOVIL';
+
+            containerPhoneNum.classList.remove('d-none');
+            phoneNumberInput.required = true;
+            if (phoneCodeSelect) phoneCodeSelect.required = true;
+        } else {
+            containerAccountNum.classList.remove('d-none');
+            inputAccountNum.required = true;
+            if (inputAccountNum.value === 'PAGO MOVIL') inputAccountNum.value = '';
+
+            containerPhoneNum.classList.add('d-none');
+            phoneNumberInput.required = false;
+            if (phoneCodeSelect) phoneCodeSelect.required = false;
+        }
+    };
+
+    const updateDocumentValidation = () => {
+        if (!benefDocTypeSelect || !benefPaisIdInput) return;
+
+        const paisId = parseInt(benefPaisIdInput.value);
+        const docTypeOption = benefDocTypeSelect.options[benefDocTypeSelect.selectedIndex];
+        const docName = docTypeOption ? docTypeOption.text.toLowerCase() : '';
+        const isVenezuela = (paisId === 3);
+
+        benefDocPrefix.classList.add('d-none');
+        benefDocNumberInput.value = benefDocNumberInput.value.replace(/[^0-9a-zA-Z]/g, '');
+        benefDocNumberInput.maxLength = 20;
+        benefDocNumberInput.oninput = null;
+
+        if (isVenezuela) {
+            if (docName.includes('cédula') || docName.includes('cedula')) {
+                benefDocPrefix.classList.remove('d-none');
+                benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option>';
+                benefDocNumberInput.maxLength = 8;
+                benefDocNumberInput.placeholder = '12345678';
+                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
+            } else if (docName.includes('rif')) {
+                benefDocPrefix.classList.remove('d-none');
+                benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option><option value="J">J</option><option value="G">G</option>';
+                benefDocNumberInput.maxLength = 9;
+                benefDocNumberInput.placeholder = '123456789';
+                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
+            } else if (docName.includes('pasaporte')) {
+                benefDocPrefix.classList.remove('d-none');
+                benefDocPrefix.innerHTML = '<option value="P">P</option><option value="V">V</option><option value="E">E</option>';
+                benefDocNumberInput.maxLength = 15;
+                benefDocNumberInput.placeholder = 'Num Pasaporte';
+                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^a-zA-Z0-9]/g, ''); };
+            }
+        } else {
+            if (docName.includes('rut')) {
+                benefDocNumberInput.maxLength = 12;
+                benefDocNumberInput.placeholder = '12.345.678-9';
+            } else {
+                benefDocNumberInput.maxLength = 15;
+                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^a-zA-Z0-9]/g, ''); };
+            }
+        }
+    };
+
+    const updateDocumentTypesList = () => {
+        const paisId = parseInt(benefPaisIdInput.value);
+        const isVenezuela = (paisId === 3);
+
+        benefDocTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
+
+        allDocumentTypes.forEach(doc => {
+            const name = doc.nombre.toUpperCase();
+            let show = true;
+
+            if (isVenezuela) {
+                if (name === 'RUT' || name === 'E-RUT' || name === 'DNI') show = false;
+            } else {
+                if (name === 'RIF') show = false;
+            }
+
+            if (show) {
+                benefDocTypeSelect.innerHTML += `<option value="${doc.id}">${doc.nombre}</option>`;
+            }
+        });
+        updateDocumentValidation();
+    };
+
+    if (benefTipoSelect) benefTipoSelect.addEventListener('change', updatePaymentFields);
+    if (benefDocTypeSelect) benefDocTypeSelect.addEventListener('change', updateDocumentValidation);
+    if (inputAccountNum) inputAccountNum.addEventListener('input', function () {
+        this.value = this.value.replace(/[^0-9]/g, '').substring(0, 20);
+    });
+
+
+    // ==========================================
+    // 6. CARGA DE DATOS (API)
+    // ==========================================
+
     const loadPaises = async (rol, selectElement) => {
         if (!selectElement) return;
         selectElement.disabled = true;
@@ -105,6 +269,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectElement.innerHTML += `<option value="${pais.PaisID}" data-currency="${pais.CodigoMoneda}">${pais.NombrePais}</option>`;
             });
             selectElement.disabled = false;
+
+            if (rol === 'Origen') {
+                if (selectElement.value) {
+                    loadFormasDePago(selectElement.value);
+                }
+            }
+
         } catch (error) {
             console.error('Error loadPaises:', error);
             selectElement.innerHTML = '<option value="">Error al cargar</option>';
@@ -119,7 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const targetPaisId = parseInt(paisID);
-
             const response = await fetch(`../api/?accion=getCuentas&paisID=${targetPaisId}`);
             if (!response.ok) throw new Error('Error al cargar beneficiarios');
 
@@ -141,17 +311,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const infoDiv = document.createElement('div');
                     const alias = cuenta.Alias || 'Beneficiario sin alias';
                     const banco = cuenta.NombreBanco || 'Banco desconoc.';
-                    const numero = cuenta.NumeroCuenta ? `...${cuenta.NumeroCuenta.slice(-4)}` : '';
 
-                    infoDiv.innerHTML = `<strong>${alias}</strong> <small class="text-muted">(${banco} ${numero})</small>`;
+                    let numero = cuenta.NumeroCuenta;
+                    if (numero === 'PAGO MOVIL' || numero.length < 5) {
+                        numero = cuenta.NumeroTelefono || 'Teléfono';
+                    } else {
+                        numero = '...' + numero.slice(-4);
+                    }
+
+                    infoDiv.innerHTML = `<strong>${alias}</strong> <small class="text-muted">(${banco} - ${numero})</small>`;
 
                     label.appendChild(radio);
                     label.appendChild(infoDiv);
                     beneficiaryListDiv.appendChild(label);
 
-                    label.addEventListener('click', () => {
-                        radio.checked = true;
-                    });
+                    label.addEventListener('click', () => { radio.checked = true; });
                 });
             } else {
                 beneficiaryListDiv.innerHTML = `
@@ -163,10 +337,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Error loadBeneficiaries:', error);
-            beneficiaryListDiv.innerHTML = '<p class="text-danger text-center">Error al cargar los beneficiarios. Intenta recargar la página.</p>';
+            beneficiaryListDiv.innerHTML = '<p class="text-danger text-center">Error al cargar los beneficiarios.</p>';
         }
     };
-
 
     const loadFormasDePago = async (origenId = 0) => {
         if (!formaDePagoSelect) return;
@@ -195,44 +368,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const loadTiposBeneficiario = async () => {
         if (!benefTipoSelect) return;
-        benefTipoSelect.disabled = true;
-        benefTipoSelect.innerHTML = '<option value="">Cargando...</option>';
         try {
             const response = await fetch(`../api/?accion=getBeneficiaryTypes`);
-            if (!response.ok) throw new Error('Error al cargar tipos de beneficiario');
             const tipos = await response.json();
             benefTipoSelect.innerHTML = '<option value="">Selecciona...</option>';
-            tipos.forEach(tipo => {
-                benefTipoSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
-            });
-            benefTipoSelect.disabled = false;
-        } catch (error) {
-            console.error('Error loadTiposBeneficiario:', error);
-            benefTipoSelect.innerHTML = '<option value="">Error al cargar</option>';
-            benefTipoSelect.disabled = false;
-        }
+            tipos.forEach(t => benefTipoSelect.innerHTML += `<option value="${t}">${t}</option>`);
+        } catch (e) { console.error(e); }
     };
 
     const loadTiposDocumento = async () => {
         if (!benefDocTypeSelect) return;
-        benefDocTypeSelect.disabled = true;
-        benefDocTypeSelect.innerHTML = '<option value="">Cargando...</option>';
         try {
             const response = await fetch(`../api/?accion=getDocumentTypes`);
-            if (!response.ok) throw new Error('Error al cargar tipos de documento');
             const tipos = await response.json();
-            benefDocTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
-            tipos.forEach(tipo => {
-                benefDocTypeSelect.innerHTML += `<option value="${tipo.nombre}">${tipo.nombre}</option>`;
-            });
-            benefDocTypeSelect.disabled = false;
-        } catch (error) {
-            console.error('Error loadTiposDocumento:', error);
-            benefDocTypeSelect.innerHTML = '<option value="">Error al cargar</option>';
-            benefDocTypeSelect.disabled = false;
-        }
+            allDocumentTypes = tipos;
+        } catch (e) { console.error(e); }
     };
 
+    // ==========================================
+    // 7. LÓGICA DE TASA Y CÁLCULO
+    // ==========================================
     const fetchRate = async () => {
         const origenID = paisOrigenSelect.value;
         const destinoID = paisDestinoSelect.value;
@@ -269,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (response.status === 404) {
                     tasaDisplayInput.value = 'Tasa no disponible para esta ruta.';
                 } else {
-                    tasaDisplayInput.value = 'Error al obtener tasa (Servidor).';
+                    tasaDisplayInput.value = 'Error al obtener tasa.';
                 }
                 currentRate = 0;
                 selectedTasaIdInput.value = '';
@@ -280,63 +435,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     const selectedDestinoOption = paisDestinoSelect.options[paisDestinoSelect.selectedIndex];
                     const monedaDestino = selectedDestinoOption ? selectedDestinoOption.getAttribute('data-currency') : 'N/A';
 
-                    // --- CAMBIO: MUESTRA 5 DECIMALES ---
                     tasaDisplayInput.value = `1 CLP ≈ ${currentRate.toFixed(5)} ${monedaDestino}`;
-                    // -----------------------------------
-
                     selectedTasaIdInput.value = tasaInfo.TasaID;
                 } else {
-                    tasaDisplayInput.value = 'Tasa no disponible (Datos inválidos).';
+                    tasaDisplayInput.value = 'Tasa no disponible.';
                     currentRate = 0;
                     selectedTasaIdInput.value = '';
                 }
             }
         } catch (e) {
-            console.error("Error en fetchRate:", e);
-            tasaDisplayInput.value = 'Error de red al obtener tasa.';
+            console.error("Error fetchRate:", e);
+            tasaDisplayInput.value = 'Error de red.';
             currentRate = 0;
             selectedTasaIdInput.value = '';
         }
-
         updateCalculation();
     };
 
     const updateCalculation = () => {
         if (isCalculating) return;
-
         isCalculating = true;
-        let sourceInput, targetInput;
-
-        if (activeInput === 'origen') {
-            sourceInput = montoOrigenInput;
-            targetInput = montoDestinoInput;
-        } else {
-            sourceInput = montoDestinoInput;
-            targetInput = montoOrigenInput;
-        }
-
+        let sourceInput = (activeInput === 'origen') ? montoOrigenInput : montoDestinoInput;
+        let targetInput = (activeInput === 'origen') ? montoDestinoInput : montoOrigenInput;
         const sourceValue = parseFloat(cleanNumber(sourceInput.value)) || 0;
         let targetValue = 0;
 
         if (currentRate > 0 && sourceValue > 0) {
-            if (activeInput === 'origen') {
-                targetValue = sourceValue * currentRate;
-            } else {
-                targetValue = sourceValue / currentRate;
-            }
+            targetValue = (activeInput === 'origen') ? sourceValue * currentRate : sourceValue / currentRate;
             targetInput.value = numberFormatter.format(targetValue);
         } else {
             targetInput.value = '';
         }
-
         setTimeout(() => { isCalculating = false; }, 50);
     };
 
     const handleAmountInput = () => {
         clearTimeout(fetchRateTimer);
-        fetchRateTimer = setTimeout(() => {
-            fetchRate();
-        }, 300);
+        fetchRateTimer = setTimeout(() => { fetchRate(); }, 300);
     };
 
     const createSummary = () => {
@@ -377,13 +512,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const monedaDestinoValue = selectedDestinoOption ? selectedDestinoOption.getAttribute('data-currency') : null;
 
         if (!monedaDestinoValue) {
-            if (window.showInfoModal) {
-                window.showInfoModal('Error de Datos', 'No se pudo determinar la moneda de destino. Recarga la página e intenta de nuevo.', false);
-            } else {
-                alert('Error: No se pudo determinar la moneda de destino.');
-            }
+            window.showInfoModal('Error', 'No se pudo determinar la moneda de destino.', false);
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Confirmar y Generar Orden';
             return;
         }
 
@@ -398,91 +528,47 @@ document.addEventListener('DOMContentLoaded', () => {
             formaDePago: formaDePagoSelect.value
         };
 
-        if (isNaN(parseFloat(transactionData.montoOrigen)) || parseFloat(transactionData.montoOrigen) <= 0 ||
-            isNaN(parseFloat(transactionData.montoDestino)) || parseFloat(transactionData.montoDestino) <= 0 ||
-            !transactionData.cuentaID || !transactionData.tasaID || !transactionData.formaDePago) {
-            if (window.showInfoModal) {
-                window.showInfoModal('Datos Incompletos', 'Asegúrate de haber completado todos los pasos anteriores correctamente (selección de beneficiario, montos, forma de pago y tasa válida).', false);
-            } else {
-                alert('Error: Datos incompletos o inválidos para crear la transacción.');
-            }
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Confirmar y Generar Orden';
-            return;
-        }
-
         try {
             const response = await fetch('../api/?accion=createTransaccion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(transactionData)
             });
-
-            let result;
-            const contentType = response.headers.get("content-type");
-
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                result = await response.json();
-            } else {
-                result = { success: false, error: await response.text() };
-                console.error("Respuesta no JSON del servidor:", result.error);
-            }
-
-            if (!response.ok) {
-                const errorMsg = result?.error || `Error del servidor (${response.status}). Intenta de nuevo.`;
-                if (window.showInfoModal) {
-                    window.showInfoModal('Error al Crear Orden', errorMsg, false);
-                } else {
-                    alert('Error: ' + errorMsg);
-                }
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Confirmar y Generar Orden';
-                return;
-            }
+            const result = await response.json();
 
             if (result.success) {
                 transaccionIdFinal.textContent = result.transaccionID;
                 currentStep++;
                 updateView();
             } else {
-                const errorMsg = result.error || 'No se pudo crear la transacción (respuesta inesperada).';
-                if (window.showInfoModal) {
-                    window.showInfoModal('Error al Crear Orden', errorMsg, false);
-                } else {
-                    alert('Error: ' + errorMsg);
-                }
+                window.showInfoModal('Error', result.error || 'Error desconocido', false);
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Confirmar y Generar Orden';
             }
         } catch (e) {
-            console.error('Error en submitTransaction (catch):', e);
-            if (window.showInfoModal) {
-                window.showInfoModal('Error de Red', 'No se pudo conectar con el servidor para crear la orden. Verifica tu conexión.', false);
-            } else {
-                alert('No se pudo conectar con el servidor.');
-            }
+            window.showInfoModal('Error', 'Error de conexión', false);
             submitBtn.disabled = false;
             submitBtn.textContent = 'Confirmar y Generar Orden';
         }
     };
 
+    // ==========================================
+    // 8. EVENTOS DEL FLUJO (CON VALIDACIÓN MODAL)
+    // ==========================================
     nextBtn?.addEventListener('click', async () => {
         let isValid = false;
-        let alertMessage = '';
-
         if (currentStep === 1) {
             if (paisOrigenSelect.value && paisDestinoSelect.value && paisOrigenSelect.value !== paisDestinoSelect.value) {
                 try {
                     await loadBeneficiaries(paisDestinoSelect.value);
                     isValid = true;
-                } catch (error) {
-                    alertMessage = "Error al cargar los beneficiarios para el país destino. Intenta de nuevo o contacta soporte.";
-                    isValid = false;
+                } catch (e) {
+                    window.showInfoModal('Error', 'Error al cargar beneficiarios.', false);
                 }
             } else if (paisOrigenSelect.value === paisDestinoSelect.value) {
-                alertMessage = 'El país de origen y destino no pueden ser iguales.';
+                window.showInfoModal('Atención', 'El país de origen y destino no pueden ser iguales.', false);
             } else {
-                alertMessage = 'Debes seleccionar un país de origen y destino.';
+                window.showInfoModal('Atención', 'Selecciona países válidos.', false);
             }
         } else if (currentStep === 2) {
             const beneficiarioSeleccionado = document.querySelector('input[name="beneficiary-radio"]:checked');
@@ -490,93 +576,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedCuentaIdInput.value = beneficiarioSeleccionado.value;
                 isValid = true;
             } else {
-                alertMessage = 'Debes seleccionar una cuenta de beneficiario o registrar una nueva.';
+                window.showInfoModal('Atención', 'Debes seleccionar un beneficiario.', false);
             }
         } else if (currentStep === 3) {
             const monto = parseFloat(cleanNumber(montoOrigenInput.value)) || 0;
             if (monto > 0 && formaDePagoSelect.value && currentRate > 0 && selectedTasaIdInput.value) {
                 createSummary();
                 isValid = true;
-            } else if (currentRate <= 0 || !selectedTasaIdInput.value) {
-                alertMessage = 'La tasa de cambio no está disponible o no se pudo cargar. No se puede continuar.';
-            } else if (monto <= 0) {
-                alertMessage = 'Debes ingresar un monto a enviar válido.';
             } else {
-                alertMessage = 'Debes seleccionar una forma de pago.';
+                window.showInfoModal('Atención', 'Verifica el monto, la tasa y la forma de pago.', false);
             }
         }
 
         if (isValid && currentStep < 4) {
             currentStep++;
             updateView();
-        } else if (alertMessage) {
-            if (window.showInfoModal) window.showInfoModal('Información Requerida', alertMessage, false);
-            else alert(alertMessage);
         }
     });
 
-    prevBtn?.addEventListener('click', () => {
-        if (currentStep > 1 && currentStep < 5) {
-            currentStep--;
-            updateView();
-        }
-    });
+    prevBtn?.addEventListener('click', () => { if (currentStep > 1 && currentStep < 5) { currentStep--; updateView(); } });
 
     paisOrigenSelect?.addEventListener('change', () => {
         paisDestinoSelect.value = '';
-        currencyLabelDestino.textContent = 'N/A';
-        tasaDisplayInput.value = '';
-        currentRate = 0;
-        selectedTasaIdInput.value = '';
-        beneficiaryListDiv.innerHTML = '';
         loadPaises('Destino', paisDestinoSelect);
-        updateCalculation();
         loadFormasDePago(paisOrigenSelect.value);
     });
-
-    paisDestinoSelect?.addEventListener('change', () => {
-        const selectedOption = paisDestinoSelect.options[paisDestinoSelect.selectedIndex];
-        currencyLabelDestino.textContent = selectedOption ? selectedOption.getAttribute('data-currency') || 'N/A' : 'N/A';
-        fetchRate();
-        loadBeneficiaries(paisDestinoSelect.value);
-    });
-
-    swapCurrencyBtn?.addEventListener('click', () => {
-        activeInput = (activeInput === 'origen') ? 'destino' : 'origen';
-        montoOrigenInput.readOnly = activeInput !== 'origen';
-        montoDestinoInput.readOnly = activeInput !== 'destino';
-        montoOrigenInput.classList.toggle('bg-light', activeInput !== 'origen');
-        montoDestinoInput.classList.toggle('bg-light', activeInput !== 'destino');
-        handleAmountInput();
-    });
-
+    paisDestinoSelect?.addEventListener('change', () => { fetchRate(); loadBeneficiaries(paisDestinoSelect.value); });
+    swapCurrencyBtn?.addEventListener('click', () => { activeInput = activeInput === 'origen' ? 'destino' : 'origen'; handleAmountInput(); });
     montoOrigenInput?.addEventListener('input', handleAmountInput);
     montoDestinoInput?.addEventListener('input', handleAmountInput);
-
-    montoOrigenInput?.addEventListener('focus', () => { activeInput = 'origen'; montoOrigenInput.readOnly = false; montoDestinoInput.readOnly = true; montoOrigenInput.classList.remove('bg-light'); montoDestinoInput.classList.add('bg-light'); });
-    montoDestinoInput?.addEventListener('focus', () => { activeInput = 'destino'; montoDestinoInput.readOnly = false; montoOrigenInput.readOnly = true; montoDestinoInput.classList.remove('bg-light'); montoOrigenInput.classList.add('bg-light'); });
-
-    [montoOrigenInput, montoDestinoInput].forEach(input => {
-        if (!input) return;
-        input.addEventListener('blur', (e) => {
-            const valorNumerico = parseFloat(cleanNumber(e.target.value));
-            if (!isNaN(valorNumerico) && valorNumerico > 0) {
-                e.target.value = numberFormatter.format(valorNumerico);
-            } else {
-                e.target.value = '';
-            }
-            if (e.target.id === `monto-${activeInput}`) {
-                updateCalculation();
-            }
-        });
-    });
-
     submitBtn?.addEventListener('click', submitTransaction);
 
-    phoneNumberInput?.addEventListener('input', (e) => {
-        e.target.value = e.target.value.replace(/\D/g, '');
-    });
-
+    // ==========================================
+    // 9. MODAL AÑADIR BENEFICIARIO
+    // ==========================================
     let addAccountModalInstance = null;
     if (addAccountModalElement) {
         addAccountModalInstance = new bootstrap.Modal(addAccountModalElement);
@@ -584,156 +617,81 @@ document.addEventListener('DOMContentLoaded', () => {
         addAccountBtn?.addEventListener('click', () => {
             const paisDestinoID = paisDestinoSelect.value;
             if (!paisDestinoID) {
-                if (window.showInfoModal) window.showInfoModal('Acción Requerida', 'Por favor, selecciona un país de destino antes de añadir una cuenta.', false);
-                else alert('Por favor, selecciona un país de destino antes de añadir una cuenta.');
+                window.showInfoModal('Atención', 'Selecciona un país de destino primero.', false);
                 return;
             }
-            benefPaisIdInput.value = paisDestinoID;
 
-            phoneCodeSelect.innerHTML = '<option value="">Código...</option>';
-            let selectedCodeFound = false;
-            const paisDestinoData = countryPhoneCodes.find(c => c.paisId && c.paisId.toString() === paisDestinoID);
-
-            countryPhoneCodes.forEach(country => {
-                phoneCodeSelect.innerHTML += `<option value="${country.code}">${country.flag} ${country.code}</option>`;
-                if (paisDestinoData && country.code === paisDestinoData.code && country.paisId === paisDestinoData.paisId) {
-                    isSelected = true;
-                    selectedCodeFound = true;
-                }
-            });
-            if (selectedCodeFound && paisDestinoData) {
-                phoneCodeSelect.value = paisDestinoData.code;
-            } else {
-                phoneCodeSelect.value = "";
+            // BLOQUEAR PAÍS EN EL MODAL
+            benefPaisIdInput.innerHTML = '';
+            const selectedOption = paisDestinoSelect.options[paisDestinoSelect.selectedIndex];
+            if (selectedOption) {
+                const option = document.createElement('option');
+                option.value = selectedOption.value;
+                option.text = selectedOption.text;
+                option.selected = true;
+                benefPaisIdInput.appendChild(option);
+                benefPaisIdInput.value = paisDestinoID;
             }
-
-            if (benefDocNumberInput) {
-                benefDocNumberInput.maxLength = 20;
-                benefDocNumberInput.removeAttribute('pattern');
-                benefDocNumberInput.placeholder = 'Número de Documento';
-            }
-
-            benefDocTypeSelect.value = '';
-            phoneNumberInput.maxLength = 15;
-            phoneNumberInput.placeholder = 'Número sin código de país';
+            benefPaisIdInput.disabled = true;
 
             addBeneficiaryForm.reset();
-            benefPaisIdInput.value = paisDestinoID;
-            if (selectedCodeFound && paisDestinoData) {
-                phoneCodeSelect.value = paisDestinoData.code;
-            } else {
-                phoneCodeSelect.value = "";
-            }
+            phoneCodeSelect.innerHTML = '<option>...</option>';
+            countryPhoneCodes.forEach(c => phoneCodeSelect.innerHTML += `<option value="${c.code}">${c.flag} ${c.code}</option>`);
+
+            document.getElementById('container-benef-segundo-nombre').classList.remove('d-none');
+            document.getElementById('container-benef-segundo-apellido').classList.remove('d-none');
+
+            updateDocumentTypesList();
+            updatePaymentFields();
 
             addAccountModalInstance.show();
         });
 
-        benefDocTypeSelect?.addEventListener('change', () => {
-            if (benefDocNumberInput) {
-                benefDocNumberInput.maxLength = 20;
-                benefDocNumberInput.placeholder = 'Número de Documento';
-                benefDocNumberInput.removeAttribute('pattern');
-                benefDocNumberInput.value = '';
-            }
-        });
-
         addBeneficiaryForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const submitModalButton = addBeneficiaryForm.closest('.modal-content').querySelector('button[type="submit"]');
-            submitModalButton.disabled = true;
-            submitModalButton.textContent = 'Guardando...';
+            const btn = addBeneficiaryForm.closest('.modal-content').querySelector('button[type="submit"]');
+            btn.disabled = true; btn.textContent = 'Guardando...';
 
             const formData = new FormData(addBeneficiaryForm);
+
+            if (!benefDocPrefix.classList.contains('d-none')) formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
+
+            if (containerPhoneNum.classList.contains('d-none')) formData.set('numeroTelefono', null);
+            else formData.set('numeroTelefono', (formData.get('phoneCode') || '') + (formData.get('phoneNumber') || ''));
+            formData.delete('phoneCode'); formData.delete('phoneNumber');
+
+            if (containerAccountNum.classList.contains('d-none')) formData.set('numeroCuenta', 'PAGO MOVIL');
+
             const data = Object.fromEntries(formData.entries());
-
-            if (!data.paisID || data.paisID === '') {
-                console.error("Error: paisID está vacío en el formulario del modal.");
-                window.showInfoModal('Error', 'El ID del país no se encontró. Cierra el modal y vuelve a intentarlo.', false);
-                submitModalButton.disabled = false;
-                submitModalButton.textContent = 'Guardar Cuenta';
-                return;
-            }
-
-            if (data.phoneCode && data.phoneNumber) {
-                data.numeroTelefono = data.phoneCode + data.phoneNumber.replace(/\D/g, '');
-            } else if (data.phoneNumber) {
-                data.numeroTelefono = data.phoneNumber.replace(/\D/g, '');
-            } else {
-                data.numeroTelefono = null;
-            }
-            delete data.phoneCode;
-            delete data.phoneNumber;
-
-            data.tipoBeneficiario = benefTipoSelect.value;
-            data.tipoDocumento = benefDocTypeSelect.value;
+            data.paisID = benefPaisIdInput.value; // Usar valor aunque esté disabled
 
             try {
-                const response = await fetch('../api/?accion=addCuenta', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(data)
+                const res = await fetch('../api/?accion=addCuenta', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
                 });
-
-                let result;
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.indexOf("application/json") !== -1) {
-                    result = await response.json();
-                } else {
-                    const errorText = await response.text();
-                    result = { success: false, error: `Error ${response.status}: ${errorText || 'Respuesta inesperada del servidor.'}` };
-                    console.error("Respuesta no JSON al agregar cuenta:", errorText);
-                }
-
-                if (response.ok && result.success) {
+                const result = await res.json();
+                if (result.success) {
                     addAccountModalInstance.hide();
-                    addBeneficiaryForm.reset();
-                    if (window.showInfoModal) {
-                        window.showInfoModal('Éxito', '¡Cuenta de beneficiario guardada con éxito!', true);
-                    } else {
-                        alert('¡Cuenta de beneficiario guardada con éxito!');
-                    }
+                    window.showInfoModal('Éxito', 'Cuenta guardada.', true);
                     loadBeneficiaries(paisDestinoSelect.value);
                 } else {
-                    const errorMsg = result.error || 'No se pudo guardar la cuenta (error desconocido).';
-                    if (window.showInfoModal) {
-                        window.showInfoModal('Error al Guardar', errorMsg, false);
-                    } else {
-                        alert('Error: ' + errorMsg);
-                    }
+                    window.showInfoModal('Error', result.error, false);
                 }
-            } catch (error) {
-                console.error('Error al guardar la cuenta (catch):', error);
-                let errorMsg = 'No se pudo conectar con el servidor para guardar la cuenta.';
-                if (error instanceof SyntaxError && error.message.includes('JSON')) {
-                    errorMsg = 'Error al procesar la respuesta del servidor. Intenta de nuevo o contacta soporte.';
-                }
-                if (window.showInfoModal) {
-                    window.showInfoModal('Error de Red o Datos', errorMsg, false);
-                } else {
-                    alert(errorMsg);
-                }
-            } finally {
-                submitModalButton.disabled = false;
-                submitModalButton.textContent = 'Guardar Cuenta';
-            }
+            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+            finally { btn.disabled = false; btn.textContent = 'Guardar Cuenta'; }
         });
     }
 
+    // ==========================================
+    // 10. INICIALIZACIÓN
+    // ==========================================
     if (LOGGED_IN_USER_ID) {
         loadPaises('Origen', paisOrigenSelect);
         loadTiposBeneficiario();
         loadTiposDocumento();
         updateView();
 
-        montoOrigenInput.readOnly = false;
-        montoDestinoInput.readOnly = true;
-        montoOrigenInput.classList.remove('bg-light');
-        montoDestinoInput.classList.add('bg-light');
-
-    } else {
-        console.error("No hay sesión de usuario activa.");
+        montoOrigenInput.readOnly = false; montoDestinoInput.readOnly = true;
+        montoOrigenInput.classList.remove('bg-light'); montoDestinoInput.classList.add('bg-light');
     }
 });

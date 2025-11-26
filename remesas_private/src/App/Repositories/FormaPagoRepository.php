@@ -28,7 +28,25 @@ class FormaPagoRepository
         $sql = "SELECT FormaPagoID, Nombre FROM formas_pago WHERE Activo = TRUE ORDER BY Nombre";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        $result = $stmt->get_result()->fetch_all(\MYSQLI_ASSOC);
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
+    public function findAvailableByCountry(int $paisOrigenId): array
+    {
+        $sql = "SELECT DISTINCT fp.FormaPagoID, fp.Nombre 
+                FROM formas_pago fp
+                JOIN cuentas_bancarias_admin cba ON fp.FormaPagoID = cba.FormaPagoID
+                WHERE fp.Activo = TRUE 
+                    AND cba.Activo = TRUE 
+                    AND cba.PaisID = ?
+                ORDER BY fp.Nombre";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $paisOrigenId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         return $result;
     }

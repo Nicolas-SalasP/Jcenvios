@@ -64,7 +64,14 @@ class ClientController extends BaseController
 
     public function getFormasDePago(): void
     {
-        $formasPago = $this->formaPagoRepo->findAllActive();
+        $paisOrigenId = (int) ($_GET['origenId'] ?? 0);
+
+        if ($paisOrigenId > 0) {
+            $formasPago = $this->formaPagoRepo->findAvailableByCountry($paisOrigenId);
+        } else {
+            $formasPago = [];
+        }
+
         $nombres = array_column($formasPago, 'Nombre');
         $this->sendJsonResponse($nombres);
     }
