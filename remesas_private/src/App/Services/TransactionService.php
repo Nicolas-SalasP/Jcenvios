@@ -67,7 +67,6 @@ class TransactionService
 
     public function createTransaction(array $data): int
     {
-        // Validaciones básicas de usuario
         $client = $this->userRepository->findUserById($data['userID']);
         if (!$client)
             throw new Exception("Usuario no encontrado.", 404);
@@ -76,7 +75,6 @@ class TransactionService
         if (empty($client['Telefono']))
             throw new Exception("Falta tu número de teléfono en el perfil.", 400);
 
-        // Validar campos obligatorios
         $requiredFields = ['userID', 'cuentaID', 'tasaID', 'montoOrigen', 'monedaOrigen', 'montoDestino', 'monedaDestino', 'formaDePago'];
         foreach ($requiredFields as $field) {
             if (!isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '')) {
@@ -88,8 +86,8 @@ class TransactionService
             throw new Exception("El monto debe ser mayor a cero.", 400);
         }
 
-        // Lógica de Revendedor
-        if ($client['UsuarioRolNombre'] === 'Revendedor' || (isset($client['RolID']) && $client['RolID'] == 4)) {
+        // Lógica de Revendedor (Uso de 'Rol' correcto)
+        if ((isset($client['Rol']) && $client['Rol'] === 'Revendedor') || (isset($client['RolID']) && $client['RolID'] == 4)) {
             $porcentaje = $client['PorcentajeComision'] ?? 0;
             if ($porcentaje > 0) {
                 $ganancia = ($data['montoOrigen'] * $porcentaje) / 100;
@@ -99,13 +97,11 @@ class TransactionService
             }
         }
 
-        // Obtener datos del beneficiario
         $beneficiario = $this->cuentasRepo->findByIdAndUserId((int) $data['cuentaID'], (int) $data['userID']);
         if (!$beneficiario) {
             throw new Exception("Beneficiario no encontrado o no te pertenece.", 404);
         }
 
-        // Preparar datos para inserción
         $data['beneficiarioNombre'] = trim(implode(' ', [
             $beneficiario['TitularPrimerNombre'],
             $beneficiario['TitularSegundoNombre'],
@@ -125,7 +121,6 @@ class TransactionService
         $data['estadoID'] = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
 
         try {
-            // Crear Transacción
             $transactionId = $this->txRepository->create($data);
             $txData = $this->txRepository->getFullTransactionDetails($transactionId);
             if (!$txData)
@@ -133,17 +128,16 @@ class TransactionService
 
             $txData['TelefonoCliente'] = $client['Telefono'];
 
-            if (!empty($txData['FormaPagoID']) && !empty($txData['PaisOrigenID'])) {
+            if (isset($txData['FormaPagoID']) && isset($txData['PaisOrigenID'])) {
                 $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais(
-                    (int)$txData['FormaPagoID'], 
-                    (int)$txData['PaisOrigenID']
+                    (int) $txData['FormaPagoID'],
+                    (int) $txData['PaisOrigenID']
                 );
                 if ($cuentaAdmin) {
                     $txData['CuentaAdmin'] = $cuentaAdmin;
                 }
             }
 
-            // Generar PDF y enviar notificaciones
             $pdfContent = $this->pdfService->generateOrder($txData);
             $pdfUrl = $this->fileHandler->savePdfTemporarily($pdfContent, $transactionId);
 
@@ -172,7 +166,6 @@ class TransactionService
             throw new Exception("Error al analizar el archivo del comprobante.", 500);
         }
 
-        // Evitar duplicados exactos
         $existingTx = $this->txRepository->findByHash($fileHash);
         if ($existingTx) {
             throw new Exception("Este comprobante ya fue subido para la transacción #" . $existingTx['TransaccionID'] . ".", 409);
@@ -253,12 +246,10 @@ class TransactionService
             throw new Exception("No se pudo confirmar el pago.", 500);
         }
 
-        // --- CONTABILIDAD: REGISTRAR INGRESO EN BANCO DE ORIGEN ---
+        // --- CONTABILIDAD: Registrar Ingreso en Banco ---
         $txData = $this->txRepository->getFullTransactionDetails($txId);
-
         if (isset($txData['FormaPagoID'])) {
             $paisOrigenId = $txData['PaisOrigenID'] ?? 1;
-
             $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais(
                 (int) $txData['FormaPagoID'],
                 (int) $paisOrigenId
@@ -271,8 +262,6 @@ class TransactionService
                     $adminId,
                     $txId
                 );
-            } else {
-                error_log("Advertencia Contabilidad: No se encontró cuenta admin para FormaPago {$txData['FormaPagoID']} y País {$paisOrigenId}. No se sumó saldo.");
             }
         }
 
@@ -341,7 +330,6 @@ class TransactionService
             throw new Exception("No se pudo actualizar la transacción como pagada.", 500);
         }
 
-        // CONTABILIDAD: Registrar Gasto (Salida de Caja Destino)
         $txData = $this->txRepository->getFullTransactionDetails($txId);
 
         if ($txData && !empty($txData['PaisDestinoID'])) {
@@ -357,8 +345,8 @@ class TransactionService
         }
 
         $this->notificationService->sendPaymentConfirmationToClientWhatsApp($txData);
-        $this->notificationService->logAdminAction($adminId, 'Admin completó transacción', "TX ID: $txId. Comprobante envío: $relativePath. Comisión: $comisionDestino. Estado: 'Pagado'.");
 
+        $this->notificationService->logAdminAction($adminId, 'Admin completó transacción', "TX ID: $txId. Comprobante envío: $relativePath. Comisión: $comisionDestino. Estado: 'Pagado'.");
         return true;
     }
 
@@ -368,6 +356,7 @@ class TransactionService
         if (!$txData) {
             throw new Exception("Transacción no encontrada.", 404);
         }
+
         if (!in_array($txData['EstadoID'], [3, 4])) {
             throw new Exception("Solo se puede editar la comisión en órdenes 'En Proceso' o 'Pagadas'.", 400);
         }

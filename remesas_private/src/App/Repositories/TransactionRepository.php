@@ -69,10 +69,9 @@ class TransactionRepository
             T.BeneficiarioBanco,
             T.BeneficiarioNumeroCuenta,
             T.BeneficiarioTelefono,
-            T.FormaPagoID,
 
             TS.ValorTasa,
-            TS.PaisOrigenID, 
+            TS.PaisOrigenID,
             
             ET.EstadoID, ET.NombreEstado AS Estado,
             FP.FormaPagoID, FP.Nombre AS FormaDePago,
@@ -157,6 +156,16 @@ class TransactionRepository
         $stmt->close();
         return $affectedRows;
     }
+    
+    public function updateCommission(int $txId, float $newCommission): bool
+    {
+        $sql = "UPDATE transacciones SET ComisionDestino = ? WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("di", $newCommission, $txId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
 
     public function cancel(int $transactionId, int $userId, int $estadoCanceladoID, int $estadoPendienteID): int
     {
@@ -180,6 +189,8 @@ class TransactionRepository
         $stmt->close();
         return $result;
     }
+
+    // --- MÉTODOS PARA ESTADÍSTICAS  ---
 
     public function countByStatus(array $statusIDs): int
     {
@@ -227,6 +238,8 @@ class TransactionRepository
         $stmt->close();
         return $result['EstadoID'] ?? null;
     }
+
+    // --- MÉTODOS PARA DASHBOARD ---
 
     public function getTopCountries(string $direction = 'Destino', int $limit = 5): array
     {
@@ -305,6 +318,7 @@ class TransactionRepository
         return $result;
     }
 
+    // --- MÉTODO ACTUALIZADO PARA EXCEL (CON LOGS) ---
     public function getExportData(): array
     {
         $sql = "SELECT
@@ -315,10 +329,10 @@ class TransactionRepository
                     T.MontoDestino,
                     T.ComisionDestino,
                     (SELECT Timestamp FROM logs 
-                     WHERE Detalles LIKE CONCAT('TX ID: ', T.TransaccionID, '.%')
-                     AND Accion LIKE 'Admin completó%' 
-                     ORDER BY LogID DESC LIMIT 1) as FechaCompletado,
-                     
+                    WHERE Detalles LIKE CONCAT('TX ID: ', T.TransaccionID, '.%')
+                    AND Accion LIKE 'Admin completó%' 
+                    ORDER BY LogID DESC LIMIT 1) as FechaCompletado,
+                    
                     COALESCE(CBA.Banco, FP.Nombre) AS BancoOrigenReal,
                     
                     T.BeneficiarioBanco,
@@ -336,7 +350,9 @@ class TransactionRepository
         $stmt->close();
         return $result;
     }
-
+    
+    // --- MÉTODOS PARA BOT DE CORREOS ---
+    
     public function findPendingByAmount(float $monto, int $horasTolerancia): array
     {
         $sql = "SELECT TransaccionID, UserID, MontoOrigen, Email, PrimerNombre, Telefono 
@@ -345,7 +361,7 @@ class TransactionRepository
                 WHERE t.MontoOrigen = ? 
                 AND t.EstadoID IN (1, 2) 
                 AND t.FechaTransaccion >= DATE_SUB(NOW(), INTERVAL ? HOUR)";
-
+        
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("di", $monto, $horasTolerancia);
         $stmt->execute();
@@ -375,19 +391,9 @@ class TransactionRepository
                     ComprobanteURL = IF(ComprobanteURL IS NULL OR ComprobanteURL = '', ?, ComprobanteURL),
                     FechaSubidaComprobante = NOW()
                 WHERE TransaccionID = ?";
-
+        
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("isssi", $newStatusId, $proofPath, $messageId, $proofPath, $txId);
-        $success = $stmt->execute();
-        $stmt->close();
-        return $success;
-    }
-
-    public function updateCommission(int $txId, float $newCommission): bool
-    {
-        $sql = "UPDATE transacciones SET ComisionDestino = ? WHERE TransaccionID = ?";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("di", $newCommission, $txId);
         $success = $stmt->execute();
         $stmt->close();
         return $success;
