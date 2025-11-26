@@ -219,6 +219,7 @@ try {
         'saveCuentaAdmin' => [AdminController::class, 'saveCuentaAdmin', 'POST'],
         'deleteCuentaAdmin' => [AdminController::class, 'deleteCuentaAdmin', 'POST'],
         'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
+        'adminUpdateUser' => [AdminController::class, 'adminUpdateUser', 'POST'],
 
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
         'agregarFondos' => [ContabilidadController::class, 'agregarFondos', 'POST'],

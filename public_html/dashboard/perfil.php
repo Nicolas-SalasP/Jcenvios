@@ -56,10 +56,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label for="profile-telefono" class="form-label">Teléfono</label>
                         <div class="input-group">
                             <select class="input-group-text" id="profile-phone-code" name="profilePhoneCode"
-                                style="max-width: 130px;"></select>
-                            <input type="tel" id="profile-telefono" name="telefono" class="form-control" required
-                                placeholder="Número">
+                                style="max-width: 130px;" disabled></select>
+                            <input type="tel" id="profile-telefono" name="telefono" class="form-control" readonly
+                                style="background-color: #e9ecef;">
                         </div>
+                        <div class="form-text text-muted">Para cambiar su número, contacte a soporte.</div>
                     </div>
 
                     <div class="mb-3">

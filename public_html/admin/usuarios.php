@@ -1,129 +1,244 @@
 <?php
 require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ' . BASE_URL . '/login.php');
-    exit();
+if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
+    die("Acceso denegado.");
 }
 
-
-$pageTitle = 'Seguridad de la Cuenta';
-$pageScript = 'seguridad.js';
+$pageTitle = 'Gestión de Usuarios';
+$pageScript = 'admin.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
-$is_admin_or_operador = (isset($_SESSION['user_rol_name']) && ($_SESSION['user_rol_name'] === 'Admin' || $_SESSION['user_rol_name'] === 'Operador'));
-$two_fa_enabled = (isset($_SESSION['twofa_enabled']) && $_SESSION['twofa_enabled'] === true);
+// Paginación
+$registrosPorPagina = 50;
+$paginaActual = isset($_GET['pagina']) ? (int) $_GET['pagina'] : 1;
+if ($paginaActual < 1) $paginaActual = 1;
+$offset = ($paginaActual - 1) * $registrosPorPagina;
+
+// Consulta de conteo
+$sqlCount = "SELECT COUNT(*) as total FROM usuarios";
+$totalRegistros = $conexion->query($sqlCount)->fetch_assoc()['total'];
+$totalPaginas = ceil($totalRegistros / $registrosPorPagina);
+
+// Consulta de usuarios (TODOS)
+$sql = "SELECT 
+            U.*, 
+            R.NombreRol,
+            TD.NombreDocumento as TipoDocNombre
+        FROM usuarios U
+        LEFT JOIN roles R ON U.RolID = R.RolID
+        LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
+        ORDER BY 
+            CASE WHEN U.UserID = 1 THEN 0 ELSE 1 END,
+            U.FechaRegistro DESC
+        LIMIT ? OFFSET ?";
+
+$stmt = $conexion->prepare($sql);
+$stmt->bind_param("ii", $registrosPorPagina, $offset);
+$stmt->execute();
+$usuarios = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$currentAdminId = (int)$_SESSION['user_id'];
 ?>
 
 <div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card p-4 p-md-5 shadow-sm">
-                
-                <?php if (!$two_fa_enabled): ?>
-                    <?php if ($is_admin_or_operador): ?>
-                        <div class="alert alert-danger" role="alert">
-                            <h4 class="alert-heading"><i class="bi bi-shield-lock-fill"></i> ¡Acción Requerida!</h4>
-                            <p>Para los roles de Administrador y Operador, es obligatorio configurar la autenticación de dos
-                                factores (2FA) antes de continuar.</p>
-                        </div>
-                    <?php else: ?>
-                        <div class="alert alert-info" role="alert">
-                            <h4 class="alert-heading"><i class="bi bi-shield-check"></i> Protege tu Cuenta (Opcional)</h4>
-                            <p>Recomendamos activar la autenticación de dos factores (2FA) para añadir una capa extra de
-                                seguridad a tu cuenta.</p>
-                        </div>
-                    <?php endif; ?>
-                <?php endif; ?>
-                
-                <h1 class="mb-4">Seguridad de la Cuenta</h1>
+    <h1 class="mb-4">Gestión de Usuarios</h1>
 
-                <div id="2fa-status-container">
-                    <div class="d-flex align-items-center">
-                        <strong>Estado 2FA:</strong>
-                        <div class="spinner-border spinner-border-sm ms-2" role="status">
-                            <span class="visually-hidden">Cargando...</span>
-                        </div>
-                    </div>
-                </div>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuario</th>
+                            <th>Contacto</th>
+                            <th>Documento</th>
+                            <th>Rol</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($usuarios as $user): ?>
+                            <?php 
+                                $isSuperAdmin = ($user['UserID'] == 1);
+                                $isMe = ($user['UserID'] == $currentAdminId);
+                                $disabledAttr = ($isSuperAdmin || $isMe) ? 'disabled' : '';
+                            ?>
+                            <tr id="user-row-<?php echo $user['UserID']; ?>" class="<?php echo $isSuperAdmin ? 'table-warning' : ''; ?>">
+                                <td><?php echo $user['UserID']; ?></td>
+                                <td>
+                                    <strong><?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?></strong>
+                                    <?php if($isSuperAdmin): ?> <span class="badge bg-warning text-dark">SUPER</span> <?php endif; ?><br>
+                                    <small class="text-muted">Reg: <?php echo date("d/m/Y", strtotime($user['FechaRegistro'])); ?></small>
+                                </td>
+                                <td>
+                                    <i class="bi bi-envelope"></i> <?php echo htmlspecialchars($user['Email']); ?><br>
+                                    <i class="bi bi-whatsapp"></i> <?php echo htmlspecialchars($user['Telefono'] ?? 'Sin Tlf'); ?>
+                                </td>
+                                <td>
+                                    <?php echo htmlspecialchars($user['TipoDocNombre'] ?? 'Doc'); ?>: 
+                                    <?php echo htmlspecialchars($user['NumeroDocumento']); ?>
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm admin-role-select" 
+                                            data-user-id="<?php echo $user['UserID']; ?>" 
+                                            style="width: 140px;"
+                                            <?php echo $disabledAttr; ?>>
+                                        <option value="2" <?php echo $user['RolID'] == 2 ? 'selected' : ''; ?>>P. Natural</option>
+                                        <option value="3" <?php echo $user['RolID'] == 3 ? 'selected' : ''; ?>>Empresa</option>
+                                        <option value="4" <?php echo $user['RolID'] == 4 ? 'selected' : ''; ?>>Revendedor</option>
+                                        <option value="5" <?php echo $user['RolID'] == 5 ? 'selected' : ''; ?>>Operador</option>
+                                        <option value="1" <?php echo $user['RolID'] == 1 ? 'selected' : ''; ?>>Admin</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <?php 
+                                        $isBlocked = !empty($user['LockoutUntil']) && strtotime($user['LockoutUntil']) > time();
+                                        $btnClass = $isBlocked ? 'btn-danger' : 'btn-success';
+                                        $btnIcon = $isBlocked ? 'bi-lock-fill' : 'bi-unlock-fill';
+                                        $statusText = $isBlocked ? 'blocked' : 'active';
+                                    ?>
+                                    <button class="btn btn-sm <?php echo $btnClass; ?> block-user-btn" 
+                                            data-user-id="<?php echo $user['UserID']; ?>" 
+                                            data-current-status="<?php echo $statusText; ?>"
+                                            title="<?php echo $isBlocked ? 'Desbloquear' : 'Bloquear'; ?>"
+                                            <?php echo $disabledAttr; ?>>
+                                        <i class="bi <?php echo $btnIcon; ?>"></i>
+                                    </button>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-info view-user-docs-btn text-white me-1"
+                                            title="Ver Documentos"
+                                            data-user-id="<?php echo $user['UserID']; ?>"
+                                            data-user-name="<?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?>"
+                                            data-img-frente="<?php echo htmlspecialchars($user['DocumentoImagenURL_Frente']); ?>"
+                                            data-img-reverso="<?php echo htmlspecialchars($user['DocumentoImagenURL_Reverso']); ?>"
+                                            data-foto-perfil="<?php echo htmlspecialchars($user['FotoPerfilURL']); ?>">
+                                        <i class="bi bi-file-earmark-person"></i>
+                                    </button>
 
-                <hr>
+                                    <button class="btn btn-sm btn-primary admin-edit-user-btn me-1" 
+                                            title="Editar Datos"
+                                            data-user-id="<?php echo $user['UserID']; ?>"
+                                            data-nombre1="<?php echo htmlspecialchars($user['PrimerNombre']); ?>"
+                                            data-nombre2="<?php echo htmlspecialchars($user['SegundoNombre'] ?? ''); ?>"
+                                            data-apellido1="<?php echo htmlspecialchars($user['PrimerApellido']); ?>"
+                                            data-apellido2="<?php echo htmlspecialchars($user['SegundoApellido'] ?? ''); ?>"
+                                            data-telefono="<?php echo htmlspecialchars($user['Telefono'] ?? ''); ?>"
+                                            data-documento="<?php echo htmlspecialchars($user['NumeroDocumento']); ?>"
+                                            <?php echo $user['UserID'] == 1 ? 'disabled' : ''; ?>>
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
 
-                <div id="setup-2fa-section" class="d-none">
-                    <h3 class="h4">Configurar Doble Factor (2FA)</h3>
-                    <p>Escanea el siguiente código QR con tu aplicación de autenticación (como Google Authenticator,
-                        Authy, etc.).</p>
+                                    <button class="btn btn-sm btn-outline-danger admin-delete-user-btn" 
+                                            data-user-id="<?php echo $user['UserID']; ?>" 
+                                            title="Eliminar Usuario"
+                                            <?php echo $disabledAttr; ?>>
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
 
-                    <div class="text-center my-3" style="min-height: 200px;">
-                        <div id="qr-code-container" class="d-inline-block border p-2">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Cargando QR...</span>
+            <?php if ($totalPaginas > 1): ?>
+                <nav class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item <?php echo ($paginaActual <= 1) ? 'disabled' : ''; ?>">
+                            <a class="page-link" href="?pagina=<?php echo $paginaActual - 1; ?>">Anterior</a>
+                        </li>
+                        <?php for ($i = 1; $i <= $totalPaginas; $i++): ?>
+                            <li class="page-item <?php echo ($i == $paginaActual) ? 'active' : ''; ?>">
+                                <a class="page-link" href="?pagina=<?php echo $i; ?>"><?php echo $i; ?></a>
+                            </li>
+                        <?php endfor; ?>
+                        <li class="page-item <?php echo ($paginaActual >= $totalPaginas) ? 'disabled' : ''; ?>">
+                            <a class="page-link" href="?pagina=<?php echo $paginaActual + 1; ?>">Siguiente</a>
+                        </li>
+                    </ul>
+                </nav>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="userDocsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title">Documentos de: <strong id="docsUserName" class="text-primary"></strong></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+            <div class="col-lg-4 text-center border-end">
+                <h5 class="text-secondary mb-3">Foto de Perfil</h5>
+                <img id="docsProfilePic" src="" class="rounded-circle shadow-sm border" style="width: 180px; height: 180px; object-fit: cover;">
+            </div>
+            <div class="col-lg-8">
+                <h5 class="text-secondary mb-3 ps-2">Documento de Identidad</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="card h-100 shadow-sm">
+                            <div class="card-header fw-bold text-center">Frente</div>
+                            <div class="card-body p-1 bg-dark d-flex align-items-center justify-content-center" style="min-height: 250px;">
+                                <img id="docsImgFrente" src="" class="img-fluid" style="max-height: 250px;">
+                            </div>
+                            <div class="card-footer text-center">
+                                <a href="#" id="docsLinkFrente" target="_blank" class="btn btn-sm btn-outline-primary">Ver Original</a>
                             </div>
                         </div>
-                        <p class="mt-2">O ingresa manualmente esta clave:</p>
-                        <code id="secret-key-display"
-                            class="fs-5 user-select-all bg-light p-2 rounded">Cargando...</code>
                     </div>
-
-                    <form id="verify-2fa-form">
-                        <div class="mb-3">
-                            <label for="2fa-code" class="form-label">Código de Verificación</label>
-                            <input type="text" class="form-control" id="2fa-code" name="code" inputmode="numeric"
-                                maxlength="6" required autocomplete="off" placeholder="Ingresa el código de 6 dígitos">
+                    <div class="col-md-6">
+                        <div class="card h-100 shadow-sm">
+                            <div class="card-header fw-bold text-center">Reverso</div>
+                            <div class="card-body p-1 bg-dark d-flex align-items-center justify-content-center" style="min-height: 250px;">
+                                <img id="docsImgReverso" src="" class="img-fluid" style="max-height: 250px;">
+                            </div>
+                            <div class="card-footer text-center">
+                                <a href="#" id="docsLinkReverso" target="_blank" class="btn btn-sm btn-outline-primary">Ver Original</a>
+                            </div>
                         </div>
-                        <button type="submit" class="btn btn-success">Activar y Verificar</button>
-                    </form>
+                    </div>
                 </div>
-
-                <div id="disable-2fa-section" class="d-none">
-                    <h3 class="h4 text-danger">Desactivar Doble Factor (2FA)</h3>
-                    <p class="<?php echo $is_admin_or_operador ? 'text-danger' : 'text-muted'; ?>">
-                        <?php echo $is_admin_or_operador ? 'La desactivación de 2FA no está permitida para roles de Administrador/Operador.' : 'Tu cuenta estará menos segura si desactivas la autenticación de doble factor.'; ?>
-                    </p>
-                    
-                    <?php if (!$is_admin_or_operador): ?>
-                        <div class="mb-3 p-3 bg-light border rounded">
-                            <label for="disable-code" class="form-label fw-bold">Confirma con tu código actual:</label>
-                            <input type="text" class="form-control" id="disable-code" placeholder="Ej: 123456" maxlength="6" autocomplete="off">
-                            <div class="form-text">Por seguridad, ingresa el código de tu app para confirmar la desactivación.</div>
-                        </div>
-                    <?php endif; ?>
-
-                    <button id="disable-2fa-btn" class="btn btn-outline-danger" <?php echo $is_admin_or_operador ? 'disabled' : ''; ?>>
-                        Confirmar y Desactivar
-                    </button>
-                </div>
-
             </div>
         </div>
+      </div>
     </div>
+  </div>
 </div>
 
-<div class="modal fade" id="backupCodesModal" tabindex="-1" aria-labelledby="backupCodesModalLabel" aria-hidden="true"
-    data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="backupCodesModalLabel">¡2FA Activado! Guarda tus Códigos de Respaldo</h5>
+                <h5 class="modal-title">Editar Usuario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="lead">Guarda estos códigos en un lugar seguro (como un gestor de contraseñas). Te permitirán
-                    acceder a tu cuenta si pierdes tu dispositivo.</p>
-                <div class="bg-light p-3 rounded">
-                    <ul id="backup-codes-list" class="list-unstyled mb-0"
-                        style="font-family: monospace; font-size: 1.1rem; column-count: 2;">
-                    </ul>
-                </div>
-                <p class="mt-3 text-danger fw-bold">No volverás a ver estos códigos. Cópialos antes de cerrar.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido, los he
-                    guardado</button>
+                <form id="edit-user-form">
+                    <input type="hidden" id="edit-user-id" name="userId">
+                    <div class="row mb-3">
+                        <div class="col-6"><label class="form-label">Primer Nombre</label><input type="text" class="form-control" id="edit-nombre1" name="primerNombre" required></div>
+                        <div class="col-6"><label class="form-label">Segundo Nombre</label><input type="text" class="form-control" id="edit-nombre2" name="segundoNombre"></div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6"><label class="form-label">Primer Apellido</label><input type="text" class="form-control" id="edit-apellido1" name="primerApellido" required></div>
+                        <div class="col-6"><label class="form-label">Segundo Apellido</label><input type="text" class="form-control" id="edit-apellido2" name="segundoApellido"></div>
+                    </div>
+                    <div class="mb-3"><label class="form-label fw-bold">Teléfono</label><input type="tel" class="form-control" id="edit-telefono" name="telefono" required></div>
+                    <div class="mb-3"><label class="form-label">Número Documento</label><input type="text" class="form-control" id="edit-documento" name="numeroDocumento" required></div>
+                    <div class="d-grid"><button type="submit" class="btn btn-primary">Guardar Cambios</button></div>
+                </form>
             </div>
         </div>
     </div>
 </div>
-
 
 <?php
 require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';

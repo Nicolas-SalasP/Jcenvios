@@ -4,38 +4,75 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. GESTIÓN DE VERIFICACIONES (KYC)
     // ==========================================
     const verificationModalElement = document.getElementById('verificationModal');
+    
     if (verificationModalElement) {
         let verificationModalInstance = null;
         try {
             verificationModalInstance = bootstrap.Modal.getOrCreateInstance(verificationModalElement);
         } catch (e) { console.error(e); }
 
-        const modalUserName = document.getElementById('modalUserName');
-        const modalImgFrente = document.getElementById('modalImgFrente');
-        const modalImgReverso = document.getElementById('modalImgReverso');
+        const els = {
+            nameHeader: document.getElementById('modalUserName'),
+            fullName: document.getElementById('verif-fullname'),
+            doc: document.getElementById('verif-doc'),
+            email: document.getElementById('verif-email'),
+            phone: document.getElementById('verif-phone'),
+            imgProfile: document.getElementById('verif-profile-pic'),
+            imgF: document.getElementById('modalImgFrente'),
+            imgR: document.getElementById('modalImgReverso'),
+            linkF: document.getElementById('linkFrente'),
+            linkR: document.getElementById('linkReverso')
+        };
+        
         const actionButtons = verificationModalElement.querySelectorAll('.action-btn');
         let currentUserId = null;
+        const defaultProfilePic = '../assets/img/SoloLogoNegroSinFondo.png';
 
         verificationModalElement.addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            if (!button) return;
-            currentUserId = button.dataset.userId;
-            modalUserName.textContent = button.dataset.userName || 'Usuario Desconocido';
-            const imgFrente = button.dataset.imgFrente || '';
-            const imgReverso = button.dataset.imgReverso || '';
-            modalImgFrente.src = imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(imgFrente)}` : '';
-            modalImgReverso.src = imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(imgReverso)}` : '';
-            modalImgFrente.style.objectFit = 'contain';
-            modalImgFrente.style.maxHeight = '300px';
-            modalImgReverso.style.objectFit = 'contain';
-            modalImgReverso.style.maxHeight = '300px';
+            const btn = event.relatedTarget;
+            if (!btn) return; // CORRECCIÓN: Usar 'btn', no 'button'
+            
+            currentUserId = btn.dataset.userId;
+            
+            els.nameHeader.textContent = btn.dataset.userName || 'Usuario';
+            els.fullName.textContent = btn.dataset.fullName || 'N/A';
+            els.email.textContent = btn.dataset.email || 'N/A';
+            els.phone.textContent = btn.dataset.phone || 'N/A';
+            els.doc.textContent = `${btn.dataset.docType || 'Doc'}: ${btn.dataset.docNum || 'N/A'}`;
+
+            const urlFrente = btn.dataset.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.imgFrente)}` : '';
+            const urlReverso = btn.dataset.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.imgReverso)}` : '';
+            const urlPerfil = btn.dataset.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.fotoPerfil)}` : defaultProfilePic;
+
+            if(els.imgProfile) els.imgProfile.src = urlPerfil;
+            
+            if(els.imgF) {
+                els.imgF.src = urlFrente || '';
+                els.imgF.alt = urlFrente ? "Cargando..." : "No subida";
+            }
+            
+            if(els.imgR) {
+                els.imgR.src = urlReverso || '';
+                els.imgR.alt = urlReverso ? "Cargando..." : "No subida";
+            }
+
+            if(els.linkF) {
+                els.linkF.href = urlFrente || '#';
+                els.linkF.classList.toggle('disabled', !urlFrente);
+            }
+            if(els.linkR) {
+                els.linkR.href = urlReverso || '#';
+                els.linkR.classList.toggle('disabled', !urlReverso);
+            }
         });
 
         actionButtons.forEach(button => {
             button.addEventListener('click', async () => {
                 const action = button.dataset.action;
                 if (!currentUserId) return;
-                const confirmed = await window.showConfirmModal('Confirmar Acción', `¿${action} usuario #${currentUserId}?`);
+                
+                const confirmed = await window.showConfirmModal('Confirmar Acción', `¿Estás seguro de marcar como ${action} al usuario #${currentUserId}?`);
+                
                 if (confirmed) {
                     try {
                         const response = await fetch('../api/?accion=updateVerificationStatus', {
@@ -44,12 +81,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({ userId: currentUserId, newStatus: action })
                         });
                         const result = await response.json();
+                        
                         if (verificationModalInstance) verificationModalInstance.hide();
 
                         if (result.success) {
-                            window.showInfoModal('Éxito', `Usuario ${action}.`, true, () => window.location.reload());
+                            window.showInfoModal('Éxito', `Usuario marcado como ${action}.`, true, () => window.location.reload());
                         } else {
-                            window.showInfoModal('Error', result.error, false);
+                            window.showInfoModal('Error', result.error || 'Error al actualizar.', false);
                         }
                     } catch (error) {
                         window.showInfoModal('Error', 'Error de conexión.', false);
@@ -62,14 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 2. GESTIÓN DE PAÍSES
     // ==========================================
-
-    // Toggle Estado (Activo/Inactivo)
     document.querySelectorAll('.toggle-status-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
             const paisId = btn.dataset.paisId;
             const newStatus = btn.dataset.currentStatus === '1' ? 0 : 1;
-
+            
             if (await window.showConfirmModal('Confirmar', '¿Cambiar estado del país?')) {
                 try {
                     const res = await fetch('../api/?accion=togglePaisStatus', {
@@ -89,7 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Cambiar Rol de País
     document.querySelectorAll('.role-select').forEach(select => {
         let original = select.value;
         select.addEventListener('focus', () => original = select.value);
@@ -114,7 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Modal Añadir País
     const addPaisForm = document.getElementById('add-pais-form');
     if (addPaisForm) {
         addPaisForm.addEventListener('submit', async (e) => {
@@ -138,7 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Modal Editar País
     const editPaisModalElement = document.getElementById('editPaisModal');
     if (editPaisModalElement) {
         const editPaisModal = new bootstrap.Modal(editPaisModalElement);
@@ -180,10 +213,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 3. GESTIÓN DE USUARIOS
+    // 3. GESTIÓN DE USUARIOS (Bloqueo, Roles, Edición, DOCUMENTOS)
     // ==========================================
 
-    // Bloquear/Desbloquear
     document.querySelectorAll('.block-user-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
@@ -202,26 +234,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Cambiar Rol de Usuario (Con manejo especial para Límite de Admins)
     document.querySelectorAll('.admin-role-select').forEach(select => {
         let original = select.value;
-
         select.addEventListener('focus', () => original = select.value);
-
         select.addEventListener('change', async (e) => {
             const confirmed = await window.showConfirmModal('Confirmar', '¿Cambiar rol de usuario?');
-
             if (confirmed) {
                 try {
                     const response = await fetch('../api/?accion=updateUserRole', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId: e.target.dataset.userId,
-                            newRoleId: e.target.value
+                        body: JSON.stringify({ 
+                            userId: e.target.dataset.userId, 
+                            newRoleId: e.target.value 
                         })
                     });
-
                     const result = await response.json();
 
                     if (result.success) {
@@ -230,17 +257,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         e.target.value = original;
                         if (result.error && result.error.includes('Limite alcanzado')) {
-                            window.showInfoModal(
-                                'Límite de Administradores',
-                                "Máximo de 3 Administradores alcanzado.\n\nPor seguridad y política de la empresa, no se pueden asignar más administradores.\n\nSi necesita ampliar este cupo, por favor contacte con el soporte informático.",
-                                false
-                            );
+                            window.showInfoModal('Límite de Administradores', "Máximo de 3 Administradores alcanzado.\n\nPor seguridad y política de la empresa, no se pueden asignar más administradores.\n\nSi necesita ampliar este cupo, por favor contacte con el soporte informático.", false);
                         } else {
                             window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
                         }
                     }
-                } catch (error) {
-                    console.error(error);
+                } catch (error) { 
                     e.target.value = original;
                     window.showInfoModal('Error', 'Error de comunicación con el servidor.', false);
                 }
@@ -250,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Eliminar Usuario (Lógico)
     document.querySelectorAll('.admin-delete-user-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const userId = e.currentTarget.dataset.userId;
@@ -272,49 +293,97 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Modal Detalles Usuario
-    const userDetailsModalElement = document.getElementById('userDetailsModal');
-    if (userDetailsModalElement) {
-        const modalTitle = document.getElementById('userDetailsModalLabel');
-        const els = {
-            nombre: document.getElementById('modalUserNombreCompleto'),
-            email: document.getElementById('modalUserEmail'),
-            tel: document.getElementById('modalUserTelefono'),
-            fecha: document.getElementById('modalUserFechaRegistro'),
-            verif: document.getElementById('modalUserVerificacion'),
-            tfa: document.getElementById('modalUser2FA'),
-            docF: document.getElementById('modalUserDocFrenteContainer'),
-            docR: document.getElementById('modalUserDocReversoContainer')
-        };
+    // EDITAR USUARIO (MODAL)
+    const editUserModalElement = document.getElementById('editUserModal');
+    if (editUserModalElement) {
+        const editUserModal = new bootstrap.Modal(editUserModalElement);
+        const form = document.getElementById('edit-user-form');
+        
+        document.querySelectorAll('.admin-edit-user-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const d = e.currentTarget.dataset;
+                document.getElementById('edit-user-id').value = d.userId;
+                document.getElementById('edit-nombre1').value = d.nombre1;
+                document.getElementById('edit-nombre2').value = d.nombre2 || '';
+                document.getElementById('edit-apellido1').value = d.apellido1;
+                document.getElementById('edit-apellido2').value = d.apellido2 || '';
+                document.getElementById('edit-telefono').value = d.telefono;
+                document.getElementById('edit-documento').value = d.documento;
+                editUserModal.show();
+            });
+        });
 
-        userDetailsModalElement.addEventListener('show.bs.modal', (e) => {
-            const btn = e.relatedTarget;
-            if (!btn || !btn.classList.contains('view-user-details-btn')) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
 
-            modalTitle.textContent = `Ficha Usuario: #${btn.dataset.userId}`;
-            els.nombre.textContent = btn.dataset.nombreCompleto;
-            els.email.textContent = btn.dataset.email;
-            els.tel.textContent = btn.dataset.telefono;
-            els.fecha.textContent = btn.dataset.fechaRegistro;
-
-            els.verif.textContent = btn.dataset.verificacionStatus;
-            els.verif.className = `badge ${btn.dataset.verificacionStatus === 'Verificado' ? 'bg-success' : 'bg-secondary'}`;
-
-            els.tfa.textContent = btn.dataset.twoFaStatus === '1' ? 'Activado' : 'Inactivo';
-            els.tfa.className = `badge ${btn.dataset.twoFaStatus === '1' ? 'bg-success' : 'bg-secondary'}`;
-
-            const createImg = (url) => url ? `<a href="../admin/view_secure_file.php?file=${encodeURIComponent(url)}" target="_blank"><img src="../admin/view_secure_file.php?file=${encodeURIComponent(url)}" class="img-fluid rounded" style="max-height: 150px;"></a>` : '<span class="text-muted small">No subido</span>';
-
-            els.docF.innerHTML = createImg(btn.dataset.docFrente);
-            els.docR.innerHTML = createImg(btn.dataset.docReverso);
+            try {
+                const res = await fetch('../api/?accion=adminUpdateUser', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if(result.success) {
+                    window.showInfoModal('Éxito', 'Datos de usuario actualizados.', true, () => window.location.reload());
+                } else {
+                    window.showInfoModal('Error', result.error, false);
+                }
+            } catch(err) { window.showInfoModal('Error', 'Error de conexión.', false); }
         });
     }
+
+    // --- NUEVO: VISOR DE DOCUMENTOS (EN GESTIÓN DE USUARIOS) ---
+    const userDocsModalElement = document.getElementById('userDocsModal');
+    if (userDocsModalElement) {
+        const docsName = document.getElementById('docsUserName');
+        const docsImgProfile = document.getElementById('docsProfilePic');
+        const docsImgFrente = document.getElementById('docsImgFrente');
+        const docsImgReverso = document.getElementById('docsImgReverso');
+        const docsLinkFrente = document.getElementById('docsLinkFrente');
+        const docsLinkReverso = document.getElementById('docsLinkReverso');
+        const defaultPic = '../assets/img/SoloLogoNegroSinFondo.png';
+
+        document.querySelectorAll('.view-user-docs-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const d = e.currentTarget.dataset;
+                docsName.textContent = d.userName;
+
+                const urlProfile = d.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.fotoPerfil)}` : defaultPic;
+                const urlFrente = d.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgFrente)}` : '';
+                const urlReverso = d.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgReverso)}` : '';
+
+                if(docsImgProfile) docsImgProfile.src = urlProfile;
+                
+                if(docsImgFrente) {
+                    docsImgFrente.src = urlFrente || '';
+                    docsImgFrente.alt = urlFrente ? "Cargando..." : "No disponible";
+                }
+                if(docsImgReverso) {
+                    docsImgReverso.src = urlReverso || '';
+                    docsImgReverso.alt = urlReverso ? "Cargando..." : "No disponible";
+                }
+
+                if(docsLinkFrente) {
+                    docsLinkFrente.href = urlFrente || '#';
+                    docsLinkFrente.classList.toggle('disabled', !urlFrente);
+                }
+                if(docsLinkReverso) {
+                    docsLinkReverso.href = urlReverso || '#';
+                    docsLinkReverso.classList.toggle('disabled', !urlReverso);
+                }
+
+                const modal = new bootstrap.Modal(userDocsModalElement);
+                modal.show();
+            });
+        });
+    }
+    // -----------------------------------------------------------
 
     // ==========================================
     // 4. GESTIÓN DE TRANSACCIONES
     // ==========================================
-
-    // Confirmar Pago (Paso a "En Proceso")
     document.querySelectorAll('.process-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const txId = e.currentTarget.dataset.txId;
@@ -331,66 +400,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Editar Comisión (Modal) ---
-    const editCommissionModalElement = document.getElementById('editCommissionModal');
-    if (editCommissionModalElement) {
-        const editCommissionModal = new bootstrap.Modal(editCommissionModalElement);
-        const form = document.getElementById('edit-commission-form');
-        const txIdLabel = document.getElementById('modal-commission-tx-id-label');
-        const txIdInput = document.getElementById('commission-tx-id');
-        const commissionInput = document.getElementById('new-commission-input');
+    document.querySelectorAll('.edit-commission-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const button = e.currentTarget;
+            const txId = button.dataset.txId;
+            const currentVal = button.dataset.currentVal;
+            const newVal = prompt(`Editar comisión para la Orden #${txId}.\nIngrese el nuevo monto:`, currentVal);
 
-        document.querySelectorAll('.edit-commission-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const button = e.currentTarget;
-                const txId = button.dataset.txId;
-                const currentVal = button.dataset.currentVal;
-
-                txIdLabel.textContent = `#${txId}`;
-                txIdInput.value = txId;
-                commissionInput.value = currentVal;
-
-                editCommissionModal.show();
-            });
-        });
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const submitBtn = form.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Guardando...';
-
-            const txId = txIdInput.value;
-            const newCommission = parseFloat(commissionInput.value);
-
-            try {
-                const response = await fetch('../api/?accion=updateTxCommission', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        transactionId: txId,
-                        newCommission: newCommission
-                    })
-                });
-
-                const result = await response.json();
-                editCommissionModal.hide();
-
-                if (result.success) {
-                    window.showInfoModal('Éxito', 'Comisión actualizada correctamente.', true, () => window.location.reload());
-                } else {
-                    window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
+            if (newVal !== null && newVal.trim() !== "") {
+                const commissionFloat = parseFloat(newVal.replace(',', '.'));
+                if (isNaN(commissionFloat) || commissionFloat < 0) {
+                    alert("Por favor, ingresa un número válido mayor o igual a 0.");
+                    return;
                 }
-            } catch (error) {
-                window.showInfoModal('Error', 'Error de conexión.', false);
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Guardar Cambios';
+                if (parseFloat(currentVal) === commissionFloat) return;
+
+                if (!confirm(`¿Cambiar comisión de ${currentVal} a ${commissionFloat}? Esto ajustará la contabilidad automáticamente.`)) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch('../api/?accion=updateTxCommission', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            transactionId: txId, 
+                            newCommission: commissionFloat 
+                        })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        if (window.showInfoModal) window.showInfoModal('Éxito', 'Comisión actualizada y saldos ajustados.', true, () => window.location.reload());
+                        else location.reload();
+                    } else {
+                        alert('Error: ' + (result.error || 'No se pudo actualizar.'));
+                    }
+                } catch (error) { alert('Error de conexión.'); }
             }
         });
-    }
+    });
 
-    // Modal de Rechazo
     const rejectionModalElement = document.getElementById('rejectionModal');
     if (rejectionModalElement) {
         const rejectionModal = new bootstrap.Modal(rejectionModalElement);
@@ -422,33 +471,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch('../api/?accion=rejectTransaction', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            transactionId: txId,
-                            reason: reason,
-                            actionType: type
-                        })
+                        body: JSON.stringify({ transactionId: txId, reason: reason, actionType: type })
                     });
                     const result = await response.json();
                     rejectionModal.hide();
 
                     if (result.success) {
-                        const msg = type === 'retry'
-                            ? 'Solicitud enviada. El cliente podrá volver a subir el comprobante.'
-                            : 'Transacción cancelada definitivamente.';
-                        window.showInfoModal('Éxito', msg, true, () => window.location.reload());
+                        window.showInfoModal('Éxito', type === 'retry' ? 'Solicitud enviada.' : 'Transacción cancelada.', true, () => window.location.reload());
                     } else {
-                        window.showInfoModal('Error', result.error || 'Error al procesar.', false);
+                        window.showInfoModal('Error', result.error, false);
                     }
-                } catch (error) {
-                    window.showInfoModal('Error', 'Error de conexión.', false);
-                } finally {
-                    document.querySelectorAll('.confirm-reject-btn').forEach(b => b.disabled = false);
-                }
+                } catch (error) { window.showInfoModal('Error', 'Error de conexión.', false); } 
+                finally { document.querySelectorAll('.confirm-reject-btn').forEach(b => b.disabled = false); }
             });
         });
     }
 
-    // Modal Subir Comprobante Admin
     const adminUploadModalElement = document.getElementById('adminUploadModal');
     if (adminUploadModalElement) {
         let adminUploadModalInstance = null;
@@ -474,10 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btn) { btn.disabled = true; btn.textContent = 'Subiendo...'; }
 
                 try {
-                    const response = await fetch('../api/?accion=adminUploadProof', {
-                        method: 'POST',
-                        body: formData
-                    });
+                    const response = await fetch('../api/?accion=adminUploadProof', { method: 'POST', body: formData });
                     if (adminUploadModalInstance) adminUploadModalInstance.hide();
                     if ((await response.json()).success) {
                         window.showInfoModal('Éxito', 'Transacción completada.', true, () => window.location.reload());
@@ -493,7 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Visor de Comprobantes
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
         const modalContent = document.getElementById('comprobante-content');
@@ -542,23 +576,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     img.style.maxWidth = '100%';
                     img.style.objectFit = 'contain';
                     img.style.display = 'none';
-
-                    img.onload = () => {
-                        modalPlaceholder.classList.add('d-none');
-                        img.style.display = 'block';
-                        downloadButton.classList.remove('disabled');
-                    };
+                    img.onload = () => { modalPlaceholder.classList.add('d-none'); img.style.display = 'block'; downloadButton.classList.remove('disabled'); };
                     modalContent.appendChild(img);
                 } else if (fileExtension === 'pdf') {
                     const iframe = document.createElement('iframe');
                     iframe.src = secureUrl;
-                    iframe.style.width = '100%';
-                    iframe.style.height = '75vh';
-                    iframe.style.border = 'none';
-                    iframe.onload = () => {
-                        modalPlaceholder.classList.add('d-none');
-                        downloadButton.classList.remove('disabled');
-                    }
+                    iframe.style.width = '100%'; iframe.style.height = '75vh'; iframe.style.border = 'none';
+                    iframe.onload = () => { modalPlaceholder.classList.add('d-none'); downloadButton.classList.remove('disabled'); }
                     modalContent.appendChild(iframe);
                 }
             } catch (e) { }
@@ -568,8 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 prevButton.disabled = (index === 0);
                 nextButton.disabled = (index === comprobantes.length - 1);
             } else {
-                prevButton.disabled = true;
-                nextButton.disabled = true;
+                prevButton.disabled = true; nextButton.disabled = true;
             }
         };
 
@@ -579,7 +602,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const userUrl = button.dataset.comprobanteUrl || '';
             const adminUrl = button.dataset.envioUrl || '';
-            const startType = button.dataset.startType || 'user';
             currentTxId = button.dataset.txId || 'N/A';
 
             comprobantes = [];
@@ -590,7 +612,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else navigationDiv.classList.add('d-none');
 
             currentIndex = 0;
-            if (startType === 'admin' && adminUrl) currentIndex = comprobantes.findIndex(c => c.type === 'admin');
+            if (button.dataset.startType === 'admin' && adminUrl) currentIndex = comprobantes.findIndex(c => c.type === 'admin');
 
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');

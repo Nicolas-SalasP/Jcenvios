@@ -32,16 +32,13 @@ class AdminController extends BaseController
         $this->dashboardService = $dashboardService;
         $this->rolRepo = $rolRepo;
         $this->cuentasAdminRepo = $cuentasAdminRepo;
-
-        // ELIMINADO: $this->ensureAdmin(); 
-        // Ahora validamos en cada método individualmente
     }
 
     // --- MÉTODOS PARA ADMIN Y OPERADORES (Gestión de Órdenes) ---
 
     public function rejectTransaction(): void
     {
-        $adminId = $this->ensureAdminOrOperator(); // Permite Operador
+        $adminId = $this->ensureAdminOrOperator();
         $data = $this->getJsonInput();
 
         $txId = (int) ($data['transactionId'] ?? 0);
@@ -59,7 +56,7 @@ class AdminController extends BaseController
 
     public function processTransaction(): void
     {
-        $adminId = $this->ensureAdminOrOperator(); // Permite Operador
+        $adminId = $this->ensureAdminOrOperator();
         $data = $this->getJsonInput();
         $this->txService->adminConfirmPayment($adminId, (int) ($data['transactionId'] ?? 0));
         $this->sendJsonResponse(['success' => true]);
@@ -67,7 +64,7 @@ class AdminController extends BaseController
 
     public function adminUploadProof(): void
     {
-        $adminId = $this->ensureAdminOrOperator(); // Permite Operador
+        $adminId = $this->ensureAdminOrOperator();
         $transactionId = (int) ($_POST['transactionId'] ?? 0);
         $fileData = $_FILES['receiptFile'] ?? null;
         $comisionDestino = isset($_POST['comisionDestino']) ? (float) $_POST['comisionDestino'] : 0.00;
@@ -90,7 +87,7 @@ class AdminController extends BaseController
     public function upsertRate(): void
     {
         $adminId = $this->ensureLoggedIn();
-        $this->ensureAdmin(); // Solo Admin
+        $this->ensureAdmin();
         $data = $this->getJsonInput();
 
         try {
@@ -105,7 +102,7 @@ class AdminController extends BaseController
     public function deleteRate(): void
     {
         $adminId = $this->ensureLoggedIn();
-        $this->ensureAdmin(); // Solo Admin
+        $this->ensureAdmin();
         $data = $this->getJsonInput();
         $tasaId = (int) ($data['tasaId'] ?? 0);
 
@@ -165,7 +162,7 @@ class AdminController extends BaseController
     public function updateVerificationStatus(): void
     {
         $adminId = $this->ensureLoggedIn();
-        $this->ensureAdmin(); // Solo Admin verifica identidad (o podrías cambiarlo a Operator si quieres)
+        $this->ensureAdmin();
         $data = $this->getJsonInput();
         $targetUserId = (int) ($data['userId'] ?? 0);
         $newStatusName = (string) ($data['newStatus'] ?? '');
@@ -180,7 +177,7 @@ class AdminController extends BaseController
 
     public function getDashboardStats(): void
     {
-        $this->ensureAdmin(); // Solo Admin ve estadísticas globales
+        $this->ensureAdmin();
         $stats = $this->dashboardService->getAdminDashboardStats();
         $this->sendJsonResponse(['success' => true, 'stats' => $stats]);
     }
@@ -188,7 +185,7 @@ class AdminController extends BaseController
     public function updateUserRole(): void
     {
         $adminId = $this->ensureLoggedIn();
-        $this->ensureAdmin(); // Solo Admin cambia roles
+        $this->ensureAdmin();
         $data = $this->getJsonInput();
         $targetUserId = (int) ($data['userId'] ?? 0);
         $newRoleId = (int) ($data['newRoleId'] ?? 0);
@@ -295,6 +292,19 @@ class AdminController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Comisión actualizada correctamente.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function adminUpdateUser(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $data = $this->getJsonInput();
+
+        try {
+            $this->userService->adminUpdateUserData($adminId, $data);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Datos del usuario actualizados.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
     }
 }

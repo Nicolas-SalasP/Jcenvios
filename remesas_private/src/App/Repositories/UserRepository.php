@@ -34,7 +34,7 @@ class UserRepository
 
         return $result;
     }
-    
+
     public function countAdmins(): int
     {
         $sql = "SELECT COUNT(*) as total FROM usuarios WHERE RolID = 1";
@@ -42,13 +42,13 @@ class UserRepository
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return (int)($result['total'] ?? 0);
+        return (int) ($result['total'] ?? 0);
     }
 
     public function create(array $data): int
     {
-         $estadoVerificacionInicialID = $data['verificacionEstadoID'] ?? 1; 
-         $rolUsuarioID = $data['rolID'] ?? 3; 
+        $estadoVerificacionInicialID = $data['verificacionEstadoID'] ?? 1;
+        $rolUsuarioID = $data['rolID'] ?? 3;
 
         $sql = "INSERT INTO usuarios (PrimerNombre, SegundoNombre, PrimerApellido, SegundoApellido, Email, PasswordHash, Telefono, TipoDocumentoID, NumeroDocumento, VerificacionEstadoID, RolID)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -65,7 +65,8 @@ class UserRepository
         $tipoDocumentoID = $data['tipoDocumentoID'];
         $numeroDocumento = $data['numeroDocumento'];
 
-        $stmt->bind_param("sssssssiisi", 
+        $stmt->bind_param(
+            "sssssssiisi",
             $primerNombre,
             $segundoNombre,
             $primerApellido,
@@ -73,22 +74,22 @@ class UserRepository
             $email,
             $passwordHash,
             $telefono,
-            $tipoDocumentoID, 
+            $tipoDocumentoID,
             $numeroDocumento,
             $estadoVerificacionInicialID,
-            $rolUsuarioID 
+            $rolUsuarioID
         );
 
         if (!$stmt->execute()) {
-             error_log("Error al insertar usuario: " . $stmt->error . " - Data: " . print_r($data, true));
-            if ($stmt->errno == 1062) { 
-                 if (strpos($stmt->error, 'Email_UNIQUE') !== false) {
+            error_log("Error al insertar usuario: " . $stmt->error . " - Data: " . print_r($data, true));
+            if ($stmt->errno == 1062) {
+                if (strpos($stmt->error, 'Email_UNIQUE') !== false) {
                     throw new Exception("El correo electrónico ya está registrado.", 409);
-                 } elseif (strpos($stmt->error, 'NumeroDocumento_UNIQUE') !== false) {
-                     throw new Exception("El número de documento ya está registrado.", 409);
-                 }
+                } elseif (strpos($stmt->error, 'NumeroDocumento_UNIQUE') !== false) {
+                    throw new Exception("El número de documento ya está registrado.", 409);
+                }
             }
-             throw new Exception("Error al registrar el usuario.", 500);
+            throw new Exception("Error al registrar el usuario.", 500);
         }
         $newId = $stmt->insert_id;
         $stmt->close();
@@ -219,7 +220,7 @@ class UserRepository
         $stmt->close();
         return $success;
     }
-    
+
     public function updateRole(int $userId, int $rolId): bool
     {
         $sql = "UPDATE usuarios SET RolID = ? WHERE UserID = ?";
@@ -229,7 +230,7 @@ class UserRepository
         $stmt->close();
         return $success;
     }
-    
+
     public function addGanancia(int $userId, float $monto): bool
     {
         $sql = "UPDATE usuarios SET SaldoGanancias = SaldoGanancias + ? WHERE UserID = ?";
@@ -259,72 +260,76 @@ class UserRepository
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return (int)($result['total'] ?? 0);
+        return (int) ($result['total'] ?? 0);
     }
 
-     public function findEstadoVerificacionIdByName(string $nombreEstado): ?int
+    public function findEstadoVerificacionIdByName(string $nombreEstado): ?int
     {
-         $sql = "SELECT EstadoID FROM estados_verificacion WHERE NombreEstado = ? LIMIT 1";
-         $stmt = $this->db->prepare($sql);
-         $stmt->bind_param("s", $nombreEstado);
-         $stmt->execute();
-         $result = $stmt->get_result()->fetch_assoc();
-         $stmt->close();
-         return $result['EstadoID'] ?? null;
+        $sql = "SELECT EstadoID FROM estados_verificacion WHERE NombreEstado = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("s", $nombreEstado);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result['EstadoID'] ?? null;
     }
 
-     public function findRolIdByName(string $nombreRol): ?int
+    public function findRolIdByName(string $nombreRol): ?int
     {
-         $sql = "SELECT RolID FROM roles WHERE NombreRol = ? LIMIT 1";
-         $stmt = $this->db->prepare($sql);
-         $stmt->bind_param("s", $nombreRol);
-         $stmt->execute();
-         $result = $stmt->get_result()->fetch_assoc();
-         $stmt->close();
-         return $result['RolID'] ?? null;
+        $sql = "SELECT RolID FROM roles WHERE NombreRol = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("s", $nombreRol);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result['RolID'] ?? null;
     }
-     public function findTipoDocumentoIdByName(string $nombreDocumento): ?int
+    public function findTipoDocumentoIdByName(string $nombreDocumento): ?int
     {
-         $sql = "SELECT TipoDocumentoID FROM tipos_documento WHERE NombreDocumento = ? LIMIT 1";
-         $stmt = $this->db->prepare($sql);
-         $stmt->bind_param("s", $nombreDocumento);
-         $stmt->execute();
-         $result = $stmt->get_result()->fetch_assoc();
-         $stmt->close();
-         return $result['TipoDocumentoID'] ?? null;
+        $sql = "SELECT TipoDocumentoID FROM tipos_documento WHERE NombreDocumento = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("s", $nombreDocumento);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result['TipoDocumentoID'] ?? null;
     }
 
-     // --- MÉTODOS PARA 2FA ---
-     public function get2FASecret(int $userId): ?string {
-         $sql = "SELECT twofa_secret FROM usuarios WHERE UserID = ?"; 
-         $stmt = $this->db->prepare($sql);
-         $stmt->bind_param("i", $userId);
-         $stmt->execute();
-         $result = $stmt->get_result()->fetch_assoc();
-         $stmt->close();
-         return $result['twofa_secret'] ?? null;
-     }
+    // --- MÉTODOS PARA 2FA ---
+    public function get2FASecret(int $userId): ?string
+    {
+        $sql = "SELECT twofa_secret FROM usuarios WHERE UserID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result['twofa_secret'] ?? null;
+    }
 
-     public function update2FASecret(int $userId, string $encryptedSecret): bool {
-         $sql = "UPDATE usuarios SET twofa_secret = ?, twofa_enabled = FALSE WHERE UserID = ?";
-         $stmt = $this->db->prepare($sql);
-         $stmt->bind_param("si", $encryptedSecret, $userId);
-         $success = $stmt->execute();
-         $stmt->close();
-         return $success;
-     }
+    public function update2FASecret(int $userId, string $encryptedSecret): bool
+    {
+        $sql = "UPDATE usuarios SET twofa_secret = ?, twofa_enabled = FALSE WHERE UserID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("si", $encryptedSecret, $userId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
 
-     public function enable2FA(int $userId, string $encryptedBackupCodes): bool {
-         $sql = "UPDATE usuarios SET twofa_enabled = TRUE, twofa_backup_codes = ? WHERE UserID = ? AND twofa_secret IS NOT NULL"; 
-         $stmt = $this->db->prepare($sql);
-         $stmt->bind_param("si", $encryptedBackupCodes, $userId);
-         $success = $stmt->execute();
+    public function enable2FA(int $userId, string $encryptedBackupCodes): bool
+    {
+        $sql = "UPDATE usuarios SET twofa_enabled = TRUE, twofa_backup_codes = ? WHERE UserID = ? AND twofa_secret IS NOT NULL";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("si", $encryptedBackupCodes, $userId);
+        $success = $stmt->execute();
         $affected = $stmt->affected_rows;
         $stmt->close();
-        return $success && $affected > 0; 
-     }
+        return $success && $affected > 0;
+    }
 
-    public function disable2FA(int $userId): bool {
+    public function disable2FA(int $userId): bool
+    {
         $sql = "UPDATE usuarios SET twofa_enabled = FALSE, twofa_secret = NULL, twofa_backup_codes = NULL WHERE UserID = ?";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $userId);
@@ -354,7 +359,7 @@ class UserRepository
 
         $data = $result->fetch_assoc();
         $stmt->close();
-        
+
         return $data['twofa_backup_codes'] ?? null;
     }
 
@@ -363,6 +368,24 @@ class UserRepository
         $sql = "UPDATE usuarios SET twofa_backup_codes = ? WHERE UserID = ?";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("si", $newEncryptedBackupCodes, $userId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
+    public function updateGeneralData(int $userId, string $nom1, ?string $nom2, string $ape1, ?string $ape2, string $tel, ?string $doc): bool
+    {
+        $sql = "UPDATE usuarios SET 
+                    PrimerNombre = ?, 
+                    SegundoNombre = ?, 
+                    PrimerApellido = ?, 
+                    SegundoApellido = ?, 
+                    Telefono = ?,
+                    NumeroDocumento = ?
+                WHERE UserID = ?";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ssssssi", $nom1, $nom2, $ape1, $ape2, $tel, $doc, $userId);
         $success = $stmt->execute();
         $stmt->close();
         return $success;

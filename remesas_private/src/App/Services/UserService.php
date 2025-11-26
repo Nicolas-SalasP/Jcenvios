@@ -86,7 +86,7 @@ class UserService
         if (!in_array($data['tipoPersona'], ['Persona Natural', 'Empresa'])) {
             throw new Exception("El tipo de cuenta '{$data['tipoPersona']}' no es válido.", 400);
         }
-        
+
         $rolID = $this->rolRepo->findIdByName($data['tipoPersona']);
         if (!$rolID) {
             throw new Exception("Error interno: Rol no encontrado.", 500);
@@ -195,11 +195,6 @@ class UserService
 
     public function updateUserProfile(int $userId, array $postData, ?array $fileData): array
     {
-        $telefono = $postData['telefono'] ?? '';
-        if (empty($telefono)) {
-            throw new Exception("El número de teléfono no puede estar vacío.", 400);
-        }
-
         $user = $this->getUserProfile($userId);
         $fotoPerfilUrl = $user['FotoPerfilURL'] ?? null;
         $newPhotoPath = null;
@@ -208,22 +203,42 @@ class UserService
             try {
                 $newPhotoPath = $this->fileHandler->saveProfilePicture($fileData, $userId);
             } catch (Exception $e) {
-                throw new Exception("Error al guardar la foto de perfil: " . $e->getMessage(), $e->getCode() ?: 500);
+                throw new Exception("Error al guardar la foto: " . $e->getMessage(), 500);
             }
         }
 
-        $success = $this->userRepository->updateProfileInfo($userId, $telefono, $newPhotoPath);
-
-        if (!$success && $newPhotoPath === null) {
-            if ($this->userRepository->findUserById($userId)['Telefono'] == $telefono) {
-                return ['fotoPerfilUrl' => $fotoPerfilUrl, 'telefono' => $telefono];
-            }
-            throw new Exception("No se pudo actualizar la información del perfil.", 500);
+        if ($newPhotoPath) {
+            $this->userRepository->updateProfileInfo($userId, $user['Telefono'], $newPhotoPath);
+            $fotoPerfilUrl = $newPhotoPath;
+            $this->notificationService->logAdminAction($userId, 'Perfil Actualizado', "Usuario cambió su foto de perfil.");
         }
 
-        $this->notificationService->logAdminAction($userId, 'Perfil Actualizado', "Teléfono y/o foto actualizados.");
+        return ['fotoPerfilUrl' => $fotoPerfilUrl, 'telefono' => $user['Telefono']];
+    }
 
-        return ['fotoPerfilUrl' => $newPhotoPath ?? $fotoPerfilUrl, 'telefono' => $telefono];
+    public function adminUpdateUserData(int $adminId, array $data): void
+    {
+        $targetUserId = (int) ($data['userId'] ?? 0);
+        if ($targetUserId <= 0)
+            throw new Exception("ID de usuario inválido.", 400);
+        if (empty($data['primerNombre']) || empty($data['primerApellido']) || empty($data['telefono'])) {
+            throw new Exception("Nombre, Apellido y Teléfono son obligatorios.", 400);
+        }
+        $success = $this->userRepository->updateGeneralData(
+            $targetUserId,
+            $data['primerNombre'],
+            $data['segundoNombre'] ?? null,
+            $data['primerApellido'],
+            $data['segundoApellido'] ?? null,
+            $data['telefono'],
+            $data['numeroDocumento'] ?? null
+        );
+
+        if ($success) {
+            $this->notificationService->logAdminAction($adminId, 'Admin editó usuario', "Editó datos personales del usuario ID: $targetUserId");
+        } else {
+            throw new Exception("No se pudieron actualizar los datos.", 500);
+        }
     }
 
     public function uploadVerificationDocs(int $userId, array $files): void
@@ -274,7 +289,7 @@ class UserService
         }
         // Permitimos cambiar de Rechazado a Verificado si hubo error, o de Pendiente.
         // La restricción estricta podría bloquear correcciones manuales, así que la relajamos un poco para Admins.
-        
+
         if ($this->userRepository->updateVerificationStatus($userId, $newStatusID)) {
             $this->notificationService->logAdminAction($adminId, 'Admin actualizó estado verificación', "Usuario ID: $userId, Nuevo Estado: $newStatusName (ID: $newStatusID)");
         } else {
