@@ -92,6 +92,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const enforceNameFormat = (inputId) => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        
+        input.maxLength = 12;
+        
+        input.addEventListener('input', function() {
+            this.value = this.value.replace(/\s/g, '');
+            if(this.value.length > 12) this.value = this.value.substring(0, 12);
+        });
+    };
+
+    enforceNameFormat('register-nombre');
+    enforceNameFormat('register-segundo-nombre');
+    enforceNameFormat('register-apellido');
+    enforceNameFormat('register-segundo-apellido');
+
     docTypeSelect?.addEventListener('change', () => {
         docNumInput.removeAttribute('pattern');
         docNumInput.classList.remove('is-invalid', 'is-valid');

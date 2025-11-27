@@ -133,7 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
             input.required = true;
             toggle.addEventListener('change', async (e) => {
                 if (toggle.checked) {
-                    // Usamos el modal de confirmación en lugar de confirm()
                     const confirmed = await window.showConfirmModal('Confirmar Acción', `El beneficiario no tiene ${fieldName}, ¿está seguro?`);
 
                     if (confirmed) {
@@ -249,6 +248,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (benefDocTypeSelect) benefDocTypeSelect.addEventListener('change', updateDocumentValidation);
     if (inputAccountNum) inputAccountNum.addEventListener('input', function () {
         this.value = this.value.replace(/[^0-9]/g, '').substring(0, 20);
+    });
+
+    const inputsNombres = ['benef-firstname', 'benef-secondname', 'benef-lastname', 'benef-secondlastname'];
+    
+    inputsNombres.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.maxLength = 12;
+            el.addEventListener('input', function() {
+                this.value = this.value.replace(/\s/g, '');
+            });
+        }
     });
 
 

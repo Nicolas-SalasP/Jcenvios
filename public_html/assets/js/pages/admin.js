@@ -1,16 +1,67 @@
 document.addEventListener('DOMContentLoaded', () => {
 
+    // =================================================
+    // 0. OPERADORES: LÓGICA DE COPIADO DE DATOS
+    // =================================================
+    const copyModalElement = document.getElementById('copyDataModal');
+    if (copyModalElement) {
+        const copyModal = new bootstrap.Modal(copyModalElement);
+        const fields = {
+            banco: document.getElementById('copy-banco'),
+            doc: document.getElementById('copy-doc'),
+            cuenta: document.getElementById('copy-cuenta'),
+            nombre: document.getElementById('copy-nombre'),
+            montoDisplay: document.getElementById('copy-monto-display'),
+            montoValue: document.getElementById('copy-monto-value'),
+            labelCuenta: document.getElementById('label-cuenta-tipo'),
+            txId: document.getElementById('copy-tx-id'),
+            btnFinalizar: document.getElementById('btn-ir-a-finalizar')
+        };
+
+        document.querySelectorAll('.copy-data-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const data = JSON.parse(e.currentTarget.dataset.datos);
+                
+                if(fields.txId) fields.txId.textContent = data.id;
+                fields.banco.value = data.banco;
+                fields.doc.value = data.doc;
+                fields.cuenta.value = data.cuenta;
+                fields.nombre.value = data.nombre;
+                fields.montoDisplay.textContent = data.monto;
+                if(fields.montoValue) fields.montoValue.value = data.monto; 
+                fields.labelCuenta.textContent = data.tipo;
+                
+                if (fields.btnFinalizar) {
+                    fields.btnFinalizar.onclick = () => {
+                        copyModal.hide();
+                        const uploadBtn = document.querySelector(`button[data-bs-target="#adminUploadModal"][data-tx-id="${data.id}"]`);
+                        if (uploadBtn) {
+                            uploadBtn.click();
+                        } else {
+                            const adminModal = new bootstrap.Modal(document.getElementById('adminUploadModal'));
+                            document.getElementById('modal-admin-tx-id').textContent = data.id;
+                            document.getElementById('adminTransactionIdField').value = data.id;
+                            adminModal.show();
+                        }
+                    };
+                }
+                copyModal.show();
+            });
+        });
+    }
+
     // ==========================================
     // 1. GESTIÓN DE VERIFICACIONES (KYC)
     // ==========================================
     const verificationModalElement = document.getElementById('verificationModal');
-
+    
     if (verificationModalElement) {
         let verificationModalInstance = null;
         try {
             verificationModalInstance = bootstrap.Modal.getOrCreateInstance(verificationModalElement);
         } catch (e) { console.error(e); }
 
+        // Referencias a elementos del modal
         const els = {
             nameHeader: document.getElementById('modalUserName'),
             fullName: document.getElementById('verif-fullname'),
@@ -23,17 +74,19 @@ document.addEventListener('DOMContentLoaded', () => {
             linkF: document.getElementById('linkFrente'),
             linkR: document.getElementById('linkReverso')
         };
-
+        
         const actionButtons = verificationModalElement.querySelectorAll('.action-btn');
         let currentUserId = null;
         const defaultProfilePic = '../assets/img/SoloLogoNegroSinFondo.png';
 
+        // Evento al abrir el modal
         verificationModalElement.addEventListener('show.bs.modal', function (event) {
             const btn = event.relatedTarget;
             if (!btn) return;
-
+            
             currentUserId = btn.dataset.userId;
-
+            
+            // Llenar datos
             els.nameHeader.textContent = btn.dataset.userName || 'Usuario';
             els.fullName.textContent = btn.dataset.fullName || 'N/A';
             els.email.textContent = btn.dataset.email || 'N/A';
@@ -44,35 +97,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const urlReverso = btn.dataset.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.imgReverso)}` : '';
             const urlPerfil = btn.dataset.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.fotoPerfil)}` : defaultProfilePic;
 
-            if (els.imgProfile) els.imgProfile.src = urlPerfil;
-
-            if (els.imgF) {
+            if(els.imgProfile) els.imgProfile.src = urlPerfil;
+            
+            if(els.imgF) {
                 els.imgF.src = urlFrente || '';
                 els.imgF.alt = urlFrente ? "Cargando..." : "No subida";
             }
-
-            if (els.imgR) {
+            if(els.imgR) {
                 els.imgR.src = urlReverso || '';
                 els.imgR.alt = urlReverso ? "Cargando..." : "No subida";
             }
 
-            if (els.linkF) {
+            if(els.linkF) {
                 els.linkF.href = urlFrente || '#';
                 els.linkF.classList.toggle('disabled', !urlFrente);
             }
-            if (els.linkR) {
+            if(els.linkR) {
                 els.linkR.href = urlReverso || '#';
                 els.linkR.classList.toggle('disabled', !urlReverso);
             }
         });
 
+        // Acciones Aprobar/Rechazar
         actionButtons.forEach(button => {
             button.addEventListener('click', async () => {
                 const action = button.dataset.action;
                 if (!currentUserId) return;
-
+                
                 const confirmed = await window.showConfirmModal('Confirmar Acción', `¿Estás seguro de marcar como ${action} al usuario #${currentUserId}?`);
-
+                
                 if (confirmed) {
                     try {
                         const response = await fetch('../api/?accion=updateVerificationStatus', {
@@ -81,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({ userId: currentUserId, newStatus: action })
                         });
                         const result = await response.json();
-
+                        
                         if (verificationModalInstance) verificationModalInstance.hide();
 
                         if (result.success) {
@@ -105,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.currentTarget;
             const paisId = btn.dataset.paisId;
             const newStatus = btn.dataset.currentStatus === '1' ? 0 : 1;
-
+            
             if (await window.showConfirmModal('Confirmar', '¿Cambiar estado del país?')) {
                 try {
                     const res = await fetch('../api/?accion=togglePaisStatus', {
@@ -114,11 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: JSON.stringify({ paisId, newStatus })
                     });
                     if ((await res.json()).success) {
-                        btn.dataset.currentStatus = newStatus;
-                        btn.textContent = newStatus === 1 ? 'Activo' : 'Inactivo';
-                        btn.classList.toggle('btn-success', newStatus === 1);
-                        btn.classList.toggle('btn-secondary', newStatus === 0);
-                        window.showInfoModal('Éxito', 'Estado actualizado.', true);
+                        window.location.reload();
                     }
                 } catch (e) { window.showInfoModal('Error', 'Error de conexión.', false); }
             }
@@ -216,6 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. GESTIÓN DE USUARIOS
     // ==========================================
 
+    // Bloquear/Desbloquear
     document.querySelectorAll('.block-user-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
@@ -234,6 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Cambiar Rol
     document.querySelectorAll('.admin-role-select').forEach(select => {
         let original = select.value;
         select.addEventListener('focus', () => original = select.value);
@@ -244,9 +295,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch('../api/?accion=updateUserRole', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId: e.target.dataset.userId,
-                            newRoleId: e.target.value
+                        body: JSON.stringify({ 
+                            userId: e.target.dataset.userId, 
+                            newRoleId: e.target.value 
                         })
                     });
                     const result = await response.json();
@@ -257,12 +308,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         e.target.value = original;
                         if (result.error && result.error.includes('Limite alcanzado')) {
-                            window.showInfoModal('Límite de Administradores', "Máximo de 3 Administradores alcanzado.\n\nPor seguridad y política de la empresa, no se pueden asignar más administradores.\n\nSi necesita ampliar este cupo, por favor contacte con el soporte informático.", false);
+                            window.showInfoModal('Límite de Administradores', "Máximo de 3 Administradores alcanzado.\n\nContacte a soporte.", false);
                         } else {
                             window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
                         }
                     }
-                } catch (error) {
+                } catch (error) { 
                     e.target.value = original;
                     window.showInfoModal('Error', 'Error de comunicación con el servidor.', false);
                 }
@@ -272,15 +323,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Eliminar Usuario (Soft Delete con pausa para modal)
     document.querySelectorAll('.admin-delete-user-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const userId = e.currentTarget.dataset.userId;
-            const firstConfirm = await window.showConfirmModal('Confirmar Eliminación', '¿Estas seguro? Esta acción enviará al usuario a la papelera.');
-
+            const firstConfirm = await window.showConfirmModal('Confirmar Eliminación', '¿Seguro? Esta acción enviará al usuario a la papelera.');
+            
             if (firstConfirm) {
                 await new Promise(resolve => setTimeout(resolve, 500));
-                const secondConfirm = await window.showConfirmModal('Confirmación Final', 'Se eliminara permanentemente el usuario. ¿Proceder?');
-
+                const secondConfirm = await window.showConfirmModal('Confirmación Final', 'Se ocultarán todos los datos de la vista principal. ¿Proceder?');
+                
                 if (secondConfirm) {
                     try {
                         const res = await fetch('../api/?accion=deleteUser', {
@@ -289,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({ userId })
                         });
                         const result = await res.json();
-
+                        
                         if (result.success) {
                             document.getElementById(`user-row-${userId}`)?.remove();
                             window.showInfoModal('Éxito', 'Usuario eliminado.', true);
@@ -302,11 +354,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Editar Usuario (Modal)
     const editUserModalElement = document.getElementById('editUserModal');
     if (editUserModalElement) {
         const editUserModal = new bootstrap.Modal(editUserModalElement);
         const form = document.getElementById('edit-user-form');
-
+        
         document.querySelectorAll('.admin-edit-user-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const d = e.currentTarget.dataset;
@@ -329,19 +382,20 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('../api/?accion=adminUpdateUser', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(data)
                 });
                 const result = await res.json();
-                if (result.success) {
+                if(result.success) {
                     window.showInfoModal('Éxito', 'Datos de usuario actualizados.', true, () => window.location.reload());
                 } else {
                     window.showInfoModal('Error', result.error, false);
                 }
-            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+            } catch(err) { window.showInfoModal('Error', 'Error de conexión.', false); }
         });
     }
 
+    // Ver Documentos Usuario
     const userDocsModalElement = document.getElementById('userDocsModal');
     if (userDocsModalElement) {
         const docsName = document.getElementById('docsUserName');
@@ -361,22 +415,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const urlFrente = d.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgFrente)}` : '';
                 const urlReverso = d.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgReverso)}` : '';
 
-                if (docsImgProfile) docsImgProfile.src = urlProfile;
-
-                if (docsImgFrente) {
+                if(docsImgProfile) docsImgProfile.src = urlProfile;
+                
+                if(docsImgFrente) {
                     docsImgFrente.src = urlFrente || '';
                     docsImgFrente.alt = urlFrente ? "Cargando..." : "No disponible";
                 }
-                if (docsImgReverso) {
+                if(docsImgReverso) {
                     docsImgReverso.src = urlReverso || '';
                     docsImgReverso.alt = urlReverso ? "Cargando..." : "No disponible";
                 }
 
-                if (docsLinkFrente) {
+                if(docsLinkFrente) {
                     docsLinkFrente.href = urlFrente || '#';
                     docsLinkFrente.classList.toggle('disabled', !urlFrente);
                 }
-                if (docsLinkReverso) {
+                if(docsLinkReverso) {
                     docsLinkReverso.href = urlReverso || '#';
                     docsLinkReverso.classList.toggle('disabled', !urlReverso);
                 }
@@ -390,6 +444,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 4. GESTIÓN DE TRANSACCIONES
     // ==========================================
+
+    // Confirmar Pago
     document.querySelectorAll('.process-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const txId = e.currentTarget.dataset.txId;
@@ -406,46 +462,49 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.querySelectorAll('.edit-commission-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const button = e.currentTarget;
-            const txId = button.dataset.txId;
-            const currentVal = button.dataset.currentVal;
-            const newVal = prompt(`Editar comisión para la Orden #${txId}.\nIngrese el nuevo monto:`, currentVal);
+    // Editar Comisión
+    const editCommissionModalElement = document.getElementById('editCommissionModal');
+    if (editCommissionModalElement) {
+        const editCommissionModal = new bootstrap.Modal(editCommissionModalElement);
+        const form = document.getElementById('edit-commission-form');
+        const txIdInput = document.getElementById('commission-tx-id');
+        const commissionInput = document.getElementById('new-commission-input');
 
-            if (newVal !== null && newVal.trim() !== "") {
-                const commissionFloat = parseFloat(newVal.replace(',', '.'));
-                if (isNaN(commissionFloat) || commissionFloat < 0) {
-                    alert("Por favor, ingresa un número válido mayor o igual a 0.");
-                    return;
-                }
-                if (parseFloat(currentVal) === commissionFloat) return;
-
-                if (!confirm(`¿Cambiar comisión de ${currentVal} a ${commissionFloat}? Esto ajustará la contabilidad automáticamente.`)) {
-                    return;
-                }
-
-                try {
-                    const response = await fetch('../api/?accion=updateTxCommission', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            transactionId: txId,
-                            newCommission: commissionFloat
-                        })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        if (window.showInfoModal) window.showInfoModal('Éxito', 'Comisión actualizada y saldos ajustados.', true, () => window.location.reload());
-                        else location.reload();
-                    } else {
-                        alert('Error: ' + (result.error || 'No se pudo actualizar.'));
-                    }
-                } catch (error) { alert('Error de conexión.'); }
-            }
+        // Abrir Modal
+        document.querySelectorAll('.edit-commission-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const d = e.currentTarget.dataset;
+                txIdInput.value = d.txId;
+                commissionInput.value = d.currentVal;
+                editCommissionModal.show();
+            });
         });
-    });
 
+        // Guardar
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true; submitBtn.textContent = 'Guardando...';
+
+            const data = {
+                transactionId: txIdInput.value,
+                newCommission: parseFloat(commissionInput.value)
+            };
+
+            try {
+                const res = await fetch('../api/?accion=updateTxCommission', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+                });
+                const r = await res.json();
+                if(r.success) {
+                    window.showInfoModal('Éxito', 'Comisión actualizada.', true, () => window.location.reload());
+                } else window.showInfoModal('Error', r.error, false);
+            } catch(err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+            finally { submitBtn.disabled = false; submitBtn.textContent = 'Guardar'; }
+        });
+    }
+
+    // Modal de Rechazo
     const rejectionModalElement = document.getElementById('rejectionModal');
     if (rejectionModalElement) {
         const rejectionModal = new bootstrap.Modal(rejectionModalElement);
@@ -468,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const txId = rejectTxIdInput.value;
 
                 if (!reason) {
-                    alert('Por favor, escribe un motivo para el rechazo.');
+                    alert('Por favor, escribe un motivo.');
                     return;
                 }
                 document.querySelectorAll('.confirm-reject-btn').forEach(b => b.disabled = true);
@@ -483,31 +542,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     rejectionModal.hide();
 
                     if (result.success) {
-                        window.showInfoModal('Éxito', type === 'retry' ? 'Solicitud enviada.' : 'Transacción cancelada.', true, () => window.location.reload());
+                        window.showInfoModal('Éxito', type === 'retry' ? 'Solicitud enviada.' : 'Cancelada.', true, () => window.location.reload());
                     } else {
                         window.showInfoModal('Error', result.error, false);
                     }
-                } catch (error) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                } catch (error) { window.showInfoModal('Error', 'Error de conexión.', false); } 
                 finally { document.querySelectorAll('.confirm-reject-btn').forEach(b => b.disabled = false); }
             });
         });
     }
 
+    // Subida Comprobante Admin
     const adminUploadModalElement = document.getElementById('adminUploadModal');
     if (adminUploadModalElement) {
-        let adminUploadModalInstance = null;
-        try { adminUploadModalInstance = bootstrap.Modal.getOrCreateInstance(adminUploadModalElement); } catch (e) { }
+        const adminUploadForm = document.getElementById('admin-upload-form');
 
         const adminTxIdLabel = document.getElementById('modal-admin-tx-id');
         const adminTransactionIdField = document.getElementById('adminTransactionIdField');
-        const adminUploadForm = document.getElementById('admin-upload-form');
-
+        
         adminUploadModalElement.addEventListener('show.bs.modal', function (event) {
             const button = event.relatedTarget;
             if (!button) return;
             const txId = button.dataset.txId;
-            if (adminTxIdLabel) adminTxIdLabel.textContent = txId;
-            if (adminTransactionIdField) adminTransactionIdField.value = txId;
+            if(adminTxIdLabel) adminTxIdLabel.textContent = txId;
+            if(adminTransactionIdField) adminTransactionIdField.value = txId;
         });
 
         if (adminUploadForm) {
@@ -519,11 +577,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const response = await fetch('../api/?accion=adminUploadProof', { method: 'POST', body: formData });
-                    if (adminUploadModalInstance) adminUploadModalInstance.hide();
-                    if ((await response.json()).success) {
+                    const modalInstance = bootstrap.Modal.getInstance(adminUploadModalElement);
+                    if(modalInstance) modalInstance.hide();
+                    
+                    const res = await response.json();
+                    if (res.success) {
                         window.showInfoModal('Éxito', 'Transacción completada.', true, () => window.location.reload());
                     } else {
-                        window.showInfoModal('Error', 'No se pudo subir.', false);
+                        window.showInfoModal('Error', res.error || 'Error al subir.', false);
                     }
                 } catch (e) { window.showInfoModal('Error', 'Error de conexión.', false); }
                 finally {
@@ -534,6 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Visor de Comprobantes
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
         const modalContent = document.getElementById('comprobante-content');
@@ -554,82 +616,93 @@ document.addEventListener('DOMContentLoaded', () => {
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');
             downloadButton.classList.add('disabled');
-
             if (!comprobantes[index]) return;
-
+            
             currentIndex = index;
             const current = comprobantes[index];
-            const type = current.type;
-
-            if (typeof baseUrlJs === 'undefined') return;
-            const secureUrl = `${baseUrlJs}/dashboard/ver-comprobante.php?id=${currentTxId}&type=${type}`;
-            const fileName = decodeURIComponent(current.url.split('/').pop().split('?')[0]);
-            const fileExtension = fileName.split('.').pop().toLowerCase();
-            const typeText = type === 'user' ? 'Comprobante de Pago' : 'Comprobante de Envío';
-
-            if (modalLabel) modalLabel.textContent = `${typeText} (Transacción #${currentTxId})`;
+            const secureUrl = `../admin/view_secure_file.php?file=${encodeURIComponent(current.url)}`;
+            const fileName = current.url.split('/').pop();
+            const ext = fileName.split('.').pop().toLowerCase();
+            
+            modalLabel.textContent = `Comprobante (Tx #${currentTxId})`;
             downloadButton.href = secureUrl;
             downloadButton.download = fileName;
-            if (filenameSpan) filenameSpan.textContent = fileName;
+            filenameSpan.textContent = fileName;
 
-            try {
-                if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(fileExtension)) {
-                    const img = document.createElement('img');
-                    img.src = secureUrl;
-                    img.alt = typeText;
-                    img.classList.add('img-fluid', 'rounded', 'd-block', 'mx-auto');
-                    img.style.maxHeight = '75vh';
-                    img.style.maxWidth = '100%';
-                    img.style.objectFit = 'contain';
-                    img.style.display = 'none';
-                    img.onload = () => { modalPlaceholder.classList.add('d-none'); img.style.display = 'block'; downloadButton.classList.remove('disabled'); };
-                    modalContent.appendChild(img);
-                } else if (fileExtension === 'pdf') {
-                    const iframe = document.createElement('iframe');
-                    iframe.src = secureUrl;
-                    iframe.style.width = '100%'; iframe.style.height = '75vh'; iframe.style.border = 'none';
-                    iframe.onload = () => { modalPlaceholder.classList.add('d-none'); downloadButton.classList.remove('disabled'); }
-                    modalContent.appendChild(iframe);
-                }
-            } catch (e) { }
-
+            if (['jpg', 'jpeg', 'png'].includes(ext)) {
+                const img = document.createElement('img');
+                img.src = secureUrl;
+                img.classList.add('img-fluid');
+                img.style.maxHeight = '75vh';
+                img.style.display = 'none';
+                img.onload = () => { modalPlaceholder.classList.add('d-none'); img.style.display = 'block'; downloadButton.classList.remove('disabled'); };
+                modalContent.appendChild(img);
+            } else {
+                const iframe = document.createElement('iframe');
+                iframe.src = secureUrl;
+                iframe.style.width = '100%'; iframe.style.height = '75vh';
+                iframe.onload = () => { modalPlaceholder.classList.add('d-none'); downloadButton.classList.remove('disabled'); };
+                modalContent.appendChild(iframe);
+            }
+            
             if (comprobantes.length > 1) {
-                if (indicatorSpan) indicatorSpan.textContent = `${index + 1} / ${comprobantes.length}`;
+                indicatorSpan.textContent = `${index + 1} / ${comprobantes.length}`;
                 prevButton.disabled = (index === 0);
                 nextButton.disabled = (index === comprobantes.length - 1);
-            } else {
-                prevButton.disabled = true; nextButton.disabled = true;
             }
         };
 
         viewModalElement.addEventListener('show.bs.modal', (event) => {
-            const button = event.relatedTarget;
-            if (!button || !button.classList.contains('view-comprobante-btn-admin')) return;
-
-            const userUrl = button.dataset.comprobanteUrl || '';
-            const adminUrl = button.dataset.envioUrl || '';
-            currentTxId = button.dataset.txId || 'N/A';
-
+            const btn = event.relatedTarget;
+            if (!btn) return;
+            currentTxId = btn.dataset.txId;
+            
+            const userUrl = btn.dataset.comprobanteUrl;
+            const adminUrl = btn.dataset.envioUrl;
+            
             comprobantes = [];
-            if (userUrl) comprobantes.push({ type: 'user', url: userUrl });
-            if (adminUrl) comprobantes.push({ type: 'admin', url: adminUrl });
-
-            if (comprobantes.length > 1) navigationDiv.classList.remove('d-none');
+            if(userUrl) comprobantes.push({ url: userUrl });
+            if(adminUrl) comprobantes.push({ url: adminUrl });
+            
+            if(comprobantes.length > 1) navigationDiv.classList.remove('d-none');
             else navigationDiv.classList.add('d-none');
-
+            
             currentIndex = 0;
-            if (button.dataset.startType === 'admin' && adminUrl) currentIndex = comprobantes.findIndex(c => c.type === 'admin');
-
+            if(btn.classList.contains('btn-success') && comprobantes.length > 1) currentIndex = 1;
+            
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');
-            if (comprobantes.length > 0) setTimeout(() => showComprobante(currentIndex), 100);
+            
+            if(comprobantes.length > 0) setTimeout(() => showComprobante(currentIndex), 100);
         });
+        
+        prevButton.addEventListener('click', () => showComprobante(currentIndex - 1));
+        nextButton.addEventListener('click', () => showComprobante(currentIndex + 1));
+    }
 
-        prevButton.addEventListener('click', () => { if (currentIndex > 0) showComprobante(currentIndex - 1); });
-        nextButton.addEventListener('click', () => { if (currentIndex < comprobantes.length - 1) showComprobante(currentIndex + 1); });
-        viewModalElement.addEventListener('hidden.bs.modal', () => {
-            modalContent.innerHTML = '';
-            modalPlaceholder.classList.remove('d-none');
-        });
+    window.copyToClipboard = (elementId, btnElement) => {
+        const input = document.getElementById(elementId);
+        if (!input) return;
+        input.select();
+        input.setSelectionRange(0, 99999);
+        
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(input.value).then(() => showFeedback(btnElement));
+        } else {
+            document.execCommand('copy');
+            showFeedback(btnElement);
+        }
+    };
+
+    function showFeedback(btn) {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 1500);
     }
 });

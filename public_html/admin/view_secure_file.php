@@ -1,82 +1,119 @@
 <?php
+// Desactivar salida de errores para no corromper la imagen
+ini_set('display_errors', 0);
+error_reporting(0);
+
 require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
-if (isset($_SERVER['HTTP_REFERER'])) {
-    $refererHost = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_HOST);
-    $serverHost = $_SERVER['HTTP_HOST'];
-
-    if (substr($refererHost, -strlen($serverHost)) !== $serverHost && $refererHost !== $serverHost) {
-        http_response_code(403);
-        die("Acceso denegado (hotlinking).");
-    }
-} elseif (php_sapi_name() !== 'cli' && empty($_SERVER['HTTP_REFERER'])) {
-    http_response_code(403);
-    die("Acceso denegado.");
-}
-
+// 1. Seguridad: Login
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
-    die('Acceso denegado. Debes iniciar sesión.');
+    exit;
 }
 
-if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
+// 2. Seguridad: Roles (Admin y Operador)
+$rol = $_SESSION['user_rol_name'] ?? '';
+if ($rol !== 'Admin' && $rol !== 'Operador') {
     http_response_code(403);
-    die('Acceso denegado. Se requiere rol de administrador.');
+    exit;
 }
 
+// 3. Validar parámetro
 if (!isset($_GET['file']) || empty($_GET['file'])) {
     http_response_code(400);
-    die('Archivo no especificado.');
+    exit;
 }
 
-$filePath = $_GET['file'];
+$fileRequest = urldecode($_GET['file']);
 
-$baseUploadPath = realpath(__DIR__ . '/../../remesas_private/uploads');
-if (!$baseUploadPath) {
-    error_log("Error crítico: El directorio base de uploads no existe.");
-    http_response_code(500);
-    die("Error interno del servidor.");
+// --- 4. LIMPIEZA INTELIGENTE DE RUTA (FIX DEL ERROR) ---
+
+// A) Quitar protocolo y dominio si vienen en el string
+// Esto convierte "https://jcenvios.cl/uploads/archivo.jpg" en "/uploads/archivo.jpg"
+$fileRequest = str_replace([
+    'http://' . $_SERVER['HTTP_HOST'], 
+    'https://' . $_SERVER['HTTP_HOST'],
+    'http://', 
+    'https://',
+    BASE_URL // Si tienes definida esta constante
+], '', $fileRequest);
+
+// B) Quitar barras iniciales y limpieza básica
+$fileRequest = ltrim($fileRequest, '/\\');
+$fileRequest = str_replace(['../', '..\\'], '', $fileRequest); // Anti-hack
+
+// C) Si la ruta empieza con "public_html/", quitarlo (a veces pasa)
+if (strpos($fileRequest, 'public_html/') === 0) {
+    $fileRequest = substr($fileRequest, 12);
 }
 
-$filePath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $filePath), DIRECTORY_SEPARATOR);
+// -------------------------------------------------------
 
-$fullPathAttempt = $baseUploadPath . DIRECTORY_SEPARATOR . $filePath;
-$realFullPath = realpath($fullPathAttempt);
+// 5. Definir Rutas Base Posibles
+$basePrivate = realpath(__DIR__ . '/../../remesas_private');
 
-if ($realFullPath === false || strpos($realFullPath, $baseUploadPath) !== 0 || !is_file($realFullPath) || !is_readable($realFullPath)) {
-    http_response_code(404);
-    error_log("Intento de Path Traversal o archivo no encontrado: " . $fullPathAttempt);
-    die("Archivo no encontrado o acceso no permitido.");
-}
-
-$finfo = finfo_open(FILEINFO_MIME_TYPE);
-if (!$finfo) {
-    http_response_code(500); die('Error al abrir fileinfo.');
-}
-$mimeType = finfo_file($finfo, $realFullPath);
-finfo_close($finfo);
-
-$allowedMimeTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'application/pdf'
+// Vamos a probar varias combinaciones para encontrar el archivo
+$candidates = [
+    // 1. Buscar en uploads directamente (ej: uploads/recibos/foto.jpg)
+    $basePrivate . DIRECTORY_SEPARATOR . $fileRequest,
+    
+    // 2. Buscar asumiendo que faltó 'uploads/' (ej: recibos/foto.jpg -> uploads/recibos/foto.jpg)
+    $basePrivate . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . $fileRequest,
+    
+    // 3. Caso raro: Si la BD guardó "uploads/" duplicado, lo limpiamos
+    $basePrivate . DIRECTORY_SEPARATOR . str_replace('uploads/', '', $fileRequest)
 ];
 
-if (!in_array($mimeType, $allowedMimeTypes)) {
-    http_response_code(403);
-    die('Tipo de archivo no permitido.');
+$realFullPath = null;
+
+foreach ($candidates as $candidate) {
+    // Limpiar dobles barras por si acaso
+    $candidate = str_replace(['//', '\\\\'], DIRECTORY_SEPARATOR, $candidate);
+    
+    if (file_exists($candidate) && is_file($candidate)) {
+        $realFullPath = realpath($candidate);
+        // Seguridad final: Verificar que esté dentro de la carpeta privada
+        if ($realFullPath && strpos($realFullPath, $basePrivate) === 0) {
+            break; 
+        } else {
+            $realFullPath = null; // Encontrado pero fuera de zona segura
+        }
+    }
 }
 
-header('Content-Type: ' . $mimeType);
-header('Content-Length: ' . filesize($realFullPath));
-header('Content-Disposition: inline; filename="' . basename($realFullPath) . '"');
-header('X-Content-Type-Options: nosniff');
+// 6. Servir el archivo
+if ($realFullPath && file_exists($realFullPath)) {
+    
+    $mimeType = null;
+    if (function_exists('mime_content_type')) {
+        $mimeType = @mime_content_type($realFullPath);
+    }
+    
+    if (!$mimeType) {
+        $ext = strtolower(pathinfo($realFullPath, PATHINFO_EXTENSION));
+        $mimes = [
+            'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png', 'gif' => 'image/gif',
+            'webp' => 'image/webp', 'pdf' => 'application/pdf'
+        ];
+        $mimeType = $mimes[$ext] ?? 'application/octet-stream';
+    }
 
-if (ob_get_level()) {
-    ob_end_clean();
+    header('Content-Type: ' . $mimeType);
+    header('Content-Length: ' . filesize($realFullPath));
+    header('Content-Disposition: inline; filename="' . basename($realFullPath) . '"');
+    header('Cache-Control: private, max-age=86400');
+    
+    if (ob_get_length()) ob_clean();
+    flush();
+    
+    readfile($realFullPath);
+    exit;
+
+} else {
+    // Error 404
+    http_response_code(404);
+    // Descomenta la siguiente línea SOLO para depurar si sigue fallando (luego bórrala):
+    // echo "Debug: No encontrado. Probé: " . implode(' | ', $candidates);
+    exit;
 }
-
-readfile($realFullPath);
-exit;
-?>

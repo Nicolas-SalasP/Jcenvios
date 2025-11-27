@@ -167,6 +167,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const enforceNameFormat = (inputId) => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        input.maxLength = 12;
+        input.addEventListener('input', function() {
+            this.value = this.value.replace(/\s/g, '');
+        });
+    };
+
+    enforceNameFormat('benef-firstname');
+    enforceNameFormat('benef-secondname');
+    enforceNameFormat('benef-lastname');
+    enforceNameFormat('benef-secondlastname');
+
     const updateDocumentTypesList = () => {
         const paisId = parseInt(benefPaisIdInput.value);
         const isVenezuela = (paisId === 3);
