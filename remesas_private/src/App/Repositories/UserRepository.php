@@ -15,6 +15,7 @@ class UserRepository
 
     public function findByEmail(string $email): ?array
     {
+        // Solo buscamos usuarios activos (no eliminados)
         $sql = "SELECT
                     U.UserID, U.PasswordHash, U.PrimerNombre, U.FailedLoginAttempts, U.LockoutUntil,
                     R.RolID, R.NombreRol AS Rol,
@@ -23,7 +24,7 @@ class UserRepository
                 FROM usuarios U
                 LEFT JOIN roles R ON U.RolID = R.RolID
                 LEFT JOIN estados_verificacion EV ON U.VerificacionEstadoID = EV.EstadoID
-                WHERE U.Email = ? LIMIT 1";
+                WHERE U.Email = ? AND U.Eliminado = 0 LIMIT 1";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("s", $email);
@@ -37,7 +38,7 @@ class UserRepository
 
     public function countAdmins(): int
     {
-        $sql = "SELECT COUNT(*) as total FROM usuarios WHERE RolID = 1";
+        $sql = "SELECT COUNT(*) as total FROM usuarios WHERE RolID = 1 AND Eliminado = 0";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
@@ -106,12 +107,13 @@ class UserRepository
                     U.twofa_enabled, 
                     R.RolID, R.NombreRol AS Rol,
                     EV.EstadoID AS VerificacionEstadoID, EV.NombreEstado AS VerificacionEstado,
-                    TD.TipoDocumentoID, TD.NombreDocumento AS TipoDocumento
+                    TD.TipoDocumentoID, TD.NombreDocumento AS TipoDocumento,
+                    U.PorcentajeComision
                 FROM usuarios U
                 LEFT JOIN roles R ON U.RolID = R.RolID
                 LEFT JOIN estados_verificacion EV ON U.VerificacionEstadoID = EV.EstadoID
                 LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
-                WHERE U.UserID = ?";
+                WHERE U.UserID = ? AND U.Eliminado = 0";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $userId);
@@ -243,7 +245,7 @@ class UserRepository
 
     public function delete(int $userId): bool
     {
-        $sql = "DELETE FROM usuarios WHERE UserID = ?";
+        $sql = "UPDATE usuarios SET Eliminado = 1, Email = CONCAT(Email, '_deleted_', UNIX_TIMESTAMP()) WHERE UserID = ?";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $userId);
         $success = $stmt->execute();
@@ -254,7 +256,7 @@ class UserRepository
     public function countAll(): int
     {
         $adminRolID = 1;
-        $sql = "SELECT COUNT(UserID) as total FROM usuarios WHERE RolID != ?";
+        $sql = "SELECT COUNT(UserID) as total FROM usuarios WHERE RolID != ? AND Eliminado = 0";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $adminRolID);
         $stmt->execute();
@@ -383,7 +385,7 @@ class UserRepository
                     Telefono = ?,
                     NumeroDocumento = ?
                 WHERE UserID = ?";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("ssssssi", $nom1, $nom2, $ape1, $ape2, $tel, $doc, $userId);
         $success = $stmt->execute();

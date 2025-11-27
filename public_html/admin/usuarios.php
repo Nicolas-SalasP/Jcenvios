@@ -16,7 +16,7 @@ if ($paginaActual < 1) $paginaActual = 1;
 $offset = ($paginaActual - 1) * $registrosPorPagina;
 
 // Consulta de conteo
-$sqlCount = "SELECT COUNT(*) as total FROM usuarios";
+$sqlCount = "SELECT COUNT(*) as total FROM usuarios WHERE Eliminado = 0";
 $totalRegistros = $conexion->query($sqlCount)->fetch_assoc()['total'];
 $totalPaginas = ceil($totalRegistros / $registrosPorPagina);
 
@@ -28,6 +28,7 @@ $sql = "SELECT
         FROM usuarios U
         LEFT JOIN roles R ON U.RolID = R.RolID
         LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
+        WHERE U.Eliminado = 0
         ORDER BY 
             CASE WHEN U.UserID = 1 THEN 0 ELSE 1 END,
             U.FechaRegistro DESC

@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. GESTIÓN DE VERIFICACIONES (KYC)
     // ==========================================
     const verificationModalElement = document.getElementById('verificationModal');
-    
+
     if (verificationModalElement) {
         let verificationModalInstance = null;
         try {
@@ -23,17 +23,17 @@ document.addEventListener('DOMContentLoaded', () => {
             linkF: document.getElementById('linkFrente'),
             linkR: document.getElementById('linkReverso')
         };
-        
+
         const actionButtons = verificationModalElement.querySelectorAll('.action-btn');
         let currentUserId = null;
         const defaultProfilePic = '../assets/img/SoloLogoNegroSinFondo.png';
 
         verificationModalElement.addEventListener('show.bs.modal', function (event) {
             const btn = event.relatedTarget;
-            if (!btn) return; // CORRECCIÓN: Usar 'btn', no 'button'
-            
+            if (!btn) return;
+
             currentUserId = btn.dataset.userId;
-            
+
             els.nameHeader.textContent = btn.dataset.userName || 'Usuario';
             els.fullName.textContent = btn.dataset.fullName || 'N/A';
             els.email.textContent = btn.dataset.email || 'N/A';
@@ -44,23 +44,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const urlReverso = btn.dataset.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.imgReverso)}` : '';
             const urlPerfil = btn.dataset.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.fotoPerfil)}` : defaultProfilePic;
 
-            if(els.imgProfile) els.imgProfile.src = urlPerfil;
-            
-            if(els.imgF) {
+            if (els.imgProfile) els.imgProfile.src = urlPerfil;
+
+            if (els.imgF) {
                 els.imgF.src = urlFrente || '';
                 els.imgF.alt = urlFrente ? "Cargando..." : "No subida";
             }
-            
-            if(els.imgR) {
+
+            if (els.imgR) {
                 els.imgR.src = urlReverso || '';
                 els.imgR.alt = urlReverso ? "Cargando..." : "No subida";
             }
 
-            if(els.linkF) {
+            if (els.linkF) {
                 els.linkF.href = urlFrente || '#';
                 els.linkF.classList.toggle('disabled', !urlFrente);
             }
-            if(els.linkR) {
+            if (els.linkR) {
                 els.linkR.href = urlReverso || '#';
                 els.linkR.classList.toggle('disabled', !urlReverso);
             }
@@ -70,9 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
             button.addEventListener('click', async () => {
                 const action = button.dataset.action;
                 if (!currentUserId) return;
-                
+
                 const confirmed = await window.showConfirmModal('Confirmar Acción', `¿Estás seguro de marcar como ${action} al usuario #${currentUserId}?`);
-                
+
                 if (confirmed) {
                     try {
                         const response = await fetch('../api/?accion=updateVerificationStatus', {
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({ userId: currentUserId, newStatus: action })
                         });
                         const result = await response.json();
-                        
+
                         if (verificationModalInstance) verificationModalInstance.hide();
 
                         if (result.success) {
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.currentTarget;
             const paisId = btn.dataset.paisId;
             const newStatus = btn.dataset.currentStatus === '1' ? 0 : 1;
-            
+
             if (await window.showConfirmModal('Confirmar', '¿Cambiar estado del país?')) {
                 try {
                     const res = await fetch('../api/?accion=togglePaisStatus', {
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 3. GESTIÓN DE USUARIOS (Bloqueo, Roles, Edición, DOCUMENTOS)
+    // 3. GESTIÓN DE USUARIOS
     // ==========================================
 
     document.querySelectorAll('.block-user-btn').forEach(button => {
@@ -244,9 +244,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch('../api/?accion=updateUserRole', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            userId: e.target.dataset.userId, 
-                            newRoleId: e.target.value 
+                        body: JSON.stringify({
+                            userId: e.target.dataset.userId,
+                            newRoleId: e.target.value
                         })
                     });
                     const result = await response.json();
@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
                         }
                     }
-                } catch (error) { 
+                } catch (error) {
                     e.target.value = original;
                     window.showInfoModal('Error', 'Error de comunicación con el servidor.', false);
                 }
@@ -275,17 +275,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.admin-delete-user-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             const userId = e.currentTarget.dataset.userId;
-            if (await window.showConfirmModal('Confirmar Eliminación', '¿Seguro? Esta acción es irreversible.')) {
-                if (await window.showConfirmModal('Confirmación Final', 'Se borrarán todos los datos. ¿Proceder?')) {
+            const firstConfirm = await window.showConfirmModal('Confirmar Eliminación', '¿Estas seguro? Esta acción enviará al usuario a la papelera.');
+
+            if (firstConfirm) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const secondConfirm = await window.showConfirmModal('Confirmación Final', 'Se eliminara permanentemente el usuario. ¿Proceder?');
+
+                if (secondConfirm) {
                     try {
                         const res = await fetch('../api/?accion=deleteUser', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ userId })
                         });
-                        if ((await res.json()).success) {
+                        const result = await res.json();
+
+                        if (result.success) {
                             document.getElementById(`user-row-${userId}`)?.remove();
                             window.showInfoModal('Éxito', 'Usuario eliminado.', true);
+                        } else {
+                            window.showInfoModal('Error', result.error || 'No se pudo eliminar.', false);
                         }
                     } catch (e) { window.showInfoModal('Error', 'Error de conexión.', false); }
                 }
@@ -293,12 +302,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // EDITAR USUARIO (MODAL)
     const editUserModalElement = document.getElementById('editUserModal');
     if (editUserModalElement) {
         const editUserModal = new bootstrap.Modal(editUserModalElement);
         const form = document.getElementById('edit-user-form');
-        
+
         document.querySelectorAll('.admin-edit-user-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const d = e.currentTarget.dataset;
@@ -321,20 +329,19 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('../api/?accion=adminUpdateUser', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 const result = await res.json();
-                if(result.success) {
+                if (result.success) {
                     window.showInfoModal('Éxito', 'Datos de usuario actualizados.', true, () => window.location.reload());
                 } else {
                     window.showInfoModal('Error', result.error, false);
                 }
-            } catch(err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
         });
     }
 
-    // --- NUEVO: VISOR DE DOCUMENTOS (EN GESTIÓN DE USUARIOS) ---
     const userDocsModalElement = document.getElementById('userDocsModal');
     if (userDocsModalElement) {
         const docsName = document.getElementById('docsUserName');
@@ -354,22 +361,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const urlFrente = d.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgFrente)}` : '';
                 const urlReverso = d.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgReverso)}` : '';
 
-                if(docsImgProfile) docsImgProfile.src = urlProfile;
-                
-                if(docsImgFrente) {
+                if (docsImgProfile) docsImgProfile.src = urlProfile;
+
+                if (docsImgFrente) {
                     docsImgFrente.src = urlFrente || '';
                     docsImgFrente.alt = urlFrente ? "Cargando..." : "No disponible";
                 }
-                if(docsImgReverso) {
+                if (docsImgReverso) {
                     docsImgReverso.src = urlReverso || '';
                     docsImgReverso.alt = urlReverso ? "Cargando..." : "No disponible";
                 }
 
-                if(docsLinkFrente) {
+                if (docsLinkFrente) {
                     docsLinkFrente.href = urlFrente || '#';
                     docsLinkFrente.classList.toggle('disabled', !urlFrente);
                 }
-                if(docsLinkReverso) {
+                if (docsLinkReverso) {
                     docsLinkReverso.href = urlReverso || '#';
                     docsLinkReverso.classList.toggle('disabled', !urlReverso);
                 }
@@ -379,7 +386,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-    // -----------------------------------------------------------
 
     // ==========================================
     // 4. GESTIÓN DE TRANSACCIONES
@@ -423,9 +429,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch('../api/?accion=updateTxCommission', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            transactionId: txId, 
-                            newCommission: commissionFloat 
+                        body: JSON.stringify({
+                            transactionId: txId,
+                            newCommission: commissionFloat
                         })
                     });
                     const result = await response.json();
@@ -481,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         window.showInfoModal('Error', result.error, false);
                     }
-                } catch (error) { window.showInfoModal('Error', 'Error de conexión.', false); } 
+                } catch (error) { window.showInfoModal('Error', 'Error de conexión.', false); }
                 finally { document.querySelectorAll('.confirm-reject-btn').forEach(b => b.disabled = false); }
             });
         });

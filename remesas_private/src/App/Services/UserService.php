@@ -347,24 +347,14 @@ class UserService
 
     public function adminDeleteUser(int $adminId, int $targetUserId): void
     {
-        if ($targetUserId === $adminId) {
+        if ($targetUserId === $adminId)
             throw new Exception("No puedes eliminarte a ti mismo.", 400);
-        }
-        if ($targetUserId === 1) {
-            throw new Exception("No se puede eliminar al administrador principal (ID 1).", 403);
-        }
-
-        $user = $this->userRepository->findUserById($targetUserId);
-        if (!$user) {
-            throw new Exception("Usuario no encontrado.", 404);
-        }
-
-        try {
-            $this->toggleUserBlock($adminId, $targetUserId, 'blocked');
-
-            $this->notificationService->logAdminAction($adminId, "Admin DESACTIVÓ (eliminó lógicamente) usuario", "Usuario ID: $targetUserId, Email: " . $user['Email']);
-        } catch (Exception $e) {
-            throw new Exception("No se pudo desactivar al usuario: " . $e->getMessage(), 500);
+        if ($targetUserId === 1)
+            throw new Exception("No se puede eliminar al Super Administrador.", 403);
+        if ($this->userRepository->delete($targetUserId)) {
+            $this->notificationService->logAdminAction($adminId, "Admin eliminó usuario", "Usuario ID: $targetUserId (Soft Delete)");
+        } else {
+            throw new Exception("No se pudo eliminar al usuario.", 500);
         }
     }
 
