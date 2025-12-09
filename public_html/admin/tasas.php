@@ -44,9 +44,35 @@ foreach ($paisesActivos as $pais) {
         <h1 class="mb-0">Gestionar Tasas de Cambio</h1>
     </div>
 
+    <div class="card shadow-sm mb-4 border-info">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-bank"></i> Tasa Dólar BCV (Referencia)</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small">Esta tasa se usa como referencia para mostrar a los clientes el equivalente en
+                dólares de su envío.</p>
+            <form id="bcv-rate-form" class="row row-cols-lg-auto g-3 align-items-center">
+                <div class="col-12">
+                    <label class="visually-hidden" for="bcv-rate">Tasa BCV</label>
+                    <div class="input-group">
+                        <span class="input-group-text fw-bold">1 USD =</span>
+                        <input type="number" step="0.01" min="0.01" class="form-control" id="bcv-rate"
+                            placeholder="0.00" required>
+                        <span class="input-group-text">VES</span>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary" id="btn-save-bcv">Actualizar Referencia</button>
+                </div>
+            </form>
+            <div id="bcv-feedback" class="mt-2"></div>
+        </div>
+    </div>
+
     <div class="card shadow-sm mb-4">
         <div class="card-header">
-            <h5 class="mb-0">Editor de Tasas</h5>
+            <h5 class="mb-0">Editor de Tasas Comerciales (Venta)</h5>
         </div>
         <div class="card-body">
             <form id="rate-editor-form">
@@ -57,7 +83,8 @@ foreach ($paisesActivos as $pais) {
                             <option value="">Seleccionar país...</option>
                             <?php foreach ($paisesOrigen as $pais): ?>
                                 <option value="<?php echo $pais['PaisID']; ?>">
-                                    <?php echo htmlspecialchars($pais['NombrePais']); ?></option>
+                                    <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -68,7 +95,8 @@ foreach ($paisesActivos as $pais) {
                             <option value="">Seleccionar país...</option>
                             <?php foreach ($paisesDestino as $pais): ?>
                                 <option value="<?php echo $pais['PaisID']; ?>">
-                                    <?php echo htmlspecialchars($pais['NombrePais']); ?></option>
+                                    <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -134,11 +162,14 @@ foreach ($paisesActivos as $pais) {
                                     <td><?php echo htmlspecialchars($tasa['PaisOrigen']); ?></td>
                                     <td><?php echo htmlspecialchars($tasa['PaisDestino']); ?></td>
                                     <td class="rate-min-cell">
-                                        <?php echo htmlspecialchars(number_format($tasa['MontoMinimo'], 2, ',', '.')); ?></td>
+                                        <?php echo htmlspecialchars(number_format($tasa['MontoMinimo'], 2, ',', '.')); ?>
+                                    </td>
                                     <td class="rate-max-cell">
-                                        <?php echo htmlspecialchars(number_format($tasa['MontoMaximo'], 2, ',', '.')); ?></td>
+                                        <?php echo htmlspecialchars(number_format($tasa['MontoMaximo'], 2, ',', '.')); ?>
+                                    </td>
                                     <td class="rate-value-cell">
-                                        <?php echo htmlspecialchars(number_format($tasa['ValorTasa'], 5, ',', '.')); ?></td>
+                                        <?php echo htmlspecialchars(number_format($tasa['ValorTasa'], 5, ',', '.')); ?>
+                                    </td>
                                     <td>
                                         <button class="btn btn-sm btn-outline-primary edit-rate-btn me-1"
                                             data-tasa-id="<?php echo $tasa['TasaID']; ?>"

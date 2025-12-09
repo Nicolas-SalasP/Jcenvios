@@ -55,12 +55,24 @@ class ClientController extends BaseController
 
     public function getTasa(): void
     {
-        $origenID = (int)($_GET['origenID'] ?? 0);
-        $destinoID = (int)($_GET['destinoID'] ?? 0);
-        $montoOrigen = (float)($_GET['montoOrigen'] ?? 0);
+        $origenID = (int) ($_GET['origenID'] ?? 0);
+        $destinoID = (int) ($_GET['destinoID'] ?? 0);
+        $montoOrigen = (float) ($_GET['montoOrigen'] ?? 0);
         $tasa = $this->pricingService->getCurrentRate($origenID, $destinoID, $montoOrigen);
         $this->sendJsonResponse($tasa);
     }
+
+    // --- NUEVO MÉTODO AÑADIDO: OBTENER TASA BCV ---
+    public function getBcvRate(): void
+    {
+        try {
+            $rate = $this->pricingService->getBcvRate();
+            $this->sendJsonResponse(['success' => true, 'rate' => $rate]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+    // ----------------------------------------------
 
     public function getFormasDePago(): void
     {
@@ -83,7 +95,7 @@ class ClientController extends BaseController
         $this->sendJsonResponse($nombres);
     }
 
-     public function getDocumentTypes(): void
+    public function getDocumentTypes(): void
     {
         $tipos = $this->tipoDocumentoRepo->findAllActive();
         $response = array_map(fn($tipo) => ['id' => $tipo['TipoDocumentoID'], 'nombre' => $tipo['NombreDocumento']], $tipos);
@@ -99,7 +111,7 @@ class ClientController extends BaseController
     public function getCuentas(): void
     {
         $userId = $this->ensureLoggedIn();
-        $paisID = (int)($_GET['paisID'] ?? 0);
+        $paisID = (int) ($_GET['paisID'] ?? 0);
         $cuentas = $this->cuentasBeneficiariasService->getAccountsByUser($userId, $paisID ?: null);
         $this->sendJsonResponse($cuentas);
     }
@@ -107,7 +119,7 @@ class ClientController extends BaseController
     public function getBeneficiaryDetails(): void
     {
         $userId = $this->ensureLoggedIn();
-        $cuentaId = (int)($_GET['id'] ?? 0);
+        $cuentaId = (int) ($_GET['id'] ?? 0);
         if ($cuentaId <= 0) {
             throw new Exception("ID de cuenta inválido", 400);
         }
@@ -127,7 +139,7 @@ class ClientController extends BaseController
     {
         $userId = $this->ensureLoggedIn();
         $data = $this->getJsonInput();
-        $cuentaId = (int)($data['cuentaId'] ?? 0);
+        $cuentaId = (int) ($data['cuentaId'] ?? 0);
         if ($cuentaId <= 0) {
             throw new Exception("ID de cuenta inválido", 400);
         }
@@ -140,7 +152,7 @@ class ClientController extends BaseController
         $userId = $this->ensureLoggedIn();
         $data = $this->getJsonInput();
         $cuentaId = (int) ($data['id'] ?? 0);
-        
+
         if ($cuentaId <= 0) {
             $this->sendJsonResponse(['success' => false, 'error' => 'ID de cuenta inválido'], 400);
             return;
@@ -174,7 +186,7 @@ class ClientController extends BaseController
     public function uploadReceipt(): void
     {
         $userId = $this->ensureLoggedIn();
-        $transactionId = (int)($_POST['transactionId'] ?? 0);
+        $transactionId = (int) ($_POST['transactionId'] ?? 0);
         $fileData = $_FILES['receiptFile'] ?? null;
 
         if ($transactionId <= 0 || $fileData === null) {
@@ -202,14 +214,14 @@ class ClientController extends BaseController
         $userId = $this->ensureLoggedIn();
         $postData = $_POST;
         $fileData = $_FILES['fotoPerfil'] ?? null;
-        
+
         $result = $this->userService->updateUserProfile($userId, $postData, $fileData);
-        
+
         $_SESSION['user_photo_url'] = $result['fotoPerfilUrl'];
-        
+
         $this->sendJsonResponse([
-            'success' => true, 
-            'message' => 'Perfil actualizado con éxito.', 
+            'success' => true,
+            'message' => 'Perfil actualizado con éxito.',
             'newPhotoUrl' => $result['fotoPerfilUrl']
         ]);
     }
@@ -226,14 +238,14 @@ class ClientController extends BaseController
         $userId = $this->ensureLoggedIn();
         $user = $this->userService->getUserProfile($userId);
         $secretData = $this->userService->generateUser2FASecret($userId, $user['Email']);
-        
+
         $this->sendJsonResponse([
             'success' => true,
             'secret' => $secretData['secret'],
             'qrCodeUrl' => $secretData['qrCodeUrl']
         ]);
     }
-    
+
     public function enable2FA(): void
     {
         $userId = $this->ensureLoggedIn();
@@ -244,9 +256,9 @@ class ClientController extends BaseController
             $this->sendJsonResponse(['success' => false, 'error' => 'El código de verificación es obligatorio.'], 400);
             return;
         }
-        
+
         $isValid = $this->userService->verifyAndEnable2FA($userId, $code);
-        
+
         if ($isValid) {
             $backupCodes = $_SESSION['show_backup_codes'] ?? [];
             unset($_SESSION['show_backup_codes']);
@@ -290,7 +302,7 @@ class ClientController extends BaseController
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new Exception("El correo electrónico no es válido.", 400);
         }
-        
+
         if (strlen($name) > 100 || strlen($subject) > 200 || strlen($message) > 5000) {
             throw new Exception("Uno o más campos exceden el límite de longitud.", 400);
         }

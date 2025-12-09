@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Referencias Editor Tasas
     const form = document.getElementById('rate-editor-form');
     const paisOrigenSelect = document.getElementById('pais-origen');
     const paisDestinoSelect = document.getElementById('pais-destino');
@@ -10,6 +11,71 @@ document.addEventListener('DOMContentLoaded', () => {
     const feedbackMessage = document.getElementById('feedback-message');
     const ratesTableBody = document.querySelector('#existing-rates-table tbody');
 
+    // Referencias Editor BCV
+    const bcvForm = document.getElementById('bcv-rate-form');
+    const bcvInput = document.getElementById('bcv-rate');
+    const bcvBtn = document.getElementById('btn-save-bcv');
+    const bcvFeedback = document.getElementById('bcv-feedback');
+
+    // --- LÓGICA TASA BCV ---
+    const loadBcvRate = async () => {
+        if (!bcvInput) return;
+        bcvInput.disabled = true;
+        try {
+            // Usamos ClientController.getBcvRate (es público para usuarios logueados)
+            const response = await fetch('../api/?accion=getBcvRate');
+            const data = await response.json();
+            if (data.success) {
+                bcvInput.value = data.rate > 0 ? data.rate : '';
+            }
+        } catch (e) {
+            console.error("Error cargando BCV", e);
+        } finally {
+            bcvInput.disabled = false;
+        }
+    };
+
+    if (bcvForm) {
+        bcvForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const rate = parseFloat(bcvInput.value);
+            if (isNaN(rate) || rate <= 0) {
+                window.showInfoModal('Error', 'La tasa BCV debe ser mayor a 0.', false);
+                return;
+            }
+
+            bcvBtn.disabled = true;
+            bcvBtn.textContent = 'Guardando...';
+            bcvFeedback.innerHTML = '';
+
+            try {
+                // Usamos AdminController.updateBcvRate
+                const response = await fetch('../api/?accion=updateBcvRate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rate: rate })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    bcvFeedback.innerHTML = '<span class="text-success fw-bold"><i class="bi bi-check-circle"></i> Tasa BCV actualizada correctamente.</span>';
+                    setTimeout(() => bcvFeedback.innerHTML = '', 3000);
+                } else {
+                    window.showInfoModal('Error', result.error || 'Error al guardar.', false);
+                }
+            } catch (error) {
+                window.showInfoModal('Error', 'Error de conexión.', false);
+            } finally {
+                bcvBtn.disabled = false;
+                bcvBtn.textContent = 'Actualizar Referencia';
+            }
+        });
+
+        // Cargar tasa al iniciar
+        loadBcvRate();
+    }
+
+    // --- LÓGICA EDITOR DE TASAS COMERCIALES (Existente) ---
     const resetEditor = (clearDropdowns = false) => {
         rateValueInput.disabled = true;
         montoMinInput.disabled = true;
@@ -68,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (montoMin >= montoMax) {
-             window.showInfoModal('Error', 'El Monto Mínimo no puede ser mayor or igual al Monto Máximo.', false);
+            window.showInfoModal('Error', 'El Monto Mínimo no puede ser mayor or igual al Monto Máximo.', false);
             return;
         }
 
@@ -97,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 feedbackMessage.textContent = '¡Tasa guardada con éxito!';
 
                 const newTasaId = result.newTasaId.toString();
-                
+
                 updateTable(origenId, destinoId, newTasaId, nuevoValor, montoMin, montoMax);
                 resetEditor(true);
 
@@ -176,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ratesTableBody.addEventListener('click', async (e) => {
         const editButton = e.target.closest('.edit-rate-btn');
         const deleteButton = e.target.closest('.delete-rate-btn');
-        
+
         if (editButton) {
             const tasaId = editButton.dataset.tasaId;
             const origenId = editButton.dataset.origenId;
@@ -184,19 +250,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const valor = editButton.dataset.valor;
             const min = editButton.dataset.min;
             const max = editButton.dataset.max;
-    
+
             paisOrigenSelect.value = origenId;
             paisDestinoSelect.value = destinoId;
-            
+
             rateValueInput.value = valor;
             montoMinInput.value = min;
             montoMaxInput.value = max;
             currentTasaIdInput.value = tasaId;
-    
+
             enableEditor();
-    
+
             form.scrollIntoView({ behavior: 'smooth' });
-            
+
             const cardBody = form.closest('.card-body');
             cardBody.style.transition = 'background-color 0.5s ease-out';
             cardBody.style.backgroundColor = '#e6f7ff';
@@ -207,9 +273,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (deleteButton) {
             const tasaId = deleteButton.dataset.tasaId;
-            
+
             const confirmed = await window.showConfirmModal(
-                'Eliminar Tasa', 
+                'Eliminar Tasa',
                 '¿Estás seguro de que quieres eliminar esta configuración de tasa? Esto podría dejar a la ruta sin precio.'
             );
 
@@ -225,13 +291,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (result.success) {
                         const row = document.getElementById(`tasa-row-${tasaId}`);
                         if (row) row.remove();
-                        
+
                         if (ratesTableBody.children.length === 0) {
                             ratesTableBody.innerHTML = '<tr><td colspan="6" class="text-center">No hay tasas configuradas.</td></tr>';
                         }
-                        
+
                         window.showInfoModal('Éxito', 'Tasa eliminada correctamente.', true);
-                        
+
                         if (currentTasaIdInput.value === tasaId) {
                             resetEditor(true);
                         }

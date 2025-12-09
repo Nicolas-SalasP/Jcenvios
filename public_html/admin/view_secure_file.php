@@ -5,20 +5,17 @@ error_reporting(0);
 
 require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
-// 1. Seguridad: Login
+// 1. Seguridad Básica: Login
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
     exit;
 }
 
-// 2. Seguridad: Roles (Admin y Operador)
+$userId = (int)$_SESSION['user_id'];
 $rol = $_SESSION['user_rol_name'] ?? '';
-if ($rol !== 'Admin' && $rol !== 'Operador') {
-    http_response_code(403);
-    exit;
-}
+$isAdminOrOperator = ($rol === 'Admin' || $rol === 'Operador');
 
-// 3. Validar parámetro
+// 2. Validar parámetro
 if (!isset($_GET['file']) || empty($_GET['file'])) {
     http_response_code(400);
     exit;
@@ -26,57 +23,63 @@ if (!isset($_GET['file']) || empty($_GET['file'])) {
 
 $fileRequest = urldecode($_GET['file']);
 
-// --- 4. LIMPIEZA INTELIGENTE DE RUTA (FIX DEL ERROR) ---
-
-// A) Quitar protocolo y dominio si vienen en el string
-// Esto convierte "https://jcenvios.cl/uploads/archivo.jpg" en "/uploads/archivo.jpg"
+// --- 3. LIMPIEZA INTELIGENTE DE RUTA ---
 $fileRequest = str_replace([
     'http://' . $_SERVER['HTTP_HOST'], 
     'https://' . $_SERVER['HTTP_HOST'],
     'http://', 
     'https://',
-    BASE_URL // Si tienes definida esta constante
+    BASE_URL
 ], '', $fileRequest);
 
-// B) Quitar barras iniciales y limpieza básica
 $fileRequest = ltrim($fileRequest, '/\\');
-$fileRequest = str_replace(['../', '..\\'], '', $fileRequest); // Anti-hack
+$fileRequest = str_replace(['../', '..\\'], '', $fileRequest);
 
-// C) Si la ruta empieza con "public_html/", quitarlo (a veces pasa)
 if (strpos($fileRequest, 'public_html/') === 0) {
     $fileRequest = substr($fileRequest, 12);
 }
 
-// -------------------------------------------------------
+// --- 4. VALIDACIÓN DE PERMISOS ---
+$hasPermission = false;
+
+if ($isAdminOrOperator) {
+    $hasPermission = true;
+} 
+else {
+    if (strpos($fileRequest, 'profile_pics') !== false) {
+        $filename = basename($fileRequest);
+        $prefix = 'user_profile_' . $userId . '_';
+        if (strpos($filename, $prefix) === 0) {
+            $hasPermission = true;
+        }
+    }
+}
+
+if (!$hasPermission) {
+    http_response_code(403);
+    exit;
+}
 
 // 5. Definir Rutas Base Posibles
 $basePrivate = realpath(__DIR__ . '/../../remesas_private');
 
-// Vamos a probar varias combinaciones para encontrar el archivo
 $candidates = [
-    // 1. Buscar en uploads directamente (ej: uploads/recibos/foto.jpg)
     $basePrivate . DIRECTORY_SEPARATOR . $fileRequest,
-    
-    // 2. Buscar asumiendo que faltó 'uploads/' (ej: recibos/foto.jpg -> uploads/recibos/foto.jpg)
     $basePrivate . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . $fileRequest,
-    
-    // 3. Caso raro: Si la BD guardó "uploads/" duplicado, lo limpiamos
     $basePrivate . DIRECTORY_SEPARATOR . str_replace('uploads/', '', $fileRequest)
 ];
 
 $realFullPath = null;
 
 foreach ($candidates as $candidate) {
-    // Limpiar dobles barras por si acaso
     $candidate = str_replace(['//', '\\\\'], DIRECTORY_SEPARATOR, $candidate);
     
     if (file_exists($candidate) && is_file($candidate)) {
         $realFullPath = realpath($candidate);
-        // Seguridad final: Verificar que esté dentro de la carpeta privada
         if ($realFullPath && strpos($realFullPath, $basePrivate) === 0) {
             break; 
         } else {
-            $realFullPath = null; // Encontrado pero fuera de zona segura
+            $realFullPath = null; 
         }
     }
 }
@@ -111,9 +114,6 @@ if ($realFullPath && file_exists($realFullPath)) {
     exit;
 
 } else {
-    // Error 404
     http_response_code(404);
-    // Descomenta la siguiente línea SOLO para depurar si sigue fallando (luego bórrala):
-    // echo "Debug: No encontrado. Probé: " . implode(' | ', $candidates);
     exit;
 }

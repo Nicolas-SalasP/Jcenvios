@@ -16,7 +16,8 @@ use App\Repositories\{
     TipoBeneficiarioRepository,
     ContabilidadRepository,
     TasasHistoricoRepository,
-    CuentasAdminRepository
+    CuentasAdminRepository,
+    SystemSettingsRepository
 };
 use App\Services\{
     LogService,
@@ -79,6 +80,7 @@ class Container
             ContabilidadRepository::class => new ContabilidadRepository($this->getDb()),
             TasasHistoricoRepository::class => new TasasHistoricoRepository($this->getDb()),
             CuentasAdminRepository::class => new CuentasAdminRepository($this->getDb()),
+            SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
 
                 // Services
             LogService::class => new LogService($this->getDb()),
@@ -96,6 +98,7 @@ class Container
             PricingService::class => new PricingService(
                 $this->get(RateRepository::class),
                 $this->get(CountryRepository::class),
+                $this->get(SystemSettingsRepository::class),
                 $this->get(NotificationService::class)
             ),
             CuentasBeneficiariasService::class => new CuentasBeneficiariasService(
@@ -201,6 +204,7 @@ try {
         'enable2FA' => [ClientController::class, 'enable2FA', 'POST'],
         'disable2FA' => [ClientController::class, 'disable2FA', 'POST'],
 
+        // Rutas Admin
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
         'deleteRate' => [AdminController::class, 'deleteRate', 'POST'],
         'addPais' => [AdminController::class, 'addPais', 'POST'],
@@ -220,7 +224,10 @@ try {
         'deleteCuentaAdmin' => [AdminController::class, 'deleteCuentaAdmin', 'POST'],
         'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
         'adminUpdateUser' => [AdminController::class, 'adminUpdateUser', 'POST'],
+        'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
+        'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
 
+        // Contabilidad
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
         'agregarFondos' => [ContabilidadController::class, 'agregarFondos', 'POST'],
         'compraDivisas' => [ContabilidadController::class, 'compraDivisas', 'POST'],
@@ -244,7 +251,7 @@ try {
         }
 
     } else {
-        throw new Exception('Acción API no válida o no encontrada.', 404);
+        throw new Exception('Acción API no válida o no encontrada: ' . htmlspecialchars($accion), 404);
     }
 
 } catch (\Throwable $e) {
