@@ -12,9 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const beneficiaryListDiv = document.getElementById('beneficiary-list');
 
     // --- NUEVOS INPUTS Y DISPLAYS ---
-    const montoOrigenInput = document.getElementById('monto-origen'); // CLP
-    const montoDestinoInput = document.getElementById('monto-destino'); // VES
-    const montoUsdInput = document.getElementById('monto-usd'); // USD BCV (Referencia)
+    const montoOrigenInput = document.getElementById('monto-origen');
+    const montoDestinoInput = document.getElementById('monto-destino'); 
+    const montoUsdInput = document.getElementById('monto-usd'); 
 
     const tasaComercialDisplay = document.getElementById('tasa-comercial-display');
     const bcvRateDisplay = document.getElementById('bcv-rate-display');
@@ -48,10 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. VARIABLES GLOBALES Y UTILIDADES
     // ==========================================
     let currentStep = 1;
-    let commercialRate = 0; // Tasa Venta (CLP -> VES)
-    let bcvRate = 0;        // Tasa Referencia (USD -> VES)
+    let commercialRate = 0;
+    let bcvRate = 0;       
     let fetchRateTimer = null;
-    let activeInputId = 'monto-origen'; // Trackea en qué input escribe el usuario
+    let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
     const LOGGED_IN_USER_ID = userIdInput ? userIdInput.value : null;
 
@@ -59,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const cleanNumber = (value) => {
         if (typeof value !== 'string' || !value) return '';
-        // Elimina separadores de miles (.) y cambia coma (,) por punto (.)
         return value.replace(/\./g, '').replace(',', '.');
     };
 
@@ -128,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!origenID || !destinoID) return;
 
-        // 1. Obtener Tasa BCV
         try {
             const resBcv = await fetch('../api/?accion=getBcvRate');
             const dataBcv = await resBcv.json();
@@ -142,13 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) { console.error("Error BCV", e); }
 
-        // 2. Obtener Tasa Comercial (Tiered Pricing)
-        // Usamos el monto en CLP (origen) como base para buscar el rango,
-        // incluso si el usuario está escribiendo en otro campo, estimamos el origen.
         let estimatedMontoOrigen = parseFloat(cleanNumber(montoOrigenInput.value)) || 0;
-
-        // Si el usuario escribe en Destino o USD, necesitamos una tasa base para buscar el rango
-        // Hacemos una primera llamada con monto 0 para obtener la tasa base
         if (estimatedMontoOrigen === 0) {
             await performRateFetch(origenID, destinoID, 0);
         } else {
@@ -250,7 +242,38 @@ document.addEventListener('DOMContentLoaded', () => {
     montoUsdInput.addEventListener('input', handleInput);
 
     // ==========================================
-    // 5. CARGA DE DATOS (API) - Paises, Beneficiarios, etc.
+    // 5. VALIDACIÓN DE HORARIO LABORAL
+    // ==========================================
+    const checkBusinessHours = () => {
+        // Obtener fecha/hora actual en Chile
+        const now = new Date();
+        const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
+
+        const day = chileTime.getDay(); // 0 (Dom) - 6 (Sáb)
+        const hour = chileTime.getHours();
+        const minutes = chileTime.getMinutes();
+        const totalMinutes = hour * 60 + minutes;
+
+        // Horarios en minutos desde las 00:00
+        const startWeekday = 10 * 60 + 30; // 10:30
+        const endWeekday = 20 * 60;        // 20:00
+        const startSat = 10 * 60 + 30;     // 10:30
+        const endSat = 16 * 60;            // 16:00
+
+        // Lunes a Viernes (1-5)
+        if (day >= 1 && day <= 5) {
+            return (totalMinutes >= startWeekday && totalMinutes < endWeekday);
+        }
+        // Sábado (6)
+        if (day === 6) {
+            return (totalMinutes >= startSat && totalMinutes < endSat);
+        }
+        // Domingo (0)
+        return false;
+    };
+
+    // ==========================================
+    // 6. CARGA DE DATOS (API) - Paises, Beneficiarios, etc.
     // ==========================================
 
     const loadPaises = async (rol, selectElement) => {
@@ -320,13 +343,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ==========================================
-    // 6. EVENTOS DEL FLUJO
+    // 7. EVENTOS DEL FLUJO
     // ==========================================
     nextBtn?.addEventListener('click', () => {
         if (currentStep === 1) {
             if (paisOrigenSelect.value && paisDestinoSelect.value && paisOrigenSelect.value !== paisDestinoSelect.value) {
                 loadBeneficiaries(paisDestinoSelect.value);
-                fetchRates(); // Cargar tasas al avanzar al paso 2 (para tenerlas listas en el 3)
+                fetchRates();
                 currentStep++;
             } else {
                 window.showInfoModal('Atención', 'Selecciona países de origen y destino válidos.', false);
@@ -335,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (currentStep === 2) {
             if (document.querySelector('input[name="beneficiary-radio"]:checked')) {
                 selectedCuentaIdInput.value = document.querySelector('input[name="beneficiary-radio"]:checked').value;
-                fetchRates(); // Asegurar tasas frescas al entrar al paso 3
+                fetchRates();
                 currentStep++;
             } else {
                 window.showInfoModal('Atención', 'Debes seleccionar un beneficiario.', false);
@@ -358,7 +381,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentStep > 1) { currentStep--; updateView(); }
     });
 
-    // Cambios en selects disparan recarga de tasas
     paisOrigenSelect?.addEventListener('change', () => {
         paisDestinoSelect.value = '';
         loadPaises('Destino', paisDestinoSelect);
@@ -376,7 +398,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const formaPagoTxt = formaDePagoSelect.value;
         const usdVal = montoUsdInput.value || '0.00';
 
-        // Obtener alias del beneficiario seleccionado
         let benefAlias = "Seleccionado";
         const selectedRadio = document.querySelector('input[name="beneficiary-radio"]:checked');
         if (selectedRadio) {
@@ -399,6 +420,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     submitBtn?.addEventListener('click', async () => {
+
+        if (!checkBusinessHours()) {
+            const proceed = await window.showConfirmModal(
+                'Aviso de Horario',
+                'Estás operando fuera de nuestro horario laboral (Lun-Vie 10:30-20:00, Sáb 10:30-16:00). Tu orden será procesada el próximo día hábil. ¿Deseas continuar?'
+            );
+            if (!proceed) return;
+        }
+
         submitBtn.disabled = true; submitBtn.textContent = 'Procesando...';
         const data = {
             userID: LOGGED_IN_USER_ID,
@@ -430,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ==========================================
-    // 9. MODAL AÑADIR BENEFICIARIO (Lógica Mantenida)
+    // 8. MODAL AÑADIR BENEFICIARIO
     // ==========================================
     let addAccountModalInstance = null;
     if (addAccountModalElement) {
@@ -463,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
             addAccountModalInstance.show();
         });
 
-        // Funciones auxiliares del modal (Visibilidad inputs, validaciones doc, etc.)
+        // Funciones auxiliares del modal
         const toggleInputVisibility = (toggleId, containerId, inputId, fieldName) => {
             const toggle = document.getElementById(toggleId);
             const container = document.getElementById(containerId);
@@ -541,7 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 10. INICIALIZACIÓN
+    // 9. INICIALIZACIÓN
     // ==========================================
     if (LOGGED_IN_USER_ID) {
         loadPaises('Origen', paisOrigenSelect);
