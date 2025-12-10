@@ -60,25 +60,27 @@ class ContabilidadRepository
 
     // --- REGISTRO DE MOVIMIENTOS ---
 
-    public function registrarMovimiento(int $saldoId, ?int $adminId, ?int $txId, string $tipoCodigo, float $monto, float $saldoAnterior, float $saldoNuevo): bool
+    public function registrarMovimiento(int $saldoId, ?int $adminId, ?int $txId, string $tipoCodigo, float $monto, float $saldoAnterior, float $saldoNuevo, ?string $descripcion = null): bool
     {
         $sql = "INSERT INTO contabilidad_movimientos 
-                (SaldoID, AdminUserID, TransaccionID, TipoMovimientoID, Monto, SaldoAnterior, SaldoNuevo)
-                VALUES (?, ?, ?, (SELECT TipoMovimientoID FROM tipos_movimiento WHERE Codigo = ? LIMIT 1), ?, ?, ?)";
+                (SaldoID, AdminUserID, TransaccionID, TipoMovimientoID, Monto, Descripcion, SaldoAnterior, SaldoNuevo)
+                VALUES (?, ?, ?, (SELECT TipoMovimientoID FROM tipos_movimiento WHERE Codigo = ? LIMIT 1), ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iiisddd", $saldoId, $adminId, $txId, $tipoCodigo, $monto, $saldoAnterior, $saldoNuevo);
+        // CORREGIDO: iiisdsdd (La 's' es para la descripción)
+        $stmt->bind_param("iiisdsdd", $saldoId, $adminId, $txId, $tipoCodigo, $monto, $descripcion, $saldoAnterior, $saldoNuevo);
         return $stmt->execute();
     }
 
-    public function registrarMovimientoBanco(int $cuentaAdminId, int $adminId, ?int $txId, string $tipoCodigo, float $monto, float $saldoAnterior, float $saldoNuevo): bool
+    public function registrarMovimientoBanco(int $cuentaAdminId, int $adminId, ?int $txId, string $tipoCodigo, float $monto, float $saldoAnterior, float $saldoNuevo, ?string $descripcion = null): bool
     {
         $sql = "INSERT INTO contabilidad_movimientos 
-                (CuentaAdminID, AdminUserID, TransaccionID, TipoMovimientoID, Monto, SaldoAnterior, SaldoNuevo)
-                VALUES (?, ?, ?, (SELECT TipoMovimientoID FROM tipos_movimiento WHERE Codigo = ? LIMIT 1), ?, ?, ?)";
+                (CuentaAdminID, AdminUserID, TransaccionID, TipoMovimientoID, Monto, Descripcion, SaldoAnterior, SaldoNuevo)
+                VALUES (?, ?, ?, (SELECT TipoMovimientoID FROM tipos_movimiento WHERE Codigo = ? LIMIT 1), ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iiisddd", $cuentaAdminId, $adminId, $txId, $tipoCodigo, $monto, $saldoAnterior, $saldoNuevo);
+        // CORREGIDO: iiisdsdd (La 's' es para la descripción)
+        $stmt->bind_param("iiisdsdd", $cuentaAdminId, $adminId, $txId, $tipoCodigo, $monto, $descripcion, $saldoAnterior, $saldoNuevo);
         return $stmt->execute();
     }
 
@@ -132,6 +134,7 @@ class ContabilidadRepository
                     tm.NombreVisible,
                     tm.Color, 
                     m.Monto,
+                    m.Descripcion,
                     m.TransaccionID,
                     CONCAT(cb.TitularPrimerNombre, ' ', cb.TitularPrimerApellido) AS BeneficiarioNombre,
                     u.PrimerNombre AS AdminNombre,
@@ -164,6 +167,7 @@ class ContabilidadRepository
                     tm.NombreVisible,
                     tm.Color, 
                     m.Monto,
+                    m.Descripcion,
                     m.TransaccionID,
                     u.PrimerNombre AS AdminNombre,
                     u.PrimerApellido AS AdminApellido,

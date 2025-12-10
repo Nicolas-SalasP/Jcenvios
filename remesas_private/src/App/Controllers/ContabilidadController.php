@@ -32,14 +32,19 @@ class ContabilidadController extends BaseController
         $data = $this->getJsonInput();
 
         $monto = (float) ($data['monto'] ?? 0);
+        $descripcion = trim($data['descripcion'] ?? '');
 
         if ($monto <= 0) {
             throw new Exception("El monto debe ser positivo.", 400);
         }
+        if (empty($descripcion)) {
+            throw new Exception("La descripción es obligatoria.", 400);
+        }
+
         if (!empty($data['bancoId'])) {
-            $this->contabilidadService->agregarFondosBanco((int) $data['bancoId'], $monto, $adminId);
+            $this->contabilidadService->agregarFondosBanco((int) $data['bancoId'], $monto, $adminId, $descripcion);
         } elseif (!empty($data['paisId'])) {
-            $this->contabilidadService->agregarFondosPais((int) $data['paisId'], $monto, $adminId);
+            $this->contabilidadService->agregarFondosPais((int) $data['paisId'], $monto, $adminId, $descripcion);
         } else {
             throw new Exception("Datos incompletos: Se requiere bancoId o paisId.", 400);
         }
@@ -47,24 +52,33 @@ class ContabilidadController extends BaseController
         $this->sendJsonResponse(['success' => true, 'message' => 'Fondos agregados con éxito.']);
     }
 
-    public function registrarGastoVario(): void
+    public function retirarFondos(): void
     {
         $adminId = $this->ensureLoggedIn();
         $data = $this->getJsonInput();
         $monto = (float) ($data['monto'] ?? 0);
-        $motivo = trim($data['motivo'] ?? '');
+        $descripcion = trim($data['descripcion'] ?? $data['motivo'] ?? '');
 
-        if ($monto <= 0 || empty($motivo)) {
-            throw new Exception("Faltan datos: monto o motivo.", 400);
+        if ($monto <= 0) {
+            throw new Exception("El monto debe ser positivo.", 400);
+        }
+        if (empty($descripcion)) {
+            throw new Exception("El motivo o descripción es obligatorio.", 400);
         }
 
-        if (!empty($data['paisId'])) {
-            $this->contabilidadService->registrarGastoPais((int) $data['paisId'], $monto, $motivo, $adminId);
+        if (!empty($data['bancoId'])) {
+            $this->contabilidadService->registrarRetiroBanco((int) $data['bancoId'], $monto, $descripcion, $adminId);
+        } elseif (!empty($data['paisId'])) {
+            $this->contabilidadService->registrarGastoPais((int) $data['paisId'], $monto, $descripcion, $adminId);
         } else {
-            throw new Exception("Debe especificar el país para el retiro.", 400);
+            throw new Exception("Debe especificar bancoId o paisId para el retiro.", 400);
         }
 
         $this->sendJsonResponse(['success' => true, 'message' => 'Retiro registrado correctamente.']);
+    }
+    public function registrarGastoVario(): void
+    {
+        $this->retirarFondos();
     }
 
     public function compraDivisas(): void

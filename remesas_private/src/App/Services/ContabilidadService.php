@@ -32,28 +32,34 @@ class ContabilidadService
     private function getOrCreateSaldo(int $paisId): array
     {
         $saldo = $this->contabilidadRepo->getSaldoPorPais($paisId);
-        if ($saldo)
+        if ($saldo) {
             return $saldo;
+        }
 
         $moneda = $this->countryRepo->findMonedaById($paisId);
-        if (!$moneda)
+        if (!$moneda) {
             throw new Exception("País $paisId no tiene moneda definida.", 500);
+        }
 
         $this->contabilidadRepo->crearRegistroSaldo($paisId, $moneda);
         return $this->contabilidadRepo->getSaldoPorPais($paisId);
     }
 
-    // --- GESTIÓN DE BANCOS (ORIGEN) ---
-    public function agregarFondosBanco(int $cuentaAdminId, float $monto, int $adminId): void
+    // =========================================================================
+    // SECCIÓN 1: GESTIÓN DE BANCOS (ORIGEN)
+    // =========================================================================
+    public function agregarFondosBanco(int $cuentaAdminId, float $monto, int $adminId, string $descripcion = ''): void
     {
-        if ($monto <= 0)
+        if ($monto <= 0) {
             throw new Exception("El monto debe ser positivo.", 400);
+        }
 
         $this->dbConnection->begin_transaction();
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
-            if (!$cuenta)
+            if (!$cuenta) {
                 throw new Exception("Cuenta bancaria no encontrada.");
+            }
 
             $saldoAnterior = (float) $cuenta['SaldoActual'];
             $saldoNuevo = $saldoAnterior + $monto;
@@ -64,12 +70,13 @@ class ContabilidadService
                 'RECARGA',
                 $monto,
                 $saldoAnterior,
-                $saldoNuevo
+                $saldoNuevo,
+                $descripcion
             );
             $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNuevo);
 
             $this->dbConnection->commit();
-            $this->logService->logAction($adminId, 'Recarga Banco', "Banco #$cuentaAdminId: +$monto");
+            $this->logService->logAction($adminId, 'Recarga Banco', "Banco #$cuentaAdminId: +$monto. $descripcion");
 
         } catch (Exception $e) {
             $this->dbConnection->rollback();
@@ -77,11 +84,52 @@ class ContabilidadService
         }
     }
 
-    // --- GESTIÓN DE PAÍSES (DESTINO) ---
-    public function agregarFondosPais(int $paisId, float $monto, int $adminId): void
+    public function registrarRetiroBanco(int $cuentaAdminId, float $monto, string $motivo, int $adminId): void
     {
-        if ($monto <= 0)
+        if ($monto <= 0) {
             throw new Exception("El monto debe ser positivo.", 400);
+        }
+
+        $this->dbConnection->begin_transaction();
+        try {
+            $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
+            if (!$cuenta) {
+                throw new Exception("Cuenta bancaria no encontrada.");
+            }
+
+            $saldoAnterior = (float) $cuenta['SaldoActual'];
+            $saldoNuevo = $saldoAnterior - $monto;
+            $this->contabilidadRepo->registrarMovimientoBanco(
+                $cuentaAdminId,
+                $adminId,
+                null,
+                'GASTO_VARIO',
+                $monto,
+                $saldoAnterior,
+                $saldoNuevo,
+                $motivo
+            );
+            
+            $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNuevo);
+
+            $this->dbConnection->commit();
+            $this->logService->logAction($adminId, 'Retiro Banco', "Banco #$cuentaAdminId: -$monto. Motivo: $motivo");
+
+        } catch (Exception $e) {
+            $this->dbConnection->rollback();
+            throw new Exception("Error al retirar fondos del banco: " . $e->getMessage());
+        }
+    }
+
+    // =========================================================================
+    // SECCIÓN 2: GESTIÓN DE PAÍSES (DESTINO)
+    // =========================================================================
+
+    public function agregarFondosPais(int $paisId, float $monto, int $adminId, string $descripcion = ''): void
+    {
+        if ($monto <= 0) {
+            throw new Exception("El monto debe ser positivo.", 400);
+        }
 
         $this->dbConnection->begin_transaction();
         try {
@@ -90,11 +138,21 @@ class ContabilidadService
             $saldoAnterior = (float) $saldo['SaldoActual'];
             $saldoNuevo = $saldoAnterior + $monto;
 
-            $this->contabilidadRepo->registrarMovimiento($saldoId, $adminId, null, 'RECARGA', $monto, $saldoAnterior, $saldoNuevo);
+            $this->contabilidadRepo->registrarMovimiento(
+                $saldoId, 
+                $adminId, 
+                null, 
+                'RECARGA', 
+                $monto, 
+                $saldoAnterior, 
+                $saldoNuevo, 
+                $descripcion
+            );
+            
             $this->contabilidadRepo->actualizarSaldo($saldoId, $saldoNuevo);
 
             $this->dbConnection->commit();
-            $this->logService->logAction($adminId, 'Recarga País', "País $paisId: +$monto");
+            $this->logService->logAction($adminId, 'Recarga País', "País $paisId: +$monto. $descripcion");
 
         } catch (Exception $e) {
             $this->dbConnection->rollback();
@@ -104,8 +162,9 @@ class ContabilidadService
 
     public function registrarGastoPais(int $paisId, float $monto, string $motivo, int $adminId): void
     {
-        if ($monto <= 0)
+        if ($monto <= 0) {
             throw new Exception("El monto debe ser positivo.", 400);
+        }
 
         $this->dbConnection->begin_transaction();
         try {
@@ -113,7 +172,18 @@ class ContabilidadService
             $saldoId = $saldo['SaldoID'];
             $saldoAnterior = (float) $saldo['SaldoActual'];
             $saldoNuevo = $saldoAnterior - $monto;
-            $this->contabilidadRepo->registrarMovimiento($saldoId, $adminId, null, 'GASTO_VARIO', $monto, $saldoAnterior, $saldoNuevo);
+            
+            $this->contabilidadRepo->registrarMovimiento(
+                $saldoId, 
+                $adminId, 
+                null, 
+                'GASTO_VARIO', 
+                $monto, 
+                $saldoAnterior, 
+                $saldoNuevo, 
+                $motivo
+            );
+            
             $this->contabilidadRepo->actualizarSaldo($saldoId, $saldoNuevo);
 
             $this->dbConnection->commit();
@@ -125,18 +195,23 @@ class ContabilidadService
         }
     }
 
-    // --- MOVIMIENTOS ENTRE CAJAS ---
+    // =========================================================================
+    // SECCIÓN 3: MOVIMIENTOS ENTRE CAJAS
+    // =========================================================================
+
     public function procesarCompraDivisas(int $bancoOrigenId, int $paisDestinoId, float $montoSalida, float $montoEntrada, int $adminId): void
     {
         $this->dbConnection->begin_transaction();
         try {
+            // 1. Validar y debitar Banco
             $banco = $this->cuentasAdminRepo->getById($bancoOrigenId);
-            if (!$banco)
+            if (!$banco) {
                 throw new Exception("Banco no encontrado.");
+            }
 
-            // 1. Restar de Banco
             $saldoBancoAnt = (float) $banco['SaldoActual'];
             $saldoBancoNuevo = $saldoBancoAnt - $montoSalida;
+            
             $this->contabilidadRepo->registrarMovimientoBanco(
                 $bancoOrigenId,
                 $adminId,
@@ -144,15 +219,17 @@ class ContabilidadService
                 'RETIRO_DIVISAS',
                 $montoSalida,
                 $saldoBancoAnt,
-                $saldoBancoNuevo
+                $saldoBancoNuevo,
+                "Compra de divisas para País #$paisDestinoId"
             );
             $this->cuentasAdminRepo->updateSaldo($bancoOrigenId, $saldoBancoNuevo);
 
-            // 2. Sumar a País
+            // 2. Validar y acreditar País
             $saldoPais = $this->getOrCreateSaldo($paisDestinoId);
             $saldoId = $saldoPais['SaldoID'];
             $saldoPaisAnt = (float) $saldoPais['SaldoActual'];
             $saldoPaisNuevo = $saldoPaisAnt + $montoEntrada;
+            
             $this->contabilidadRepo->registrarMovimiento(
                 $saldoId,
                 $adminId,
@@ -160,7 +237,8 @@ class ContabilidadService
                 'COMPRA_DIVISA',
                 $montoEntrada,
                 $saldoPaisAnt,
-                $saldoPaisNuevo
+                $saldoPaisNuevo,
+                "Ingreso desde Banco #$bancoOrigenId"
             );
             $this->contabilidadRepo->actualizarSaldo($saldoId, $saldoPaisNuevo);
 
@@ -173,16 +251,29 @@ class ContabilidadService
         }
     }
 
-    // --- AUTOMATIZACIONES ---
+    // =========================================================================
+    // SECCIÓN 4: AUTOMATIZACIONES (TRANSACCIONES)
+    // =========================================================================
     public function registrarIngresoVenta(int $cuentaAdminId, float $monto, int $adminId, int $txId): void
     {
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
-            if (!$cuenta)
-                return;
+            if (!$cuenta) return;
+            
             $saldoAnt = (float) $cuenta['SaldoActual'];
             $saldoNew = $saldoAnt + $monto;
-            $this->contabilidadRepo->registrarMovimientoBanco($cuentaAdminId, $adminId, $txId, 'INGRESO_VENTA', $monto, $saldoAnt, $saldoNew);
+            
+            $this->contabilidadRepo->registrarMovimientoBanco(
+                $cuentaAdminId, 
+                $adminId, 
+                $txId, 
+                'INGRESO_VENTA', 
+                $monto, 
+                $saldoAnt, 
+                $saldoNew, 
+                "Ingreso por venta TX #$txId"
+            );
+            
             $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNew);
         } catch (Exception $e) {
             error_log("Error ingreso venta: " . $e->getMessage());
@@ -191,23 +282,44 @@ class ContabilidadService
 
     public function registrarGasto(int $paisId, float $montoTx, float $montoComision, int $adminId, int $txId): bool
     {
-        if ($montoTx <= 0)
-            return true;
+        if ($montoTx <= 0) return true;
+        
         $this->dbConnection->begin_transaction();
         try {
             $saldo = $this->getOrCreateSaldo($paisId);
             $saldoId = $saldo['SaldoID'];
             $saldoAnt = (float) $saldo['SaldoActual'];
+            
             $total = $montoTx + $montoComision;
             $saldoNew = $saldoAnt - $total;
 
             if ($montoTx > 0) {
-                $this->contabilidadRepo->registrarMovimiento($saldoId, $adminId, $txId, 'GASTO_TX', $montoTx, $saldoAnt, $saldoAnt - $montoTx);
+                $this->contabilidadRepo->registrarMovimiento(
+                    $saldoId, 
+                    $adminId, 
+                    $txId, 
+                    'GASTO_TX', 
+                    $montoTx, 
+                    $saldoAnt, 
+                    $saldoAnt - $montoTx, 
+                    "Pago TX #$txId"
+                );
                 $saldoAnt -= $montoTx;
             }
+            
             if ($montoComision > 0) {
-                $this->contabilidadRepo->registrarMovimiento($saldoId, $adminId, $txId, 'GASTO_COMISION', $montoComision, $saldoAnt, $saldoNew);
+                $this->contabilidadRepo->registrarMovimiento(
+                    $saldoId, 
+                    $adminId, 
+                    $txId, 
+                    'GASTO_COMISION', 
+                    $montoComision, 
+                    $saldoAnt, 
+                    $saldoNew, 
+                    "Comisión TX #$txId"
+                );
             }
+            
             $this->contabilidadRepo->actualizarSaldo($saldoId, $saldoNew);
             $this->dbConnection->commit();
             return true;
@@ -220,15 +332,26 @@ class ContabilidadService
     public function corregirGastoComision(int $paisId, float $oldComm, float $newComm, int $adminId, int $txId): bool
     {
         $diff = $newComm - $oldComm;
-        if ($diff == 0)
-            return true;
+        if ($diff == 0) return true;
+        
         $this->dbConnection->begin_transaction();
         try {
             $saldo = $this->getOrCreateSaldo($paisId);
             $saldoId = $saldo['SaldoID'];
             $ant = (float) $saldo['SaldoActual'];
             $new = $ant - $diff;
-            $this->contabilidadRepo->registrarMovimiento($saldoId, $adminId, $txId, 'GASTO_COMISION', $diff, $ant, $new);
+            
+            $this->contabilidadRepo->registrarMovimiento(
+                $saldoId, 
+                $adminId, 
+                $txId, 
+                'GASTO_COMISION', 
+                $diff, 
+                $ant, 
+                $new, 
+                "Corrección Comisión TX #$txId"
+            );
+            
             $this->contabilidadRepo->actualizarSaldo($saldoId, $new);
             $this->dbConnection->commit();
             return true;
@@ -238,16 +361,20 @@ class ContabilidadService
         }
     }
 
+    // =========================================================================
+    // SECCIÓN 5: REPORTES Y LECTURA
+    // =========================================================================
+
     public function getSaldosDashboard(): array
     {
         return $this->contabilidadRepo->getSaldosDashboard();
     }
+    
     public function getSaldosBancosDashboard(): array
     {
         return $this->contabilidadRepo->getSaldosBancos();
     }
 
-    // --- REPORTE UNIFICADO ---
     public function getResumenMensual(string $tipo, int $id, int $mes, int $anio): array
     {
         $mesStr = str_pad((string) $mes, 2, '0', STR_PAD_LEFT);
@@ -255,8 +382,9 @@ class ContabilidadService
 
         if ($tipo === 'pais') {
             $saldo = $this->contabilidadRepo->getSaldoPorPais($id);
-            if (!$saldo)
+            if (!$saldo) {
                 throw new Exception("País no encontrado.");
+            }
 
             $movimientos = $this->contabilidadRepo->getMovimientosDelMes($saldo['SaldoID'], $mesStr, $anioStr);
             $total = $this->contabilidadRepo->getGastosMensuales($saldo['SaldoID'], $mesStr, $anioStr);
@@ -269,8 +397,10 @@ class ContabilidadService
             ];
         } elseif ($tipo === 'banco') {
             $cuenta = $this->cuentasAdminRepo->getById($id);
-            if (!$cuenta)
+            if (!$cuenta) {
                 throw new Exception("Banco no encontrado.");
+            }
+            
             $movimientos = $this->contabilidadRepo->getMovimientosBancoDelMes($id, $mesStr, $anioStr);
             $moneda = '???';
             if ($cuenta['PaisID']) {
@@ -284,6 +414,7 @@ class ContabilidadService
                 'Movimientos' => $movimientos
             ];
         }
+        
         return [];
     }
 }

@@ -16,38 +16,50 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 
     <div class="row">
-        <div class="col-12 mb-4">
-            <div class="card shadow-sm border-primary">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm border-primary h-100">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-bank"></i> Bancos (Recaudación)</h5>
-                    <button class="btn btn-sm btn-light text-primary fw-bold" data-bs-toggle="modal"
-                        data-bs-target="#modalRecargaBanco">
-                        <i class="bi bi-plus-circle"></i> Recargar Saldo
-                    </button>
+                    <h5 class="mb-0"><i class="bi bi-bank"></i> Bancos (Origen)</h5>
+                    <div>
+                        <button class="btn btn-sm btn-light text-primary fw-bold me-1" data-bs-toggle="modal"
+                            data-bs-target="#modalRecargaBanco" title="Ingresar dinero">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-light fw-bold" data-bs-toggle="modal"
+                            data-bs-target="#modalRetiroBanco" title="Retirar dinero">
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="bancos-loading" class="text-center p-2">
                         <div class="spinner-border text-primary"></div>
                     </div>
-                    <div id="bancos-container" class="row d-none"></div>
+                    <div id="bancos-container" class="row"></div>
                 </div>
             </div>
         </div>
 
-        <div class="col-12 mb-4">
-            <div class="card shadow-sm border-success">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm border-success h-100">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-wallet2"></i> Cajas Destino (Dispersión)</h5>
-                    <button class="btn btn-sm btn-light text-success fw-bold" data-bs-toggle="modal"
-                        data-bs-target="#modalRetiroPais">
-                        <i class="bi bi-dash-circle"></i> Retiro / Gasto
-                    </button>
+                    <h5 class="mb-0"><i class="bi bi-wallet2"></i> Cajas Destino (Países)</h5>
+                    <div>
+                        <button class="btn btn-sm btn-light text-success fw-bold me-1" data-bs-toggle="modal"
+                            data-bs-target="#modalRecargaPais" title="Ingresar saldo manual">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-light fw-bold" data-bs-toggle="modal"
+                            data-bs-target="#modalRetiroPais" title="Registrar gasto/retiro">
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="saldos-loading" class="text-center p-2">
                         <div class="spinner-border text-success"></div>
                     </div>
-                    <div id="saldos-container" class="row d-none"></div>
+                    <div id="saldos-container" class="row"></div>
                 </div>
             </div>
         </div>
@@ -55,33 +67,36 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
     <div class="card shadow-sm bg-light mb-4">
         <div class="card-body">
-            <h5 class="card-title text-center text-warning fw-bold mb-3"><i class="bi bi-arrow-left-right"></i> Compra
+            <h5 class="card-title text-center text-secondary fw-bold mb-3"><i class="bi bi-arrow-left-right"></i> Compra
                 de Divisas / Transferencia</h5>
             <form id="form-compra-divisas">
-                <div class="row align-items-end">
+                <div class="row align-items-end justify-content-center">
                     <div class="col-md-3">
-                        <label class="form-label">Desde (Banco)</label>
-                        <select id="compra-banco-origen" class="form-select" required>
+                        <label class="form-label small">Desde (Banco)</label>
+                        <select id="compra-banco-origen" class="form-select form-select-sm" required>
                             <option>...</option>
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Monto Salida</label>
-                        <input type="number" step="0.01" class="form-control" id="compra-monto-salida" required>
+                        <label class="form-label small">Monto Salida</label>
+                        <input type="number" step="0.01" class="form-control form-control-sm" id="compra-monto-salida"
+                            required>
                     </div>
-                    <div class="col-md-1 text-center pb-2"><i class="bi bi-arrow-right fs-4"></i></div>
+                    <div class="col-md-1 text-center pb-1"><i class="bi bi-arrow-right fs-5 text-muted"></i></div>
                     <div class="col-md-3">
-                        <label class="form-label">Hacia (País)</label>
-                        <select id="compra-pais-destino" class="form-select" required>
+                        <label class="form-label small">Hacia (País)</label>
+                        <select id="compra-pais-destino" class="form-select form-select-sm" required>
                             <option>...</option>
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Monto Entrada</label>
-                        <input type="number" step="0.01" class="form-control" id="compra-monto-entrada" required>
+                        <label class="form-label small">Monto Entrada</label>
+                        <input type="number" step="0.01" class="form-control form-control-sm" id="compra-monto-entrada"
+                            required>
                     </div>
                     <div class="col-md-1">
-                        <button type="submit" class="btn btn-warning w-100"><i class="bi bi-check-lg"></i></button>
+                        <button type="submit" class="btn btn-secondary btn-sm w-100"><i
+                                class="bi bi-check-lg"></i></button>
                     </div>
                 </div>
             </form>
@@ -115,14 +130,22 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             </form>
 
             <div id="resumen-resultado" style="display:none;">
-                <h4 id="resumen-titulo" class="text-center my-3"></h4>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 id="resumen-titulo" class="my-0"></h4>
+                    <div class="text-end" id="resumen-total-container">
+                        <small class="text-muted d-block" id="resumen-texto-info">Gastos</small>
+                        <h4 class="text-danger fw-bold m-0" id="resumen-total-gastado"></h4>
+                    </div>
+                </div>
+
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-light">
                             <tr>
                                 <th>Fecha</th>
                                 <th>Tipo</th>
-                                <th>Detalle</th>
+                                <th>Referencia</th>
+                                <th>Descripción</th>
                                 <th>Responsable</th>
                                 <th class="text-end">Monto</th>
                             </tr>
@@ -139,7 +162,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">Recargar Banco (Ingreso Manual)</h5>
+                <h5 class="modal-title">Ingreso a Banco (Origen)</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -152,7 +175,70 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="form-label">Monto a Ingresar</label>
                         <input type="number" step="0.01" class="form-control" id="recarga-banco-monto" required>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" id="recarga-banco-desc" rows="2"
+                            placeholder="Ej: Inyección de capital" required></textarea>
+                    </div>
                     <div class="d-grid"><button type="submit" class="btn btn-primary">Confirmar Ingreso</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalRetiroBanco" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Retiro de Banco (Origen)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="form-retiro-banco">
+                    <div class="mb-3">
+                        <label class="form-label">Cuenta Bancaria</label>
+                        <select id="retiro-banco-select" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto a Retirar</label>
+                        <input type="number" step="0.01" class="form-control" id="retiro-banco-monto" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo / Descripción</label>
+                        <textarea class="form-control" id="retiro-banco-desc" rows="2"
+                            placeholder="Ej: Pago proveedores" required></textarea>
+                    </div>
+                    <div class="d-grid"><button type="submit" class="btn btn-danger">Confirmar Retiro</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalRecargaPais" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Carga Manual a País (Destino)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="form-recarga-pais">
+                    <div class="mb-3">
+                        <label class="form-label">País</label>
+                        <select id="recarga-pais-select" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto a Cargar</label>
+                        <input type="number" step="0.01" class="form-control" id="recarga-pais-monto" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" id="recarga-pais-desc" rows="2" placeholder="Ej: Ajuste de saldo"
+                            required></textarea>
+                    </div>
+                    <div class="d-grid"><button type="submit" class="btn btn-success">Confirmar Carga</button></div>
                 </form>
             </div>
         </div>
@@ -162,9 +248,9 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 <div class="modal fade" id="modalRetiroPais" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Retiro de Fondos (Caja Destino)</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Gasto / Retiro de País (Destino)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="form-retiro-pais">
@@ -177,11 +263,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <input type="number" step="0.01" class="form-control" id="retiro-pais-monto" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Motivo</label>
-                        <input type="text" class="form-control" id="retiro-pais-motivo"
-                            placeholder="Ej: Pago de servicios" required>
+                        <label class="form-label">Motivo / Descripción</label>
+                        <textarea class="form-control" id="retiro-pais-desc" rows="2"
+                            placeholder="Ej: Pago de servicios" required></textarea>
                     </div>
-                    <div class="d-grid"><button type="submit" class="btn btn-danger">Confirmar Retiro</button></div>
+                    <div class="d-grid"><button type="submit" class="btn btn-warning">Confirmar Retiro</button></div>
                 </form>
             </div>
         </div>
