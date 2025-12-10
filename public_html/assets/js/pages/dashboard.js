@@ -11,10 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const paisDestinoSelect = document.getElementById('pais-destino');
     const beneficiaryListDiv = document.getElementById('beneficiary-list');
 
-    // --- NUEVOS INPUTS Y DISPLAYS ---
+    // Inputs de Montos (Paso 3)
     const montoOrigenInput = document.getElementById('monto-origen');
-    const montoDestinoInput = document.getElementById('monto-destino'); 
-    const montoUsdInput = document.getElementById('monto-usd'); 
+    const montoDestinoInput = document.getElementById('monto-destino');
+    const montoUsdInput = document.getElementById('monto-usd');
 
     const tasaComercialDisplay = document.getElementById('tasa-comercial-display');
     const bcvRateDisplay = document.getElementById('bcv-rate-display');
@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addAccountBtn = document.getElementById('add-account-btn');
     const addAccountModalElement = document.getElementById('addAccountModal');
     const addBeneficiaryForm = document.getElementById('add-beneficiary-form');
+
     const benefPaisIdInput = document.getElementById('benef-pais-id');
     const phoneCodeSelect = document.getElementById('benef-phone-code');
     const phoneNumberInput = document.getElementById('benef-phone-number');
@@ -49,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     let currentStep = 1;
     let commercialRate = 0;
-    let bcvRate = 0;       
+    let bcvRate = 0;
     let fetchRateTimer = null;
     let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
@@ -68,11 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const countryPhoneCodes = [
-        { code: '+54', name: 'Argentina', flag: '🇦🇷', paisId: 7 },
-        { code: '+591', name: 'Bolivia', flag: '🇧🇴', paisId: 8 },
+        { code: '+54', name: 'Argentina', flag: '🇦🇷' },
+        { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
         { code: '+55', name: 'Brasil', flag: '🇧🇷' },
-        { code: '+56', name: 'Chile', flag: '🇨🇱', paisId: 1 },
-        { code: '+57', name: 'Colombia', flag: '🇨🇴', paisId: 2 },
+        { code: '+56', name: 'Chile', flag: '🇨🇱' },
+        { code: '+57', name: 'Colombia', flag: '🇨🇴' },
         { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
         { code: '+53', name: 'Cuba', flag: '🇨🇺' },
         { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
@@ -83,12 +84,12 @@ document.addEventListener('DOMContentLoaded', () => {
         { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
         { code: '+507', name: 'Panamá', flag: '🇵🇦' },
         { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
-        { code: '+51', name: 'Perú', flag: '🇵🇪', paisId: 4 },
+        { code: '+51', name: 'Perú', flag: '🇵🇪' },
         { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
         { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
         { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪', paisId: 3 },
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸', paisId: 5 }
+        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
+        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' }
     ];
     countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -103,8 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
         nextBtn.classList.toggle('d-none', currentStep >= 4);
         if (submitBtn) submitBtn.classList.toggle('d-none', currentStep !== 4);
 
-        if (stepperWrapper) stepperWrapper.classList.toggle('d-none', currentStep === 5);
-
+        if (stepperWrapper) {
+            stepperWrapper.classList.toggle('d-none', currentStep === 5);
+        }
         stepperItems.forEach((item, index) => {
             const step = index + 1;
             if (step < currentStep) {
@@ -127,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!origenID || !destinoID) return;
 
+        // 1. Obtener Tasa BCV
         try {
             const resBcv = await fetch('../api/?accion=getBcvRate');
             const dataBcv = await resBcv.json();
@@ -140,14 +143,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) { console.error("Error BCV", e); }
 
+        // 2. Obtener Tasa Comercial
         let estimatedMontoOrigen = parseFloat(cleanNumber(montoOrigenInput.value)) || 0;
+
         if (estimatedMontoOrigen === 0) {
             await performRateFetch(origenID, destinoID, 0);
         } else {
             await performRateFetch(origenID, destinoID, estimatedMontoOrigen);
         }
 
-        // Ejecutamos cálculo inicial
         recalculateAll();
     };
 
@@ -181,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let clp = 0, ves = 0, usd = 0;
 
-        // Caso 1: Usuario escribe en CLP
         if (activeInputId === 'monto-origen') {
             clp = parseFloat(cleanNumber(montoOrigenInput.value)) || 0;
             ves = clp * commercialRate;
@@ -190,17 +193,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (document.activeElement !== montoDestinoInput) montoDestinoInput.value = ves > 0 ? formatCurrency(ves) : '';
             if (document.activeElement !== montoUsdInput) montoUsdInput.value = usd > 0 ? formatCurrency(usd) : '';
         }
-        // Caso 2: Usuario escribe en VES (Inverso)
         else if (activeInputId === 'monto-destino') {
             ves = parseFloat(cleanNumber(montoDestinoInput.value)) || 0;
-            // CLP = VES / TasaComercial (Redondeo hacia arriba solicitado: Math.ceil)
             clp = Math.ceil(ves / commercialRate);
             if (bcvRate > 0) usd = ves / bcvRate;
 
             if (document.activeElement !== montoOrigenInput) montoOrigenInput.value = clp > 0 ? formatCurrency(clp) : '';
             if (document.activeElement !== montoUsdInput) montoUsdInput.value = usd > 0 ? formatCurrency(usd) : '';
         }
-        // Caso 3: Usuario escribe en USD (BCV Referencia)
         else if (activeInputId === 'monto-usd') {
             usd = parseFloat(cleanNumber(montoUsdInput.value)) || 0;
             if (bcvRate > 0) {
@@ -216,27 +216,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleInput = (e) => {
         activeInputId = e.target.id;
 
-        // Debounce para no saturar la API buscando tasas por rango a cada tecla
         clearTimeout(fetchRateTimer);
         fetchRateTimer = setTimeout(() => {
-            // Si el monto CLP cambió significativamente (incluso si se calculó indirectamente),
-            // verificamos si eso cambia el rango de tasa (tier pricing)
             let currentClp = parseFloat(cleanNumber(montoOrigenInput.value)) || 0;
             const origenID = paisOrigenSelect.value;
             const destinoID = paisDestinoSelect.value;
 
             if (origenID && destinoID && currentClp > 0) {
                 performRateFetch(origenID, destinoID, currentClp).then(() => {
-                    recalculateAll(); // Recalcular con la nueva tasa posible (si cambió el rango)
+                    recalculateAll();
                 });
             }
         }, 500);
 
-        // Cálculo inmediato visual (usando la tasa que ya tenemos cargada)
         recalculateAll();
     };
 
-    // Listeners de Inputs
     montoOrigenInput.addEventListener('input', handleInput);
     montoDestinoInput.addEventListener('input', handleInput);
     montoUsdInput.addEventListener('input', handleInput);
@@ -245,35 +240,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5. VALIDACIÓN DE HORARIO LABORAL
     // ==========================================
     const checkBusinessHours = () => {
-        // Obtener fecha/hora actual en Chile
         const now = new Date();
         const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
 
-        const day = chileTime.getDay(); // 0 (Dom) - 6 (Sáb)
+        const day = chileTime.getDay();
         const hour = chileTime.getHours();
         const minutes = chileTime.getMinutes();
         const totalMinutes = hour * 60 + minutes;
 
-        // Horarios en minutos desde las 00:00
         const startWeekday = 10 * 60 + 30; // 10:30
         const endWeekday = 20 * 60;        // 20:00
         const startSat = 10 * 60 + 30;     // 10:30
         const endSat = 16 * 60;            // 16:00
 
-        // Lunes a Viernes (1-5)
         if (day >= 1 && day <= 5) {
             return (totalMinutes >= startWeekday && totalMinutes < endWeekday);
         }
-        // Sábado (6)
         if (day === 6) {
             return (totalMinutes >= startSat && totalMinutes < endSat);
         }
-        // Domingo (0)
         return false;
     };
 
     // ==========================================
-    // 6. CARGA DE DATOS (API) - Paises, Beneficiarios, etc.
+    // 6. CARGA DE DATOS (API)
     // ==========================================
 
     const loadPaises = async (rol, selectElement) => {
@@ -339,6 +329,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`../api/?accion=getDocumentTypes`);
             const tipos = await response.json();
             allDocumentTypes = tipos;
+            // Orden: RUT, Cédula, DNI, Pasaporte, E-RUT, Otros
+            const sortOrder = ['RUT', 'Cédula', 'DNI (Perú)', 'Pasaporte', 'E-RUT (RIF)', 'Otros'];
+            allDocumentTypes.sort((a, b) => {
+                let idxA = sortOrder.indexOf(a.nombre);
+                let idxB = sortOrder.indexOf(b.nombre);
+                if (idxA === -1) idxA = 99;
+                if (idxB === -1) idxB = 99;
+                return idxA - idxB;
+            });
         } catch (e) { console.error(e); }
     };
 
@@ -493,7 +492,8 @@ document.addEventListener('DOMContentLoaded', () => {
             addAccountModalInstance.show();
         });
 
-        // Funciones auxiliares del modal
+        // FUNCIONES AUXILIARES DEL MODAL (DEFINIDAS AQUÍ PARA EVITAR REFERENCE ERROR)
+
         const toggleInputVisibility = (toggleId, containerId, inputId, fieldName) => {
             const toggle = document.getElementById(toggleId);
             const container = document.getElementById(containerId);
@@ -526,17 +526,80 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         benefTipoSelect?.addEventListener('change', updatePaymentFields);
 
+        // --- DEFINICIÓN DE FUNCIONES FALTANTES ---
+        const updateDocumentTypesList = () => {
+            if (!benefDocTypeSelect || !benefPaisIdInput) return;
+
+            const paisId = parseInt(benefPaisIdInput.value);
+            const isVenezuela = (paisId === 3);
+
+            benefDocTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
+
+            allDocumentTypes.forEach(doc => {
+                const name = doc.nombre.toUpperCase();
+                let show = true;
+
+                if (isVenezuela) {
+                    // En Venezuela: Mostrar RIF, Cédula, Pasaporte, E-RUT. Ocultar RUT y DNI.
+                    if (name === 'RUT' || name === 'DNI (PERÚ)' || name === 'DNI') show = false;
+                } else {
+                    // Fuera de Venezuela: Mostrar E-RUT, RUT (Chile), DNI, etc. Ocultar RIF.
+                    if (name === 'RIF') show = false;
+                }
+
+                if (show) {
+                    benefDocTypeSelect.innerHTML += `<option value="${doc.id}">${doc.nombre}</option>`;
+                }
+            });
+            updateDocumentValidation();
+        };
+
         const updateDocumentValidation = () => {
             if (!benefDocTypeSelect || !benefPaisIdInput) return;
             const paisId = parseInt(benefPaisIdInput.value);
             const docName = benefDocTypeSelect.options[benefDocTypeSelect.selectedIndex]?.text.toLowerCase() || '';
             benefDocPrefix.classList.add('d-none');
             benefDocNumberInput.value = benefDocNumberInput.value.replace(/[^0-9a-zA-Z]/g, '');
+            benefDocNumberInput.oninput = null; // Reset
+
             if (paisId === 3) { // Venezuela
                 benefDocPrefix.classList.remove('d-none');
-                if (docName.includes('rif')) benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option><option value="J">J</option><option value="G">G</option>';
-                else if (docName.includes('pasaporte')) benefDocPrefix.innerHTML = '<option value="P">P</option>';
-                else benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option>';
+
+                if (docName.includes('rif')) {
+                    // SOLICITUD: RIF SIN J/G, Solo V/E.
+                    benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option>';
+                    benefDocNumberInput.maxLength = 9;
+                    benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
+                }
+                else if (docName.includes('e-rut')) { // E-RUT para Venezuela? Si se usa, misma lógica que RIF o RUT.
+                    // Si E-RUT se usa como empresa, quizás necesite J/G? El cliente pidió quitar J/G de RIF.
+                    // Asumiremos que E-RUT es para "todos lados" y lo tratamos como alfanumérico global o RUT.
+                    benefDocPrefix.classList.add('d-none');
+                    benefDocNumberInput.maxLength = 15;
+                }
+                else if (docName.includes('pasaporte')) {
+                    benefDocPrefix.innerHTML = '<option value="P">P</option><option value="V">V</option><option value="E">E</option>';
+                    benefDocNumberInput.maxLength = 15;
+                }
+                else { // Cedula
+                    benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option>';
+                    benefDocNumberInput.maxLength = 8;
+                    benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
+                }
+            } else {
+                // Otros países
+                if (docName.includes('rut') || docName.includes('e-rut')) {
+                    benefDocNumberInput.maxLength = 12;
+                    benefDocNumberInput.placeholder = '12.345.678-9';
+                    // Activar formateador de RUT si existe
+                    if (typeof formatRut === 'function') {
+                        benefDocNumberInput.oninput = function () {
+                            this.value = formatRut(cleanRut(this.value));
+                        }
+                    }
+                } else {
+                    benefDocNumberInput.maxLength = 20;
+                }
             }
         };
         benefDocTypeSelect?.addEventListener('change', updateDocumentValidation);
@@ -571,7 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 9. INICIALIZACIÓN
+    // 10. INICIALIZACIÓN
     // ==========================================
     if (LOGGED_IN_USER_ID) {
         loadPaises('Origen', paisOrigenSelect);

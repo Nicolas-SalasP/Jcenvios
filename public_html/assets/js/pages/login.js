@@ -33,30 +33,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inicializar
     setupFieldVisibility('toggle-segundo-nombre', 'container-segundo-nombre', 'register-segundo-nombre');
     setupFieldVisibility('toggle-segundo-apellido', 'container-segundo-apellido', 'register-segundo-apellido');
-    // ----------------------------------------------
 
     const countryPhoneCodes = [
-        { code: '+54', name: 'Argentina', flag: '\uD83C\uDDE6\uD83C\uDDF7' },
-        { code: '+591', name: 'Bolivia', flag: '\uD83C\uDDE7\uD83C\uDDF4' },
-        { code: '+55', name: 'Brasil', flag: '\uD83C\uDDE7\uD83C\uDDF7' },
-        { code: '+56', name: 'Chile', flag: '\uD83C\uDDE8\uD83C\uDDF1' },
-        { code: '+57', name: 'Colombia', flag: '\uD83C\uDDE8\uD83C\uDDF4' },
-        { code: '+506', name: 'Costa Rica', flag: '\uD83C\uDDE8\uD83C\uDDF7' },
-        { code: '+53', name: 'Cuba', flag: '\uD83C\uDDE8\uD83C\uDDFA' },
-        { code: '+593', name: 'Ecuador', flag: '\uD83C\uDDEA\uD83C\uDDE8' },
-        { code: '+503', name: 'El Salvador', flag: '\uD83C\uDDF8\uD83C\uDDFB' },
-        { code: '+502', name: 'Guatemala', flag: '\uD83C\uDDEC\uD83C\uDDF9' },
-        { code: '+504', name: 'Honduras', flag: '\uD83C\uDDED\uD83C\uDDF3' },
-        { code: '+52', name: 'México', flag: '\uD83C\uDDF2\uD83C\uDDFD' },
-        { code: '+505', name: 'Nicaragua', flag: '\uD83C\uDDF3\uD83C\uDDEE' },
-        { code: '+507', name: 'Panamá', flag: '\uD83C\uDDF5\uD83C\uDDE6' },
-        { code: '+595', name: 'Paraguay', flag: '\uD83C\uDDF5\uD83C\uDDFE' },
-        { code: '+51', name: 'Perú', flag: '\uD83C\uDDF5\uD83C\uDDEA' },
-        { code: '+1', name: 'Puerto Rico', flag: '\uD83C\uDDF5\uD83C\uDDF7' },
-        { code: '+1', name: 'Rep. Dominicana', flag: '\uD83C\uDDE9\uD83C\uDDF4' },
-        { code: '+598', name: 'Uruguay', flag: '\uD83C\uDDFA\uD83C\uDDFE' },
-        { code: '+58', name: 'Venezuela', flag: '\uD83C\uDDFB\uD83C\uDDEA' },
-        { code: '+1', name: 'EE.UU.', flag: '\uD83C\uDDFA\uD83C\uDDF8' }
+        { code: '+54', name: 'Argentina', flag: '🇦🇷' },
+        { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
+        { code: '+55', name: 'Brasil', flag: '🇧🇷' },
+        { code: '+56', name: 'Chile', flag: '🇨🇱' },
+        { code: '+57', name: 'Colombia', flag: '🇨🇴' },
+        { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
+        { code: '+53', name: 'Cuba', flag: '🇨🇺' },
+        { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
+        { code: '+503', name: 'El Salvador', flag: '🇸🇻' },
+        { code: '+502', name: 'Guatemala', flag: '🇬🇹' },
+        { code: '+504', name: 'Honduras', flag: '🇭🇳' },
+        { code: '+52', name: 'México', flag: '🇲🇽' },
+        { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
+        { code: '+507', name: 'Panamá', flag: '🇵🇦' },
+        { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
+        { code: '+51', name: 'Perú', flag: '🇵🇪' },
+        { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
+        { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
+        { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
+        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
+        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' }
     ];
 
     const loadPhoneCodes = (selectElement) => {
@@ -64,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
 
-        selectElement.innerHTML = '<option value="">C\u00F3digo...</option>';
+        selectElement.innerHTML = '<option value="">Código...</option>';
         countryPhoneCodes.forEach(country => {
             if (country.code) {
                 selectElement.innerHTML += `<option value="${country.code}">${country.flag} ${country.code}</option>`;
@@ -80,10 +79,23 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('api/?accion=getDocumentTypes');
             if (!response.ok) throw new Error('Error al cargar tipos de documento');
-            const tipos = await response.json();
+            const todosLosTipos = await response.json();
 
             docTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
-            tipos.forEach(tipo => {
+            const allowed = ['cédula', 'cedula', 'rif', 'e-rut (rif)', 'pasaporte'];
+            const sortOrder = ['Cédula', 'Cedula', 'E-RUT (RIF)', 'RIF', 'Pasaporte'];
+
+            const tiposFiltrados = todosLosTipos.filter(t =>
+                allowed.includes(t.nombre.toLowerCase())
+            ).sort((a, b) => {
+                let idxA = sortOrder.indexOf(a.nombre);
+                let idxB = sortOrder.indexOf(b.nombre);
+                if (idxA === -1) idxA = 99;
+                if (idxB === -1) idxB = 99;
+                return idxA - idxB;
+            });
+
+            tiposFiltrados.forEach(tipo => {
                 docTypeSelect.innerHTML += `<option value="${tipo.nombre}">${tipo.nombre}</option>`;
             });
         } catch (error) {
@@ -95,12 +107,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const enforceNameFormat = (inputId) => {
         const input = document.getElementById(inputId);
         if (!input) return;
-        
+
         input.maxLength = 12;
-        
-        input.addEventListener('input', function() {
+
+        input.addEventListener('input', function () {
             this.value = this.value.replace(/\s/g, '');
-            if(this.value.length > 12) this.value = this.value.substring(0, 12);
+            if (this.value.length > 12) this.value = this.value.substring(0, 12);
         });
     };
 
@@ -113,8 +125,9 @@ document.addEventListener('DOMContentLoaded', () => {
         docNumInput.removeAttribute('pattern');
         docNumInput.classList.remove('is-invalid', 'is-valid');
         docNumInput.value = '';
+        const val = docTypeSelect.value;
 
-        if (docTypeSelect.value === 'RUT') {
+        if (val === 'RUT') {
             docNumInput.dataset.validateRut = 'true';
             docNumInput.maxLength = 12;
             docNumInput.placeholder = '12.345.678-9';
@@ -125,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (registerRoleInput) {
-            if (docTypeSelect.value === 'RIF') {
+            if (val === 'RIF' || val === 'E-RUT (RIF)') {
                 registerRoleInput.value = 'Empresa';
             } else {
                 registerRoleInput.value = 'Persona Natural';
@@ -204,10 +217,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (missingFields.length > 0) {
             const camposFaltantes = missingFields.join(' ni ');
-            const msg = `El beneficiario o cliente no tiene ${camposFaltantes}, \u00BFest\u00E1 seguro?`;
+            const msg = `El beneficiario o cliente no tiene ${camposFaltantes}, ¿está seguro?`;
             let confirmed = false;
             if (window.showInfoModal && window.showConfirmModal) {
-                confirmed = await window.showConfirmModal('Confirmar Acci\u00F3n', msg);
+                confirmed = await window.showConfirmModal('Confirmar Acción', msg);
             } else {
                 confirmed = confirm(msg);
             }

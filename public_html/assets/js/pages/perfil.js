@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const telefonoEl = document.getElementById('profile-telefono');
     const profilePhoneCodeEl = document.getElementById('profile-phone-code');
     const estadoBadge = document.getElementById('profile-estado');
-    const verificationLinkContainer = document.getElementById('verification-link-container');
     const defaultPhoto = `${baseUrlJs}/assets/img/SoloLogoNegroSinFondo.png`;
 
     // Referencias Modal Beneficiario
@@ -74,11 +73,11 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleInputVisibility('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname', 'segundo apellido');
 
     const countryPhoneCodes = [
-        { code: '+54', name: 'Argentina', flag: '🇦🇷', paisId: 7 },
-        { code: '+591', name: 'Bolivia', flag: '🇧🇴', paisId: 8 },
+        { code: '+54', name: 'Argentina', flag: '🇦🇷' },
+        { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
         { code: '+55', name: 'Brasil', flag: '🇧🇷' },
-        { code: '+56', name: 'Chile', flag: '🇨🇱', paisId: 1 },
-        { code: '+57', name: 'Colombia', flag: '🇨🇴', paisId: 2 },
+        { code: '+56', name: 'Chile', flag: '🇨🇱' },
+        { code: '+57', name: 'Colombia', flag: '🇨🇴' },
         { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
         { code: '+53', name: 'Cuba', flag: '🇨🇺' },
         { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
@@ -89,12 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
         { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
         { code: '+507', name: 'Panamá', flag: '🇵🇦' },
         { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
-        { code: '+51', name: 'Perú', flag: '🇵🇪', paisId: 4 },
+        { code: '+51', name: 'Perú', flag: '🇵🇪' },
         { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
         { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
         { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪', paisId: 3 },
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸', paisId: 5 }
+        { code: '+58', name: 'Venezuela', flag: '🇻🇪'},
+        { code: '+1', name: 'EE.UU.', flag: '🇺🇸'}
     ];
 
     let currentBeneficiaries = [];
@@ -141,9 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 benefDocNumberInput.placeholder = '12345678';
                 benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
 
-            } else if (docName.includes('rif')) {
+            } else if (docName.includes('rif') || docName.includes('e-rut')) {
                 benefDocPrefix.classList.remove('d-none');
-                benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option><option value="J">J</option><option value="G">G</option>';
+                benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option>';
                 benefDocNumberInput.maxLength = 9;
                 benefDocNumberInput.placeholder = '123456789';
                 benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
@@ -156,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^a-zA-Z0-9]/g, ''); };
             }
         } else {
-            if (docName.includes('rut') || docName.includes('e-rut')) {
+            if (docName.includes('rut')) {
                 benefDocNumberInput.maxLength = 12;
                 benefDocNumberInput.placeholder = '12.345.678-9';
             } else {
@@ -171,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = document.getElementById(inputId);
         if (!input) return;
         input.maxLength = 12;
-        input.addEventListener('input', function() {
+        input.addEventListener('input', function () {
             this.value = this.value.replace(/\s/g, '');
         });
     };
@@ -192,9 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
             let show = true;
 
             if (isVenezuela) {
-                if (name === 'RUT' || name === 'E-RUT' || name === 'DNI') show = false;
+                if (name === 'RUT' || name === 'DNI') show = false;
             } else {
-                if (name === 'RIF') show = false;
+                if (name === 'RIF' || name === 'E-RUT (RIF)') show = false;
             }
 
             if (show) {
