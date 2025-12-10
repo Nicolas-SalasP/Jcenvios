@@ -15,7 +15,6 @@ class UserRepository
 
     public function findByEmail(string $email): ?array
     {
-        // Se selecciona explícitamente U.Activo, U.FailedLoginAttempts, U.LockoutUntil
         $sql = "SELECT
                     U.UserID, U.PasswordHash, U.PrimerNombre, 
                     U.FailedLoginAttempts, U.LockoutUntil, U.Activo,
@@ -69,14 +68,11 @@ class UserRepository
 
     public function updateLoginAttempts(int $userId, int $attempts, ?string $lockoutUntil): bool
     {
-        // Esta función maneja tanto el incremento como el bloqueo temporal
         if ($lockoutUntil) {
-            // Caso: Bloqueo activo con fecha
             $sql = "UPDATE usuarios SET FailedLoginAttempts = ?, LockoutUntil = ? WHERE UserID = ?";
             $stmt = $this->db->prepare($sql);
             $stmt->bind_param("isi", $attempts, $lockoutUntil, $userId);
         } else {
-            // Caso: Solo incremento o reseteo (null)
             $sql = "UPDATE usuarios SET FailedLoginAttempts = ?, LockoutUntil = NULL WHERE UserID = ?";
             $stmt = $this->db->prepare($sql);
             $stmt->bind_param("ii", $attempts, $userId);
@@ -89,8 +85,13 @@ class UserRepository
 
     public function countAdmins(): int
     {
-        $sql = "SELECT COUNT(*) as total FROM usuarios WHERE RolID = 1 AND Eliminado = 0";
+        return $this->countByRole(1);
+    }
+    public function countByRole(int $rolId): int
+    {
+        $sql = "SELECT COUNT(*) as total FROM usuarios WHERE RolID = ? AND Eliminado = 0";
         $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $rolId);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -102,7 +103,6 @@ class UserRepository
         $estadoVerificacionInicialID = $data['verificacionEstadoID'] ?? 1;
         $rolUsuarioID = $data['rolID'] ?? 3;
 
-        // Se asume Activo = 1 por defecto en la BD, no es necesario pasarlo en el INSERT
         $sql = "INSERT INTO usuarios (PrimerNombre, SegundoNombre, PrimerApellido, SegundoApellido, Email, PasswordHash, Telefono, TipoDocumentoID, NumeroDocumento, VerificacionEstadoID, RolID, Activo)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
 

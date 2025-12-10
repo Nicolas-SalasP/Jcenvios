@@ -52,15 +52,11 @@ class UserService
     {
         $user = $this->userRepository->findByEmail($email);
 
-        // 1. Validación inicial de existencia
         if (!$user) {
-            // Por seguridad no revelamos si el email existe o no, pero logueamos el intento
-            // Usamos NULL en userId porque no existe el usuario
             error_log("Intento de login con email no existente: " . $email);
             throw new Exception("Credenciales incorrectas.", 401);
         }
 
-        // 2. Verificar Bloqueo Activo
         if (!empty($user['LockoutUntil'])) {
             $lockoutTime = strtotime($user['LockoutUntil']);
             if ($lockoutTime > time()) {
@@ -68,13 +64,11 @@ class UserService
                 $this->logService->logAction($user['UserID'], 'Login Bloqueado', "Intento durante bloqueo. Restan $minutosRestantes min.");
                 throw new Exception("Tu cuenta está bloqueada temporalmente por seguridad. Inténtalo nuevamente en $minutosRestantes minutos.", 403);
             } else {
-                // El tiempo pasó, desbloqueamos silenciosamente para permitir este intento
                 $this->userRepository->updateLoginAttempts($user['UserID'], 0, null);
                 $user['FailedLoginAttempts'] = 0;
             }
         }
 
-        // 3. Verificar Contraseña
         if (!password_verify($password, $user['PasswordHash'])) {
             $intentos = $user['FailedLoginAttempts'] + 1;
             $maxIntentos = 3;
@@ -82,7 +76,6 @@ class UserService
             $mensajeError = "Credenciales incorrectas.";
 
             if ($intentos >= $maxIntentos) {
-                // Bloquear por 15 minutos
                 $bloqueoHasta = date('Y-m-d H:i:s', strtotime('+15 minutes'));
                 $this->logService->logAction($user['UserID'], 'Cuenta Bloqueada', "Se excedieron los $maxIntentos intentos fallidos.");
                 $mensajeError = "Has excedido el número de intentos permitidos. Tu cuenta ha sido bloqueada por 15 minutos.";
@@ -95,9 +88,6 @@ class UserService
             $this->userRepository->updateLoginAttempts($user['UserID'], $intentos, $bloqueoHasta);
             throw new Exception($mensajeError, 401);
         }
-
-        // 4. Login Exitoso
-        // Reseteamos contadores si había errores previos
         if ($user['FailedLoginAttempts'] > 0 || $user['LockoutUntil'] !== null) {
             $this->userRepository->updateLoginAttempts($user['UserID'], 0, null);
         }
@@ -192,7 +182,6 @@ class UserService
                 $this->notificationService->logAdminAction($user['UserID'], 'Error Recuperación Contraseña', "Fallo al crear token para {$email}");
             }
         } else {
-            // No logueamos UserID si no existe, pero podríamos loguear el intento fallido genérico
             error_log("Solicitud pass reset para email no existente: $email");
         }
     }
@@ -211,7 +200,6 @@ class UserService
         $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
         if ($this->userRepository->updatePassword($resetData['UserID'], $passwordHash)) {
             $this->userRepository->markTokenAsUsed($resetData['ResetID']);
-            // Desbloqueamos al usuario si resetea contraseña exitosamente
             $this->userRepository->updateLoginAttempts($resetData['UserID'], 0, null);
 
             $this->notificationService->logAdminAction($resetData['UserID'], 'Contraseña Restablecida', "Contraseña actualizada mediante token.");
@@ -344,15 +332,9 @@ class UserService
         if (!in_array($newStatus, ['blocked', 'active'])) {
             throw new Exception("Acción de bloqueo no válida: '{$newStatus}'.", 400);
         }
-
-        // Bloqueo manual por Admin (usamos un tiempo largo, ej: 10 años, o manejamos un flag 'Activo')
-        // Aquí reutilizamos la lógica de LockoutUntil para bloqueo temporal, o 'Activo' para permanente.
-        // Dado que la tabla tiene LockoutUntil, lo usamos para bloqueo efectivo.
         $lockoutUntil = ($newStatus === 'blocked')
             ? date('Y-m-d H:i:s', strtotime('+10 years'))
             : null;
-
-        // Al desbloquear manualmente, también reseteamos intentos fallidos
         if ($this->userRepository->updateLoginAttempts($userId, 0, $lockoutUntil)) {
             $actionText = $newStatus === 'blocked' ? 'Bloqueado' : 'Desbloqueado';
             $this->notificationService->logAdminAction($adminId, "Admin cambió estado de usuario", "Usuario ID: $userId, Nuevo Estado: $actionText");
@@ -374,6 +356,12 @@ class UserService
             $currentAdmins = $this->userRepository->countAdmins();
             if ($currentAdmins >= 3) {
                 throw new Exception("Limite alcanzado. Maximo 3 Admins permitidos.", 403);
+            }
+        }
+        if ($newRoleId === 5) {
+            $currentOperadores = $this->userRepository->countByRole(5);
+            if ($currentOperadores >= 2) {
+                throw new Exception("Limite alcanzado. Maximo 2 Operadores permitidos.", 403);
             }
         }
 

@@ -9,32 +9,10 @@ if (
 }
 
 $pageTitle = 'Órdenes por Pagar';
-$pageScript = 'admin.js';
+$pageScript = 'admin.js'; 
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
 $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
-
-$estadosSQL = $isOperator ? "3" : "2, 3";
-
-$sql = "
-    SELECT T.*, 
-        U.PrimerNombre, U.PrimerApellido, U.Email,
-        ET.NombreEstado AS EstadoNombre,
-        T.BeneficiarioNombre, T.BeneficiarioDocumento, T.BeneficiarioBanco, 
-        T.BeneficiarioNumeroCuenta, T.BeneficiarioTelefono,
-        T.MontoDestino, T.MonedaDestino,
-        T.ComprobanteURL, T.ComprobanteEnvioURL
-    FROM transacciones T
-    JOIN usuarios U ON T.UserID = U.UserID
-    LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
-    WHERE T.EstadoID IN ($estadosSQL)
-    ORDER BY T.FechaTransaccion ASC
-";
-
-$stmt = $conexion->prepare($sql);
-$stmt->execute();
-$transacciones = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
 ?>
 
 <div class="container mt-4">
@@ -42,12 +20,16 @@ $stmt->close();
         <h1>
             <?php echo $isOperator ? 'Órdenes por Pagar' : 'Gestión de Pendientes'; ?>
         </h1>
+        
+        <button id="btnRefresh" class="btn btn-primary" onclick="cargarTablaPendientes()">
+            <i class="bi bi-arrow-clockwise"></i> Actualizar Lista
+        </button>
     </div>
 
     <div class="card shadow-sm">
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>ID</th>
@@ -59,99 +41,13 @@ $stmt->close();
                             <th class="text-end">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <?php if (empty($transacciones)): ?>
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-5">¡Todo al día! No hay órdenes pendientes.
-                                </td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($transacciones as $tx): ?>
-                                <?php
-                                $badgeClass = match ($tx['EstadoNombre']) {
-                                    'En Verificación' => 'bg-info text-dark',
-                                    'En Proceso' => 'bg-primary',
-                                    default => 'bg-secondary'
-                                };
-
-                                // Datos para el modal de copiado
-                                $esPagoMovil = ($tx['BeneficiarioNumeroCuenta'] === 'PAGO MOVIL');
-                                $cuentaMostrar = $esPagoMovil ? $tx['BeneficiarioTelefono'] : $tx['BeneficiarioNumeroCuenta'];
-                                $tipoCuenta = $esPagoMovil ? 'Pago Móvil' : 'Cuenta Bancaria';
-
-                                $jsonData = htmlspecialchars(json_encode([
-                                    'id' => $tx['TransaccionID'],
-                                    'banco' => $tx['BeneficiarioBanco'],
-                                    'nombre' => $tx['BeneficiarioNombre'],
-                                    'doc' => $tx['BeneficiarioDocumento'],
-                                    'cuenta' => $cuentaMostrar,
-                                    'tipo' => $tipoCuenta,
-                                    'monto' => number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $tx['MonedaDestino']
-                                ]), ENT_QUOTES, 'UTF-8');
-                                ?>
-                                <tr>
-                                    <td><strong>#<?php echo $tx['TransaccionID']; ?></strong></td>
-                                    <td><?php echo date("d/m H:i", strtotime($tx['FechaTransaccion'])); ?></td>
-                                    <td>
-                                        <div class="fw-bold">
-                                            <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
-                                        </div>
-                                    </td>
-                                    <td class="fw-bold text-success">
-                                        <?php echo number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $tx['MonedaDestino']; ?>
-                                    </td>
-                                    <td><span class="badge <?php echo $badgeClass; ?>"><?php echo $tx['EstadoNombre']; ?></span>
-                                    </td>
-
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-outline-primary copy-data-btn"
-                                            data-datos="<?php echo $jsonData; ?>" title="Copiar Datos">
-                                            <i class="bi bi-clipboard-data"></i> Ver Datos
-                                        </button>
-                                    </td>
-
-                                    <td class="text-end">
-                                        <div class="d-flex gap-1 justify-content-end">
-
-                                            <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>"
-                                                target="_blank" class="btn btn-sm btn-danger text-white" title="Ver Orden PDF">
-                                                <i class="bi bi-file-earmark-pdf"></i>
-                                            </a>
-
-                                            <?php if (!empty($tx['ComprobanteURL'])): ?>
-                                                <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin"
-                                                    data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
-                                                    data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                                    data-comprobante-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteURL']); ?>"
-                                                    title="Ver Comprobante Cliente">
-                                                    <i class="bi bi-eye"></i>
-                                                </button>
-                                            <?php endif; ?>
-
-                                            <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
-                                                <button class="btn btn-sm btn-success" data-bs-toggle="modal"
-                                                    data-bs-target="#adminUploadModal"
-                                                    data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Finalizar y Subir Pago">
-                                                    <i class="bi bi-upload"></i> Finalizar
-                                                </button>
-                                            <?php endif; ?>
-
-                                            <?php if (!$isOperator && $tx['EstadoNombre'] === 'En Verificación'): ?>
-                                                <button class="btn btn-sm btn-success process-btn"
-                                                    data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Aprobar">
-                                                    <i class="bi bi-check-lg"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-danger" data-bs-toggle="modal"
-                                                    data-bs-target="#rejectionModal"
-                                                    data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Rechazar">
-                                                    <i class="bi bi-x-lg"></i>
-                                                </button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                    <tbody id="tablaPendientesBody">
+                        <tr>
+                            <td colspan="7" class="text-center p-5">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2 text-muted">Cargando órdenes...</p>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -163,61 +59,52 @@ $stmt->close();
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-wallet2"></i> Datos para Transferencia - Orden #<span
-                        id="copy-tx-id"></span></h5>
+                <h5 class="modal-title">Datos para Transferencia - Orden #<span id="copy-tx-id"></span></h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-light border d-flex justify-content-between align-items-center mb-4 shadow-sm">
-                    <strong class="fs-5 text-muted">Monto a Transferir:</strong>
+                    <strong class="fs-5 text-muted">Monto a Pagar:</strong>
                     <div class="d-flex align-items-center">
                         <span class="fs-3 fw-bold text-success me-3" id="copy-monto-display"></span>
-                        <button class="btn btn-outline-success btn-sm"
-                            onclick="copyToClipboard('copy-monto-value', this)"><i class="bi bi-clipboard"></i></button>
+                        <button class="btn btn-outline-success btn-sm" onclick="copyToClipboard('copy-monto-value', this)"><i class="bi bi-clipboard"></i></button>
                         <input type="hidden" id="copy-monto-value">
                     </div>
                 </div>
 
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="small text-muted fw-bold">Banco Destino</label>
+                        <label class="small text-muted fw-bold">Banco</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-banco" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i
-                                    class="bi bi-clipboard"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <label class="small text-muted fw-bold" id="label-cuenta-tipo">Número de Cuenta</label>
+                        <label class="small text-muted fw-bold" id="label-cuenta-tipo">Cuenta</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-cuenta" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i
-                                    class="bi bi-clipboard"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <label class="small text-muted fw-bold">Documento ID</label>
+                        <label class="small text-muted fw-bold">Documento</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-doc" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-doc', this)"><i
-                                    class="bi bi-clipboard"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-doc', this)"><i class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
                     <div class="col-md-8">
-                        <label class="small text-muted fw-bold">Nombre Beneficiario</label>
+                        <label class="small text-muted fw-bold">Beneficiario</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-nombre" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-nombre', this)"><i
-                                    class="bi bi-clipboard"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-nombre', this)"><i class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer bg-light">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-primary" id="btn-ir-a-finalizar">
-                    <i class="bi bi-upload"></i> Ya pagué, subir comprobante
-                </button>
             </div>
         </div>
     </div>
@@ -235,17 +122,15 @@ $stmt->close();
                     <input type="hidden" id="adminTransactionIdField" name="transactionId">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Comprobante de Transferencia</label>
-                        <input class="form-control" type="file" name="receiptFile" accept="image/*,application/pdf"
-                            required>
+                        <input class="form-control" type="file" name="receiptFile" accept="image/*,application/pdf" required>
                         <div class="form-text">Sube la captura del pago realizado.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Comisión</label>
-                        <input type="number" step="0.01" class="form-control" name="comisionDestino"
-                            placeholder="Si el banco cobró comisión extra">
+                        <label class="form-label fw-bold">Comisión (Opcional)</label>
+                        <input type="number" step="0.01" class="form-control" name="comisionDestino" placeholder="0.00" value="0">
                     </div>
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-success btn-lg">Confirmar y Finalizar</button>
+                        <button type="submit" class="btn btn-success btn-lg">Confirmar Envío</button>
                     </div>
                 </form>
             </div>
@@ -263,15 +148,12 @@ $stmt->close();
             <div class="modal-body">
                 <input type="hidden" id="reject-tx-id">
                 <div class="mb-3">
-                    <label class="form-label">Motivo del rechazo</label>
-                    <textarea class="form-control" id="reject-reason" rows="3"
-                        placeholder="Ej: Comprobante ilegible..."></textarea>
+                    <label class="form-label">Motivo</label>
+                    <textarea class="form-control" id="reject-reason" rows="3" placeholder="Ej: Comprobante ilegible..."></textarea>
                 </div>
                 <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-warning confirm-reject-btn" data-type="retry">Solicitar
-                        Corrección</button>
-                    <button type="button" class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar
-                        Definitivamente</button>
+                    <button type="button" class="btn btn-warning confirm-reject-btn" data-type="retry">Solicitar Corrección</button>
+                    <button type="button" class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar Definitivamente</button>
                 </div>
             </div>
         </div>
@@ -287,11 +169,111 @@ $stmt->close();
             </div>
             <div class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center">
                 <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-                <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center">
-                </div>
+                <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center"></div>
             </div>
         </div>
     </div>
 </div>
+
+
+<script>
+    function copiarDatosDirecto(btn, base64Text) {
+        try {
+            const text = atob(base64Text);
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHtml = btn.innerHTML;
+                const originalClass = btn.className;
+                
+                btn.innerHTML = '<i class="bi bi-check2-all"></i> ¡Copiado!';
+                btn.className = 'btn btn-sm btn-success d-flex align-items-center gap-1';
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.className = originalClass;
+                }, 1500);
+            }).catch(err => {
+                console.error(err);
+                alert('No se pudo acceder al portapapeles. Verifica permisos del navegador.');
+            });
+        } catch (e) {
+            console.error(e);
+            alert('Error al copiar datos.');
+        }
+    }
+
+    function cargarTablaPendientes() {
+        const btn = document.getElementById('btnRefresh');
+        const icon = btn.querySelector('i');
+        
+        icon.classList.add('spin-anim');
+        btn.disabled = true;
+
+        fetch('get_pendientes.php')
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('tablaPendientesBody').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error recargando tabla:', error);
+            })
+            .finally(() => {
+                icon.classList.remove('spin-anim');
+                btn.disabled = false;
+            });
+    }
+
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.copy-data-btn');
+        
+        if (btn) {
+            try {
+                const data = JSON.parse(btn.dataset.datos);
+                
+                document.getElementById('copy-tx-id').textContent = data.id;
+                document.getElementById('copy-monto-display').textContent = data.monto;
+                document.getElementById('copy-monto-value').value = data.monto;
+                
+                document.getElementById('copy-banco').value = data.banco;
+                document.getElementById('copy-nombre').value = data.nombre;
+                document.getElementById('copy-doc').value = data.doc;
+                document.getElementById('copy-cuenta').value = data.cuenta;
+                document.getElementById('label-cuenta-tipo').textContent = data.tipo === 'Pago Móvil' ? 'Teléfono' : 'Cuenta';
+
+                const modal = new bootstrap.Modal(document.getElementById('copyDataModal'));
+                modal.show();
+
+            } catch (err) {
+                console.error("Error al parsear datos JSON del botón:", err);
+            }
+        }
+    });
+
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .spin-anim { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    `;
+    document.head.appendChild(style);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        cargarTablaPendientes();
+        setInterval(cargarTablaPendientes, 10000);
+    });
+
+    if (typeof window.copyToClipboard === 'undefined') {
+        window.copyToClipboard = (elementId, btnElement) => {
+            const input = document.getElementById(elementId);
+            if (!input) return;
+            input.select();
+            input.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(input.value).then(() => {
+                const orig = btnElement.innerHTML;
+                btnElement.innerHTML = '<i class="bi bi-check"></i>';
+                setTimeout(() => btnElement.innerHTML = orig, 1000);
+            });
+        };
+    }
+</script>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

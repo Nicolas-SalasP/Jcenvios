@@ -308,7 +308,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         e.target.value = original;
                         if (result.error && result.error.includes('Limite alcanzado')) {
-                            window.showInfoModal('Límite de Administradores', "Máximo de 3 Administradores alcanzado.\n\nContacte a soporte.", false);
+                            const msg = result.error.includes('Operadores') 
+                                ? "Máximo de 2 Operadores alcanzado.\n\nNo se pueden agregar más."
+                                : "Máximo de 3 Administradores alcanzado.\n\nContacte a soporte.";
+                            
+                            window.showInfoModal('Límite Alcanzado', msg, false);
                         } else {
                             window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
                         }
