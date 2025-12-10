@@ -93,8 +93,10 @@ class Container
                 $this->get(FileHandlerService::class),
                 $this->get(EstadoVerificacionRepository::class),
                 $this->get(RolRepository::class),
-                $this->get(TipoDocumentoRepository::class)
+                $this->get(TipoDocumentoRepository::class),
+                $this->get(LogService::class)
             ),
+
             PricingService::class => new PricingService(
                 $this->get(RateRepository::class),
                 $this->get(CountryRepository::class),
@@ -204,7 +206,7 @@ try {
         'enable2FA' => [ClientController::class, 'enable2FA', 'POST'],
         'disable2FA' => [ClientController::class, 'disable2FA', 'POST'],
 
-        // Rutas Admin
+        // Admin
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
         'deleteRate' => [AdminController::class, 'deleteRate', 'POST'],
         'addPais' => [AdminController::class, 'addPais', 'POST'],
@@ -224,14 +226,14 @@ try {
         'deleteCuentaAdmin' => [AdminController::class, 'deleteCuentaAdmin', 'POST'],
         'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
         'adminUpdateUser' => [AdminController::class, 'adminUpdateUser', 'POST'],
-        'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
         'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
+        'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
 
-        // Contabilidad
+        // Contabilidad (Actualizada para soportar retiros bancarios)
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
         'agregarFondos' => [ContabilidadController::class, 'agregarFondos', 'POST'],
+        'retirarFondos' => [ContabilidadController::class, 'retirarFondos', 'POST'],
         'compraDivisas' => [ContabilidadController::class, 'compraDivisas', 'POST'],
-        'registrarGastoVario' => [ContabilidadController::class, 'registrarGastoVario', 'POST'],
         'getResumenContable' => [ContabilidadController::class, 'getResumenMensual', 'GET'],
     ];
 
@@ -251,7 +253,7 @@ try {
         }
 
     } else {
-        throw new Exception('Acción API no válida o no encontrada: ' . htmlspecialchars($accion), 404);
+        throw new Exception('Acción API no válida o no encontrada.', 404);
     }
 
 } catch (\Throwable $e) {

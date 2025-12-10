@@ -7,6 +7,7 @@ use App\Repositories\RolRepository;
 use App\Repositories\TipoDocumentoRepository;
 use App\Services\NotificationService;
 use App\Services\FileHandlerService;
+use App\Services\LogService;
 use Exception;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -18,6 +19,7 @@ class UserService
     private EstadoVerificacionRepository $estadoVerificacionRepo;
     private RolRepository $rolRepo;
     private TipoDocumentoRepository $tipoDocumentoRepo;
+    private LogService $logService;
 
     private string $encryptionKey;
     private const ENCRYPTION_CIPHER = 'aes-256-cbc';
@@ -28,7 +30,8 @@ class UserService
         FileHandlerService $fileHandler,
         EstadoVerificacionRepository $estadoVerificacionRepo,
         RolRepository $rolRepo,
-        TipoDocumentoRepository $tipoDocumentoRepo
+        TipoDocumentoRepository $tipoDocumentoRepo,
+        LogService $logService
     ) {
         $this->userRepository = $userRepository;
         $this->notificationService = $notificationService;
@@ -36,6 +39,7 @@ class UserService
         $this->estadoVerificacionRepo = $estadoVerificacionRepo;
         $this->rolRepo = $rolRepo;
         $this->tipoDocumentoRepo = $tipoDocumentoRepo;
+        $this->logService = $logService;
 
         if (!defined('APP_ENCRYPTION_KEY') || strlen(APP_ENCRYPTION_KEY) !== 32) {
             error_log("Error crítico: APP_ENCRYPTION_KEY no está definida o no tiene 32 caracteres en config.php");
@@ -48,17 +52,57 @@ class UserService
     {
         $user = $this->userRepository->findByEmail($email);
 
-        if (!$user || !password_verify($password, $user['PasswordHash'])) {
-            // Aquí podríamos incrementar intentos fallidos de un email "dummy" si no existe
-            // para mitigar ataques de enumeración, pero por simplicidad solo lanzamos error.
-            throw new Exception("Correo electrónico o contraseña no válidos.", 401);
-        }
-        if ($user['LockoutUntil'] && strtotime($user['LockoutUntil']) > time()) {
-            throw new Exception("La cuenta está bloqueada temporalmente. Inténtalo más tarde.", 403);
+        // 1. Validación inicial de existencia
+        if (!$user) {
+            // Por seguridad no revelamos si el email existe o no, pero logueamos el intento
+            // Usamos NULL en userId porque no existe el usuario
+            error_log("Intento de login con email no existente: " . $email);
+            throw new Exception("Credenciales incorrectas.", 401);
         }
 
-        $this->userRepository->updateLoginAttempts($user['UserID'], 0, null);
-        $this->notificationService->logAdminAction($user['UserID'], 'Inicio de Sesión Exitoso', '');
+        // 2. Verificar Bloqueo Activo
+        if (!empty($user['LockoutUntil'])) {
+            $lockoutTime = strtotime($user['LockoutUntil']);
+            if ($lockoutTime > time()) {
+                $minutosRestantes = ceil(($lockoutTime - time()) / 60);
+                $this->logService->logAction($user['UserID'], 'Login Bloqueado', "Intento durante bloqueo. Restan $minutosRestantes min.");
+                throw new Exception("Tu cuenta está bloqueada temporalmente por seguridad. Inténtalo nuevamente en $minutosRestantes minutos.", 403);
+            } else {
+                // El tiempo pasó, desbloqueamos silenciosamente para permitir este intento
+                $this->userRepository->updateLoginAttempts($user['UserID'], 0, null);
+                $user['FailedLoginAttempts'] = 0;
+            }
+        }
+
+        // 3. Verificar Contraseña
+        if (!password_verify($password, $user['PasswordHash'])) {
+            $intentos = $user['FailedLoginAttempts'] + 1;
+            $maxIntentos = 3;
+            $bloqueoHasta = null;
+            $mensajeError = "Credenciales incorrectas.";
+
+            if ($intentos >= $maxIntentos) {
+                // Bloquear por 15 minutos
+                $bloqueoHasta = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+                $this->logService->logAction($user['UserID'], 'Cuenta Bloqueada', "Se excedieron los $maxIntentos intentos fallidos.");
+                $mensajeError = "Has excedido el número de intentos permitidos. Tu cuenta ha sido bloqueada por 15 minutos.";
+            } else {
+                $restantes = $maxIntentos - $intentos;
+                $this->logService->logAction($user['UserID'], 'Login Fallido', "Contraseña incorrecta. Intento $intentos de $maxIntentos.");
+                $mensajeError = "Credenciales incorrectas. Te quedan $restantes intentos.";
+            }
+
+            $this->userRepository->updateLoginAttempts($user['UserID'], $intentos, $bloqueoHasta);
+            throw new Exception($mensajeError, 401);
+        }
+
+        // 4. Login Exitoso
+        // Reseteamos contadores si había errores previos
+        if ($user['FailedLoginAttempts'] > 0 || $user['LockoutUntil'] !== null) {
+            $this->userRepository->updateLoginAttempts($user['UserID'], 0, null);
+        }
+
+        $this->notificationService->logAdminAction($user['UserID'], 'Inicio de Sesión Exitoso', 'Acceso correcto al sistema.');
 
         return $user;
     }
@@ -80,9 +124,6 @@ class UserService
             throw new Exception("El campo 'telefono' es obligatorio.", 400);
         }
 
-        // --- Lógica de Roles y Revendedores ---
-        // Aseguramos que solo se pueda registrar como Persona Natural o Empresa.
-        // Los roles Admin o Revendedor se asignan manualmente por un Admin.
         if (!in_array($data['tipoPersona'], ['Persona Natural', 'Empresa'])) {
             throw new Exception("El tipo de cuenta '{$data['tipoPersona']}' no es válido.", 400);
         }
@@ -93,7 +134,6 @@ class UserService
         }
         $data['rolID'] = $rolID;
 
-        // --- Validaciones de Seguridad ---
         if (strlen($data['password']) < 6) {
             throw new Exception("La contraseña debe tener al menos 6 caracteres.", 400);
         }
@@ -114,8 +154,6 @@ class UserService
             throw new Exception("Rol 'No Verificado' no encontrado.", 500);
         $data['verificacionEstadoID'] = $estadoNoVerificadoID;
 
-        // --- REQUERIMIENTO 1: Limpieza de Nombres Opcionales ---
-        // Si viene vacío o solo espacios, guardamos NULL en la base de datos
         $data['segundoNombre'] = !empty(trim($data['segundoNombre'] ?? '')) ? trim($data['segundoNombre']) : null;
         $data['segundoApellido'] = !empty(trim($data['segundoApellido'] ?? '')) ? trim($data['segundoApellido']) : null;
 
@@ -154,7 +192,8 @@ class UserService
                 $this->notificationService->logAdminAction($user['UserID'], 'Error Recuperación Contraseña', "Fallo al crear token para {$email}");
             }
         } else {
-            $this->notificationService->logAdminAction(null, 'Intento Recuperación Contraseña Fallido', "Email no encontrado: {$email}");
+            // No logueamos UserID si no existe, pero podríamos loguear el intento fallido genérico
+            error_log("Solicitud pass reset para email no existente: $email");
         }
     }
 
@@ -172,6 +211,9 @@ class UserService
         $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
         if ($this->userRepository->updatePassword($resetData['UserID'], $passwordHash)) {
             $this->userRepository->markTokenAsUsed($resetData['ResetID']);
+            // Desbloqueamos al usuario si resetea contraseña exitosamente
+            $this->userRepository->updateLoginAttempts($resetData['UserID'], 0, null);
+
             $this->notificationService->logAdminAction($resetData['UserID'], 'Contraseña Restablecida', "Contraseña actualizada mediante token.");
         } else {
             $this->notificationService->logAdminAction($resetData['UserID'], 'Error Restablecimiento Contraseña', "Fallo al actualizar contraseña con token.");
@@ -258,7 +300,6 @@ class UserService
             throw new Exception("Error al guardar archivos: " . $e->getMessage(), $e->getCode() ?: 500);
         }
 
-
         if ($this->userRepository->updateVerificationDocuments($userId, $pathFrente, $pathReverso, $estadoPendienteID)) {
             $this->notificationService->logAdminAction($userId, 'Subida Documentos Verificación', "Usuario ID: $userId. Estado cambiado a Pendiente.");
         } else {
@@ -279,16 +320,10 @@ class UserService
             throw new Exception("Estado '{$newStatusName}' no encontrado.", 500);
         }
 
-        $estadoPendienteID = $this->estadoVerificacionRepo->findIdByName('Pendiente');
-        if (!$estadoPendienteID)
-            throw new Exception("Estado 'Pendiente' no encontrado.", 500);
-
         $user = $this->userRepository->findUserById($userId);
         if (!$user) {
             throw new Exception("Usuario no encontrado.", 404);
         }
-        // Permitimos cambiar de Rechazado a Verificado si hubo error, o de Pendiente.
-        // La restricción estricta podría bloquear correcciones manuales, así que la relajamos un poco para Admins.
 
         if ($this->userRepository->updateVerificationStatus($userId, $newStatusID)) {
             $this->notificationService->logAdminAction($adminId, 'Admin actualizó estado verificación', "Usuario ID: $userId, Nuevo Estado: $newStatusName (ID: $newStatusID)");
@@ -310,10 +345,14 @@ class UserService
             throw new Exception("Acción de bloqueo no válida: '{$newStatus}'.", 400);
         }
 
+        // Bloqueo manual por Admin (usamos un tiempo largo, ej: 10 años, o manejamos un flag 'Activo')
+        // Aquí reutilizamos la lógica de LockoutUntil para bloqueo temporal, o 'Activo' para permanente.
+        // Dado que la tabla tiene LockoutUntil, lo usamos para bloqueo efectivo.
         $lockoutUntil = ($newStatus === 'blocked')
             ? date('Y-m-d H:i:s', strtotime('+10 years'))
             : null;
 
+        // Al desbloquear manualmente, también reseteamos intentos fallidos
         if ($this->userRepository->updateLoginAttempts($userId, 0, $lockoutUntil)) {
             $actionText = $newStatus === 'blocked' ? 'Bloqueado' : 'Desbloqueado';
             $this->notificationService->logAdminAction($adminId, "Admin cambió estado de usuario", "Usuario ID: $userId, Nuevo Estado: $actionText");

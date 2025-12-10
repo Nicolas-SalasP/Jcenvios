@@ -15,9 +15,10 @@ class UserRepository
 
     public function findByEmail(string $email): ?array
     {
-        // Solo buscamos usuarios activos (no eliminados)
+        // Se selecciona explícitamente U.Activo, U.FailedLoginAttempts, U.LockoutUntil
         $sql = "SELECT
-                    U.UserID, U.PasswordHash, U.PrimerNombre, U.FailedLoginAttempts, U.LockoutUntil,
+                    U.UserID, U.PasswordHash, U.PrimerNombre, 
+                    U.FailedLoginAttempts, U.LockoutUntil, U.Activo,
                     R.RolID, R.NombreRol AS Rol,
                     EV.EstadoID AS VerificacionEstadoID, EV.NombreEstado AS VerificacionEstado,
                     U.twofa_enabled, U.FotoPerfilURL
@@ -36,6 +37,56 @@ class UserRepository
         return $result;
     }
 
+    public function findUserById(int $userId): ?array
+    {
+        $sql = "SELECT
+                    U.UserID, U.PrimerNombre, U.SegundoNombre, U.PrimerApellido, U.SegundoApellido,
+                    U.Email, U.Telefono, U.NumeroDocumento, U.FotoPerfilURL,
+                    U.DocumentoImagenURL_Frente, U.DocumentoImagenURL_Reverso,
+                    U.FailedLoginAttempts, U.LockoutUntil, U.FechaRegistro,
+                    U.twofa_enabled, U.Activo,
+                    R.RolID, R.NombreRol AS Rol,
+                    EV.EstadoID AS VerificacionEstadoID, EV.NombreEstado AS VerificacionEstado,
+                    TD.TipoDocumentoID, TD.NombreDocumento AS TipoDocumento,
+                    U.PorcentajeComision
+                FROM usuarios U
+                LEFT JOIN roles R ON U.RolID = R.RolID
+                LEFT JOIN estados_verificacion EV ON U.VerificacionEstadoID = EV.EstadoID
+                LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
+                WHERE U.UserID = ? AND U.Eliminado = 0";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        return $result;
+    }
+
+    // --- MÉTODOS DE SEGURIDAD Y BLOQUEO ---
+
+    public function updateLoginAttempts(int $userId, int $attempts, ?string $lockoutUntil): bool
+    {
+        // Esta función maneja tanto el incremento como el bloqueo temporal
+        if ($lockoutUntil) {
+            // Caso: Bloqueo activo con fecha
+            $sql = "UPDATE usuarios SET FailedLoginAttempts = ?, LockoutUntil = ? WHERE UserID = ?";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bind_param("isi", $attempts, $lockoutUntil, $userId);
+        } else {
+            // Caso: Solo incremento o reseteo (null)
+            $sql = "UPDATE usuarios SET FailedLoginAttempts = ?, LockoutUntil = NULL WHERE UserID = ?";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bind_param("ii", $attempts, $userId);
+        }
+
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
     public function countAdmins(): int
     {
         $sql = "SELECT COUNT(*) as total FROM usuarios WHERE RolID = 1 AND Eliminado = 0";
@@ -51,8 +102,9 @@ class UserRepository
         $estadoVerificacionInicialID = $data['verificacionEstadoID'] ?? 1;
         $rolUsuarioID = $data['rolID'] ?? 3;
 
-        $sql = "INSERT INTO usuarios (PrimerNombre, SegundoNombre, PrimerApellido, SegundoApellido, Email, PasswordHash, Telefono, TipoDocumentoID, NumeroDocumento, VerificacionEstadoID, RolID)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        // Se asume Activo = 1 por defecto en la BD, no es necesario pasarlo en el INSERT
+        $sql = "INSERT INTO usuarios (PrimerNombre, SegundoNombre, PrimerApellido, SegundoApellido, Email, PasswordHash, Telefono, TipoDocumentoID, NumeroDocumento, VerificacionEstadoID, RolID, Activo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
 
         $stmt = $this->db->prepare($sql);
 
@@ -82,7 +134,7 @@ class UserRepository
         );
 
         if (!$stmt->execute()) {
-            error_log("Error al insertar usuario: " . $stmt->error . " - Data: " . print_r($data, true));
+            error_log("Error al insertar usuario: " . $stmt->error);
             if ($stmt->errno == 1062) {
                 if (strpos($stmt->error, 'Email_UNIQUE') !== false) {
                     throw new Exception("El correo electrónico ya está registrado.", 409);
@@ -97,39 +149,27 @@ class UserRepository
         return $newId;
     }
 
-    public function findUserById(int $userId): ?array
+    public function update(int $userId, array $data): bool
     {
-        $sql = "SELECT
-                    U.UserID, U.PrimerNombre, U.SegundoNombre, U.PrimerApellido, U.SegundoApellido,
-                    U.Email, U.Telefono, U.NumeroDocumento, U.FotoPerfilURL,
-                    U.DocumentoImagenURL_Frente, U.DocumentoImagenURL_Reverso,
-                    U.FailedLoginAttempts, U.LockoutUntil, U.FechaRegistro,
-                    U.twofa_enabled, 
-                    R.RolID, R.NombreRol AS Rol,
-                    EV.EstadoID AS VerificacionEstadoID, EV.NombreEstado AS VerificacionEstado,
-                    TD.TipoDocumentoID, TD.NombreDocumento AS TipoDocumento,
-                    U.PorcentajeComision
-                FROM usuarios U
-                LEFT JOIN roles R ON U.RolID = R.RolID
-                LEFT JOIN estados_verificacion EV ON U.VerificacionEstadoID = EV.EstadoID
-                LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
-                WHERE U.UserID = ? AND U.Eliminado = 0";
+        $fields = [];
+        $types = "";
+        $values = [];
+
+        foreach ($data as $key => $value) {
+            $fields[] = "$key = ?";
+            $types .= is_int($value) ? "i" : "s";
+            $values[] = $value;
+        }
+
+        if (empty($fields))
+            return false;
+
+        $sql = "UPDATE usuarios SET " . implode(", ", $fields) . " WHERE UserID = ?";
+        $types .= "i";
+        $values[] = $userId;
 
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("i", $userId);
-        $stmt->execute();
-
-        $result = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        return $result;
-    }
-
-    public function updateLoginAttempts(int $userId, int $attempts, ?string $lockoutUntil): bool
-    {
-        $sql = "UPDATE usuarios SET FailedLoginAttempts = ?, LockoutUntil = ? WHERE UserID = ?";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("isi", $attempts, $lockoutUntil, $userId);
+        $stmt->bind_param($types, ...$values);
         $success = $stmt->execute();
         $stmt->close();
         return $success;
@@ -138,7 +178,6 @@ class UserRepository
     public function createResetToken(int $userId, string $token, string $expiresAt): bool
     {
         $this->invalidatePreviousTokens($userId);
-
         $sql = "INSERT INTO passwordresets (UserID, Token, ExpiresAt) VALUES (?, ?, ?)";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("iss", $userId, $token, $expiresAt);
@@ -253,18 +292,6 @@ class UserRepository
         return $success;
     }
 
-    public function countAll(): int
-    {
-        $adminRolID = 1;
-        $sql = "SELECT COUNT(UserID) as total FROM usuarios WHERE RolID != ? AND Eliminado = 0";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("i", $adminRolID);
-        $stmt->execute();
-        $result = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        return (int) ($result['total'] ?? 0);
-    }
-
     public function findEstadoVerificacionIdByName(string $nombreEstado): ?int
     {
         $sql = "SELECT EstadoID FROM estados_verificacion WHERE NombreEstado = ? LIMIT 1";
@@ -286,6 +313,7 @@ class UserRepository
         $stmt->close();
         return $result['RolID'] ?? null;
     }
+
     public function findTipoDocumentoIdByName(string $nombreDocumento): ?int
     {
         $sql = "SELECT TipoDocumentoID FROM tipos_documento WHERE NombreDocumento = ? LIMIT 1";
@@ -297,7 +325,7 @@ class UserRepository
         return $result['TipoDocumentoID'] ?? null;
     }
 
-    // --- MÉTODOS PARA 2FA ---
+    // --- MÉTODOS 2FA (IGUAL QUE ANTES) ---
     public function get2FASecret(int $userId): ?string
     {
         $sql = "SELECT twofa_secret FROM usuarios WHERE UserID = ?";
@@ -325,9 +353,8 @@ class UserRepository
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("si", $encryptedBackupCodes, $userId);
         $success = $stmt->execute();
-        $affected = $stmt->affected_rows;
         $stmt->close();
-        return $success && $affected > 0;
+        return $success;
     }
 
     public function disable2FA(int $userId): bool
@@ -345,24 +372,10 @@ class UserRepository
         $sql = "SELECT twofa_backup_codes FROM usuarios WHERE UserID = ?";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $userId);
-
-        if (!$stmt->execute()) {
-            error_log("Error al ejecutar getBackupCodes para UserID {$userId}: " . $stmt->error);
-            $stmt->close();
-            return null;
-        }
-
-        $result = $stmt->get_result();
-        if ($result === false) {
-            error_log("Error al obtener resultado getBackupCodes para UserID {$userId}: " . $stmt->error);
-            $stmt->close();
-            return null;
-        }
-
-        $data = $result->fetch_assoc();
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-
-        return $data['twofa_backup_codes'] ?? null;
+        return $result['twofa_backup_codes'] ?? null;
     }
 
     public function updateBackupCodes(int $userId, string $newEncryptedBackupCodes): bool
