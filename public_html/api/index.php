@@ -164,6 +164,9 @@ class Container
             ContabilidadController::class => new ContabilidadController(
                 $this->get(ContabilidadService::class)
             ),
+            BotController::class => new BotController(
+                $this->get(PricingService::class)
+            ),
 
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")
         };
@@ -205,6 +208,7 @@ try {
         'generate2FASecret' => [ClientController::class, 'generate2FASecret', 'POST'],
         'enable2FA' => [ClientController::class, 'enable2FA', 'POST'],
         'disable2FA' => [ClientController::class, 'disable2FA', 'POST'],
+        'botWebhook' => [BotController::class, 'handleWebhook', 'POST'],
 
         // Admin
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
@@ -229,7 +233,7 @@ try {
         'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
         'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
 
-        // Contabilidad (Actualizada para soportar retiros bancarios)
+        // Contabilidad
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
         'agregarFondos' => [ContabilidadController::class, 'agregarFondos', 'POST'],
         'retirarFondos' => [ContabilidadController::class, 'retirarFondos', 'POST'],

@@ -381,9 +381,21 @@ class ContabilidadService
         $anioStr = (string) $anio;
 
         if ($tipo === 'pais') {
+            $nombrePais = $this->countryRepo->findNameById($id);
+            if (!$nombrePais) {
+                throw new Exception("País no encontrado en el sistema.");
+            }
+
             $saldo = $this->contabilidadRepo->getSaldoPorPais($id);
+
             if (!$saldo) {
-                throw new Exception("País no encontrado.");
+                $moneda = $this->countryRepo->findMonedaById($id) ?? '---';
+                return [
+                    'Entidad' => $nombrePais,
+                    'Moneda' => $moneda,
+                    'TotalGastado' => 0.00,
+                    'Movimientos' => []
+                ];
             }
 
             $movimientos = $this->contabilidadRepo->getMovimientosDelMes($saldo['SaldoID'], $mesStr, $anioStr);
@@ -395,6 +407,7 @@ class ContabilidadService
                 'TotalGastado' => $total,
                 'Movimientos' => $movimientos
             ];
+
         } elseif ($tipo === 'banco') {
             $cuenta = $this->cuentasAdminRepo->getById($id);
             if (!$cuenta) {

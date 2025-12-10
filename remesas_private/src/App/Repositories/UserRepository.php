@@ -85,8 +85,11 @@ class UserRepository
 
     public function countAdmins(): int
     {
+        // Reutilizamos la lógica de contar por rol (Admin = 1)
         return $this->countByRole(1);
     }
+    
+    // Método necesario para limitar operadores
     public function countByRole(int $rolId): int
     {
         $sql = "SELECT COUNT(*) as total FROM usuarios WHERE RolID = ? AND Eliminado = 0";
@@ -325,7 +328,7 @@ class UserRepository
         return $result['TipoDocumentoID'] ?? null;
     }
 
-    // --- MÉTODOS 2FA (IGUAL QUE ANTES) ---
+    // --- MÉTODOS 2FA ---
     public function get2FASecret(int $userId): ?string
     {
         $sql = "SELECT twofa_secret FROM usuarios WHERE UserID = ?";
@@ -404,5 +407,14 @@ class UserRepository
         $success = $stmt->execute();
         $stmt->close();
         return $success;
+    }
+    public function countAll(): int
+    {
+        $sql = "SELECT COUNT(*) as total FROM usuarios WHERE Eliminado = 0";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return (int) ($result['total'] ?? 0);
     }
 }

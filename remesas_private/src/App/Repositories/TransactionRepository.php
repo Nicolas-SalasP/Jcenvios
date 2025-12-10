@@ -318,7 +318,6 @@ class TransactionRepository
         return $result;
     }
 
-    // --- MÉTODO ACTUALIZADO PARA EXCEL (CON LOGS) ---
     public function getExportData(): array
     {
         $sql = "SELECT
@@ -328,9 +327,10 @@ class TransactionRepository
                     TS.ValorTasa,
                     T.MontoDestino,
                     T.ComisionDestino,
+                    
                     (SELECT Timestamp FROM logs 
-                    WHERE Detalles LIKE CONCAT('TX ID: ', T.TransaccionID, '.%')
-                    AND Accion LIKE 'Admin completó%' 
+                    WHERE Detalles LIKE CONCAT('%TX ID: ', T.TransaccionID, '%') 
+                    AND Accion LIKE 'Admin complet%' 
                     ORDER BY LogID DESC LIMIT 1) as FechaCompletado,
                     
                     COALESCE(CBA.Banco, FP.Nombre) AS BancoOrigenReal,
