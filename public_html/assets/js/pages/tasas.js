@@ -195,6 +195,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- LÓGICA PARA ACTUALIZAR LA TASA BCV ---
+const bcvForm = document.getElementById('bcv-rate-form');
+const bcvRateInput = document.getElementById('bcv-rate');
+const bcvFeedback = document.getElementById('bcv-feedback');
+
+if (bcvForm) {
+    bcvForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const btnSave = document.getElementById('btn-save-bcv');
+        btnSave.disabled = true;
+        btnSave.innerHTML = 'Guardando...';
+
+        try {
+            const response = await fetch('../api/?accion=updateBcvRate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    rate: parseInput(bcvRateInput.value) 
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                bcvFeedback.innerHTML = '<div class="alert alert-success py-1 small">Tasa actualizada con éxito.</div>';
+                setTimeout(() => bcvFeedback.innerHTML = '', 3000);
+            } else {
+                window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            window.showInfoModal('Error', 'Error de conexión.', false);
+        } finally {
+            btnSave.disabled = false;
+            btnSave.innerHTML = 'Actualizar';
+        }
+    });
+}
+
     // --- EVENTOS ---
     paisOrigenSelect.addEventListener('change', () => { validateForm(); fetchReferentialValue(); });
     paisDestinoSelect.addEventListener('change', () => { validateForm(); fetchReferentialValue(); });
