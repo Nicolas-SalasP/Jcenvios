@@ -62,7 +62,6 @@ class ClientController extends BaseController
         $this->sendJsonResponse($tasa);
     }
 
-    // --- NUEVO MÉTODO AÑADIDO: OBTENER TASA BCV ---
     public function getBcvRate(): void
     {
         try {
@@ -72,7 +71,6 @@ class ClientController extends BaseController
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
-    // ----------------------------------------------
 
     public function getFormasDePago(): void
     {
@@ -322,9 +320,9 @@ class ClientController extends BaseController
     public function getCurrentRate(): void
     {
         try {
-            $origenId = (int)($_GET['origen'] ?? 0);
-            $destinoId = (int)($_GET['destino'] ?? 0);
-            $monto = (float)($_GET['monto'] ?? 0);
+            $origenId = (int) ($_GET['origen'] ?? 0);
+            $destinoId = (int) ($_GET['destino'] ?? 0);
+            $monto = (float) ($_GET['monto'] ?? 0);
 
             if ($origenId <= 0 || $destinoId <= 0) {
                 throw new Exception("IDs de países inválidos.");
@@ -333,6 +331,32 @@ class ClientController extends BaseController
             $this->sendJsonResponse(['success' => true, 'tasa' => $tasa]);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 404);
+        }
+    }
+
+    public function resumeOrder(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        try {
+            // CAMBIO: Usar getJsonInput() para leer el payload JSON del frontend
+            $data = $this->getJsonInput();
+            $txId = (int) ($data['txId'] ?? 0);
+            $mensaje = trim($data['mensaje'] ?? '');
+
+            if ($txId <= 0 || empty($mensaje)) {
+                throw new Exception("Datos incompletos para reanudar la orden.");
+            }
+
+            $estadoEnProcesoID = $this->txService->getEstadoIdByName('En Proceso');
+            $success = $this->txService->requestResume($txId, $userId, $mensaje, $estadoEnProcesoID);
+
+            if (!$success) {
+                throw new Exception("No se pudo enviar la solicitud de reanudación.");
+            }
+
+            $this->sendJsonResponse(['success' => true, 'message' => 'Solicitud enviada correctamente. El operador revisará los cambios.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
     }
 }

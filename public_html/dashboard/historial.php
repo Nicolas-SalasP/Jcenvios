@@ -19,6 +19,8 @@ function getStatusBadgeClass($statusName)
             return 'bg-danger';
         case 'Pendiente de Pago':
             return 'bg-warning text-dark';
+        case 'Pausado':
+            return 'bg-secondary';
         default:
             return 'bg-secondary';
     }
@@ -39,13 +41,15 @@ if (!$conexion) {
     exit();
 }
 
+// SQL ACTUALIZADO: Se añadieron T.MotivoPausa y T.MensajeReanudacion
 $sql = "SELECT
             T.TransaccionID, T.FechaTransaccion, T.MontoOrigen, T.MonedaOrigen,
             T.MontoDestino, T.MonedaDestino, T.ComprobanteURL, T.ComprobanteEnvioURL,
             T.BeneficiarioNombre AS BeneficiarioAlias,
             T.FormaPagoID, 
             P.NombrePais AS PaisDestino,
-            ET.NombreEstado AS EstadoNombre
+            ET.NombreEstado AS EstadoNombre,
+            T.MotivoPausa, T.MensajeReanudacion
         FROM transacciones AS T
         JOIN cuentas_beneficiarias AS C ON T.CuentaBeneficiariaID = C.CuentaID
         JOIN paises AS P ON C.PaisID = P.PaisID
@@ -103,6 +107,15 @@ if ($stmt) {
                                     <span class="badge <?php echo getStatusBadgeClass($tx['EstadoNombre'] ?? ''); ?>">
                                         <?php echo htmlspecialchars($tx['EstadoNombre'] ?? 'Desconocido'); ?>
                                     </span>
+
+                                    <?php if (($tx['EstadoNombre'] ?? '') === 'Pausado'): ?>
+                                        <div class="mt-1">
+                                            <small class="text-danger d-block" style="font-size: 0.75rem; max-width: 150px;">
+                                                <strong>Motivo:</strong>
+                                                <?php echo htmlspecialchars($tx['MotivoPausa'] ?? 'Revisión requerida'); ?>
+                                            </small>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="d-flex flex-wrap gap-1">
                                     <?php if (($tx['EstadoNombre'] ?? '') === 'Pendiente de Pago'): ?>
@@ -125,6 +138,14 @@ if ($stmt) {
                                             data-forma-pago-id="<?php echo $tx['FormaPagoID']; ?>"
                                             title="Modificar Comprobante de Pago">
                                             <i class="bi bi-pencil-square"></i> Modificar Pago
+                                        </button>
+                                    <?php endif; ?>
+
+                                    <?php if (($tx['EstadoNombre'] ?? '') === 'Pausado'): ?>
+                                        <button class="btn btn-sm btn-primary resume-order-btn" data-bs-toggle="modal"
+                                            data-bs-target="#resumeOrderModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                                            title="Notificar Corrección">
+                                            <i class="bi bi-check-circle"></i> Notificar Corrección
                                         </button>
                                     <?php endif; ?>
 
@@ -208,6 +229,33 @@ if ($stmt) {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="submit" class="btn btn-primary" form="upload-receipt-form">Subir Archivo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="resumeOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Notificar Corrección de Datos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Si ya corregiste los datos solicitados por el operador, envía un mensaje para que la orden continúe.
+                </p>
+                <form id="resume-order-form">
+                    <input type="hidden" id="resume-tx-id" name="txId">
+                    <div class="mb-3">
+                        <label for="resume-message" class="form-label">Mensaje para el operador</label>
+                        <textarea class="form-control" id="resume-message" name="mensaje" rows="3" required
+                            placeholder="Ej: Ya corregí el número de cuenta. Quedo atento."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="submit" class="btn btn-primary" form="resume-order-form">Enviar Notificación</button>
             </div>
         </div>
     </div>

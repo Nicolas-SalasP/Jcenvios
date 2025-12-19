@@ -233,6 +233,8 @@ try {
         'adminUpdateUser' => [AdminController::class, 'adminUpdateUser', 'POST'],
         'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
         'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
+        'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
+        'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
 
         // Contabilidad
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],

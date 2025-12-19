@@ -82,6 +82,32 @@ class AdminController extends BaseController
         }
     }
 
+    public function pauseTransaction(): void
+    {
+        $adminId = $this->ensureAdminOrOperator();
+        try {
+            // CAMBIO CLAVE: Leer de JSON Input en lugar de $_POST
+            $data = $this->getJsonInput();
+            $txId = (int) ($data['txId'] ?? 0);
+            $motivo = trim($data['motivo'] ?? '');
+
+            if ($txId <= 0 || empty($motivo)) {
+                throw new Exception("ID de transacción o motivo no válidos.");
+            }
+
+            $estadoPausadoID = $this->txService->getEstadoIdByName('Pausado');
+            $success = $this->txService->pause($txId, $motivo, $estadoPausadoID);
+
+            if (!$success) {
+                throw new Exception("No se pudo actualizar el estado de la transacción.");
+            }
+
+            $this->sendJsonResponse(['success' => true, 'message' => 'Orden pausada correctamente.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
     // --- MÉTODOS SOLO PARA ADMIN (Configuración y Usuarios) ---
 
     public function upsertRate(): void
@@ -91,10 +117,7 @@ class AdminController extends BaseController
         $data = $this->getJsonInput();
 
         try {
-            // Se invoca el servicio que ahora retorna los items de la ruta para el refresco dinámico
             $resultData = $this->pricingService->adminUpsertRate($adminId, $data);
-
-            // Retornamos el objeto 'data' que el JS espera (items, routeKey, etc)
             $this->sendJsonResponse([
                 'success' => true,
                 'data' => $resultData
@@ -313,6 +336,7 @@ class AdminController extends BaseController
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
     }
+
     public function updateBcvRate(): void
     {
         $adminId = $this->ensureLoggedIn();

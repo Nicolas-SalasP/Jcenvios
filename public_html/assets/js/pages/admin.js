@@ -21,16 +21,16 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.copy-data-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const data = JSON.parse(e.currentTarget.dataset.datos);
-                
-                if(fields.txId) fields.txId.textContent = data.id;
+
+                if (fields.txId) fields.txId.textContent = data.id;
                 fields.banco.value = data.banco;
                 fields.doc.value = data.doc;
                 fields.cuenta.value = data.cuenta;
                 fields.nombre.value = data.nombre;
                 fields.montoDisplay.textContent = data.monto;
-                if(fields.montoValue) fields.montoValue.value = data.monto; 
+                if (fields.montoValue) fields.montoValue.value = data.monto;
                 fields.labelCuenta.textContent = data.tipo;
-                
+
                 if (fields.btnFinalizar) {
                     fields.btnFinalizar.onclick = () => {
                         copyModal.hide();
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. GESTIÓN DE VERIFICACIONES (KYC)
     // ==========================================
     const verificationModalElement = document.getElementById('verificationModal');
-    
+
     if (verificationModalElement) {
         let verificationModalInstance = null;
         try {
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             linkF: document.getElementById('linkFrente'),
             linkR: document.getElementById('linkReverso')
         };
-        
+
         const actionButtons = verificationModalElement.querySelectorAll('.action-btn');
         let currentUserId = null;
         const defaultProfilePic = '../assets/img/SoloLogoNegroSinFondo.png';
@@ -83,9 +83,9 @@ document.addEventListener('DOMContentLoaded', () => {
         verificationModalElement.addEventListener('show.bs.modal', function (event) {
             const btn = event.relatedTarget;
             if (!btn) return;
-            
+
             currentUserId = btn.dataset.userId;
-            
+
             // Llenar datos
             els.nameHeader.textContent = btn.dataset.userName || 'Usuario';
             els.fullName.textContent = btn.dataset.fullName || 'N/A';
@@ -97,22 +97,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const urlReverso = btn.dataset.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.imgReverso)}` : '';
             const urlPerfil = btn.dataset.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.fotoPerfil)}` : defaultProfilePic;
 
-            if(els.imgProfile) els.imgProfile.src = urlPerfil;
-            
-            if(els.imgF) {
+            if (els.imgProfile) els.imgProfile.src = urlPerfil;
+
+            if (els.imgF) {
                 els.imgF.src = urlFrente || '';
                 els.imgF.alt = urlFrente ? "Cargando..." : "No subida";
             }
-            if(els.imgR) {
+            if (els.imgR) {
                 els.imgR.src = urlReverso || '';
                 els.imgR.alt = urlReverso ? "Cargando..." : "No subida";
             }
 
-            if(els.linkF) {
+            if (els.linkF) {
                 els.linkF.href = urlFrente || '#';
                 els.linkF.classList.toggle('disabled', !urlFrente);
             }
-            if(els.linkR) {
+            if (els.linkR) {
                 els.linkR.href = urlReverso || '#';
                 els.linkR.classList.toggle('disabled', !urlReverso);
             }
@@ -123,9 +123,9 @@ document.addEventListener('DOMContentLoaded', () => {
             button.addEventListener('click', async () => {
                 const action = button.dataset.action;
                 if (!currentUserId) return;
-                
+
                 const confirmed = await window.showConfirmModal('Confirmar Acción', `¿Estás seguro de marcar como ${action} al usuario #${currentUserId}?`);
-                
+
                 if (confirmed) {
                     try {
                         const response = await fetch('../api/?accion=updateVerificationStatus', {
@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({ userId: currentUserId, newStatus: action })
                         });
                         const result = await response.json();
-                        
+
                         if (verificationModalInstance) verificationModalInstance.hide();
 
                         if (result.success) {
@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.currentTarget;
             const paisId = btn.dataset.paisId;
             const newStatus = btn.dataset.currentStatus === '1' ? 0 : 1;
-            
+
             if (await window.showConfirmModal('Confirmar', '¿Cambiar estado del país?')) {
                 try {
                     const res = await fetch('../api/?accion=togglePaisStatus', {
@@ -295,9 +295,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch('../api/?accion=updateUserRole', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            userId: e.target.dataset.userId, 
-                            newRoleId: e.target.value 
+                        body: JSON.stringify({
+                            userId: e.target.dataset.userId,
+                            newRoleId: e.target.value
                         })
                     });
                     const result = await response.json();
@@ -308,16 +308,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         e.target.value = original;
                         if (result.error && result.error.includes('Limite alcanzado')) {
-                            const msg = result.error.includes('Operadores') 
+                            const msg = result.error.includes('Operadores')
                                 ? "Máximo de 2 Operadores alcanzado.\n\nNo se pueden agregar más."
                                 : "Máximo de 3 Administradores alcanzado.\n\nContacte a soporte.";
-                            
+
                             window.showInfoModal('Límite Alcanzado', msg, false);
                         } else {
                             window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
                         }
                     }
-                } catch (error) { 
+                } catch (error) {
                     e.target.value = original;
                     window.showInfoModal('Error', 'Error de comunicación con el servidor.', false);
                 }
@@ -332,11 +332,11 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', async (e) => {
             const userId = e.currentTarget.dataset.userId;
             const firstConfirm = await window.showConfirmModal('Confirmar Eliminación', '¿Seguro? Esta acción enviará al usuario a la papelera.');
-            
+
             if (firstConfirm) {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 const secondConfirm = await window.showConfirmModal('Confirmación Final', 'Se ocultarán todos los datos de la vista principal. ¿Proceder?');
-                
+
                 if (secondConfirm) {
                     try {
                         const res = await fetch('../api/?accion=deleteUser', {
@@ -345,7 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({ userId })
                         });
                         const result = await res.json();
-                        
+
                         if (result.success) {
                             document.getElementById(`user-row-${userId}`)?.remove();
                             window.showInfoModal('Éxito', 'Usuario eliminado.', true);
@@ -363,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (editUserModalElement) {
         const editUserModal = new bootstrap.Modal(editUserModalElement);
         const form = document.getElementById('edit-user-form');
-        
+
         document.querySelectorAll('.admin-edit-user-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const d = e.currentTarget.dataset;
@@ -386,16 +386,16 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('../api/?accion=adminUpdateUser', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 const result = await res.json();
-                if(result.success) {
+                if (result.success) {
                     window.showInfoModal('Éxito', 'Datos de usuario actualizados.', true, () => window.location.reload());
                 } else {
                     window.showInfoModal('Error', result.error, false);
                 }
-            } catch(err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
         });
     }
 
@@ -419,22 +419,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const urlFrente = d.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgFrente)}` : '';
                 const urlReverso = d.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgReverso)}` : '';
 
-                if(docsImgProfile) docsImgProfile.src = urlProfile;
-                
-                if(docsImgFrente) {
+                if (docsImgProfile) docsImgProfile.src = urlProfile;
+
+                if (docsImgFrente) {
                     docsImgFrente.src = urlFrente || '';
                     docsImgFrente.alt = urlFrente ? "Cargando..." : "No disponible";
                 }
-                if(docsImgReverso) {
+                if (docsImgReverso) {
                     docsImgReverso.src = urlReverso || '';
                     docsImgReverso.alt = urlReverso ? "Cargando..." : "No disponible";
                 }
 
-                if(docsLinkFrente) {
+                if (docsLinkFrente) {
                     docsLinkFrente.href = urlFrente || '#';
                     docsLinkFrente.classList.toggle('disabled', !urlFrente);
                 }
-                if(docsLinkReverso) {
+                if (docsLinkReverso) {
                     docsLinkReverso.href = urlReverso || '#';
                     docsLinkReverso.classList.toggle('disabled', !urlReverso);
                 }
@@ -500,10 +500,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
                 });
                 const r = await res.json();
-                if(r.success) {
+                if (r.success) {
                     window.showInfoModal('Éxito', 'Comisión actualizada.', true, () => window.location.reload());
                 } else window.showInfoModal('Error', r.error, false);
-            } catch(err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
             finally { submitBtn.disabled = false; submitBtn.textContent = 'Guardar'; }
         });
     }
@@ -550,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         window.showInfoModal('Error', result.error, false);
                     }
-                } catch (error) { window.showInfoModal('Error', 'Error de conexión.', false); } 
+                } catch (error) { window.showInfoModal('Error', 'Error de conexión.', false); }
                 finally { document.querySelectorAll('.confirm-reject-btn').forEach(b => b.disabled = false); }
             });
         });
@@ -563,13 +563,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const adminTxIdLabel = document.getElementById('modal-admin-tx-id');
         const adminTransactionIdField = document.getElementById('adminTransactionIdField');
-        
+
         adminUploadModalElement.addEventListener('show.bs.modal', function (event) {
             const button = event.relatedTarget;
             if (!button) return;
             const txId = button.dataset.txId;
-            if(adminTxIdLabel) adminTxIdLabel.textContent = txId;
-            if(adminTransactionIdField) adminTransactionIdField.value = txId;
+            if (adminTxIdLabel) adminTxIdLabel.textContent = txId;
+            if (adminTransactionIdField) adminTransactionIdField.value = txId;
         });
 
         if (adminUploadForm) {
@@ -582,8 +582,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const response = await fetch('../api/?accion=adminUploadProof', { method: 'POST', body: formData });
                     const modalInstance = bootstrap.Modal.getInstance(adminUploadModalElement);
-                    if(modalInstance) modalInstance.hide();
-                    
+                    if (modalInstance) modalInstance.hide();
+
                     const res = await response.json();
                     if (res.success) {
                         window.showInfoModal('Éxito', 'Transacción completada.', true, () => window.location.reload());
@@ -621,13 +621,13 @@ document.addEventListener('DOMContentLoaded', () => {
             modalPlaceholder.classList.remove('d-none');
             downloadButton.classList.add('disabled');
             if (!comprobantes[index]) return;
-            
+
             currentIndex = index;
             const current = comprobantes[index];
             const secureUrl = `../admin/view_secure_file.php?file=${encodeURIComponent(current.url)}`;
             const fileName = current.url.split('/').pop();
             const ext = fileName.split('.').pop().toLowerCase();
-            
+
             modalLabel.textContent = `Comprobante (Tx #${currentTxId})`;
             downloadButton.href = secureUrl;
             downloadButton.download = fileName;
@@ -648,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 iframe.onload = () => { modalPlaceholder.classList.add('d-none'); downloadButton.classList.remove('disabled'); };
                 modalContent.appendChild(iframe);
             }
-            
+
             if (comprobantes.length > 1) {
                 indicatorSpan.textContent = `${index + 1} / ${comprobantes.length}`;
                 prevButton.disabled = (index === 0);
@@ -660,26 +660,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = event.relatedTarget;
             if (!btn) return;
             currentTxId = btn.dataset.txId;
-            
+
             const userUrl = btn.dataset.comprobanteUrl;
             const adminUrl = btn.dataset.envioUrl;
-            
+
             comprobantes = [];
-            if(userUrl) comprobantes.push({ url: userUrl });
-            if(adminUrl) comprobantes.push({ url: adminUrl });
-            
-            if(comprobantes.length > 1) navigationDiv.classList.remove('d-none');
+            if (userUrl) comprobantes.push({ url: userUrl });
+            if (adminUrl) comprobantes.push({ url: adminUrl });
+
+            if (comprobantes.length > 1) navigationDiv.classList.remove('d-none');
             else navigationDiv.classList.add('d-none');
-            
+
             currentIndex = 0;
-            if(btn.classList.contains('btn-success') && comprobantes.length > 1) currentIndex = 1;
-            
+            if (btn.classList.contains('btn-success') && comprobantes.length > 1) currentIndex = 1;
+
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');
-            
-            if(comprobantes.length > 0) setTimeout(() => showComprobante(currentIndex), 100);
+
+            if (comprobantes.length > 0) setTimeout(() => showComprobante(currentIndex), 100);
         });
-        
+
         prevButton.addEventListener('click', () => showComprobante(currentIndex - 1));
         nextButton.addEventListener('click', () => showComprobante(currentIndex + 1));
     }
@@ -689,7 +689,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!input) return;
         input.select();
         input.setSelectionRange(0, 99999);
-        
+
         if (navigator.clipboard) {
             navigator.clipboard.writeText(input.value).then(() => showFeedback(btnElement));
         } else {
@@ -709,4 +709,58 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.add('btn-outline-secondary');
         }, 1500);
     }
+    // Manejo del Modal de Pausa
+    const pauseModal = document.getElementById('pauseModal');
+    if (pauseModal) {
+        pauseModal.addEventListener('show.bs.modal', (e) => {
+            const btn = e.relatedTarget;
+            const txId = btn.dataset.txId;
+            document.getElementById('pause-tx-id').value = txId;
+        });
+    }
+
+    // Envío del formulario de Pausa
+    const pauseForm = document.getElementById('pause-form');
+    if (pauseForm) {
+        pauseForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(pauseForm);
+            const data = Object.fromEntries(formData.entries());
+            try {
+                const res = await fetch('../api/?accion=pauseTransaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert("Error: " + result.error);
+                }
+            } catch (err) {
+                alert("Error de conexión.");
+            }
+        });
+    }
+
+    // Botón Reanudar (Acción directa)
+    document.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('resume-btn') || e.target.closest('.resume-btn')) {
+            const btn = e.target.classList.contains('resume-btn') ? e.target : e.target.closest('.resume-btn');
+            const txId = btn.dataset.txId;
+
+            if (confirm("¿Deseas reanudar esta orden a 'En Proceso'?")) {
+                try {
+                    const res = await fetch('../api/?accion=processTransaction', {
+                        method: 'POST',
+                        body: new URLSearchParams({ transactionId: txId })
+                    });
+                    const data = await res.json();
+                    if (data.success) location.reload();
+                    else alert(data.error);
+                } catch (err) { alert("Error al reanudar."); }
+            }
+        }
+    });
 });

@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ==========================================
+    // 1. VARIABLES Y REFERENCIAS
+    // ==========================================
     const uploadModalElement = document.getElementById('uploadReceiptModal');
     const uploadForm = document.getElementById('upload-receipt-form');
     const transactionIdField = document.getElementById('transactionIdField');
@@ -15,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let stream = null;
 
+    // ==========================================
+    // 2. LÓGICA DE LA CÁMARA
+    // ==========================================
     if (uploadModalElement && uploadForm) {
         let uploadModalInstance = null;
 
@@ -26,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
             videoEl.srcObject = null;
             cameraSection.classList.add('d-none');
 
-            if (!cameraToggleContainer.classList.contains('force-hidden')) {
+            if (cameraToggleContainer && !cameraToggleContainer.classList.contains('force-hidden')) {
                 cameraToggleContainer.classList.remove('d-none');
             }
         };
@@ -87,14 +93,16 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadModalElement.addEventListener('show.bs.modal', function (event) {
             uploadModalInstance = bootstrap.Modal.getInstance(uploadModalElement) || new bootstrap.Modal(uploadModalElement);
             const button = event.relatedTarget;
-
             const transactionId = button.getAttribute('data-tx-id');
 
             transactionIdField.value = transactionId;
             modalTxIdLabel.textContent = transactionId;
             uploadForm.reset();
-            cameraToggleContainer.classList.remove('d-none');
-            cameraToggleContainer.classList.remove('force-hidden');
+
+            if (cameraToggleContainer) {
+                cameraToggleContainer.classList.remove('d-none');
+                cameraToggleContainer.classList.remove('force-hidden');
+            }
 
             cameraSection.classList.add('d-none');
         });
@@ -106,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadForm.addEventListener('submit', async function (e) {
             e.preventDefault();
             const formData = new FormData(uploadForm);
-            const submitButton = uploadModalElement.querySelector('button[type="submit"][form="upload-receipt-form"]');
+            const submitButton = uploadModalElement.querySelector('button[type="submit"]');
 
             if (!submitButton) return;
 
@@ -135,17 +143,57 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (window.showInfoModal) window.showInfoModal('Error', result.error || 'Fallo al subir.', false);
                     else alert(result.error);
                     submitButton.disabled = false;
-                    submitButton.textContent = 'Confirmar Subida';
+                    submitButton.textContent = 'Subir Archivo';
                 }
             } catch (error) {
                 if (uploadModalInstance) uploadModalInstance.hide();
                 if (window.showInfoModal) window.showInfoModal('Error', 'Error de conexión.', false);
                 submitButton.disabled = false;
-                submitButton.textContent = 'Confirmar Subida';
+                submitButton.textContent = 'Subir Archivo';
             }
         });
     }
 
+    // ==========================================
+    // 3. NUEVO: LÓGICA DE REANUDACIÓN (PAUSA)
+    // ==========================================
+    const resumeModal = document.getElementById('resumeOrderModal');
+    if (resumeModal) {
+        resumeModal.addEventListener('show.bs.modal', (e) => {
+            const btn = e.relatedTarget;
+            document.getElementById('resume-tx-id').value = btn.dataset.txId;
+        });
+    }
+
+    const resumeForm = document.getElementById('resume-order-form');
+    if (resumeForm) {
+        resumeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const txId = document.getElementById('resume-tx-id').value;
+            const mensaje = document.getElementById('resume-message').value;
+
+            try {
+                const res = await fetch('../api/?accion=resumeOrder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ txId: txId, mensaje: mensaje })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert("Error: " + (data.error || "No se pudo enviar la notificación"));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error de conexión al servidor.");
+            }
+        });
+    }
+
+    // ==========================================
+    // 4. CANCELACIÓN DE TRANSACCIONES
+    // ==========================================
     const cancelButtons = document.querySelectorAll('.cancel-btn');
     cancelButtons.forEach(button => {
         button.addEventListener('click', async (e) => {
@@ -158,8 +206,9 @@ document.addEventListener('DOMContentLoaded', () => {
             );
 
             if (confirmed) {
-                e.target.closest('button').disabled = true;
-                e.target.closest('button').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Cancelando...';
+                const btn = e.target.closest('button');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Cancelando...';
 
                 try {
                     const response = await fetch('../api/?accion=cancelTransaction', {
@@ -176,18 +225,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         else location.reload();
                     } else {
                         if (window.showInfoModal) window.showInfoModal('Error', result.error || 'Error al cancelar.', false);
-                        e.target.closest('button').disabled = false;
-                        e.target.closest('button').innerHTML = '<i class="bi bi-x-circle"></i> Cancelar';
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-x-circle"></i> Cancelar';
                     }
                 } catch (error) {
                     if (window.showInfoModal) window.showInfoModal('Error', 'Error de conexión.', false);
-                    e.target.closest('button').disabled = false;
-                    e.target.closest('button').innerHTML = '<i class="bi bi-x-circle"></i> Cancelar';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-x-circle"></i> Cancelar';
                 }
             }
         });
     });
 
+    // ==========================================
+    // 5. VISOR DE COMPROBANTES (COMPLETO)
+    // ==========================================
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
         const modalContent = document.getElementById('comprobante-content');
@@ -199,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nextButton = document.getElementById('next-comprobante');
         const indicatorSpan = document.getElementById('comprobante-indicator');
         const modalLabel = document.getElementById('viewComprobanteModalLabel');
+
         let comprobantes = [];
         let currentIndex = 0;
         let currentTxId = null;
@@ -208,18 +261,24 @@ document.addEventListener('DOMContentLoaded', () => {
             modalPlaceholder.classList.remove('d-none');
             downloadButton.classList.add('disabled');
             if (!comprobantes[index]) return;
+
             currentIndex = index;
             const current = comprobantes[index];
             const type = current.type;
+
             if (typeof baseUrlJs === 'undefined') return;
+
             const secureUrl = `${baseUrlJs}/dashboard/ver-comprobante.php?id=${currentTxId}&type=${type}`;
             const fileName = decodeURIComponent(current.url.split('/').pop().split('?')[0]);
             const fileExtension = fileName.split('.').pop().toLowerCase();
+
             const typeText = type === 'user' ? 'Comprobante de Pago' : 'Comprobante de Envío';
             modalLabel.textContent = `${typeText} (Transacción #${currentTxId})`;
+
             downloadButton.href = secureUrl;
             downloadButton.download = fileName;
             filenameSpan.textContent = fileName;
+
             try {
                 if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(fileExtension)) {
                     const img = document.createElement('img');
@@ -248,7 +307,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     modalContent.appendChild(iframe);
                 }
-            } catch (e) { }
+            } catch (e) { console.error("Error al cargar archivo:", e); }
+
             if (comprobantes.length > 1) {
                 indicatorSpan.textContent = `${index + 1} / ${comprobantes.length}`;
                 prevButton.disabled = (index === 0);
@@ -262,27 +322,37 @@ document.addEventListener('DOMContentLoaded', () => {
         viewModalElement.addEventListener('show.bs.modal', (event) => {
             const button = event.relatedTarget;
             if (!button) return;
+
             const userUrl = button.dataset.comprobanteUrl || '';
             const adminUrl = button.dataset.envioUrl || '';
             currentTxId = button.dataset.txId || 'N/A';
+
             comprobantes = [];
             if (userUrl) comprobantes.push({ type: 'user', url: userUrl });
             if (adminUrl) comprobantes.push({ type: 'admin', url: adminUrl });
+
             if (comprobantes.length > 1) navigationDiv.classList.remove('d-none');
             else navigationDiv.classList.add('d-none');
+
             currentIndex = 0;
-            if (button.dataset.startType === 'admin' && adminUrl) currentIndex = comprobantes.findIndex(c => c.type === 'admin');
+            if (button.dataset.startType === 'admin' && adminUrl) {
+                currentIndex = comprobantes.findIndex(c => c.type === 'admin');
+            }
+
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');
-            if (comprobantes.length > 0) setTimeout(() => showComprobante(currentIndex), 100);
-            else {
-                modalPlaceholder.textContent = 'No hay comprobantes.';
+
+            if (comprobantes.length > 0) {
+                setTimeout(() => showComprobante(currentIndex), 100);
+            } else {
+                modalPlaceholder.textContent = 'No hay comprobantes disponibles para esta transacción.';
                 downloadButton.classList.add('disabled');
             }
         });
 
         prevButton.addEventListener('click', () => { if (currentIndex > 0) showComprobante(currentIndex - 1); });
         nextButton.addEventListener('click', () => { if (currentIndex < comprobantes.length - 1) showComprobante(currentIndex + 1); });
+
         viewModalElement.addEventListener('hidden.bs.modal', () => {
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');

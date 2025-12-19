@@ -78,7 +78,10 @@ class TransactionRepository
 
             CB.PaisID AS PaisDestinoID,
             TD_B.NombreDocumento AS BeneficiarioTipoDocumentoNombre,
-            TB.Nombre AS BeneficiarioTipoNombre
+            TB.Nombre AS BeneficiarioTipoNombre,
+            
+            -- Campos para el sistema de Pausa
+            T.MotivoPausa, T.MensajeReanudacion
             
         FROM transacciones AS T
         JOIN usuarios AS U ON T.UserID = U.UserID
@@ -156,7 +159,7 @@ class TransactionRepository
         $stmt->close();
         return $affectedRows;
     }
-    
+
     public function updateCommission(int $txId, float $newCommission): bool
     {
         $sql = "UPDATE transacciones SET ComisionDestino = ? WHERE TransaccionID = ?";
@@ -190,7 +193,28 @@ class TransactionRepository
         return $result;
     }
 
-    // --- MÉTODOS PARA ESTADÍSTICAS  ---
+    public function pauseTransaction(int $txId, string $motivo, int $estadoPausadoID): bool
+    {
+        $sql = "UPDATE transacciones SET EstadoID = ?, MotivoPausa = ?, MensajeReanudacion = NULL WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("isi", $estadoPausadoID, $motivo, $txId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
+    public function requestResume(int $txId, int $userId, string $mensaje, int $estadoEnProcesoID): bool
+    {
+        $sql = "UPDATE transacciones SET EstadoID = ?, MensajeReanudacion = ? 
+            WHERE TransaccionID = ? AND UserID = ? AND EstadoID = (SELECT EstadoID FROM estados_transaccion WHERE NombreEstado = 'Pausado')";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("isii", $estadoEnProcesoID, $mensaje, $txId, $userId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
+    // --- MÉTODOS PARA ESTADÍSTICAS ---
 
     public function countByStatus(array $statusIDs): int
     {
@@ -265,7 +289,7 @@ class TransactionRepository
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $limit);
         $stmt->execute();
-        $result = $stmt->get_result()->fetch_all(\MYSQLI_ASSOC);
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         return $result;
     }
@@ -313,7 +337,7 @@ class TransactionRepository
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $limit);
         $stmt->execute();
-        $result = $stmt->get_result()->fetch_all(\MYSQLI_ASSOC);
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         return $result;
     }
@@ -346,13 +370,13 @@ class TransactionRepository
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        $result = $stmt->get_result()->fetch_all(\MYSQLI_ASSOC);
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         return $result;
     }
-    
+
     // --- MÉTODOS PARA BOT DE CORREOS ---
-    
+
     public function findPendingByAmount(float $monto, int $horasTolerancia): array
     {
         $sql = "SELECT TransaccionID, UserID, MontoOrigen, Email, PrimerNombre, Telefono 
@@ -361,11 +385,11 @@ class TransactionRepository
                 WHERE t.MontoOrigen = ? 
                 AND t.EstadoID IN (1, 2) 
                 AND t.FechaTransaccion >= DATE_SUB(NOW(), INTERVAL ? HOUR)";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("di", $monto, $horasTolerancia);
         $stmt->execute();
-        $result = $stmt->get_result()->fetch_all(\MYSQLI_ASSOC);
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         return $result;
     }
@@ -391,7 +415,7 @@ class TransactionRepository
                     ComprobanteURL = IF(ComprobanteURL IS NULL OR ComprobanteURL = '', ?, ComprobanteURL),
                     FechaSubidaComprobante = NOW()
                 WHERE TransaccionID = ?";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("isssi", $newStatusId, $proofPath, $messageId, $proofPath, $txId);
         $success = $stmt->execute();
