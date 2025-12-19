@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 function getStatusBadgeClass($statusName)
 {
     switch ($statusName) {
-        case 'Pagado':
+        case 'Exitoso':
             return 'bg-success';
         case 'En Proceso':
             return 'bg-primary';
@@ -119,7 +119,7 @@ if ($stmt) {
                                             title="Subir Comprobante de Pago">
                                             <i class="bi bi-upload"></i> Subir Pago
                                         </button>
-                                    <?php elseif (!empty($tx['ComprobanteURL']) && !in_array(($tx['EstadoNombre'] ?? ''), ['Pagado', 'Cancelado'])): ?>
+                                    <?php elseif (!empty($tx['ComprobanteURL']) && !in_array(($tx['EstadoNombre'] ?? ''), ['Exitoso', 'Cancelado'])): ?>
                                         <button class="btn btn-sm btn-secondary upload-btn" data-bs-toggle="modal"
                                             data-bs-target="#uploadReceiptModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                                             data-forma-pago-id="<?php echo $tx['FormaPagoID']; ?>"

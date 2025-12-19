@@ -13,7 +13,7 @@ if (!isset($_SESSION['twofa_enabled']) || $_SESSION['twofa_enabled'] === false) 
 function getStatusBadgeClass($statusName)
 {
     switch ($statusName) {
-        case 'Pagado':
+        case 'Exitoso':
             return 'bg-success';
         case 'En Proceso':
             return 'bg-primary';
@@ -107,7 +107,7 @@ $stmt->close();
                         <td>
                             <div class="d-flex align-items-center justify-content-between">
                                 <span><?php echo number_format($tx['ComisionDestino'], 2); ?></span>
-                                <?php if (in_array($tx['EstadoNombre'], ['Pagado', 'En Proceso'])): ?>
+                                <?php if (in_array($tx['EstadoNombre'], ['Exitoso', 'En Proceso'])): ?>
                                     <button class="btn btn-sm btn-outline-primary edit-commission-btn ms-2"
                                         data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                                         data-current-val="<?php echo $tx['ComisionDestino']; ?>" title="Editar Comisión">

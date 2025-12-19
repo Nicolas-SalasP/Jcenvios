@@ -116,7 +116,7 @@ require_once __DIR__ . '/../remesas_private/src/templates/header.php';
             <div class="card shadow-sm border-0 h-100" id="rate-container">
                 <div class="card-body p-4 d-flex flex-column justify-content-center">
                     <div class="text-center mb-4">
-                        <h5 class="text-muted text-uppercase ls-1">Tendencia (Últimos 30 días)</h5>
+                        <h5 class="text-muted text-uppercase ls-1">Tasa de Hoy</h5>
                         <h2 id="rate-valor-actual" class="display-5 fw-bold text-dark my-3">...</h2>
                         <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill"
                             id="rate-description">
