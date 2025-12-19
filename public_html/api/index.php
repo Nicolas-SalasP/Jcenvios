@@ -187,6 +187,7 @@ try {
         'submitContactForm' => [ClientController::class, 'handleContactForm', 'POST'],
 
         'getTasa' => [ClientController::class, 'getTasa', 'GET'],
+        'getCurrentRate' => [ClientController::class, 'getCurrentRate', 'GET'],
         'getPaises' => [ClientController::class, 'getPaises', 'GET'],
         'getDolarBcv' => [DashboardController::class, 'getDolarBcvData', 'GET'],
         'getActiveDestinationCountries' => [ClientController::class, 'getActiveDestinationCountries', 'GET'],

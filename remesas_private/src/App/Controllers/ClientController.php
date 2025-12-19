@@ -318,4 +318,21 @@ class ClientController extends BaseController
             throw new Exception("Error del servidor al enviar el correo: " . $e->getMessage(), 500);
         }
     }
+
+    public function getCurrentRate(): void
+    {
+        try {
+            $origenId = (int)($_GET['origen'] ?? 0);
+            $destinoId = (int)($_GET['destino'] ?? 0);
+            $monto = (float)($_GET['monto'] ?? 0);
+
+            if ($origenId <= 0 || $destinoId <= 0) {
+                throw new Exception("IDs de países inválidos.");
+            }
+            $tasa = $this->pricingService->getCurrentRate($origenId, $destinoId, $monto);
+            $this->sendJsonResponse(['success' => true, 'tasa' => $tasa]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 404);
+        }
+    }
 }

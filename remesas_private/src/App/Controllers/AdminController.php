@@ -91,8 +91,14 @@ class AdminController extends BaseController
         $data = $this->getJsonInput();
 
         try {
+            // Se invoca el servicio que ahora retorna los items de la ruta para el refresco dinámico
             $resultData = $this->pricingService->adminUpsertRate($adminId, $data);
-            $this->sendJsonResponse(['success' => true, 'newTasaId' => $resultData['TasaID']]);
+
+            // Retornamos el objeto 'data' que el JS espera (items, routeKey, etc)
+            $this->sendJsonResponse([
+                'success' => true,
+                'data' => $resultData
+            ]);
         } catch (Exception $e) {
             $code = $e->getCode() ?: 400;
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
