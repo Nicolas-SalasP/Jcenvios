@@ -36,7 +36,8 @@ use App\Controllers\{
     ClientController,
     AdminController,
     DashboardController,
-    ContabilidadController
+    ContabilidadController,
+    BotController
 };
 
 header('Content-Type: application/json');
@@ -179,13 +180,18 @@ try {
     $requestMethod = $_SERVER['REQUEST_METHOD'];
 
     $routes = [
+        // Auth & 2FA
         'loginUser' => [AuthController::class, 'loginUser', 'POST'],
         'registerUser' => [AuthController::class, 'registerUser', 'POST'],
         'requestPasswordReset' => [AuthController::class, 'requestPasswordReset', 'POST'],
         'performPasswordReset' => [AuthController::class, 'performPasswordReset', 'POST'],
-        'verify2FACode' => [AuthController::class, 'verify2FACode', 'POST'],
-        'submitContactForm' => [ClientController::class, 'handleContactForm', 'POST'],
+        'verify2fa' => [AuthController::class, 'verify2FACode', 'POST'],
+        'send2faCode' => [AuthController::class, 'send2FACode', 'POST'],
+        'resend2faCode' => [AuthController::class, 'send2FACode', 'POST'],
+        'update2faMethod' => [ClientController::class, 'update2faMethod', 'POST'],
 
+        // Client
+        'submitContactForm' => [ClientController::class, 'handleContactForm', 'POST'],
         'getTasa' => [ClientController::class, 'getTasa', 'GET'],
         'getCurrentRate' => [ClientController::class, 'getCurrentRate', 'GET'],
         'getPaises' => [ClientController::class, 'getPaises', 'GET'],
@@ -210,6 +216,7 @@ try {
         'enable2FA' => [ClientController::class, 'enable2FA', 'POST'],
         'disable2FA' => [ClientController::class, 'disable2FA', 'POST'],
         'botWebhook' => [BotController::class, 'handleWebhook', 'POST'],
+        'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
 
         // Admin
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
@@ -234,7 +241,6 @@ try {
         'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
         'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
         'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
-        'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
 
         // Contabilidad
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
@@ -264,5 +270,13 @@ try {
     }
 
 } catch (\Throwable $e) {
-    \App\Core\exception_handler($e);
+    if (function_exists('\App\Core\exception_handler')) {
+        \App\Core\exception_handler($e);
+    } else {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+    }
 }

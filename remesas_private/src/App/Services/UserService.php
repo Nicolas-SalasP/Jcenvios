@@ -217,9 +217,6 @@ class UserService
         }
 
         unset($profile['PasswordHash']);
-        unset($profile['twofa_secret']);
-        unset($profile['twofa_backup_codes']);
-
         return $profile;
     }
 
@@ -385,19 +382,13 @@ class UserService
         }
     }
 
-    // --- MÉTODOS 2FA ---
+    // --- MÉTODOS DE ENCRIPTACIÓN ---
 
     private function encryptData(string $data): string
     {
         $ivLength = openssl_cipher_iv_length(self::ENCRYPTION_CIPHER);
-        if ($ivLength === false)
-            throw new Exception("Cipher inválido para encriptación.");
         $iv = openssl_random_pseudo_bytes($ivLength);
-
         $encrypted = openssl_encrypt($data, self::ENCRYPTION_CIPHER, $this->encryptionKey, 0, $iv);
-        if ($encrypted === false)
-            throw new Exception("Fallo en encriptación.");
-
         return base64_encode($iv . $encrypted);
     }
 
@@ -406,18 +397,10 @@ class UserService
         $decoded = base64_decode($data);
         if ($decoded === false)
             return null;
-
         $ivLength = openssl_cipher_iv_length(self::ENCRYPTION_CIPHER);
-        if ($ivLength === false)
-            return null;
-        if (strlen($decoded) < $ivLength)
-            return null;
-
         $iv = substr($decoded, 0, $ivLength);
         $encrypted = substr($decoded, $ivLength);
-
         $decrypted = openssl_decrypt($encrypted, self::ENCRYPTION_CIPHER, $this->encryptionKey, 0, $iv);
-
         return $decrypted === false ? null : $decrypted;
     }
 
@@ -436,55 +419,71 @@ class UserService
         return $codes;
     }
 
+    // --- MÉTODOS 2FA DINÁMICOS (NUEVOS) ---
+
+public function generateAndSend2FACode(int $userId, ?string $overrideMethod = null): bool
+{
+    $config = $this->userRepository->get2FAConfig($userId);
+    if (!$config) return false;
+
+    $code = (string)random_int(100000, 999999);
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+
+    if ($this->userRepository->saveTemp2FACode($userId, $code, $expiresAt)) {
+        $method = $overrideMethod ?? ($config['twofa_method'] ?? 'email');
+        
+        switch ($method) {
+            case 'sms':
+                return $this->notificationService->send2FACodeTwilio($config['Telefono'], $code, 'sms');
+            case 'whatsapp':
+                return $this->notificationService->send2FACodeTwilio($config['Telefono'], $code, 'whatsapp');
+            case 'email':
+            default:
+                return $this->notificationService->send2FACodeEmail($config['Email'], $config['PrimerNombre'], $code);
+        }
+    }
+    return false;
+}
+
+    public function verifyTemp2FACode(int $userId, string $code): bool
+    {
+        $isValid = $this->userRepository->verifyAndClearTempCode($userId, $code);
+        if ($isValid) {
+            $this->logService->logAction($userId, '2FA Temporal Verificado', 'Acceso con código dinámico exitoso.');
+        }
+        return $isValid;
+    }
+
+    // --- MÉTODOS 2FA GOOGLE AUTH ---
+
     public function generateUser2FASecret(int $userId, string $userEmail, string $appName = 'JC Envíos'): array
     {
         $google2fa = new Google2FA();
         $secretKey = $google2fa->generateSecretKey();
         $encryptedSecret = $this->encryptData($secretKey);
-
         $this->userRepository->update2FASecret($userId, $encryptedSecret);
-
         $qrCodeUrl = $google2fa->getQRCodeUrl($appName, $userEmail, $secretKey);
-
         return ['secret' => $secretKey, 'qrCodeUrl' => $qrCodeUrl];
     }
 
     public function verifyAndEnable2FA(int $userId, string $userProvidedCode): bool
     {
         $encryptedSecret = $this->userRepository->get2FASecret($userId);
-        if (!$encryptedSecret) {
-            throw new Exception("No se encontró un secreto 2FA. Vuelve a generarlo.", 400);
-        }
+        if (!$encryptedSecret)
+            throw new Exception("No se encontró secreto 2FA.", 400);
 
         $secretKey = $this->decryptData($encryptedSecret);
-        if (!$secretKey) {
-            throw new Exception("Error interno al desencriptar secreto 2FA.", 500);
-        }
-
         $google2fa = new Google2FA();
-        $isValid = $google2fa->verifyKey($secretKey, $userProvidedCode);
 
-        if ($isValid) {
+        if ($google2fa->verifyKey($secretKey, $userProvidedCode)) {
             $backupCodes = $this->generateBackupCodes();
             $encryptedBackupCodes = $this->encryptData(json_encode($backupCodes));
 
             if ($this->userRepository->enable2FA($userId, $encryptedBackupCodes)) {
                 $_SESSION['show_backup_codes'] = $backupCodes;
                 $_SESSION['twofa_enabled'] = 1;
-
                 $this->notificationService->logAdminAction($userId, '2FA Activado', "El usuario activó 2FA.");
-
-                try {
-                    $user = $this->getUserProfile($userId);
-                    $this->notificationService->send2FABackupCodes($user['Email'], $secretKey, $backupCodes);
-                } catch (Exception $e) {
-                    error_log("Error al enviar email 2FA para UserID {$userId}: " . $e->getMessage());
-                    $this->notificationService->logAdminAction($userId, 'Error Email 2FA', "Fallo al enviar códigos de respaldo: " . $e->getMessage());
-                }
-
                 return true;
-            } else {
-                throw new Exception("No se pudo activar 2FA en la base de datos.", 500);
             }
         }
         return false;
@@ -500,13 +499,11 @@ class UserService
         return false;
     }
 
-
     public function verifyUser2FACode(int $userId, string $code): bool
     {
         $encryptedSecret = $this->userRepository->get2FASecret($userId);
         if (!$encryptedSecret)
             return false;
-
         $secretKey = $this->decryptData($encryptedSecret);
         if (!$secretKey)
             return false;
@@ -520,21 +517,13 @@ class UserService
         $encryptedBackupCodes = $this->userRepository->getBackupCodes($userId);
         if (!$encryptedBackupCodes)
             return false;
-
         $backupCodesJson = $this->decryptData($encryptedBackupCodes);
-        if (!$backupCodesJson)
-            return false;
-
         $backupCodes = json_decode($backupCodesJson, true);
-        if (!is_array($backupCodes) || empty($backupCodes))
-            return false;
 
-        $key = array_search($code, $backupCodes);
-        if ($key !== false) {
+        if (is_array($backupCodes) && ($key = array_search($code, $backupCodes)) !== false) {
             unset($backupCodes[$key]);
-            $newEncryptedBackupCodes = $this->encryptData(json_encode(array_values($backupCodes)));
-            $this->userRepository->updateBackupCodes($userId, $newEncryptedBackupCodes);
-            $this->notificationService->logAdminAction($userId, 'Código Respaldo 2FA Usado', "Se utilizó un código de respaldo.");
+            $this->userRepository->updateBackupCodes($userId, $this->encryptData(json_encode(array_values($backupCodes))));
+            $this->logService->logAction($userId, 'Código Respaldo Usado', '2FA mediante backup code.');
             return true;
         }
         return false;

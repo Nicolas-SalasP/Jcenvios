@@ -85,11 +85,9 @@ class UserRepository
 
     public function countAdmins(): int
     {
-        // Reutilizamos la lógica de contar por rol (Admin = 1)
         return $this->countByRole(1);
     }
-    
-    // Método necesario para limitar operadores
+
     public function countByRole(int $rolId): int
     {
         $sql = "SELECT COUNT(*) as total FROM usuarios WHERE RolID = ? AND Eliminado = 0";
@@ -329,6 +327,7 @@ class UserRepository
     }
 
     // --- MÉTODOS 2FA ---
+
     public function get2FASecret(int $userId): ?string
     {
         $sql = "SELECT twofa_secret FROM usuarios WHERE UserID = ?";
@@ -408,6 +407,7 @@ class UserRepository
         $stmt->close();
         return $success;
     }
+
     public function countAll(): int
     {
         $sql = "SELECT COUNT(*) as total FROM usuarios WHERE Eliminado = 0";
@@ -416,5 +416,53 @@ class UserRepository
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         return (int) ($result['total'] ?? 0);
+    }
+
+    // --- NUEVOS MÉTODOS PARA 2FA DINÁMICO (TABLA user_2fa_codes) ---
+
+    public function saveTemp2FACode(int $userId, string $code, string $expiresAt): bool
+    {
+        $stmtDel = $this->db->prepare("DELETE FROM user_2fa_codes WHERE UserID = ?");
+        $stmtDel->bind_param("i", $userId);
+        $stmtDel->execute();
+        $stmtDel->close();
+
+        $sql = "INSERT INTO user_2fa_codes (UserID, Code, ExpiresAt) VALUES (?, ?, ?)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iss", $userId, $code, $expiresAt);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
+    public function verifyAndClearTempCode(int $userId, string $code): bool
+    {
+        $sql = "SELECT CodeID FROM user_2fa_codes 
+                WHERE UserID = ? AND Code = ? AND ExpiresAt > NOW()";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("is", $userId, $code);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($res) {
+            $stmtDel = $this->db->prepare("DELETE FROM user_2fa_codes WHERE CodeID = ?");
+            $stmtDel->bind_param("i", $res['CodeID']);
+            $stmtDel->execute();
+            $stmtDel->close();
+            return true;
+        }
+        return false;
+    }
+
+    public function get2FAConfig(int $userId): ?array
+    {
+        $sql = "SELECT twofa_method, Telefono, Email, PrimerNombre FROM usuarios WHERE UserID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $data = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $data;
     }
 }
