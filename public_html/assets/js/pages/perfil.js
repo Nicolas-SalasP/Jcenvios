@@ -92,8 +92,17 @@ document.addEventListener('DOMContentLoaded', () => {
         { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
         { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
         { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪'},
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸'}
+        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
+        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
+        { code: '+39', name: 'Italia', flag: '🇮🇹' },
+        { code: '+34', name: 'España', flag: '🇪🇸' },
+        { code: '+351', name: 'Portugal', flag: '🇵🇹' },
+        { code: '+33', name: 'Francia', flag: '🇫🇷' },
+        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
+        { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
+        { code: '+41', name: 'Suiza', flag: '🇨🇭' },
+        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
+        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' }
     ];
 
     let currentBeneficiaries = [];

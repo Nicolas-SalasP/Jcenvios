@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const colMontoUsd = document.getElementById('col-monto-usd');
     const labelMonedaOrigen = document.getElementById('label-moneda-origen');
     const labelMonedaDestino = document.getElementById('label-moneda-destino');
+
     let commercialRate = 0;
     let bcvRate = 0;
     let routeMin = 0;
@@ -18,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let fetchTimer = null;
     let activeInputId = 'calc-monto-origen';
     let isVenezuelaDest = false;
+
     const parseInput = (val, isUsd = false) => {
         if (!val) return 0;
         let s = val.toString().trim();
@@ -29,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return parseFloat(s) || 0;
     };
+
     const formatDisplay = (num, decimals = 2) => {
         if (isNaN(num) || num === 0) return '';
         return new Intl.NumberFormat('de-DE', {
@@ -36,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
             maximumFractionDigits: decimals
         }).format(num);
     };
+
     const applyLiveFormat = (input) => {
         let cursorPosition = input.selectionStart;
         let originalLength = input.value.length;
@@ -58,26 +62,36 @@ document.addEventListener('DOMContentLoaded', () => {
         let newLength = input.value.length;
         input.setSelectionRange(cursorPosition + (newLength - originalLength), cursorPosition + (newLength - originalLength));
     };
+
     const updateUiForCountry = () => {
         const selectedOption = selectDestino.options[selectDestino.selectedIndex];
         if (!selectedOption) return;
+
         const paisNombre = selectedOption.text.toLowerCase();
-        labelMonedaDestino.textContent = selectedOption.dataset.currency || '...';
+
+        // Verificación de seguridad para evitar el error de textContent null
+        if (labelMonedaDestino) {
+            labelMonedaDestino.textContent = selectedOption.dataset.currency || '...';
+        }
+
         const selectedOrigen = selectOrigen.options[selectOrigen.selectedIndex];
-        if (selectedOrigen) labelMonedaOrigen.textContent = selectedOrigen.dataset.currency;
+        if (selectedOrigen && labelMonedaOrigen) {
+            labelMonedaOrigen.textContent = selectedOrigen.dataset.currency || '...';
+        }
+
         isVenezuelaDest = paisNombre.includes('venezuela');
         if (isVenezuelaDest) {
             bcvAlertBox?.classList.remove('d-none');
             colMontoUsd?.classList.remove('d-none');
-            colMontoDestino?.classList.replace('col-12', 'col-6');
+            // Mantenemos las columnas como están en el HTML para evitar que se achiquen
         } else {
             bcvAlertBox?.classList.add('d-none');
             colMontoUsd?.classList.add('d-none');
-            colMontoDestino?.classList.replace('col-6', 'col-12');
             if (inputUsd) inputUsd.value = '';
             bcvRate = 0;
         }
     };
+
     const filterDestinations = () => {
         const selectedOrigenValue = selectOrigen.value;
         Array.from(selectDestino.options).forEach(opt => {
@@ -97,18 +111,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
     const ctx = document.getElementById('rate-history-chart');
     const valorActualEl = document.getElementById('rate-valor-actual');
     const descEl = document.getElementById('rate-description');
     let chartInstance = null;
+
     const renderChart = async (origenId, destinoId) => {
         if (!ctx) return;
         try {
             const respChart = await fetch(`api/?accion=getDolarBcv&origenId=${origenId}&destinoId=${destinoId}&days=30`);
             const dataChart = await respChart.json();
             if (!dataChart.success) return;
-            valorActualEl.textContent = dataChart.textoTasa || (formatDisplay(dataChart.valorActual) + ` ${dataChart.monedaDestino}`);
-            descEl.textContent = dataChart.textoTasa ? `Rango Tasa Promedio (${dataChart.monedaDestino})` : `1 ${dataChart.monedaOrigen} = ${formatDisplay(dataChart.valorActual)} ${dataChart.monedaDestino}`;
+            if (valorActualEl) valorActualEl.textContent = dataChart.textoTasa || (formatDisplay(dataChart.valorActual) + ` ${dataChart.monedaDestino}`);
+            if (descEl) descEl.textContent = dataChart.textoTasa ? `Rango Tasa Promedio (${dataChart.monedaDestino})` : `1 ${dataChart.monedaOrigen} = ${formatDisplay(dataChart.valorActual)} ${dataChart.monedaDestino}`;
+
             if (chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, {
                 type: 'line',
@@ -123,11 +140,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (e) { console.warn("Gráfico error"); }
     };
+
     const fetchRates = async () => {
         const oID = selectOrigen.value;
         const dID = selectDestino.value;
         if (!oID || !dID) return;
+
         updateUiForCountry();
+
         if (isVenezuelaDest) {
             try {
                 const responseBcv = await fetch('api/?accion=getBcvRate');
@@ -136,77 +156,104 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (bcvRateDisplayCalc) bcvRateDisplayCalc.textContent = `1 USD = ${formatDisplay(bcvRate)} VES`;
             } catch (e) { bcvRate = 0; }
         }
+
         let montoParaTasa = 0;
+        const isColombia = selectOrigen.options[selectOrigen.selectedIndex]?.text === 'Colombia';
+
         if (activeInputId === 'calc-monto-origen') {
             montoParaTasa = parseInput(inputOrigen.value, false);
         } else if (activeInputId === 'calc-monto-destino') {
             let ves = parseInput(inputDestino.value, false);
-            montoParaTasa = commercialRate > 0 ? (ves / commercialRate) : 0;
+            // Si es Colombia, el monto origen se calcula multiplicando VES * Tasa (porque la tasa es 0.085 COP/VES)
+            montoParaTasa = commercialRate > 0 ? (isColombia ? ves * commercialRate : ves / commercialRate) : 0;
         } else if (activeInputId === 'calc-monto-usd') {
             let usd = parseInput(inputUsd.value, true);
-            montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? (usd * bcvRate / commercialRate) : 0;
+            montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? (isColombia ? (usd * bcvRate * commercialRate) : (usd * bcvRate / commercialRate)) : 0;
         }
+
         if (routeMin > 0 && montoParaTasa > 0 && montoParaTasa < routeMin) {
-            tasaInfo.textContent = `Monto inferior al mínimo permitido (${formatDisplay(routeMin)})`;
-            tasaInfo.classList.replace('text-primary', 'text-danger');
+            if (tasaInfo) {
+                tasaInfo.textContent = `Monto inferior al mínimo permitido (${formatDisplay(routeMin)})`;
+                tasaInfo.classList.replace('text-primary', 'text-danger');
+            }
             performCalculation();
             return;
         }
+
         if (routeMax > 0 && montoParaTasa > routeMax) {
-            tasaInfo.textContent = `Monto excede el máximo permitido (${formatDisplay(routeMax)})`;
-            tasaInfo.classList.replace('text-primary', 'text-danger');
+            if (tasaInfo) {
+                tasaInfo.textContent = `Monto excede el máximo permitido (${formatDisplay(routeMax)})`;
+                tasaInfo.classList.replace('text-primary', 'text-danger');
+            }
             performCalculation();
             return;
         }
-        tasaInfo.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        if (tasaInfo) tasaInfo.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
         try {
             const respRate = await fetch(`api/?accion=getCurrentRate&origen=${oID}&destino=${dID}&monto=${montoParaTasa}`);
             const dataRate = await respRate.json();
             if (dataRate.success && dataRate.tasa) {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
-                tasaInfo.textContent = `Tasa: 1 ${labelMonedaOrigen.textContent} = ${commercialRate.toFixed(5)} ${labelMonedaDestino.textContent}`;
-                tasaInfo.classList.replace('text-danger', 'text-primary');
+                if (tasaInfo) {
+                    tasaInfo.textContent = `Tasa: 1 ${labelMonedaOrigen.textContent} = ${commercialRate.toFixed(5)} ${labelMonedaDestino.textContent}`;
+                    tasaInfo.classList.replace('text-danger', 'text-primary');
+                }
                 if (dataRate.route_min) routeMin = parseFloat(dataRate.route_min);
                 if (dataRate.route_max) routeMax = parseFloat(dataRate.route_max);
             } else {
                 commercialRate = 0;
-                tasaInfo.textContent = dataRate.error || 'Sin tasa disponible';
-                tasaInfo.classList.replace('text-primary', 'text-danger');
-                if (dataRate.min) routeMin = parseFloat(dataRate.min);
-                if (dataRate.max) routeMax = parseFloat(dataRate.max);
+                if (tasaInfo) {
+                    tasaInfo.textContent = dataRate.error || 'Sin tasa disponible';
+                    tasaInfo.classList.replace('text-primary', 'text-danger');
+                }
             }
         } catch (e) {
             commercialRate = 0;
-            tasaInfo.textContent = 'Monto fuera de rango';
-            tasaInfo.classList.replace('text-primary', 'text-danger');
+            if (tasaInfo) {
+                tasaInfo.textContent = 'Monto fuera de rango';
+                tasaInfo.classList.replace('text-primary', 'text-danger');
+            }
         }
         performCalculation();
     };
+
     const performCalculation = () => {
         if (commercialRate <= 0) return;
+
         let clp = 0, ves = 0, usd = 0;
+        const isColombia = selectOrigen.options[selectOrigen.selectedIndex]?.text === 'Colombia';
+
         if (activeInputId === 'calc-monto-origen') {
             clp = parseInput(inputOrigen.value, false);
-            ves = clp * commercialRate;
+            // LÓGICA COLOMBIA: DIVIDIR (Pesos / 0.085 = VES)
+            ves = isColombia ? (clp / commercialRate) : (clp * commercialRate);
             if (isVenezuelaDest && bcvRate > 0) usd = ves / bcvRate;
+
             inputDestino.value = formatDisplay(ves);
-            if (isVenezuelaDest) inputUsd.value = formatDisplay(usd);
-        } 
+            if (isVenezuelaDest && inputUsd) inputUsd.value = formatDisplay(usd);
+        }
         else if (activeInputId === 'calc-monto-destino') {
             ves = parseInput(inputDestino.value, false);
-            clp = Math.ceil(ves / commercialRate);
+            // LÓGICA INVERSA COLOMBIA: MULTIPLICAR (VES * 0.085 = Pesos)
+            clp = isColombia ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
             if (isVenezuelaDest && bcvRate > 0) usd = ves / bcvRate;
+
             inputOrigen.value = formatDisplay(clp);
-            if (isVenezuelaDest) inputUsd.value = formatDisplay(usd);
+            if (isVenezuelaDest && inputUsd) inputUsd.value = formatDisplay(usd);
         }
         else if (activeInputId === 'calc-monto-usd' && isVenezuelaDest) {
             usd = parseInput(inputUsd.value, true);
             ves = usd * bcvRate;
-            clp = Math.ceil(ves / commercialRate);
+            // LÓGICA INVERSA COLOMBIA
+            clp = isColombia ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
+
             inputOrigen.value = formatDisplay(clp);
             inputDestino.value = formatDisplay(ves);
         }
     };
+
     const handleInput = (e) => {
         activeInputId = e.target.id;
         applyLiveFormat(e.target);
@@ -214,34 +261,42 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchTimer = setTimeout(fetchRates, 600);
         performCalculation();
     };
+
     const init = async () => {
         if (!selectOrigen || !selectDestino) return;
+
         inputOrigen.addEventListener('input', handleInput);
         inputDestino.addEventListener('input', handleInput);
         if (inputUsd) inputUsd.addEventListener('input', handleInput);
+
         selectOrigen.addEventListener('change', () => {
             filterDestinations();
             fetchRates();
             renderChart(selectOrigen.value, selectDestino.value);
         });
+
         selectDestino.addEventListener('change', () => {
             fetchRates();
             renderChart(selectOrigen.value, selectDestino.value);
         });
+
         try {
             const rO = await fetch('api/?accion=getPaises&rol=Origen');
             const dataO = await rO.json();
             selectOrigen.innerHTML = dataO.map(p => `<option value="${p.PaisID}" data-currency="${p.CodigoMoneda}">${p.NombrePais}</option>`).join('');
+
             const rD = await fetch('api/?accion=getPaises&rol=Destino');
             const dataD = await rD.json();
             selectDestino.innerHTML = dataD.map(p => {
                 const isV = p.NombrePais.toLowerCase().includes('venezuela');
                 return `<option value="${p.PaisID}" data-currency="${p.CodigoMoneda}" ${isV ? 'selected' : ''}>${p.NombrePais}</option>`;
             }).join('');
+
             filterDestinations();
             fetchRates();
             renderChart(selectOrigen.value, selectDestino.value);
         } catch (e) { console.error("Init Error"); }
     };
+
     init();
 });

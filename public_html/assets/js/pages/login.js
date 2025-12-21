@@ -55,7 +55,16 @@ document.addEventListener('DOMContentLoaded', () => {
         { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
         { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
         { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' }
+        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
+        { code: '+39', name: 'Italia', flag: '🇮🇹' },
+        { code: '+34', name: 'España', flag: '🇪🇸' },
+        { code: '+351', name: 'Portugal', flag: '🇵🇹' },
+        { code: '+33', name: 'Francia', flag: '🇫🇷' },
+        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
+        { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
+        { code: '+41', name: 'Suiza', flag: '🇨🇭' },
+        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
+        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' }
     ];
 
     const loadPhoneCodes = (selectElement) => {
@@ -79,24 +88,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('api/?accion=getDocumentTypes');
             if (!response.ok) throw new Error('Error al cargar tipos de documento');
-            const todosLosTipos = await response.json();
+            const tiposDesdeDB = await response.json();
 
             docTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
-            const allowed = ['cédula', 'cedula', 'rif', 'e-rut (rif)', 'pasaporte'];
-            const sortOrder = ['Cédula', 'Cedula', 'E-RUT (RIF)', 'RIF', 'Pasaporte'];
-
-            const tiposFiltrados = todosLosTipos.filter(t =>
-                allowed.includes(t.nombre.toLowerCase())
-            ).sort((a, b) => {
-                let idxA = sortOrder.indexOf(a.nombre);
-                let idxB = sortOrder.indexOf(b.nombre);
-                if (idxA === -1) idxA = 99;
-                if (idxB === -1) idxB = 99;
-                return idxA - idxB;
-            });
-
-            tiposFiltrados.forEach(tipo => {
-                docTypeSelect.innerHTML += `<option value="${tipo.nombre}">${tipo.nombre}</option>`;
+            tiposDesdeDB.forEach(tipo => {
+                docTypeSelect.innerHTML += `<option value="${tipo.NombreDocumento}">${tipo.NombreDocumento}</option>`;
             });
         } catch (error) {
             console.error(error);

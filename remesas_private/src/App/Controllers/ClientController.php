@@ -95,9 +95,12 @@ class ClientController extends BaseController
 
     public function getDocumentTypes(): void
     {
-        $tipos = $this->tipoDocumentoRepo->findAllActive();
-        $response = array_map(fn($tipo) => ['id' => $tipo['TipoDocumentoID'], 'nombre' => $tipo['NombreDocumento']], $tipos);
-        $this->sendJsonResponse($response);
+        try {
+            $tipos = $this->tipoDocumentoRepo->getAll();
+            $this->sendJsonResponse($tipos);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 
     public function getAssignableRoles(): void
