@@ -166,7 +166,8 @@ class Container
                 $this->get(ContabilidadService::class)
             ),
             BotController::class => new BotController(
-                $this->get(PricingService::class)
+                $this->get(PricingService::class),
+                $this->get(CuentasAdminRepository::class)
             ),
 
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")
