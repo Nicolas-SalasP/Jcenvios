@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- REFERENCIAS DOM ---
     const formSteps = document.querySelectorAll('.form-step');
     const nextBtn = document.getElementById('next-btn');
     const prevBtn = document.getElementById('prev-btn');
@@ -33,6 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const containerPhoneNum = document.getElementById('container-phone-number');
     const inputAccountNum = document.getElementById('benef-account-num');
 
+    // Referencias Tasa Paso 1
+    const tasaPas1Container = document.getElementById('tasa-referencial-container');
+    const tasaPas1Text = document.getElementById('tasa-referencial-paso1');
+
     let currentStep = 1;
     let commercialRate = 0;
     let bcvRate = 0;
@@ -41,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allDocumentTypes = [];
     const LOGGED_IN_USER_ID = userIdInput ? userIdInput.value : null;
 
+    // --- UTILIDADES DE FORMATEO ---
     const parseInput = (val, isUsd = false) => {
         if (!val) return 0;
         let s = val.toString().trim();
@@ -106,18 +112,11 @@ document.addEventListener('DOMContentLoaded', () => {
         { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
         { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
         { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
-        { code: '+39', name: 'Italia', flag: '🇮🇹' },
-        { code: '+34', name: 'España', flag: '🇪🇸' },
-        { code: '+351', name: 'Portugal', flag: '🇵🇹' },
-        { code: '+33', name: 'Francia', flag: '🇫🇷' },
-        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
-        { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
-        { code: '+41', name: 'Suiza', flag: '🇨🇭' },
-        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
-        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' }
+        { code: '+34', name: 'España', flag: '🇪🇸' }
     ];
     countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
 
+    // --- LÓGICA DE NAVEGACIÓN ---
     const updateView = () => {
         formSteps.forEach((step, index) => {
             step.classList.toggle('active', (index + 1) === currentStep);
@@ -125,9 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
         prevBtn.classList.toggle('d-none', currentStep === 1 || currentStep === 5);
         nextBtn.classList.toggle('d-none', currentStep >= 4);
         if (submitBtn) submitBtn.classList.toggle('d-none', currentStep !== 4);
-        if (stepperWrapper) {
-            stepperWrapper.classList.toggle('d-none', currentStep === 5);
-        }
+        if (stepperWrapper) stepperWrapper.classList.toggle('d-none', currentStep === 5);
+
         stepperItems.forEach((item, index) => {
             const step = index + 1;
             if (step < currentStep) {
@@ -140,10 +138,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // --- CÁLCULOS DE TASAS ---
+    const updateReferentialRateStep1 = async () => {
+        const origen = paisOrigenSelect.value;
+        const destino = paisDestinoSelect.value;
+        if (origen && destino && origen !== destino) {
+            tasaPas1Container?.classList.remove('d-none');
+            if (tasaPas1Text) tasaPas1Text.textContent = "Obteniendo tasa...";
+            try {
+                const res = await fetch(`../api/?accion=getCurrentRate&origen=${origen}&destino=${destino}&monto=0`);
+                const data = await res.json();
+                if (data.success && data.tasa) {
+                    const valor = parseFloat(data.tasa.ValorTasa).toFixed(5);
+                    const moneda = paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency || 'VES';
+                    tasaPas1Text.innerHTML = `Tasa Referencial: 1 CLP = <strong>${valor} ${moneda}</strong>`;
+                } else {
+                    tasaPas1Text.textContent = "Tasa no disponible para esta ruta.";
+                }
+            } catch (e) { tasaPas1Text.textContent = "Error al cargar tasa."; }
+        } else {
+            tasaPas1Container?.classList.add('d-none');
+        }
+    };
+
     const fetchRates = async () => {
         const origenID = paisOrigenSelect.value;
         const destinoID = paisDestinoSelect.value;
         if (!origenID || !destinoID) return;
+
         try {
             const resBcv = await fetch('../api/?accion=getBcvRate');
             const dataBcv = await resBcv.json();
@@ -156,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 bcvRateDisplay.textContent = 'No disponible';
             }
         } catch (e) { console.error("Error BCV", e); }
+
         let montoParaTasa = 0;
         if (activeInputId === 'monto-origen') {
             montoParaTasa = parseInput(montoOrigenInput.value, false);
@@ -166,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let usd = parseInput(montoUsdInput.value, true);
             montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? (usd * bcvRate / commercialRate) : 0;
         }
+
         if (montoParaTasa > 0 && montoParaTasa < 10) montoParaTasa = 0;
         await performRateFetch(origenID, destinoID, montoParaTasa);
         recalculateAll();
@@ -234,22 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     montoDestinoInput.addEventListener('input', handleInput);
     montoUsdInput.addEventListener('input', handleInput);
 
-    const checkBusinessHours = () => {
-        const now = new Date();
-        const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
-        const day = chileTime.getDay();
-        const hour = chileTime.getHours();
-        const minutes = chileTime.getMinutes();
-        const totalMinutes = hour * 60 + minutes;
-        const startWeekday = 10 * 60 + 30;
-        const endWeekday = 20 * 60;
-        const startSat = 10 * 60 + 30;
-        const endSat = 16 * 60;
-        if (day >= 1 && day <= 5) return (totalMinutes >= startWeekday && totalMinutes < endWeekday);
-        if (day === 6) return (totalMinutes >= startSat && totalMinutes < endSat);
-        return false;
-    };
-
+    // --- CARGA DE DATOS ---
     const loadPaises = async (rol, selectElement) => {
         try {
             const responseP = await fetch(`../api/?accion=getPaises&rol=${rol}`);
@@ -262,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectElement.addEventListener('change', () => {
                     filterDestinations();
                     loadFormasDePago(selectElement.value);
+                    updateReferentialRateStep1();
                 });
             }
         } catch (error) { console.error('Error loadPaises', error); }
@@ -328,10 +338,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const responseD = await fetch(`../api/?accion=getDocumentTypes`);
             const tipos = await responseD.json();
             allDocumentTypes = tipos;
+            // Ordenar por relevancia
             const sortOrder = ['RUT', 'Cédula', 'DNI (Perú)', 'Pasaporte', 'E-RUT (RIF)', 'Otros'];
             allDocumentTypes.sort((a, b) => {
-                let idxA = sortOrder.indexOf(a.nombre);
-                let idxB = sortOrder.indexOf(b.nombre);
+                let nameA = a.NombreDocumento || a.nombre || "";
+                let nameB = b.NombreDocumento || b.nombre || "";
+                let idxA = sortOrder.indexOf(nameA);
+                let idxB = sortOrder.indexOf(nameB);
                 if (idxA === -1) idxA = 99;
                 if (idxB === -1) idxB = 99;
                 return idxA - idxB;
@@ -339,6 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { console.error(e); }
     };
 
+    // --- MANEJO DE PASOS ---
     nextBtn?.addEventListener('click', () => {
         if (currentStep === 1) {
             if (paisOrigenSelect.value && paisDestinoSelect.value && paisOrigenSelect.value !== paisDestinoSelect.value) {
@@ -350,8 +364,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
         } else if (currentStep === 2) {
-            if (document.querySelector('input[name="beneficiary-radio"]:checked')) {
-                selectedCuentaIdInput.value = document.querySelector('input[name="beneficiary-radio"]:checked').value;
+            const checked = document.querySelector('input[name="beneficiary-radio"]:checked');
+            if (checked) {
+                selectedCuentaIdInput.value = checked.value;
                 fetchRates();
                 currentStep++;
             } else {
@@ -374,6 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
     prevBtn?.addEventListener('click', () => { if (currentStep > 1) { currentStep--; updateView(); } });
 
     paisDestinoSelect?.addEventListener('change', () => {
+        updateReferentialRateStep1();
         fetchRates();
         loadBeneficiaries(paisDestinoSelect.value);
     });
@@ -401,6 +417,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 <li class="list-group-item d-flex justify-content-between bg-light"><span>Ref. Dólar BCV:</span> <strong>${usdVal} USD</strong></li>
                 <li class="list-group-item d-flex justify-content-between"><small>Tasa Aplicada:</small> <small>${commercialRate.toFixed(5)}</small></li>
             </ul>`;
+    };
+
+    const checkBusinessHours = () => {
+        const now = new Date();
+        const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
+        const day = chileTime.getDay();
+        const hour = chileTime.getHours();
+        const minutes = chileTime.getMinutes();
+        const totalMinutes = hour * 60 + minutes;
+        const startWeekday = 10 * 60 + 30;
+        const endWeekday = 20 * 60;
+        const startSat = 10 * 60 + 30;
+        const endSat = 16 * 60;
+        if (day >= 1 && day <= 5) return (totalMinutes >= startWeekday && totalMinutes < endWeekday);
+        if (day === 6) return (totalMinutes >= startSat && totalMinutes < endSat);
+        return false;
     };
 
     submitBtn?.addEventListener('click', async () => {
@@ -435,25 +467,29 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { window.showInfoModal('Error', 'Error de conexión.', false); submitBtn.disabled = false; }
     });
 
+    // --- LÓGICA DE MODAL (CUENTA BENEFICIARIA) ---
+    let addAccountModalInstance = null;
     if (addAccountModalElement) {
         addAccountModalInstance = new bootstrap.Modal(addAccountModalElement);
+
         addAccountBtn?.addEventListener('click', () => {
             const paisDestinoID = paisDestinoSelect.value;
             if (!paisDestinoID) { window.showInfoModal('Atención', 'Selecciona un país de destino primero.', false); return; }
-            benefPaisIdInput.innerHTML = '';
-            const selectedOption = paisDestinoSelect.options[paisDestinoSelect.selectedIndex];
-            if (selectedOption) {
-                const opt = document.createElement('option');
-                opt.value = selectedOption.value; opt.text = selectedOption.text; opt.selected = true;
-                benefPaisIdInput.appendChild(opt); benefPaisIdInput.value = paisDestinoID;
-            }
-            benefPaisIdInput.disabled = true;
+
+            // Preparar modal
+            benefPaisIdInput.value = paisDestinoID;
             addBeneficiaryForm.reset();
             phoneCodeSelect.innerHTML = countryPhoneCodes.map(c => `<option value="${c.code}">${c.flag} ${c.code}</option>`).join('');
+
+            // Resetear visibilidad campos opcionales
             document.getElementById('container-benef-segundo-nombre').classList.remove('d-none');
             document.getElementById('container-benef-segundo-apellido').classList.remove('d-none');
-            updateDocumentTypesList(); updatePaymentFields(); addAccountModalInstance.show();
+
+            updateDocumentTypesList();
+            updatePaymentFields();
+            addAccountModalInstance.show();
         });
+
         const toggleInputVisibility = (toggleId, containerId, inputId, fieldName) => {
             const toggle = document.getElementById(toggleId), container = document.getElementById(containerId), input = document.getElementById(inputId);
             if (toggle && container && input) {
@@ -469,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         toggleInputVisibility('toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname', 'segundo nombre');
         toggleInputVisibility('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname', 'segundo apellido');
+
         const updatePaymentFields = () => {
             if (!benefTipoSelect) return;
             const typeText = benefTipoSelect.options[benefTipoSelect.selectedIndex]?.text.toLowerCase() || '';
@@ -482,56 +519,83 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         benefTipoSelect?.addEventListener('change', updatePaymentFields);
+
         const updateDocumentTypesList = () => {
-            if (!benefDocTypeSelect || !benefPaisIdInput) return;
-            const isVenezuela = (parseInt(benefPaisIdInput.value) === 3);
+            if (!benefDocTypeSelect || !paisDestinoSelect) return;
+            const isVenezuela = (parseInt(paisDestinoSelect.value) === 3);
             benefDocTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
+
             allDocumentTypes.forEach(doc => {
-                const name = doc.nombre.toUpperCase();
-                let show = isVenezuela ? !(name === 'RUT' || name === 'DNI (PERÚ)' || name === 'DNI') : (name !== 'RIF');
-                if (show) benefDocTypeSelect.innerHTML += `<option value="${doc.id}">${doc.nombre}</option>`;
+                const nombreDoc = doc.NombreDocumento || doc.nombre || "";
+                if (!nombreDoc) return;
+
+                const nameUC = nombreDoc.toUpperCase();
+                let show = isVenezuela ? !(nameUC.includes('RUT') || nameUC.includes('DNI')) : !nameUC.includes('RIF');
+
+                if (show) {
+                    benefDocTypeSelect.innerHTML += `<option value="${doc.TipoDocumentoID || doc.id}">${nombreDoc}</option>`;
+                }
             });
             updateDocumentValidation();
         };
+
         const updateDocumentValidation = () => {
-            if (!benefDocTypeSelect || !benefPaisIdInput) return;
-            const isVenezuela = (parseInt(benefPaisIdInput.value) === 3);
+            if (!benefDocTypeSelect || !paisDestinoSelect) return;
+            const isVenezuela = (parseInt(paisDestinoSelect.value) === 3);
             const docName = benefDocTypeSelect.options[benefDocTypeSelect.selectedIndex]?.text.toLowerCase() || '';
             benefDocPrefix.classList.add('d-none');
             benefDocNumberInput.oninput = null;
             if (isVenezuela) {
                 benefDocPrefix.classList.remove('d-none');
-                if (docName.includes('rif') || docName.includes('pasaporte') || true) {
-                    benefDocPrefix.innerHTML = docName.includes('pasaporte') ? '<option value="P">P</option><option value="V">V</option><option value="E">E</option>' : '<option value="V">V</option><option value="E">E</option>';
-                    benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
-                }
-            } else if (docName.includes('rut') && typeof formatRut === 'function') {
-                benefDocNumberInput.oninput = function () { this.value = formatRut(cleanRut(this.value)); };
+                benefDocPrefix.innerHTML = docName.includes('pasaporte') ? '<option value="P">P</option><option value="V">V</option><option value="E">E</option>' : '<option value="V">V</option><option value="E">E</option>';
+                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
             }
         };
         benefDocTypeSelect?.addEventListener('change', updateDocumentValidation);
+
         addBeneficiaryForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = addBeneficiaryForm.closest('.modal-content').querySelector('button[type="submit"]');
             btn.disabled = true; btn.textContent = 'Guardando...';
+
             const formData = new FormData(addBeneficiaryForm);
-            if (!benefDocPrefix.classList.contains('d-none')) formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
-            if (!containerPhoneNum.classList.contains('d-none')) formData.set('numeroTelefono', (formData.get('phoneCode') || '') + (formData.get('phoneNumber') || ''));
-            else formData.set('numeroTelefono', null);
-            formData.delete('phoneCode'); formData.delete('phoneNumber');
+            if (!benefDocPrefix.classList.contains('d-none')) {
+                formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
+            }
+            if (!containerPhoneNum.classList.contains('d-none')) {
+                formData.set('numeroTelefono', (formData.get('phoneCode') || '') + (formData.get('phoneNumber') || ''));
+            } else {
+                formData.set('numeroTelefono', null);
+            }
+
+            formData.delete('phoneCode');
+            formData.delete('phoneNumber');
             const data = Object.fromEntries(formData.entries());
-            data.paisID = benefPaisIdInput.value;
+            data.paisID = paisDestinoSelect.value;
+
             try {
-                const resAdd = await fetch('../api/?accion=addCuenta', { method: 'POST', body: JSON.stringify(data) });
+                const resAdd = await fetch('../api/?accion=addCuenta', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
                 const resJ = await resAdd.json();
                 if (resJ.success) {
-                    addAccountModalInstance.hide(); window.showInfoModal('Éxito', 'Cuenta guardada.', true); loadBeneficiaries(paisDestinoSelect.value);
-                } else window.showInfoModal('Error', resJ.error, false);
-            } catch (err) { window.showInfoModal('Error', 'Error conexión.', false); }
-            finally { btn.disabled = false; btn.textContent = 'Guardar Cuenta'; }
+                    addAccountModalInstance.hide();
+                    window.showInfoModal('Éxito', 'Cuenta guardada correctamente.', true);
+                    loadBeneficiaries(paisDestinoSelect.value);
+                } else {
+                    window.showInfoModal('Error', resJ.error, false);
+                }
+            } catch (err) {
+                window.showInfoModal('Error', 'Error de conexión.', false);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Guardar Cuenta';
+            }
         });
     }
 
+    // --- INICIALIZACIÓN ---
     if (LOGGED_IN_USER_ID) {
         loadPaises('Origen', paisOrigenSelect);
         loadPaises('Destino', paisDestinoSelect);

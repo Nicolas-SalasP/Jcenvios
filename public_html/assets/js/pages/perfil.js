@@ -121,18 +121,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const setPhoneCodeByPais = (paisId, selectElement) => {
         if (!selectElement) return;
-        const paisDestinoData = countryPhoneCodes.find(c => c.paisId && c.paisId.toString() === paisId.toString());
-        if (paisDestinoData && paisDestinoData.code) {
-            selectElement.value = paisDestinoData.code;
-        } else {
-            selectElement.value = "";
-        }
+        const map = { "1": "+56", "3": "+58", "2": "+57", "5": "+51" };
+        selectElement.value = map[paisId.toString()] || "";
     };
 
     const updateDocumentValidation = () => {
         const paisId = parseInt(benefPaisIdInput.value);
         const docTypeOption = benefDocTypeSelect.options[benefDocTypeSelect.selectedIndex];
-        const docName = docTypeOption ? docTypeOption.text.toLowerCase() : '';
+        // FIX: Respaldo para evitar undefined antes de toLowerCase
+        const docName = docTypeOption ? (docTypeOption.text || "").toLowerCase() : '';
 
         const isVenezuela = (paisId === 3);
 
@@ -196,7 +193,9 @@ document.addEventListener('DOMContentLoaded', () => {
         benefDocTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
 
         allDocumentTypes.forEach(doc => {
-            const name = doc.nombre.toUpperCase();
+            // FIX: Uso de NombreDocumento para evitar TypeError
+            const nombreDoc = doc.nombre || doc.NombreDocumento || "";
+            const name = nombreDoc.toUpperCase();
             let show = true;
 
             if (isVenezuela) {
@@ -206,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (show) {
-                benefDocTypeSelect.innerHTML += `<option value="${doc.id}">${doc.nombre}</option>`;
+                benefDocTypeSelect.innerHTML += `<option value="${doc.id || doc.TipoDocumentoID}">${nombreDoc}</option>`;
             }
         });
         updateDocumentValidation();
@@ -249,6 +248,56 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- LÓGICA DE PERFIL (FOTO Y EDICIÓN) ---
+
+    // 1. Previsualización de Foto
+    profileFotoInput?.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            if (file.size > 2 * 1024 * 1024) {
+                window.showInfoModal('Error', 'La imagen no debe superar los 2MB.', false);
+                this.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => profileImgPreview.src = e.target.result;
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 2. Guardar Cambios de Perfil
+    profileForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        profileSaveBtn.disabled = true;
+        const originalText = profileSaveBtn.innerHTML;
+        profileSaveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+        // Usamos FormData para soportar la subida de la imagen
+        const formData = new FormData(profileForm);
+        const fullPhone = (profilePhoneCodeEl.value || '') + (telefonoEl.value || '');
+        formData.set('telefono', fullPhone);
+
+        try {
+            // FIX: Se cambió 'updateProfile' por 'updateUserProfile' para coincidir con el Router de la API
+            const response = await fetch('../api/?accion=updateUserProfile', {
+                method: 'POST',
+                body: formData 
+            });
+            const result = await response.json();
+            if (result.success) {
+                window.showInfoModal('Éxito', 'Perfil actualizado correctamente.', true);
+                loadUserProfile();
+            } else {
+                window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
+            }
+        } catch (error) {
+            window.showInfoModal('Error', 'Error de conexión con el servidor.', false);
+        } finally {
+            profileSaveBtn.disabled = false;
+            profileSaveBtn.innerHTML = originalText;
+        }
+    });
+
 
     const loadDropdownData = async (endpoint, selectElement, textKey = 'nombre', valueKey = '') => {
         const valKey = valueKey || textKey;
@@ -267,8 +316,9 @@ document.addEventListener('DOMContentLoaded', () => {
             data.forEach(item => {
                 let text, value;
                 if (typeof item === 'object') {
-                    text = item[textKey];
-                    value = item[valKey];
+                    // FIX: Soporte dinámico para NombreDocumento o NombreTipo
+                    text = item[textKey] || item['NombreDocumento'] || item['NombreTipo'] || "";
+                    value = item[valKey] || item['TipoDocumentoID'] || item['PaisID'] || "";
                 } else {
                     text = item;
                     value = item;
@@ -288,7 +338,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             if (result.success && result.profile) {
                 const p = result.profile;
-                nombreCompletoEl.value = `${p.PrimerNombre} ${p.PrimerApellido}`;
+                // Mostramos nombre y apellido unidos en el campo de solo lectura (o el que uses para visualización)
+                nombreCompletoEl.value = `${p.PrimerNombre || ''} ${p.PrimerApellido || ''}`.trim();
                 emailEl.value = p.Email;
                 documentoEl.value = p.NumeroDocumento;
 
@@ -303,7 +354,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 estadoBadge.textContent = p.VerificacionEstado;
-                if (p.VerificacionEstado === 'Verificado') estadoBadge.classList.add('bg-success');
+                estadoBadge.className = 'badge';
+                if (p.VerificacionEstado === 'Verificado') {
+                    estadoBadge.classList.add('bg-success');
+                } else {
+                    estadoBadge.classList.add('bg-warning');
+                }
 
                 const photoUrl = p.FotoPerfilURL ? `${baseUrlJs}/admin/view_secure_file.php?file=${encodeURIComponent(p.FotoPerfilURL)}` : defaultPhoto;
                 profileImgPreview.src = photoUrl;
@@ -372,6 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData(addBeneficiaryForm);
 
+        // Reconstrucción del número de documento con prefijo si aplica
         if (!benefDocPrefix.classList.contains('d-none')) {
             const fullDoc = benefDocPrefix.value + formData.get('numeroDocumento');
             formData.set('numeroDocumento', fullDoc);
@@ -379,6 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = Object.fromEntries(formData.entries());
 
+        // Manejo del teléfono dinámico
         if (containerPhoneNum.classList.contains('d-none')) {
             data.numeroTelefono = null;
         } else {
@@ -387,13 +445,18 @@ document.addEventListener('DOMContentLoaded', () => {
         delete data.phoneCode;
         delete data.phoneNumber;
 
+        // Asegurar valor PAGO MOVIL si aplica
         if (containerAccountNum.classList.contains('d-none')) {
             data.numeroCuenta = 'PAGO MOVIL';
         }
 
-        const action = data.cuentaId ? 'updateBeneficiary' : 'addCuenta';
-        if (data.cuentaId) data.paisID = benefPaisIdInput.value;
+        // FIX: Asegurar que el paisID se envíe incluso si el campo está disabled en el DOM
+        if (benefPaisIdInput.disabled) {
+            data.paisID = benefPaisIdInput.value;
+        }
 
+        const action = data.cuentaId ? 'updateBeneficiary' : 'addCuenta';
+        
         try {
             const res = await fetch(`../api/?accion=${action}`, {
                 method: 'POST',
@@ -403,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await res.json();
             if (result.success) {
                 addAccountModal.hide();
-                window.showInfoModal('Éxito', 'Beneficiario guardado.', true);
+                window.showInfoModal('Éxito', 'Beneficiario guardado correctamente.', true);
                 loadBeneficiaries();
             } else throw new Error(result.error);
         } catch (err) {
@@ -441,10 +504,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('benef-firstname').value = d.TitularPrimerNombre;
                     document.getElementById('benef-lastname').value = d.TitularPrimerApellido;
 
+                    // Manejo de visibilidad de nombres opcionales en edición
                     const secNameInput = document.getElementById('benef-secondname');
                     if (d.TitularSegundoNombre) {
                         secNameInput.value = d.TitularSegundoNombre;
                         document.getElementById('container-benef-segundo-nombre').classList.remove('d-none');
+                        document.getElementById('toggle-benef-segundo-nombre').checked = false;
                     } else {
                         document.getElementById('toggle-benef-segundo-nombre').checked = true;
                         document.getElementById('container-benef-segundo-nombre').classList.add('d-none');
@@ -454,6 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (d.TitularSegundoApellido) {
                         secLastInput.value = d.TitularSegundoApellido;
                         document.getElementById('container-benef-segundo-apellido').classList.remove('d-none');
+                        document.getElementById('toggle-benef-segundo-apellido').checked = false;
                     } else {
                         document.getElementById('toggle-benef-segundo-apellido').checked = true;
                         document.getElementById('container-benef-segundo-apellido').classList.add('d-none');
@@ -462,8 +528,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('benef-bank').value = d.NombreBanco;
                     document.getElementById('benef-account-num').value = d.NumeroCuenta;
 
+                    // Extracción de prefijo de documento (V/E/P...)
                     let docNum = d.TitularNumeroDocumento;
-                    const firstChar = docNum.charAt(0).toUpperCase();
+                    const firstChar = (docNum || "").charAt(0).toUpperCase();
                     if (['V', 'E', 'J', 'G', 'P'].includes(firstChar) && !benefDocPrefix.classList.contains('d-none')) {
                         benefDocPrefix.value = firstChar;
                         docNum = docNum.substring(1);
@@ -471,10 +538,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('benef-doc-number').value = docNum;
 
                     if (d.NumeroTelefono) {
-                        const code = countryPhoneCodes.find(c => d.NumeroTelefono.startsWith(c.code));
-                        if (code) {
-                            selectPhoneCode.value = code.code;
-                            inputPhoneNum.value = d.NumeroTelefono.substring(code.code.length);
+                        const codeMatch = countryPhoneCodes.find(c => d.NumeroTelefono.startsWith(c.code));
+                        if (codeMatch) {
+                            selectPhoneCode.value = codeMatch.code;
+                            inputPhoneNum.value = d.NumeroTelefono.substring(codeMatch.code.length);
                         } else {
                             inputPhoneNum.value = d.NumeroTelefono;
                         }
@@ -486,7 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (delBtn) {
-            if (confirm('¿Eliminar beneficiario?')) {
+            if (await window.showConfirmModal('Eliminar', '¿Estás seguro de eliminar este beneficiario?')) {
                 const id = delBtn.dataset.id;
                 await fetch('../api/?accion=deleteBeneficiary', {
                     method: 'POST',
