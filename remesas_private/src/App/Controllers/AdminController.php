@@ -86,7 +86,6 @@ class AdminController extends BaseController
     {
         $adminId = $this->ensureAdminOrOperator();
         try {
-            // CAMBIO CLAVE: Leer de JSON Input en lugar de $_POST
             $data = $this->getJsonInput();
             $txId = (int) ($data['txId'] ?? 0);
             $motivo = trim($data['motivo'] ?? '');
@@ -348,6 +347,40 @@ class AdminController extends BaseController
         try {
             $this->pricingService->updateBcvRate($adminId, $newValue);
             $this->sendJsonResponse(['success' => true, 'message' => 'Tasa BCV actualizada.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function applyGlobalAdjustment(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        $percent = (float)($data['percent'] ?? 0);
+
+        try {
+            $count = $this->pricingService->applyGlobalAdjustment($adminId, $percent);
+            $this->sendJsonResponse([
+                'success' => true, 
+                'message' => "Ajuste del {$percent}% aplicado correctamente a {$count} rutas activas."
+            ]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function saveGlobalAdjustmentSettings(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        $percent = (float)($data['percent'] ?? 0);
+        $time = (string)($data['time'] ?? '20:30');
+
+        try {
+            $this->pricingService->saveGlobalAdjustmentSettings($adminId, $percent, $time);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Configuración de ajuste global guardada.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }

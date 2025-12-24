@@ -9,6 +9,9 @@ $pageTitle = 'Gestionar Tasas de Cambio';
 $pageScript = 'tasas.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
+// El $container se inicializa en init.php
+$pricingService = $container->get(\App\Services\PricingService::class);
+
 $paisesActivos = $conexion->query("SELECT PaisID, NombrePais, CodigoMoneda, Rol FROM paises WHERE Activo = TRUE ORDER BY NombrePais ASC")->fetch_all(MYSQLI_ASSOC);
 
 $queryTasas = $conexion->query("
@@ -31,33 +34,75 @@ foreach ($queryTasas as $tasa) {
 
 $paisesOrigen = array_filter($paisesActivos, fn($p) => in_array($p['Rol'], ['Origen', 'Ambos']));
 $paisesDestino = array_filter($paisesActivos, fn($p) => in_array($p['Rol'], ['Destino', 'Ambos']));
+
+$settings = $pricingService->getGlobalAdjustmentSettings();
 ?>
 
 <div class="container mt-4">
-    <h1>Gestionar Tasas de Cambio</h1>
+    <h1 class="mb-4">Gestionar Tasas de Cambio</h1>
 
-    <div class="card shadow-sm mb-4 border-info">
-        <div class="card-header bg-info text-white">
-            <h5 class="mb-0">Tasa Dólar BCV (Referencia)</h5>
-        </div>
-        <div class="card-body">
-            <form id="bcv-rate-form" class="row g-3 align-items-center">
-                <div class="col-auto">
-                    <div class="input-group">
-                        <span class="input-group-text fw-bold">1 USD =</span>
-                        <input type="text" class="form-control" id="bcv-rate" required>
-                        <span class="input-group-text">VES</span>
-                    </div>
+    <div class="row mb-4">
+        <div class="col-md-5">
+            <div class="card shadow-sm border-info h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Tasa Dólar BCV (Referencia)</h5>
                 </div>
-                <div class="col-auto"><button type="submit" class="btn btn-primary"
-                        id="btn-save-bcv">Actualizar</button></div>
-            </form>
-            <div id="bcv-feedback" class="mt-2"></div>
+                <div class="card-body d-flex flex-column justify-content-center">
+                    <form id="bcv-rate-form" class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <div class="input-group">
+                                <span class="input-group-text fw-bold">1 USD =</span>
+                                <input type="text" class="form-control" id="bcv-rate" required>
+                                <span class="input-group-text">VES</span>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary" id="btn-save-bcv">Actualizar</button>
+                        </div>
+                    </form>
+                    <div id="bcv-feedback" class="mt-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card shadow-sm border-warning h-100">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-gear-wide-connected me-2"></i>Ajuste Global de Tasas</h5>
+                    <span class="badge bg-dark">Referenciales</span>
+                </div>
+                <div class="card-body">
+                    <form id="global-adjustment-form" class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Ajuste (%):</label>
+                            <input type="number" step="0.01" class="form-control" id="global-adj-percent"
+                                value="<?= $settings['percent'] ?>" placeholder="Ej: -2.5">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Hora de actualización:</label>
+                            <input type="time" class="form-control" id="global-adj-time"
+                                value="<?= $settings['time'] ?>">
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button type="button" id="btn-save-global-settings"
+                                class="btn btn-outline-primary btn-sm mb-1 w-100">Guardar Config</button>
+                            <button type="button" id="btn-apply-global-now" class="btn btn-danger btn-sm w-100">
+                                <i class="bi bi-lightning-fill"></i> Aplicar Ya
+                            </button>
+                        </div>
+                    </form>
+                    <?php if ($settings['last_run']): ?>
+                        <div class="mt-2 small text-muted"><i class="bi bi-clock-history"></i> Última ejecución:
+                            <strong><?= $settings['last_run'] ?></strong>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-dark text-white">
+    <div class="card shadow-sm mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Editor de Tasas Comerciales</h5>
         </div>
         <div class="card-body" id="rate-editor-card-body">
@@ -143,7 +188,8 @@ $paisesDestino = array_filter($paisesActivos, fn($p) => in_array($p['Rol'], ['De
                                 <?php foreach ($ruta['items'] as $item): ?>
                                     <tr class="<?= $item['EsReferencial'] ? 'table-primary' : '' ?>">
                                         <td>[<?= number_format($item['MontoMinimo'], 2, ',', '.') ?> -
-                                            <?= number_format($item['MontoMaximo'], 0, '', '') ?>]</td>
+                                            <?= number_format($item['MontoMaximo'], 0, '', '') ?>]
+                                        </td>
                                         <td class="text-center">
                                             <?= $item['EsReferencial'] ? '<span class="badge bg-primary">Tasa Referencial</span>' : '<span class="badge bg-secondary">Tasa Ajustada</span>' ?>
                                         </td>

@@ -6,6 +6,7 @@ use App\Repositories\CountryRepository;
 use App\Repositories\SystemSettingsRepository;
 use App\Services\NotificationService;
 use Exception;
+use Throwable;
 
 class PricingService
 {
@@ -26,9 +27,80 @@ class PricingService
         $this->notificationService = $notificationService;
     }
 
-    public function getCountriesByRole(string $role): array
+    public function runScheduledAdjustment(): bool
     {
-        return $this->countryRepository->findByRoleAndStatus($role, true);
+        $settings = $this->getGlobalAdjustmentSettings();
+        $horaActual = date('H:i');
+        $hoy = date('Y-m-d');
+
+        if ($horaActual !== $settings['time']) {
+            return false;
+        }
+        $ultimaEjecucion = $settings['last_run'] ? date('Y-m-d', strtotime($settings['last_run'])) : '';
+        if ($ultimaEjecucion === $hoy) {
+            return false;
+        }
+        return $this->applyGlobalAdjustment(0, $settings['percent']) > 0;
+    }
+
+    public function applyGlobalAdjustment(int $adminId, float $percentage): int
+    {
+        $tasaBCV = $this->getBcvRate();
+        if ($tasaBCV <= 0) {
+            return 0;
+        }
+
+        $tasasRef = $this->rateRepository->findAllReferentialRates();
+        $count = 0;
+
+        foreach ($tasasRef as $t) {
+            $nuevoValor = $tasaBCV * (1 + ($percentage / 100));
+
+            $this->rateRepository->updateRateValue(
+                (int) $t['TasaID'],
+                $nuevoValor,
+                (float) $t['MontoMinimo'],
+                (float) $t['MontoMaximo'],
+                1,
+                0
+            );
+
+            $this->recalculateRouteRates((int) $t['PaisOrigenID'], (int) $t['PaisDestinoID'], $nuevoValor);
+            $this->rateRepository->logRateChange(
+                (int) $t['TasaID'],
+                (int) $t['PaisOrigenID'],
+                (int) $t['PaisDestinoID'],
+                $nuevoValor,
+                (float) $t['MontoMinimo'],
+                (float) $t['MontoMaximo']
+            );
+            $count++;
+        }
+
+        $this->settingsRepository->updateValue('global_adjustment_last_run', date('Y-m-d H:i:s'));
+
+        if ($adminId > 0 && $count > 0) {
+            $this->notificationService->logAdminAction($adminId, 'Ajuste Global de Tasas', "Se aplicó un ajuste de {$percentage}% a {$count} rutas.");
+        }
+
+        return $count;
+    }
+
+    public function getGlobalAdjustmentSettings(): array
+    {
+        return [
+            'percent' => (float) $this->settingsRepository->getValue('global_adjustment_percent'),
+            'time' => $this->settingsRepository->getValue('global_adjustment_time') ?: '20:30',
+            'last_run' => $this->settingsRepository->getValue('global_adjustment_last_run')
+        ];
+    }
+
+    public function saveGlobalAdjustmentSettings(int $adminId, float $percent, string $time): bool
+    {
+        $this->settingsRepository->updateValue('global_adjustment_percent', (string) $percent);
+        $this->settingsRepository->updateValue('global_adjustment_time', $time);
+        $this->notificationService->logAdminAction($adminId, 'Configuración Ajuste Global', "Porcentaje: {$percent}%, Hora: {$time}");
+        return true;
     }
 
     public function getCurrentRate(int $origenID, int $destinoID, float $montoOrigen = 0): array
@@ -36,11 +108,10 @@ class PricingService
         if ($origenID === $destinoID) {
             throw new Exception("El país de origen y destino no pueden ser iguales.", 400);
         }
- 
+
         if ($montoOrigen == 0) {
             $tasaInfo = $this->rateRepository->findReferentialRate($origenID, $destinoID);
-            if ($tasaInfo)
-                return $tasaInfo;
+            if ($tasaInfo) return $tasaInfo;
             throw new Exception("Esta ruta no tiene una Tasa Referencial configurada.", 404);
         }
 
@@ -64,14 +135,14 @@ class PricingService
 
     public function adminUpsertRate(int $adminId, array $data): array
     {
-        $tasaId = ($data['tasaId'] === 'new') ? 0 : (int)$data['tasaId'];
-        $origenId = (int)$data['origenId'];
-        $destinoId = (int)$data['destinoId'];
-        $esReferencial = (int)($data['esReferencial'] ?? 0);
-        $porcentaje = (float)($data['porcentaje'] ?? 0);
-        $valorEntrada = (float)($data['nuevoValor'] ?? 0);
-        $montoMin = (float)($data['montoMin'] ?? 0);
-        $montoMax = (float)($data['montoMax'] ?? 9999999999.99);
+        $tasaId = ($data['tasaId'] === 'new') ? 0 : (int) $data['tasaId'];
+        $origenId = (int) $data['origenId'];
+        $destinoId = (int) $data['destinoId'];
+        $esReferencial = (int) ($data['esReferencial'] ?? 0);
+        $porcentaje = (float) ($data['porcentaje'] ?? 0);
+        $valorEntrada = (float) ($data['nuevoValor'] ?? 0);
+        $montoMin = (float) ($data['montoMin'] ?? 0);
+        $montoMax = (float) ($data['montoMax'] ?? 9999999999.99);
 
         if ($this->rateRepository->checkOverlap($origenId, $destinoId, $montoMin, $montoMax, $tasaId)) {
             throw new Exception("El rango de montos colisiona con otra tasa activa.", 409);
@@ -109,8 +180,7 @@ class PricingService
     {
         $tasas = $this->rateRepository->getRatesByRoute($origenId, $destinoId);
         foreach ($tasas as $t) {
-            if ($t['EsReferencial'] == 1)
-                continue;
+            if ($t['EsReferencial'] == 1) continue;
             $nuevoValor = $valorBase * (1 + ($t['PorcentajeAjuste'] / 100));
             $this->rateRepository->updateRateValue((int) $t['TasaID'], $nuevoValor, (float) $t['MontoMinimo'], (float) $t['MontoMaximo'], 0, (float) $t['PorcentajeAjuste']);
         }
@@ -125,9 +195,13 @@ class PricingService
     public function updateBcvRate(int $adminId, float $newValue): bool
     {
         $success = $this->settingsRepository->updateValue('tasa_dolar_bcv', (string) $newValue);
-        if ($success)
-            $this->notificationService->logAdminAction($adminId, 'Actualización Tasa BCV', "Nuevo: " . $newValue);
+        if ($success) $this->notificationService->logAdminAction($adminId, 'Actualización Tasa BCV', "Nuevo: " . $newValue);
         return $success;
+    }
+
+    public function getCountriesByRole(string $role): array
+    {
+        return $this->countryRepository->findByRoleAndStatus($role, true);
     }
 
     public function adminAddCountry(int $adminId, string $nombrePais, string $codigoMoneda, string $rol): bool

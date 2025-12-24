@@ -13,6 +13,39 @@ class RateRepository
         $this->db = $db;
     }
 
+    /**
+     * NUEVO: Actualiza todas las tasas referenciales masivamente (Usado por el Cron)
+     */
+    public function updateReferentialRates(float $nuevoValor, float $porcentaje): bool
+    {
+        $sql = "UPDATE tasas 
+                SET ValorTasa = ?, 
+                    PorcentajeAjuste = ?, 
+                    FechaEfectiva = NOW() 
+                WHERE EsReferencial = 1 AND Activa = 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("dd", $nuevoValor, $porcentaje);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
+    public function findAllReferentialRates(): array
+    {
+        $sql = "SELECT TasaID, PaisOrigenID, PaisDestinoID, ValorTasa, MontoMinimo, MontoMaximo, PorcentajeAjuste 
+                FROM tasas 
+                WHERE EsReferencial = 1 AND Activa = 1";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $data = $result->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        
+        return $data;
+    }
+
     public function findCurrentRate(int $origenID, int $destinoID, float $montoOrigen = 0): ?array
     {
         $sql = "SELECT TasaID, ValorTasa, EsReferencial, PorcentajeAjuste, MontoMinimo, MontoMaximo 

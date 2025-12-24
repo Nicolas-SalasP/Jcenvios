@@ -12,11 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelEditBtn = document.getElementById('cancel-edit-btn');
     const currentTasaIdInput = document.getElementById('current-tasa-id');
     const feedbackMessage = document.getElementById('feedback-message');
+    const btnSaveGlobal = document.getElementById('btn-save-global-settings');
+    const btnApplyGlobalNow = document.getElementById('btn-apply-global-now');
 
     let referentialRateValue = 0;
 
     // --- UTILIDADES DE FORMATO ---
-
     const parseInput = (val) => {
         if (!val) return 0;
         let s = val.toString().trim();
@@ -35,8 +36,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }).format(num);
     };
 
-    // --- LÓGICA DE ACTUALIZACIÓN DINÁMICA ---
+    btnSaveGlobal?.addEventListener('click', async () => {
+        const payload = {
+            percent: document.getElementById('global-adj-percent').value,
+            time: document.getElementById('global-adj-time').value
+        };
 
+        try {
+            const res = await fetch('../api/?accion=saveGlobalAdjustmentSettings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            if (result.success) window.showInfoModal('Éxito', 'Configuración de ajuste global guardada.', true);
+        } catch (e) { alert("Error al guardar"); }
+    });
+
+    btnApplyGlobalNow?.addEventListener('click', async () => {
+        const percent = document.getElementById('global-adj-percent').value;
+        const confirm = await window.showConfirmModal(
+            '¡Atención!',
+            `¿Estás seguro de modificar TODAS las tasas referenciales un ${percent}%? Esta acción es inmediata e irreversible.`
+        );
+
+        if (confirm) {
+            btnApplyGlobalNow.disabled = true;
+            btnApplyGlobalNow.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            try {
+                const res = await fetch('../api/?accion=applyGlobalAdjustment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ percent })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    window.showInfoModal('Éxito', result.message, true, () => location.reload());
+                } else {
+                    window.showInfoModal('Error', result.error, false);
+                }
+            } catch (e) { alert("Error de red"); }
+            finally { btnApplyGlobalNow.disabled = false; btnApplyGlobalNow.innerHTML = '<i class="bi bi-lightning-fill"></i> Aplicar Ya'; }
+        }
+    });
+
+    // --- LÓGICA DE ACTUALIZACIÓN DINÁMICA ---
     const updateRouteTable = (routeKey, items) => {
         const accordionContent = document.getElementById(`collapse-${routeKey}`);
         if (!accordionContent) return;
@@ -175,9 +219,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
                 updateRouteTable(result.data.routeKey, result.data.items);
                 resetEditor();
@@ -195,47 +239,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- LÓGICA PARA ACTUALIZAR LA TASA BCV ---
-const bcvForm = document.getElementById('bcv-rate-form');
-const bcvRateInput = document.getElementById('bcv-rate');
-const bcvFeedback = document.getElementById('bcv-feedback');
+    // --- TASA BCV ---
+    const bcvForm = document.getElementById('bcv-rate-form');
+    const bcvRateInput = document.getElementById('bcv-rate');
+    const bcvFeedback = document.getElementById('bcv-feedback');
 
-if (bcvForm) {
-    bcvForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const btnSave = document.getElementById('btn-save-bcv');
-        btnSave.disabled = true;
-        btnSave.innerHTML = 'Guardando...';
+    if (bcvForm) {
+        bcvForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btnSave = document.getElementById('btn-save-bcv');
+            btnSave.disabled = true; btnSave.innerHTML = '...';
 
-        try {
-            const response = await fetch('../api/?accion=updateBcvRate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    rate: parseInput(bcvRateInput.value) 
-                })
-            });
+            try {
+                const response = await fetch('../api/?accion=updateBcvRate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rate: parseInput(bcvRateInput.value) })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    bcvFeedback.innerHTML = '<div class="alert alert-success py-1 small">Actualizada.</div>';
+                    setTimeout(() => bcvFeedback.innerHTML = '', 3000);
+                }
+            } catch (error) { console.error(error); }
+            finally { btnSave.disabled = false; btnSave.innerHTML = 'Actualizar'; }
+        });
+    }
 
-            const result = await response.json();
-
-            if (result.success) {
-                bcvFeedback.innerHTML = '<div class="alert alert-success py-1 small">Tasa actualizada con éxito.</div>';
-                setTimeout(() => bcvFeedback.innerHTML = '', 3000);
-            } else {
-                window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            window.showInfoModal('Error', 'Error de conexión.', false);
-        } finally {
-            btnSave.disabled = false;
-            btnSave.innerHTML = 'Actualizar';
-        }
-    });
-}
-
-    // --- EVENTOS ---
+    // --- EVENTOS GENERALES ---
     paisOrigenSelect.addEventListener('change', () => { validateForm(); fetchReferentialValue(); });
     paisDestinoSelect.addEventListener('change', () => { validateForm(); fetchReferentialValue(); });
     isRefCheckbox.addEventListener('change', toggleInputsByRef);

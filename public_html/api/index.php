@@ -66,7 +66,6 @@ class Container
     private function createInstance(string $className)
     {
         return match ($className) {
-                // Repositorios
             UserRepository::class => new UserRepository($this->getDb()),
             RateRepository::class => new RateRepository($this->getDb()),
             CountryRepository::class => new CountryRepository($this->getDb()),
@@ -83,7 +82,6 @@ class Container
             CuentasAdminRepository::class => new CuentasAdminRepository($this->getDb()),
             SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
 
-                // Services
             LogService::class => new LogService($this->getDb()),
             NotificationService::class => new NotificationService($this->get(LogService::class)),
             PDFService::class => new PDFService(),
@@ -137,7 +135,6 @@ class Container
                 $this->get(TasasHistoricoRepository::class)
             ),
 
-                // Controllers
             AuthController::class => new AuthController($this->get(UserService::class)),
             ClientController::class => new ClientController(
                 $this->get(TransactionService::class),
@@ -242,6 +239,8 @@ try {
         'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
         'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
         'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
+        'applyGlobalAdjustment' => [AdminController::class, 'applyGlobalAdjustment', 'POST'],
+        'saveGlobalAdjustmentSettings' => [AdminController::class, 'saveGlobalAdjustmentSettings', 'POST'],
 
         // Contabilidad
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
