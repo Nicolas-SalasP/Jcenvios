@@ -23,7 +23,6 @@ class TasasHistoricoRepository
                 PaisOrigenID = ?
                 AND PaisDestinoID = ?
                 AND FechaCambio >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-                AND MontoMinimo = 0.00 
             GROUP BY Fecha
             ORDER BY Fecha ASC
             LIMIT ?";

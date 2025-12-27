@@ -69,7 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const paisNombre = selectedOption.text.toLowerCase();
 
-        // Verificación de seguridad para evitar el error de textContent null
         if (labelMonedaDestino) {
             labelMonedaDestino.textContent = selectedOption.dataset.currency || '...';
         }
@@ -83,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isVenezuelaDest) {
             bcvAlertBox?.classList.remove('d-none');
             colMontoUsd?.classList.remove('d-none');
-            // Mantenemos las columnas como están en el HTML para evitar que se achiquen
         } else {
             bcvAlertBox?.classList.add('d-none');
             colMontoUsd?.classList.add('d-none');
@@ -123,8 +121,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const respChart = await fetch(`api/?accion=getDolarBcv&origenId=${origenId}&destinoId=${destinoId}&days=30`);
             const dataChart = await respChart.json();
             if (!dataChart.success) return;
-            if (valorActualEl) valorActualEl.textContent = dataChart.textoTasa || (formatDisplay(dataChart.valorActual) + ` ${dataChart.monedaDestino}`);
-            if (descEl) descEl.textContent = dataChart.textoTasa ? `Rango Tasa Promedio (${dataChart.monedaDestino})` : `1 ${dataChart.monedaOrigen} = ${formatDisplay(dataChart.valorActual)} ${dataChart.monedaDestino}`;
+            const valorCon5Decimales = formatDisplay(dataChart.valorActual, 5);
+            
+            if (valorActualEl) {
+                valorActualEl.textContent = `${valorCon5Decimales} ${dataChart.monedaDestino}`;
+            }
+            
+            if (descEl) {
+                descEl.textContent = `1 ${dataChart.monedaOrigen} = ${valorCon5Decimales} ${dataChart.monedaDestino}`;
+            }
 
             if (chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, {
@@ -132,13 +137,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 data: {
                     labels: dataChart.labels,
                     datasets: [{
-                        label: 'Tasa', data: dataChart.data, borderColor: '#0d6efd',
-                        backgroundColor: 'rgba(13, 110, 253, 0.1)', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0
+                        label: 'Tasa Histórica', 
+                        data: dataChart.data, 
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)', 
+                        borderWidth: 3, 
+                        fill: true, 
+                        tension: 0.4, 
+                        pointRadius: 2,
+                        pointHitRadius: 10
                     }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `Tasa: ${context.parsed.y.toFixed(5)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grace: '5%',
+                            ticks: {
+                                font: { size: 10 },
+                                callback: function(value) {
+                                    return value.toFixed(5); 
+                                }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 10 }, maxRotation: 0 }
+                        }
+                    }
+                }
             });
-        } catch (e) { console.warn("Gráfico error"); }
+        } catch (e) { console.warn("Gráfico error", e); }
     };
 
     const fetchRates = async () => {
@@ -164,7 +207,6 @@ document.addEventListener('DOMContentLoaded', () => {
             montoParaTasa = parseInput(inputOrigen.value, false);
         } else if (activeInputId === 'calc-monto-destino') {
             let ves = parseInput(inputDestino.value, false);
-            // Si es Colombia, el monto origen se calcula multiplicando VES * Tasa (porque la tasa es 0.085 COP/VES)
             montoParaTasa = commercialRate > 0 ? (isColombia ? ves * commercialRate : ves / commercialRate) : 0;
         } else if (activeInputId === 'calc-monto-usd') {
             let usd = parseInput(inputUsd.value, true);
@@ -227,7 +269,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (activeInputId === 'calc-monto-origen') {
             clp = parseInput(inputOrigen.value, false);
-            // LÓGICA COLOMBIA: DIVIDIR (Pesos / 0.085 = VES)
             ves = isColombia ? (clp / commercialRate) : (clp * commercialRate);
             if (isVenezuelaDest && bcvRate > 0) usd = ves / bcvRate;
 
@@ -236,7 +277,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else if (activeInputId === 'calc-monto-destino') {
             ves = parseInput(inputDestino.value, false);
-            // LÓGICA INVERSA COLOMBIA: MULTIPLICAR (VES * 0.085 = Pesos)
             clp = isColombia ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
             if (isVenezuelaDest && bcvRate > 0) usd = ves / bcvRate;
 
@@ -246,7 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (activeInputId === 'calc-monto-usd' && isVenezuelaDest) {
             usd = parseInput(inputUsd.value, true);
             ves = usd * bcvRate;
-            // LÓGICA INVERSA COLOMBIA
             clp = isColombia ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
 
             inputOrigen.value = formatDisplay(clp);
