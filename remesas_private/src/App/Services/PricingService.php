@@ -45,27 +45,32 @@ class PricingService
 
     public function applyGlobalAdjustment(int $adminId, float $percentage): int
     {
-        $tasaBCV = $this->getBcvRate();
-        if ($tasaBCV <= 0) {
-            return 0;
-        }
-
         $tasasRef = $this->rateRepository->findAllReferentialRates();
         $count = 0;
 
         foreach ($tasasRef as $t) {
-            $nuevoValor = $tasaBCV * (1 + ($percentage / 100));
+            $valorOriginal = (float) $t['ValorTasa'];
+
+            $nuevoValor = $valorOriginal * (1 + ($percentage / 100));
 
             $this->rateRepository->updateRateValue(
                 (int) $t['TasaID'],
                 $nuevoValor,
                 (float) $t['MontoMinimo'],
                 (float) $t['MontoMaximo'],
-                1,
-                0
+                1, 
+                0 
             );
 
             $this->recalculateRouteRates((int) $t['PaisOrigenID'], (int) $t['PaisDestinoID'], $nuevoValor);
+
+            $origen = $t['PaisOrigenID'];
+            $destino = $t['PaisDestinoID'];
+            $detalleLog = "Ajuste Global ({$percentage}%): Tasa Ref ID {$t['TasaID']} (Ruta {$origen}->{$destino}) cambió de " .
+                number_format($valorOriginal, 4, ',', '.') . " a " . number_format($nuevoValor, 4, ',', '.');
+
+            $this->notificationService->logAdminAction($adminId, 'Ajuste Automático de Tasa', $detalleLog);
+
             $this->rateRepository->logRateChange(
                 (int) $t['TasaID'],
                 (int) $t['PaisOrigenID'],
@@ -79,11 +84,27 @@ class PricingService
 
         $this->settingsRepository->updateValue('global_adjustment_last_run', date('Y-m-d H:i:s'));
 
-        if ($adminId > 0 && $count > 0) {
-            $this->notificationService->logAdminAction($adminId, 'Ajuste Global de Tasas', "Se aplicó un ajuste de {$percentage}% a {$count} rutas.");
-        }
-
         return $count;
+    }
+
+    private function recalculateRouteRates(int $origenId, int $destinoId, float $valorBase): void
+    {
+        $tasas = $this->rateRepository->getRatesByRoute($origenId, $destinoId);
+        foreach ($tasas as $t) {
+            if ($t['EsReferencial'] == 1)
+                continue;
+
+            $nuevoValorComercial = $valorBase * (1 + ($t['PorcentajeAjuste'] / 100));
+
+            $this->rateRepository->updateRateValue(
+                (int) $t['TasaID'],
+                $nuevoValorComercial,
+                (float) $t['MontoMinimo'],
+                (float) $t['MontoMaximo'],
+                0,
+                (float) $t['PorcentajeAjuste']
+            );
+        }
     }
 
     public function getGlobalAdjustmentSettings(): array
@@ -111,7 +132,8 @@ class PricingService
 
         if ($montoOrigen == 0) {
             $tasaInfo = $this->rateRepository->findReferentialRate($origenID, $destinoID);
-            if ($tasaInfo) return $tasaInfo;
+            if ($tasaInfo)
+                return $tasaInfo;
             throw new Exception("Esta ruta no tiene una Tasa Referencial configurada.", 404);
         }
 
@@ -154,7 +176,8 @@ class PricingService
             $porcentaje = 0;
         } else {
             $ref = $this->rateRepository->findReferentialRate($origenId, $destinoId);
-            if (!$ref) throw new Exception("Cree una Tasa Referencial para esta ruta primero.", 400);
+            if (!$ref)
+                throw new Exception("Cree una Tasa Referencial para esta ruta primero.", 400);
             $valorFinal = $ref['ValorTasa'] * (1 + ($porcentaje / 100));
         }
 
@@ -176,16 +199,6 @@ class PricingService
         ];
     }
 
-    private function recalculateRouteRates(int $origenId, int $destinoId, float $valorBase): void
-    {
-        $tasas = $this->rateRepository->getRatesByRoute($origenId, $destinoId);
-        foreach ($tasas as $t) {
-            if ($t['EsReferencial'] == 1) continue;
-            $nuevoValor = $valorBase * (1 + ($t['PorcentajeAjuste'] / 100));
-            $this->rateRepository->updateRateValue((int) $t['TasaID'], $nuevoValor, (float) $t['MontoMinimo'], (float) $t['MontoMaximo'], 0, (float) $t['PorcentajeAjuste']);
-        }
-    }
-
     public function getBcvRate(): float
     {
         $val = $this->settingsRepository->getValue('tasa_dolar_bcv');
@@ -195,7 +208,8 @@ class PricingService
     public function updateBcvRate(int $adminId, float $newValue): bool
     {
         $success = $this->settingsRepository->updateValue('tasa_dolar_bcv', (string) $newValue);
-        if ($success) $this->notificationService->logAdminAction($adminId, 'Actualización Tasa BCV', "Nuevo: " . $newValue);
+        if ($success)
+            $this->notificationService->logAdminAction($adminId, 'Actualización Tasa BCV', "Nuevo: " . $newValue);
         return $success;
     }
 

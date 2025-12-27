@@ -1,53 +1,122 @@
 <?php
 require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
+// 1. Verificación de Seguridad
 if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
+    header('HTTP/1.1 403 Forbidden');
     die("Acceso denegado.");
 }
 
-$pageTitle = 'Gestión de Usuarios';
-$pageScript = 'admin.js';
-require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
-
-// Paginación
-$registrosPorPagina = 50;
+// 2. Parámetros de Filtro y Paginación
+$busqueda = isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
+$rolFiltro = isset($_GET['rol']) ? $_GET['rol'] : '';
+$registrosPorPagina = 20;
 $paginaActual = isset($_GET['pagina']) ? (int) $_GET['pagina'] : 1;
 if ($paginaActual < 1) $paginaActual = 1;
 $offset = ($paginaActual - 1) * $registrosPorPagina;
 
-// Consulta de conteo
-$sqlCount = "SELECT COUNT(*) as total FROM usuarios WHERE Eliminado = 0";
-$totalRegistros = $conexion->query($sqlCount)->fetch_assoc()['total'];
-$totalPaginas = ceil($totalRegistros / $registrosPorPagina);
+// 3. Consulta con Filtros Dinámicos
+// Filtramos por Eliminado = 0 y VerificacionEstadoID = 3 (Aprobados)
+$conditions = "U.Eliminado = 0 AND U.VerificacionEstadoID = 3";
+$params = [];
+$types = "";
 
-// Consulta de usuarios (TODOS)
+if ($busqueda !== '') {
+    $conditions .= " AND (U.PrimerNombre LIKE ? OR U.PrimerApellido LIKE ? OR U.Email LIKE ? OR U.NumeroDocumento LIKE ?)";
+    $term = "%$busqueda%";
+    array_push($params, $term, $term, $term, $term);
+    $types .= "ssss";
+}
+
+if ($rolFiltro !== '') {
+    $conditions .= " AND U.RolID = ?";
+    array_push($params, (int)$rolFiltro);
+    $types .= "i";
+}
+
+// Conteo total para paginación
+$sqlCount = "SELECT COUNT(*) as total FROM usuarios U WHERE $conditions";
+$stmtCount = $conexion->prepare($sqlCount);
+if (!empty($params)) { 
+    $stmtCount->bind_param($types, ...$params); 
+}
+$stmtCount->execute();
+$totalRegistros = $stmtCount->get_result()->fetch_assoc()['total'];
+$totalPaginas = ceil($totalRegistros / $registrosPorPagina);
+$stmtCount->close();
+
+// Obtener registros de usuarios
 $sql = "SELECT 
-            U.*, 
-            R.NombreRol,
-            TD.NombreDocumento as TipoDocNombre
+            U.*, R.NombreRol, TD.NombreDocumento as TipoDocNombre
         FROM usuarios U
         LEFT JOIN roles R ON U.RolID = R.RolID
         LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
-        WHERE U.Eliminado = 0
+        WHERE $conditions
         ORDER BY 
             CASE WHEN U.UserID = 1 THEN 0 ELSE 1 END,
             U.FechaRegistro DESC
         LIMIT ? OFFSET ?";
 
+$paramsQuery = $params;
+$paramsQuery[] = $registrosPorPagina;
+$paramsQuery[] = $offset;
+$typesQuery = $types . "ii";
+
 $stmt = $conexion->prepare($sql);
-$stmt->bind_param("ii", $registrosPorPagina, $offset);
+$stmt->bind_param($typesQuery, ...$paramsQuery);
 $stmt->execute();
 $usuarios = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
 $currentAdminId = (int)$_SESSION['user_id'];
+
+function paginationUrl($page, $busqueda, $rolFiltro) {
+    return "?" . http_build_query(['pagina' => $page, 'buscar' => $busqueda, 'rol' => $rolFiltro]);
+}
+
+$isAjax = (isset($_GET['ajax']) && $_GET['ajax'] == '1');
+
+if (!$isAjax) {
+    $pageTitle = 'Gestión de Usuarios';
+    $pageScript = 'admin.js';
+    require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
+}
 ?>
 
+<?php if (!$isAjax): ?>
 <div class="container mt-4">
     <h1 class="mb-4">Gestión de Usuarios</h1>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-4 border-0 bg-light">
         <div class="card-body">
+            <form id="filter-form" method="GET" class="row g-2">
+                <div class="col-md-5">
+                    <input type="text" name="buscar" id="search-input" class="form-control" placeholder="Nombre, Email o Documento..." value="<?php echo htmlspecialchars($busqueda); ?>">
+                </div>
+                <div class="col-md-3">
+                    <select name="rol" id="rol-select" class="form-select">
+                        <option value="">Todos los roles</option>
+                        <option value="2" <?php echo $rolFiltro == '2' ? 'selected' : ''; ?>>Persona Natural</option>
+                        <option value="3" <?php echo $rolFiltro == '3' ? 'selected' : ''; ?>>Empresa</option>
+                        <option value="4" <?php echo $rolFiltro == '4' ? 'selected' : ''; ?>>Revendedor</option>
+                        <option value="5" <?php echo $rolFiltro == '5' ? 'selected' : ''; ?>>Operador</option>
+                        <option value="1" <?php echo $rolFiltro == '1' ? 'selected' : ''; ?>>Admin</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Filtrar</button>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" id="clear-filters" class="btn btn-outline-secondary w-100">Limpiar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body" id="table-content">
+<?php endif; ?>
+
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead class="table-light">
@@ -62,6 +131,10 @@ $currentAdminId = (int)$_SESSION['user_id'];
                         </tr>
                     </thead>
                     <tbody>
+                        <?php if (empty($usuarios)): ?>
+                            <tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>
+                        <?php endif; ?>
+                        
                         <?php foreach ($usuarios as $user): ?>
                             <?php 
                                 $isSuperAdmin = ($user['UserID'] == 1);
@@ -71,24 +144,23 @@ $currentAdminId = (int)$_SESSION['user_id'];
                             <tr id="user-row-<?php echo $user['UserID']; ?>" class="<?php echo $isSuperAdmin ? 'table-warning' : ''; ?>">
                                 <td><?php echo $user['UserID']; ?></td>
                                 <td>
-                                    <strong><?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?></strong>
-                                    <?php if($isSuperAdmin): ?> <span class="badge bg-warning text-dark">SUPER</span> <?php endif; ?><br>
+                                    <strong><?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?></strong><br>
                                     <small class="text-muted">Reg: <?php echo date("d/m/Y", strtotime($user['FechaRegistro'])); ?></small>
                                 </td>
                                 <td>
-                                    <i class="bi bi-envelope"></i> <?php echo htmlspecialchars($user['Email']); ?><br>
-                                    <i class="bi bi-whatsapp"></i> <?php echo htmlspecialchars($user['Telefono'] ?? 'Sin Tlf'); ?>
+                                    <i class="bi bi-envelope small"></i> <?php echo htmlspecialchars($user['Email']); ?><br>
+                                    <i class="bi bi-whatsapp small"></i> <?php echo htmlspecialchars($user['Telefono'] ?? '---'); ?>
                                 </td>
                                 <td>
-                                    <?php echo htmlspecialchars($user['TipoDocNombre'] ?? 'Doc'); ?>: 
-                                    <?php echo htmlspecialchars($user['NumeroDocumento']); ?>
+                                    <?php echo htmlspecialchars($user['TipoDocNombre'] ?? 'Doc'); ?>: <br>
+                                    <span class="text-nowrap"><?php echo htmlspecialchars($user['NumeroDocumento']); ?></span>
                                 </td>
                                 <td>
                                     <select class="form-select form-select-sm admin-role-select" 
                                             data-user-id="<?php echo $user['UserID']; ?>" 
-                                            style="width: 140px;"
+                                            style="width: 145px;"
                                             <?php echo $disabledAttr; ?>>
-                                        <option value="2" <?php echo $user['RolID'] == 2 ? 'selected' : ''; ?>>P. Natural</option>
+                                        <option value="2" <?php echo $user['RolID'] == 2 ? 'selected' : ''; ?>>Persona Natural</option>
                                         <option value="3" <?php echo $user['RolID'] == 3 ? 'selected' : ''; ?>>Empresa</option>
                                         <option value="4" <?php echo $user['RolID'] == 4 ? 'selected' : ''; ?>>Revendedor</option>
                                         <option value="5" <?php echo $user['RolID'] == 5 ? 'selected' : ''; ?>>Operador</option>
@@ -99,47 +171,40 @@ $currentAdminId = (int)$_SESSION['user_id'];
                                     <?php 
                                         $isBlocked = !empty($user['LockoutUntil']) && strtotime($user['LockoutUntil']) > time();
                                         $btnClass = $isBlocked ? 'btn-danger' : 'btn-success';
-                                        $btnIcon = $isBlocked ? 'bi-lock-fill' : 'bi-unlock-fill';
-                                        $statusText = $isBlocked ? 'blocked' : 'active';
                                     ?>
                                     <button class="btn btn-sm <?php echo $btnClass; ?> block-user-btn" 
                                             data-user-id="<?php echo $user['UserID']; ?>" 
-                                            data-current-status="<?php echo $statusText; ?>"
-                                            title="<?php echo $isBlocked ? 'Desbloquear' : 'Bloquear'; ?>"
+                                            data-current-status="<?php echo $isBlocked ? 'blocked' : 'active'; ?>"
                                             <?php echo $disabledAttr; ?>>
-                                        <i class="bi <?php echo $btnIcon; ?>"></i>
+                                        <i class="bi <?php echo $isBlocked ? 'bi-lock-fill' : 'bi-unlock-fill'; ?>"></i>
                                     </button>
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-info view-user-docs-btn text-white me-1"
-                                            title="Ver Documentos"
-                                            data-user-id="<?php echo $user['UserID']; ?>"
-                                            data-user-name="<?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?>"
-                                            data-img-frente="<?php echo htmlspecialchars($user['DocumentoImagenURL_Frente']); ?>"
-                                            data-img-reverso="<?php echo htmlspecialchars($user['DocumentoImagenURL_Reverso']); ?>"
-                                            data-foto-perfil="<?php echo htmlspecialchars($user['FotoPerfilURL']); ?>">
-                                        <i class="bi bi-file-earmark-person"></i>
-                                    </button>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-info view-user-docs-btn text-white" 
+                                                title="Ver Documentos"
+                                                data-user-id="<?php echo $user['UserID']; ?>"
+                                                data-user-name="<?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?>"
+                                                data-img-frente="<?php echo htmlspecialchars($user['DocumentoImagenURL_Frente']); ?>"
+                                                data-img-reverso="<?php echo htmlspecialchars($user['DocumentoImagenURL_Reverso']); ?>"
+                                                data-foto-perfil="<?php echo htmlspecialchars($user['FotoPerfilURL']); ?>">
+                                            <i class="bi bi-file-earmark-person"></i>
+                                        </button>
 
-                                    <button class="btn btn-sm btn-primary admin-edit-user-btn me-1" 
-                                            title="Editar Datos"
-                                            data-user-id="<?php echo $user['UserID']; ?>"
-                                            data-nombre1="<?php echo htmlspecialchars($user['PrimerNombre']); ?>"
-                                            data-nombre2="<?php echo htmlspecialchars($user['SegundoNombre'] ?? ''); ?>"
-                                            data-apellido1="<?php echo htmlspecialchars($user['PrimerApellido']); ?>"
-                                            data-apellido2="<?php echo htmlspecialchars($user['SegundoApellido'] ?? ''); ?>"
-                                            data-telefono="<?php echo htmlspecialchars($user['Telefono'] ?? ''); ?>"
-                                            data-documento="<?php echo htmlspecialchars($user['NumeroDocumento']); ?>"
-                                            <?php echo $user['UserID'] == 1 ? 'disabled' : ''; ?>>
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
+                                        <button class="btn btn-sm btn-primary admin-edit-user-btn" 
+                                                data-user-id="<?php echo $user['UserID']; ?>"
+                                                data-nombre1="<?php echo htmlspecialchars($user['PrimerNombre']); ?>"
+                                                data-apellido1="<?php echo htmlspecialchars($user['PrimerApellido']); ?>"
+                                                data-documento="<?php echo htmlspecialchars($user['NumeroDocumento']); ?>">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
 
-                                    <button class="btn btn-sm btn-outline-danger admin-delete-user-btn" 
-                                            data-user-id="<?php echo $user['UserID']; ?>" 
-                                            title="Eliminar Usuario"
-                                            <?php echo $disabledAttr; ?>>
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                        <button class="btn btn-sm btn-outline-danger admin-delete-user-btn" 
+                                                data-user-id="<?php echo $user['UserID']; ?>" 
+                                                <?php echo $disabledAttr; ?>>
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -151,71 +216,62 @@ $currentAdminId = (int)$_SESSION['user_id'];
                 <nav class="mt-4">
                     <ul class="pagination justify-content-center">
                         <li class="page-item <?php echo ($paginaActual <= 1) ? 'disabled' : ''; ?>">
-                            <a class="page-link" href="?pagina=<?php echo $paginaActual - 1; ?>">Anterior</a>
+                            <a class="page-link" href="<?php echo paginationUrl($paginaActual - 1, $busqueda, $rolFiltro); ?>">Anterior</a>
                         </li>
                         <?php for ($i = 1; $i <= $totalPaginas; $i++): ?>
                             <li class="page-item <?php echo ($i == $paginaActual) ? 'active' : ''; ?>">
-                                <a class="page-link" href="?pagina=<?php echo $i; ?>"><?php echo $i; ?></a>
+                                <a class="page-link" href="<?php echo paginationUrl($i, $busqueda, $rolFiltro); ?>"><?php echo $i; ?></a>
                             </li>
                         <?php endfor; ?>
                         <li class="page-item <?php echo ($paginaActual >= $totalPaginas) ? 'disabled' : ''; ?>">
-                            <a class="page-link" href="?pagina=<?php echo $paginaActual + 1; ?>">Siguiente</a>
+                            <a class="page-link" href="<?php echo paginationUrl($paginaActual + 1, $busqueda, $rolFiltro); ?>">Siguiente</a>
                         </li>
                     </ul>
                 </nav>
             <?php endif; ?>
+
+<?php if (!$isAjax): ?>
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="userDocsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-light">
-        <h5 class="modal-title">Documentos de: <strong id="docsUserName" class="text-primary"></strong></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="row">
-            <div class="col-lg-4 text-center border-end">
-                <h5 class="text-secondary mb-3">Foto de Perfil</h5>
-                <img id="docsProfilePic" src="" class="rounded-circle shadow-sm border" style="width: 180px; height: 180px; object-fit: cover;">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">Documentos: <strong id="docsUserName" class="text-primary"></strong></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="col-lg-8">
-                <h5 class="text-secondary mb-3 ps-2">Documento de Identidad</h5>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-header fw-bold text-center">Frente</div>
-                            <div class="card-body p-1 bg-dark d-flex align-items-center justify-content-center" style="min-height: 250px;">
-                                <img id="docsImgFrente" src="" class="img-fluid" style="max-height: 250px;">
-                            </div>
-                            <div class="card-footer text-center">
-                                <a href="#" id="docsLinkFrente" target="_blank" class="btn btn-sm btn-outline-primary">Ver Original</a>
-                            </div>
-                        </div>
+            <div class="modal-body">
+                <div class="row g-4">
+                    <div class="col-lg-4 text-center border-end">
+                        <h6 class="text-muted mb-3">Foto de Perfil</h6>
+                        <img id="docsProfilePic" src="" class="rounded-circle shadow-sm border" style="width: 180px; height: 180px; object-fit: cover;">
                     </div>
-                    <div class="col-md-6">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-header fw-bold text-center">Reverso</div>
-                            <div class="card-body p-1 bg-dark d-flex align-items-center justify-content-center" style="min-height: 250px;">
-                                <img id="docsImgReverso" src="" class="img-fluid" style="max-height: 250px;">
+                    <div class="col-lg-8">
+                        <div class="row g-3">
+                            <div class="col-md-6 text-center">
+                                <p class="small fw-bold mb-1">Frente</p>
+                                <div class="bg-dark p-1 rounded" style="min-height: 250px;">
+                                    <img id="docsImgFrente" src="" class="img-fluid rounded" style="max-height: 250px;">
+                                </div>
                             </div>
-                            <div class="card-footer text-center">
-                                <a href="#" id="docsLinkReverso" target="_blank" class="btn btn-sm btn-outline-primary">Ver Original</a>
+                            <div class="col-md-6 text-center">
+                                <p class="small fw-bold mb-1">Reverso</p>
+                                <div class="bg-dark p-1 rounded" style="min-height: 250px;">
+                                    <img id="docsImgReverso" src="" class="img-fluid rounded" style="max-height: 250px;">
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-      </div>
     </div>
-  </div>
 </div>
 
 <div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Editar Usuario</h5>
@@ -225,15 +281,10 @@ $currentAdminId = (int)$_SESSION['user_id'];
                 <form id="edit-user-form">
                     <input type="hidden" id="edit-user-id" name="userId">
                     <div class="row mb-3">
-                        <div class="col-6"><label class="form-label">Primer Nombre</label><input type="text" class="form-control" id="edit-nombre1" name="primerNombre" required></div>
-                        <div class="col-6"><label class="form-label">Segundo Nombre</label><input type="text" class="form-control" id="edit-nombre2" name="segundoNombre"></div>
+                        <div class="col-6"><label class="form-label small fw-bold">Nombre</label><input type="text" class="form-control" id="edit-nombre1" name="primerNombre" required></div>
+                        <div class="col-6"><label class="form-label small fw-bold">Apellido</label><input type="text" class="form-control" id="edit-apellido1" name="primerApellido" required></div>
                     </div>
-                    <div class="row mb-3">
-                        <div class="col-6"><label class="form-label">Primer Apellido</label><input type="text" class="form-control" id="edit-apellido1" name="primerApellido" required></div>
-                        <div class="col-6"><label class="form-label">Segundo Apellido</label><input type="text" class="form-control" id="edit-apellido2" name="segundoApellido"></div>
-                    </div>
-                    <div class="mb-3"><label class="form-label fw-bold">Teléfono</label><input type="tel" class="form-control" id="edit-telefono" name="telefono" required></div>
-                    <div class="mb-3"><label class="form-label">Número Documento</label><input type="text" class="form-control" id="edit-documento" name="numeroDocumento" required></div>
+                    <div class="mb-3"><label class="form-label small fw-bold">Documento</label><input type="text" class="form-control" id="edit-documento" name="numeroDocumento" required></div>
                     <div class="d-grid"><button type="submit" class="btn btn-primary">Guardar Cambios</button></div>
                 </form>
             </div>
@@ -243,4 +294,5 @@ $currentAdminId = (int)$_SESSION['user_id'];
 
 <?php
 require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';
+endif;
 ?>

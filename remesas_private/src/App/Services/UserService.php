@@ -528,4 +528,16 @@ public function generateAndSend2FACode(int $userId, ?string $overrideMethod = nu
         }
         return false;
     }
+
+    public function getApprovedUsers(int $limit, int $offset): array
+    {
+        $idVerificado = $this->estadoVerificacionRepo->findIdByName('Verificado');
+        
+        if (!$idVerificado) return ['total' => 0, 'usuarios' => []];
+
+        return [
+            'total' => $this->userRepository->countByVerificationStatus($idVerificado),
+            'usuarios' => $this->userRepository->findByVerificationStatus($idVerificado, $limit, $offset)
+        ];
+    }
 }

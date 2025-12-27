@@ -465,4 +465,38 @@ class UserRepository
         $stmt->close();
         return $data;
     }
+
+    public function findByVerificationStatus(int $statusId, int $limit, int $offset): array
+    {
+        $sql = "SELECT 
+                    U.*, 
+                    R.NombreRol,
+                    TD.NombreDocumento as TipoDocNombre
+                FROM usuarios U
+                LEFT JOIN roles R ON U.RolID = R.RolID
+                LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
+                WHERE U.Eliminado = 0 AND U.VerificacionEstadoID = ?
+                ORDER BY 
+                    CASE WHEN U.UserID = 1 THEN 0 ELSE 1 END,
+                    U.FechaRegistro DESC
+                LIMIT ? OFFSET ?";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iii", $statusId, $limit, $offset);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
+    public function countByVerificationStatus(int $statusId): int
+    {
+        $sql = "SELECT COUNT(*) as total FROM usuarios WHERE Eliminado = 0 AND VerificacionEstadoID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $statusId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return (int)($result['total'] ?? 0);
+    }
 }
