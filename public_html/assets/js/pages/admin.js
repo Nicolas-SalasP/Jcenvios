@@ -18,9 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
             btnFinalizar: document.getElementById('btn-ir-a-finalizar')
         };
 
-        document.querySelectorAll('.copy-data-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const data = JSON.parse(e.currentTarget.dataset.datos);
+        // Usamos delegación para asegurar que funcione en cualquier tabla
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.copy-data-btn');
+            if (btn) {
+                const data = JSON.parse(btn.dataset.datos);
 
                 if (fields.txId) fields.txId.textContent = data.id;
                 fields.banco.value = data.banco;
@@ -39,14 +41,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             uploadBtn.click();
                         } else {
                             const adminModal = new bootstrap.Modal(document.getElementById('adminUploadModal'));
-                            document.getElementById('modal-admin-tx-id').textContent = data.id;
-                            document.getElementById('adminTransactionIdField').value = data.id;
+                            const adminTxLabel = document.getElementById('modal-admin-tx-id');
+                            const adminTxField = document.getElementById('adminTransactionIdField');
+                            if (adminTxLabel) adminTxLabel.textContent = data.id;
+                            if (adminTxField) adminTxField.value = data.id;
                             adminModal.show();
                         }
                     };
                 }
                 copyModal.show();
-            });
+            }
         });
     }
 
@@ -258,13 +262,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =================================================
-    // 3. GESTIÓN DE USUARIOS (REFACTORIZADO PARA AJAX)
+    // 3. GESTIÓN DE USUARIOS / VERIFICACIONES (AJAX)
     // =================================================
     const filterForm = document.getElementById('filter-form');
     const tableContent = document.getElementById('table-content');
 
-    // Función principal de carga AJAX
-    async function loadUsers(url) {
+    async function loadTableData(url) {
         if (!tableContent) return;
         try {
             const ajaxUrl = url.includes('?') ? `${url}&ajax=1` : `${url}?ajax=1`;
@@ -280,16 +283,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Listener para filtros
     if (filterForm) {
         filterForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            const params = new URLSearchParams(new FormData(this)).toString();
-            loadUsers(`usuarios.php?${params}`);
+            const formData = new FormData(this);
+            const params = new URLSearchParams(formData).toString();
+            const currentPage = window.location.pathname.split('/').pop();
+            loadTableData(`${currentPage}?${params}`);
         });
     }
 
-    // Listener para limpiar filtros
     const clearBtn = document.getElementById('clear-filters');
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
@@ -297,13 +300,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = document.getElementById('rol-select');
             if (s) s.value = '';
             if (r) r.value = '';
-            loadUsers('usuarios.php');
+            const currentPage = window.location.pathname.split('/').pop();
+            loadTableData(currentPage);
         });
     }
 
     /**
-     * DELEGACIÓN DE EVENTOS PARA USUARIOS
-     * Se usa document.addEventListener para que los botones funcionen después de recargar la tabla vía AJAX.
+     * DELEGACIÓN DE EVENTOS PARA USUARIOS Y VERIFICACIONES
+     * Esto asegura que los botones funcionen tras una carga AJAX.
      */
     document.addEventListener('click', async (e) => {
         const target = e.target;
@@ -314,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = pageLink.getAttribute('href');
             if (url && url !== '#' && !url.startsWith('javascript')) {
                 e.preventDefault();
-                loadUsers(url);
+                loadTableData(url);
             }
         }
 
@@ -330,14 +334,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userId, newStatus })
                     });
-                    if ((await res.json()).success) {
-                        loadUsers(window.location.href); // Recarga parcial para mantener filtros
-                    }
+                    if ((await res.json()).success) loadTableData(window.location.href);
                 } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
             }
         }
 
-        // 3.3 Eliminar Usuario
+        // 3.3 Eliminar Usuario (Soft Delete)
         const deleteBtn = target.closest('.admin-delete-user-btn');
         if (deleteBtn) {
             const userId = deleteBtn.dataset.userId;
@@ -352,22 +354,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ userId })
                         });
-                        const result = await res.json();
-                        if (result.success) {
+                        if ((await res.json()).success) {
                             window.showInfoModal('Éxito', 'Usuario eliminado.', true);
-                            loadUsers(window.location.href);
-                        } else {
-                            window.showInfoModal('Error', result.error || 'No se pudo eliminar.', false);
+                            loadTableData(window.location.href);
                         }
                     } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
                 }
             }
         }
 
-        // 3.4 Abrir Modal de Edición
-        const editBtn = target.closest('.admin-edit-user-btn');
-        if (editBtn) {
-            const d = editBtn.dataset;
+        // 3.4 Abrir Modal de Edición Usuario
+        const editUserBtn = target.closest('.admin-edit-user-btn');
+        if (editUserBtn) {
+            const d = editUserBtn.dataset;
             document.getElementById('edit-user-id').value = d.userId;
             document.getElementById('edit-nombre1').value = d.nombre1;
             document.getElementById('edit-nombre2').value = d.nombre2 || '';
@@ -378,39 +377,27 @@ document.addEventListener('DOMContentLoaded', () => {
             new bootstrap.Modal(document.getElementById('editUserModal')).show();
         }
 
-        // 3.5 Ver Documentos (Modal)
+        // 3.5 Ver Documentos (Modal Usuarios)
         const docsBtn = target.closest('.view-user-docs-btn');
         if (docsBtn) {
             const d = docsBtn.dataset;
-            const docsName = document.getElementById('docsUserName');
-            const docsImgProfile = document.getElementById('docsProfilePic');
-            const docsImgFrente = document.getElementById('docsImgFrente');
-            const docsImgReverso = document.getElementById('docsImgReverso');
-            const docsLinkFrente = document.getElementById('docsLinkFrente');
-            const docsLinkReverso = document.getElementById('docsLinkReverso');
-            const defaultPic = '../assets/img/SoloLogoNegroSinFondo.png';
-
-            docsName.textContent = d.userName;
-            const urlProfile = d.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.fotoPerfil)}` : defaultPic;
-            const urlFrente = d.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgFrente)}` : '';
-            const urlReverso = d.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgReverso)}` : '';
-
-            if (docsImgProfile) docsImgProfile.src = urlProfile;
-            if (docsImgFrente) { docsImgFrente.src = urlFrente || ''; docsImgFrente.alt = urlFrente ? "Cargando..." : "No disponible"; }
-            if (docsImgReverso) { docsImgReverso.src = urlReverso || ''; docsImgReverso.alt = urlReverso ? "Cargando..." : "No disponible"; }
-            if (docsLinkFrente) { docsLinkFrente.href = urlFrente || '#'; docsLinkFrente.classList.toggle('disabled', !urlFrente); }
-            if (docsLinkReverso) { docsLinkReverso.href = urlReverso || '#'; docsLinkReverso.classList.toggle('disabled', !urlReverso); }
-
+            const def = '../assets/img/SoloLogoNegroSinFondo.png';
+            document.getElementById('docsUserName').textContent = d.userName;
+            const urlP = d.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.fotoPerfil)}` : def;
+            const urlF = d.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgFrente)}` : '';
+            const urlR = d.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgReverso)}` : '';
+            document.getElementById('docsProfilePic').src = urlP;
+            document.getElementById('docsImgFrente').src = urlF;
+            document.getElementById('docsImgReverso').src = urlR;
             new bootstrap.Modal(document.getElementById('userDocsModal')).show();
         }
     });
 
-    // 3.6 Cambio de Rol (Select change con delegación)
+    // 3.6 Cambio de Rol (Delegación)
     document.addEventListener('change', async (e) => {
         if (e.target.classList.contains('admin-role-select')) {
             const select = e.target;
-            const confirmed = await window.showConfirmModal('Confirmar', '¿Cambiar rol de usuario?');
-            if (confirmed) {
+            if (await window.showConfirmModal('Confirmar', '¿Cambiar rol de usuario?')) {
                 try {
                     const response = await fetch('../api/?accion=updateUserRole', {
                         method: 'POST',
@@ -422,19 +409,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         window.showInfoModal('Éxito', 'Rol actualizado correctamente.', true);
                     } else {
                         window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
-                        loadUsers(window.location.href); // Revertir visualmente
+                        loadTableData(window.location.href);
                     }
                 } catch (error) {
                     window.showInfoModal('Error', 'Error de conexión.', false);
-                    loadUsers(window.location.href);
+                    loadTableData(window.location.href);
                 }
             } else {
-                loadUsers(window.location.href); // Revertir visualmente si cancela
+                loadTableData(window.location.href);
             }
         }
     });
 
-    // 3.7 Envío de Formulario Editar Usuario (Simple submit)
+    // 3.7 Envío de Formulario Editar Usuario
     const editUserForm = document.getElementById('edit-user-form');
     if (editUserForm) {
         editUserForm.addEventListener('submit', async (e) => {
@@ -448,7 +435,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await res.json();
                 if (result.success) {
                     bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
-                    window.showInfoModal('Éxito', 'Datos de usuario actualizados.', true, () => loadUsers(window.location.href));
+                    window.showInfoModal('Éxito', 'Datos de usuario actualizados.', true, () => loadTableData(window.location.href));
                 } else {
                     window.showInfoModal('Error', result.error, false);
                 }
@@ -462,9 +449,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
 
     // Confirmar Pago
-    document.querySelectorAll('.process-btn').forEach(button => {
-        button.addEventListener('click', async (e) => {
-            const txId = e.currentTarget.dataset.txId;
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.process-btn');
+        if (btn) {
+            const txId = btn.dataset.txId;
             if (await window.showConfirmModal('Confirmar Pago', '¿Confirmas la recepción del dinero?')) {
                 try {
                     const res = await fetch('../api/?accion=processTransaction', {
@@ -473,12 +461,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: JSON.stringify({ transactionId: txId })
                     });
                     if ((await res.json()).success) window.location.reload();
-                } catch (e) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
             }
-        });
+        }
     });
 
-    // Editar Comisión
+    // Editar Comisión (Modal y Formulario)
     const editCommissionModalElement = document.getElementById('editCommissionModal');
     if (editCommissionModalElement) {
         const editCommissionModal = new bootstrap.Modal(editCommissionModalElement);
@@ -486,30 +474,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const txIdInput = document.getElementById('commission-tx-id');
         const commissionInput = document.getElementById('new-commission-input');
 
-        document.querySelectorAll('.edit-commission-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const d = e.currentTarget.dataset;
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.edit-commission-btn');
+            if (btn) {
+                const d = btn.dataset;
                 txIdInput.value = d.txId;
                 commissionInput.value = d.currentVal;
                 editCommissionModal.show();
-            });
+            }
         });
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitBtn = form.querySelector('button[type="submit"]');
             submitBtn.disabled = true; submitBtn.textContent = 'Guardando...';
-
             const data = { transactionId: txIdInput.value, newCommission: parseFloat(commissionInput.value) };
-
             try {
                 const res = await fetch('../api/?accion=updateTxCommission', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
                 });
-                const r = await res.json();
-                if (r.success) {
-                    window.showInfoModal('Éxito', 'Comisión actualizada.', true, () => window.location.reload());
-                } else window.showInfoModal('Error', r.error, false);
+                if ((await res.json()).success) window.showInfoModal('Éxito', 'Comisión actualizada.', true, () => window.location.reload());
             } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
             finally { submitBtn.disabled = false; submitBtn.textContent = 'Guardar'; }
         });
@@ -592,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         window.showInfoModal('Error', res.error || 'Error al subir.', false);
                     }
-                } catch (e) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
                 finally {
                     if (btn) { btn.disabled = false; btn.textContent = 'Confirmar Envío'; }
                     adminUploadForm.reset();
