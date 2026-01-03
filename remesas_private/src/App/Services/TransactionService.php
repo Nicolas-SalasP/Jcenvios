@@ -7,6 +7,7 @@ use App\Repositories\EstadoTransaccionRepository;
 use App\Repositories\FormaPagoRepository;
 use App\Repositories\CuentasBeneficiariasRepository;
 use App\Repositories\CuentasAdminRepository;
+use App\Repositories\RateRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -25,12 +26,14 @@ class TransactionService
     private FormaPagoRepository $formaPagoRepo;
     private ContabilidadService $contabilidadService;
     private CuentasAdminRepository $cuentasAdminRepo;
+    private RateRepository $rateRepository;
 
     private const ESTADO_PENDIENTE_PAGO = 'Pendiente de Pago';
     private const ESTADO_EN_VERIFICACION = 'En Verificación';
     private const ESTADO_EN_PROCESO = 'En Proceso';
-    private const ESTADO_PAGADO = 'Exitoso'; // Cambiado de 'Pagado' a 'Exitoso'
+    private const ESTADO_PAGADO = 'Exitoso';
     private const ESTADO_CANCELADO = 'Cancelado';
+    private const ESTADO_PENDIENTE_APROBACION = 'Pendiente de Aprobación';
 
     public function __construct(
         TransactionRepository $txRepository,
@@ -42,7 +45,8 @@ class TransactionService
         FormaPagoRepository $formaPagoRepo,
         ContabilidadService $contabilidadService,
         CuentasBeneficiariasRepository $cuentasRepo,
-        CuentasAdminRepository $cuentasAdminRepo
+        CuentasAdminRepository $cuentasAdminRepo,
+        RateRepository $rateRepository
     ) {
         $this->txRepository = $txRepository;
         $this->userRepository = $userRepository;
@@ -54,12 +58,16 @@ class TransactionService
         $this->contabilidadService = $contabilidadService;
         $this->cuentasRepo = $cuentasRepo;
         $this->cuentasAdminRepo = $cuentasAdminRepo;
+        $this->rateRepository = $rateRepository;
     }
 
     public function getEstadoIdByName(string $nombreEstado): int
     {
         $id = $this->estadoTxRepo->findIdByName($nombreEstado);
         if ($id === null) {
+            if ($nombreEstado === self::ESTADO_PENDIENTE_APROBACION) {
+                return 7;
+            }
             throw new Exception("Configuración interna: Estado de transacción '{$nombreEstado}' no encontrado.", 500);
         }
         return (int) $id;
@@ -80,15 +88,18 @@ class TransactionService
         return $this->txRepository->requestResume($txId, $userId, $mensaje, $estadoId);
     }
 
-    public function createTransaction(array $data): int
+    public function createTransaction(array $data): array
     {
         $client = $this->userRepository->findUserById($data['userID']);
-        if (!$client)
+        if (!$client) {
             throw new Exception("Usuario no encontrado.", 404);
-        if ($client['VerificacionEstado'] !== 'Verificado')
+        }
+        if ($client['VerificacionEstado'] !== 'Verificado') {
             throw new Exception("Tu cuenta debe estar verificada para realizar transacciones.", 403);
-        if (empty($client['Telefono']))
+        }
+        if (empty($client['Telefono'])) {
             throw new Exception("Falta tu número de teléfono en el perfil.", 400);
+        }
 
         $requiredFields = ['userID', 'cuentaID', 'tasaID', 'montoOrigen', 'monedaOrigen', 'montoDestino', 'monedaDestino', 'formaDePago'];
         foreach ($requiredFields as $field) {
@@ -101,7 +112,27 @@ class TransactionService
             throw new Exception("El monto debe ser mayor a cero.", 400);
         }
 
-        // Lógica de Revendedor
+        // --- LÓGICA DE RIESGO Y ESTADOS ---
+        $estadoInicialID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
+        $statusKey = 'created';
+        $beneficiario = $this->cuentasRepo->findByIdAndUserId((int) $data['cuentaID'], (int) $data['userID']);
+        if (!$beneficiario) {
+            throw new Exception("Beneficiario no encontrado o no te pertenece.", 404);
+        }
+
+        $paisOrigenID = $client['PaisID'] ?? 1;
+        $paisDestinoID = $beneficiario['PaisID'];
+
+        $tasaInfo = $this->rateRepository->findCurrentRate($paisOrigenID, $paisDestinoID, (float)$data['montoOrigen']);
+
+        if ($tasaInfo && isset($tasaInfo['EsRiesgoso']) && (int)$tasaInfo['EsRiesgoso'] === 1) {
+            $estadoInicialID = 7;
+            $statusKey = 'requires_approval';
+        }
+
+        $data['estadoID'] = $estadoInicialID;
+
+        // --- LÓGICA DE REVENDEDOR ---
         if ((isset($client['Rol']) && $client['Rol'] === 'Revendedor') || (isset($client['RolID']) && $client['RolID'] == 4)) {
             $porcentaje = $client['PorcentajeComision'] ?? 0;
             if ($porcentaje > 0) {
@@ -112,11 +143,7 @@ class TransactionService
             }
         }
 
-        $beneficiario = $this->cuentasRepo->findByIdAndUserId((int) $data['cuentaID'], (int) $data['userID']);
-        if (!$beneficiario) {
-            throw new Exception("Beneficiario no encontrado o no te pertenece.", 404);
-        }
-
+        // Mapeo de datos del beneficiario para el historial
         $data['beneficiarioNombre'] = trim(implode(' ', array_filter([
             $beneficiario['TitularPrimerNombre'],
             $beneficiario['TitularSegundoNombre'],
@@ -133,13 +160,20 @@ class TransactionService
             throw new Exception("Forma de pago '{$data['formaDePago']}' no válida.", 400);
         }
         $data['formaPagoID'] = $formaPagoID;
-        $data['estadoID'] = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
 
         try {
             $transactionId = $this->txRepository->create($data);
+            if ($statusKey === 'requires_approval') {
+                $this->notificationService->logAdminAction($data['userID'], 'Orden Riesgosa Creada', "TX ID: $transactionId - Esperando aprobación de seguridad.");
+                return [
+                    'id' => $transactionId,
+                    'status' => 'requires_approval'
+                ];
+            }
             $txData = $this->txRepository->getFullTransactionDetails($transactionId);
-            if (!$txData)
+            if (!$txData) {
                 throw new Exception("No se pudieron obtener los detalles de la transacción #{$transactionId}.", 500);
+            }
 
             $txData['TelefonoCliente'] = $client['Telefono'];
 
@@ -162,12 +196,53 @@ class TransactionService
             $logDetail = "TX ID: $transactionId - Notificación WhatsApp: " . ($whatsappSent ? 'Éxito' : 'Fallo');
             $this->notificationService->logAdminAction($data['userID'], 'Creación de Transacción', $logDetail);
 
-            return $transactionId;
+            return [
+                'id' => $transactionId,
+                'status' => 'created'
+            ];
 
         } catch (Exception $e) {
             $this->notificationService->logAdminAction($data['userID'], 'Error Creación Transacción', "Error: " . $e->getMessage());
             throw $e;
         }
+    }
+
+    public function authorizeRiskyTransaction(int $txId, int $adminId): bool
+    {
+        $estadoPendienteAprobacion = 7;
+        $estadoPendientePago = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
+
+        $affectedRows = $this->txRepository->updateStatus($txId, $estadoPendientePago, $estadoPendienteAprobacion);
+
+        if ($affectedRows > 0) {
+            $txData = $this->txRepository->getFullTransactionDetails($txId);
+            
+            if ($txData) {
+                $client = $this->userRepository->findUserById($txData['UserID']);
+                $txData['TelefonoCliente'] = $client['Telefono'];
+
+                if (isset($txData['FormaPagoID']) && isset($txData['PaisOrigenID'])) {
+                    $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais(
+                        (int) $txData['FormaPagoID'],
+                        (int) $txData['PaisOrigenID']
+                    );
+                    if ($cuentaAdmin) {
+                        $txData['CuentaAdmin'] = $cuentaAdmin;
+                    }
+                }
+
+                $pdfContent = $this->pdfService->generateOrder($txData);
+                $pdfUrl = $this->fileHandler->savePdfTemporarily($pdfContent, $txId);
+
+                $this->notificationService->sendOrderToClientWhatsApp($txData, $pdfUrl);
+                $this->notificationService->sendNewOrderEmail($txData, $pdfContent);
+            }
+
+            $this->notificationService->logAdminAction($adminId, 'Autorización Riesgo', "TX ID: $txId autorizada por admin.");
+            return true;
+        }
+
+        return false;
     }
 
     public function handleUserReceiptUpload(int $txId, int $userId, array $fileData): bool

@@ -58,8 +58,9 @@ class PricingService
                 $nuevoValor,
                 (float) $t['MontoMinimo'],
                 (float) $t['MontoMaximo'],
-                1, 
-                0 
+                1,
+                (int) ($t['EsRiesgoso'] ?? 0),
+                0
             );
 
             $this->recalculateRouteRates((int) $t['PaisOrigenID'], (int) $t['PaisDestinoID'], $nuevoValor);
@@ -102,6 +103,7 @@ class PricingService
                 (float) $t['MontoMinimo'],
                 (float) $t['MontoMaximo'],
                 0,
+                (int) ($t['EsRiesgoso'] ?? 0),
                 (float) $t['PorcentajeAjuste']
             );
         }
@@ -161,6 +163,7 @@ class PricingService
         $origenId = (int) $data['origenId'];
         $destinoId = (int) $data['destinoId'];
         $esReferencial = (int) ($data['esReferencial'] ?? 0);
+        $esRiesgoso = (int) ($data['esRiesgoso'] ?? 0);
         $porcentaje = (float) ($data['porcentaje'] ?? 0);
         $valorEntrada = (float) ($data['nuevoValor'] ?? 0);
         $montoMin = (float) ($data['montoMin'] ?? 0);
@@ -182,9 +185,9 @@ class PricingService
         }
 
         if ($tasaId === 0) {
-            $tasaId = $this->rateRepository->createRate($origenId, $destinoId, $valorFinal, $montoMin, $montoMax, $esReferencial, $porcentaje);
+            $tasaId = $this->rateRepository->createRate($origenId, $destinoId, $valorFinal, $montoMin, $montoMax, $esReferencial, $esRiesgoso, $porcentaje);
         } else {
-            $this->rateRepository->updateRateValue($tasaId, $valorFinal, $montoMin, $montoMax, $esReferencial, $porcentaje);
+            $this->rateRepository->updateRateValue($tasaId, $valorFinal, $montoMin, $montoMax, $esReferencial, $esRiesgoso, $porcentaje);
         }
 
         if ($esReferencial === 1) {

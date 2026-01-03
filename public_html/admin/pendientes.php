@@ -9,17 +9,21 @@ $pageTitle = 'Transacciones Pendientes';
 $pageScript = 'admin.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
-$transacciones = $conexion->query("
+$sql = "
     SELECT T.*,
-           U.PrimerNombre, U.PrimerApellido,
+           U.PrimerNombre, U.PrimerApellido, U.UserID as UsuarioID,
            T.BeneficiarioNombre AS BeneficiarioNombreCompleto,
-           ET.NombreEstado AS EstadoNombre
+           ET.NombreEstado AS EstadoNombre,
+           ET.EstadoID
     FROM transacciones T
     JOIN usuarios U ON T.UserID = U.UserID
     JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
-    WHERE ET.NombreEstado IN ('En Verificación', 'En Proceso', 'Pausado')
-    ORDER BY T.FechaTransaccion ASC
-")->fetch_all(MYSQLI_ASSOC);
+    WHERE ET.EstadoID = 7 
+       OR ET.NombreEstado IN ('En Verificación', 'En Proceso', 'Pausado')
+    ORDER BY CASE WHEN ET.EstadoID = 7 THEN 0 ELSE 1 END, T.FechaTransaccion ASC
+";
+
+$transacciones = $conexion->query($sql)->fetch_all(MYSQLI_ASSOC);
 ?>
 
 <div class="container mt-4">
@@ -39,22 +43,45 @@ $transacciones = $conexion->query("
             <tbody>
                 <?php if (empty($transacciones)): ?>
                     <tr>
-                        <td colspan="5" class="text-center">¡Excelente! No hay transacciones que requieran tu atención.</td>
+                        <td colspan="5" class="text-center py-5">
+                            <h4 class="text-muted">¡Excelente! No hay transacciones pendientes.</h4>
+                        </td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($transacciones as $tx): ?>
-                        <tr class="<?php echo ($tx['EstadoNombre'] == 'Pausado') ? 'table-warning' : ''; ?>">
-                            <td><?php echo $tx['TransaccionID']; ?></td>
-                            <td><?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?></td>
+                        <?php
+                        $rowClass = '';
+                        if ($tx['EstadoID'] == 7) { 
+                            $rowClass = 'table-danger border-danger';
+                        } elseif ($tx['EstadoNombre'] == 'Pausado') {
+                            $rowClass = 'table-warning';
+                        }
+                        ?>
+
+                        <tr class="<?php echo $rowClass; ?>">
+                            <td>
+                                <strong>#<?php echo $tx['TransaccionID']; ?></strong>
+                                <?php if ($tx['EstadoID'] == 7): ?>
+                                    <br><span class="badge bg-danger mt-1">RIESGO</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                                <br>
+                                <small class="text-muted">ID: <?php echo $tx['UsuarioID']; ?></small>
+                            </td>
                             <td><?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?></td>
                             <td>
-                                <?php if (!empty($tx['ComprobanteURL'])): ?>
-                                    <button class="btn btn-sm btn-info view-comprobante-btn-admin" data-bs-toggle="modal"
+                                <?php if ($tx['EstadoID'] == 7): ?>
+                                    <span class="text-danger fw-bold"><i class="bi bi-shield-lock"></i> Bloqueado por
+                                        Seguridad</span>
+                                <?php elseif (!empty($tx['ComprobanteURL'])): ?>
+                                    <button class="btn btn-sm btn-info view-comprobante-btn-admin text-white" data-bs-toggle="modal"
                                         data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                                         data-comprobante-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteURL']); ?>"
                                         data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? BASE_URL . htmlspecialchars($tx['ComprobanteEnvioURL']) : ''; ?>"
                                         data-start-type="user" title="Ver Comprobante de Pago">
-                                        Ver Comprobante
+                                        <i class="bi bi-eye"></i> Ver Comprobante
                                     </button>
                                 <?php else: ?>
                                     <span class="text-muted">No subido</span>
@@ -66,7 +93,13 @@ $transacciones = $conexion->query("
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </a>
 
-                                <?php if ($tx['EstadoNombre'] == 'En Verificación'): ?>
+                                <?php if ($tx['EstadoID'] == 7):?>
+                                    <button class="btn btn-sm btn-success authorize-risk-btn w-100"
+                                        data-tx-id="<?php echo $tx['TransaccionID']; ?>">
+                                        <i class="bi bi-shield-check"></i> Autorizar Seguridad
+                                    </button>
+
+                                <?php elseif ($tx['EstadoNombre'] == 'En Verificación'): ?>
                                     <button class="btn btn-sm btn-success process-btn"
                                         data-tx-id="<?php echo $tx['TransaccionID']; ?>">Confirmar</button>
                                     <button class="btn btn-sm btn-danger reject-btn"
@@ -158,6 +191,31 @@ $transacciones = $conexion->query("
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 <button type="submit" class="btn btn-warning" form="pause-form">Pausar Temporalmente</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rejectionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Rechazar Transacción</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="reject-tx-id">
+                <div class="mb-3">
+                    <label class="form-label">Motivo</label>
+                    <textarea class="form-control" id="reject-reason" rows="3"
+                        placeholder="Ej: Comprobante ilegible..."></textarea>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-warning confirm-reject-btn" data-type="retry">Solicitar
+                        Corrección</button>
+                    <button type="button" class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar
+                        Definitivamente</button>
+                </div>
             </div>
         </div>
     </div>

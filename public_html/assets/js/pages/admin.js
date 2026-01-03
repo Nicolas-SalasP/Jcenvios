@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // =================================================
-    // 0. OPERADORES: LÓGICA DE COPIADO DE DATOS
+    // 0. OPERADORES: LÓGICA DE COPIADO DE DATOS (Si existe en la vista)
     // =================================================
     const copyModalElement = document.getElementById('copyDataModal');
     if (copyModalElement) {
@@ -18,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
             btnFinalizar: document.getElementById('btn-ir-a-finalizar')
         };
 
-        // Usamos delegación para asegurar que funcione en cualquier tabla
         document.addEventListener('click', (e) => {
             const btn = e.target.closest('.copy-data-btn');
             if (btn) {
@@ -307,7 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * DELEGACIÓN DE EVENTOS PARA USUARIOS Y VERIFICACIONES
-     * Esto asegura que los botones funcionen tras una carga AJAX.
      */
     document.addEventListener('click', async (e) => {
         const target = e.target;
@@ -448,6 +446,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. GESTIÓN DE TRANSACCIONES
     // ==========================================
 
+    // Autorizar Transacción Riesgosa
+    document.querySelectorAll('.authorize-risk-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const txId = e.currentTarget.dataset.txId;
+            if(await window.showConfirmModal('Autorizar Seguridad', '¿Autorizas esta transacción marcada como riesgosa? El usuario podrá proceder al pago.')) {
+                try {
+                    const res = await fetch('../api/?accion=authorizeTransaction', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ transactionId: txId })
+                    });
+                    const result = await res.json();
+                    if(result.success) window.location.reload();
+                    else window.showInfoModal('Error', result.error || 'Error desconocido', false);
+                } catch(e) { window.showInfoModal('Error', 'Error de red', false); }
+            }
+        });
+    });
+
     // Confirmar Pago
     document.addEventListener('click', async (e) => {
         const btn = e.target.closest('.process-btn');
@@ -555,6 +572,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const button = event.relatedTarget;
             if (!button) return;
             const txId = button.dataset.txId;
+            
+            // LÓGICA DE CÁLCULO DE COMISIÓN 0.3%
             let monto = parseFloat(button.dataset.montoDestino);
             if (isNaN(monto)) {
                 const row = button.closest('tr');
@@ -574,7 +593,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (adminTxIdLabel) adminTxIdLabel.textContent = txId;
             if (adminTransactionIdField) adminTransactionIdField.value = txId;
-            const commissionInput = document.getElementById('adminComisionDestino') || document.getElementById('opComisionDestino') || document.querySelector('[name="comisionDestino"]');
+
+            const commissionInput = document.getElementById('adminComisionDestino') || document.querySelector('[name="comisionDestino"]');
             
             if (commissionInput) {
                 if (!isNaN(monto) && monto > 0) {
@@ -612,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Visor de Comprobantes
+    // Visor de Comprobantes (Sin cambios, pero necesario en el archivo completo)
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
         const modalContent = document.getElementById('comprobante-content');
@@ -693,32 +713,6 @@ document.addEventListener('DOMContentLoaded', () => {
         nextButton.addEventListener('click', () => showComprobante(currentIndex + 1));
     }
 
-    // Copiar al portapapeles
-    window.copyToClipboard = (elementId, btnElement) => {
-        const input = document.getElementById(elementId);
-        if (!input) return;
-        input.select();
-        input.setSelectionRange(0, 99999);
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(input.value).then(() => showFeedback(btnElement));
-        } else {
-            document.execCommand('copy');
-            showFeedback(btnElement);
-        }
-    };
-
-    function showFeedback(btn) {
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-        btn.classList.remove('btn-outline-secondary');
-        btn.classList.add('btn-success');
-        setTimeout(() => {
-            btn.innerHTML = originalHtml;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-secondary');
-        }, 1500);
-    }
-
     // Manejo del Modal de Pausa
     const pauseModal = document.getElementById('pauseModal');
     if (pauseModal) {
@@ -749,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Botón Reanudar (Acción directa)
+    // Botón Reanudar
     document.addEventListener('click', async (e) => {
         const btn = e.target.closest('.resume-btn');
         if (btn) {
@@ -768,4 +762,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    window.copyToClipboard = (elementId, btnElement) => {
+        const input = document.getElementById(elementId);
+        if (!input) return;
+        input.select();
+        input.setSelectionRange(0, 99999);
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(input.value).then(() => showFeedback(btnElement));
+        } else {
+            document.execCommand('copy');
+            showFeedback(btnElement);
+        }
+    };
+
+    function showFeedback(btn) {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 1500);
+    }
 });

@@ -13,9 +13,6 @@ class RateRepository
         $this->db = $db;
     }
 
-    /**
-     * NUEVO: Actualiza todas las tasas referenciales masivamente (Usado por el Cron)
-     */
     public function updateReferentialRates(float $nuevoValor, float $porcentaje): bool
     {
         $sql = "UPDATE tasas 
@@ -33,7 +30,7 @@ class RateRepository
 
     public function findAllReferentialRates(): array
     {
-        $sql = "SELECT TasaID, PaisOrigenID, PaisDestinoID, ValorTasa, MontoMinimo, MontoMaximo, PorcentajeAjuste 
+        $sql = "SELECT TasaID, PaisOrigenID, PaisDestinoID, ValorTasa, MontoMinimo, MontoMaximo, PorcentajeAjuste, EsRiesgoso 
                 FROM tasas 
                 WHERE EsReferencial = 1 AND Activa = 1";
         
@@ -48,7 +45,7 @@ class RateRepository
 
     public function findCurrentRate(int $origenID, int $destinoID, float $montoOrigen = 0): ?array
     {
-        $sql = "SELECT TasaID, ValorTasa, EsReferencial, PorcentajeAjuste, MontoMinimo, MontoMaximo 
+        $sql = "SELECT TasaID, ValorTasa, EsReferencial, PorcentajeAjuste, MontoMinimo, MontoMaximo, EsRiesgoso 
                 FROM tasas 
                 WHERE PaisOrigenID = ? AND PaisDestinoID = ? 
                 AND Activa = 1 ";
@@ -120,22 +117,22 @@ class RateRepository
         $stmt->close();
     }
 
-    public function updateRateValue(int $tasaId, float $nuevoValor, float $montoMin, float $montoMax, int $esRef, float $porcentaje): bool
+    public function updateRateValue(int $tasaId, float $nuevoValor, float $montoMin, float $montoMax, int $esRef, int $esRiesgoso, float $porcentaje): bool
     {
-        $sql = "UPDATE tasas SET ValorTasa = ?, MontoMinimo = ?, MontoMaximo = ?, EsReferencial = ?, PorcentajeAjuste = ?, FechaEfectiva = NOW() WHERE TasaID = ?";
+        $sql = "UPDATE tasas SET ValorTasa = ?, MontoMinimo = ?, MontoMaximo = ?, EsReferencial = ?, EsRiesgoso = ?, PorcentajeAjuste = ?, FechaEfectiva = NOW() WHERE TasaID = ?";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("dddidi", $nuevoValor, $montoMin, $montoMax, $esRef, $porcentaje, $tasaId);
+        $stmt->bind_param("dddiidi", $nuevoValor, $montoMin, $montoMax, $esRef, $esRiesgoso, $porcentaje, $tasaId);
         $success = $stmt->execute();
         $stmt->close();
         return $success;
     }
 
-    public function createRate(int $origenId, int $destinoId, float $valor, float $montoMin, float $montoMax, int $esRef, float $porcentaje): int
+    public function createRate(int $origenId, int $destinoId, float $valor, float $montoMin, float $montoMax, int $esRef, int $esRiesgoso, float $porcentaje): int
     {
-        $sql = "INSERT INTO tasas (PaisOrigenID, PaisDestinoID, ValorTasa, MontoMinimo, MontoMaximo, EsReferencial, PorcentajeAjuste, FechaEfectiva, Activa) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 1)";
+        $sql = "INSERT INTO tasas (PaisOrigenID, PaisDestinoID, ValorTasa, MontoMinimo, MontoMaximo, EsReferencial, EsRiesgoso, PorcentajeAjuste, FechaEfectiva, Activa) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 1)";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iiddidd", $origenId, $destinoId, $valor, $montoMin, $montoMax, $esRef, $porcentaje);
+        $stmt->bind_param("iiddiddi", $origenId, $destinoId, $valor, $montoMin, $montoMax, $esRef, $esRiesgoso, $porcentaje);
         $stmt->execute();
         $newId = $stmt->insert_id;
         $stmt->close();

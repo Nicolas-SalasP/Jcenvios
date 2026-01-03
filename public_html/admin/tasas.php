@@ -127,10 +127,15 @@ $settings = $pricingService->getGlobalAdjustmentSettings();
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-2 text-center">
-                        <div class="form-check form-switch mb-2 pt-4">
+                    <div class="col-md-2">
+                        <div class="form-check form-switch pt-2">
                             <input class="form-check-input" type="checkbox" id="rate-is-ref">
-                            <label class="form-check-label fw-bold" for="rate-is-ref">Referencial</label>
+                            <label class="form-check-label fw-bold small" for="rate-is-ref">Referencial</label>
+                        </div>
+                        <div class="form-check form-switch pt-1">
+                            <input class="form-check-input bg-danger border-danger" type="checkbox" id="rate-is-risky">
+                            <label class="form-check-label fw-bold text-danger small" for="rate-is-risky">Ruta
+                                Riesgosa</label>
                         </div>
                     </div>
                     <div class="col-md-2">
@@ -191,7 +196,15 @@ $settings = $pricingService->getGlobalAdjustmentSettings();
                                             <?= number_format($item['MontoMaximo'], 0, '', '') ?>]
                                         </td>
                                         <td class="text-center">
-                                            <?= $item['EsReferencial'] ? '<span class="badge bg-primary">Tasa Referencial</span>' : '<span class="badge bg-secondary">Tasa Ajustada</span>' ?>
+                                            <?php
+                                            if ($item['EsReferencial'])
+                                                echo '<span class="badge bg-primary">Referencial</span> ';
+                                            else
+                                                echo '<span class="badge bg-secondary">Ajustada</span> ';
+
+                                            if ($item['EsRiesgoso'])
+                                                echo '<span class="badge bg-danger ms-1"><i class="bi bi-exclamation-triangle-fill"></i> Riesgo</span>';
+                                            ?>
                                         </td>
                                         <td class="text-center">
                                             <?= $item['EsReferencial'] ? '-' : ($item['PorcentajeAjuste'] >= 0 ? '+' : '') . number_format($item['PorcentajeAjuste'], 2, ',', '.') . '%' ?>
@@ -206,6 +219,7 @@ $settings = $pricingService->getGlobalAdjustmentSettings();
                                                 data-valor="<?= $item['ValorTasa'] ?>" data-min="<?= $item['MontoMinimo'] ?>"
                                                 data-max="<?= $item['MontoMaximo'] ?>"
                                                 data-is-ref="<?= $item['EsReferencial'] ?>"
+                                                data-is-risky="<?= $item['EsRiesgoso'] ?>"
                                                 data-percent="<?= $item['PorcentajeAjuste'] ?>"><i
                                                     class="bi bi-pencil-fill"></i></button>
                                             <button class="btn btn-sm btn-outline-danger delete-rate-btn"

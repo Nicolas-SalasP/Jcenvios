@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rateValueInput = document.getElementById('rate-value');
     const ratePercentInput = document.getElementById('rate-percent');
     const isRefCheckbox = document.getElementById('rate-is-ref');
+    const isRiskyCheckbox = document.getElementById('rate-is-risky');
     const montoMinInput = document.getElementById('rate-monto-min');
     const montoMaxInput = document.getElementById('rate-monto-max');
     const saveButton = document.getElementById('save-rate-btn');
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }).format(num);
     };
 
+    // --- AJUSTE GLOBAL ---
     btnSaveGlobal?.addEventListener('click', async () => {
         const payload = {
             percent: document.getElementById('global-adj-percent').value,
@@ -80,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- LÓGICA DE ACTUALIZACIÓN DINÁMICA ---
+    // --- LÓGICA DE ACTUALIZACIÓN DINÁMICA DE TABLA ---
     const updateRouteTable = (routeKey, items) => {
         const accordionContent = document.getElementById(`collapse-${routeKey}`);
         if (!accordionContent) return;
@@ -97,12 +99,14 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.id = `tasa-row-${item.TasaID}`;
 
             const isRef = parseInt(item.EsReferencial) === 1;
+            const isRisky = parseInt(item.EsRiesgoso) === 1;
             const percentLabel = isRef ? '-' : (parseFloat(item.PorcentajeAjuste) >= 0 ? '+' : '') + formatNumber(item.PorcentajeAjuste, 2) + '%';
-            const typeBadge = isRef ? '<span class="badge bg-primary">Tasa Referencial</span>' : '<span class="badge bg-secondary">Tasa Ajustada</span>';
+            const typeBadge = isRef ? '<span class="badge bg-primary">Referencial</span>' : '<span class="badge bg-secondary">Ajustada</span>';
+            const riskyBadge = isRisky ? '<span class="badge bg-danger ms-1"><i class="bi bi-exclamation-triangle-fill"></i> Riesgo</span>' : '';
 
             tr.innerHTML = `
                 <td>[${formatNumber(item.MontoMinimo, 2)} - ${formatNumber(item.MontoMaximo, 0)}]</td>
-                <td class="text-center">${typeBadge}</td>
+                <td class="text-center">${typeBadge} ${riskyBadge}</td>
                 <td class="text-center">${percentLabel}</td>
                 <td class="text-center fw-bold">${formatNumber(item.ValorTasa, 5)}</td>
                 <td class="text-end pe-4">
@@ -114,6 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         data-min="${item.MontoMinimo}" 
                         data-max="${item.MontoMaximo}" 
                         data-is-ref="${item.EsReferencial}" 
+                        data-is-risky="${item.EsRiesgoso}"
                         data-percent="${item.PorcentajeAjuste}"><i class="bi bi-pencil-fill"></i></button>
                     <button class="btn btn-sm btn-outline-danger delete-rate-btn" data-tasa-id="${item.TasaID}"><i class="bi bi-trash-fill"></i></button>
                 </td>
@@ -127,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rateValueInput.value = '';
         ratePercentInput.value = '0,00';
         isRefCheckbox.checked = false;
+        if (isRiskyCheckbox) isRiskyCheckbox.checked = false;
         referentialRateValue = 0;
         montoMinInput.value = '0,00';
         montoMaxInput.value = formatNumber(9999999999.99, 2);
@@ -175,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = parseInput(rateValueInput.value);
         if (val <= 0) return;
         const calculatedPercent = ((val / referentialRateValue) - 1) * 100;
-        
+
         ratePercentInput.value = formatNumber(calculatedPercent, 2);
     };
 
@@ -219,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
             destinoId: paisDestinoSelect.value,
             nuevoValor: parseInput(rateValueInput.value),
             esReferencial: isRefCheckbox.checked ? 1 : 0,
+            esRiesgoso: isRiskyCheckbox && isRiskyCheckbox.checked ? 1 : 0,
             porcentaje: parseInput(ratePercentInput.value),
             montoMin: parseInput(montoMinInput.value),
             montoMax: parseInput(montoMaxInput.value)
@@ -300,6 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
             montoMinInput.value = formatNumber(d.min, 2);
             montoMaxInput.value = formatNumber(d.max, 2);
             isRefCheckbox.checked = parseInt(d.isRef) === 1;
+            if (isRiskyCheckbox) isRiskyCheckbox.checked = parseInt(d.isRisky) === 1;
             ratePercentInput.value = formatNumber(d.percent, 2);
 
             cancelEditBtn.classList.remove('d-none');

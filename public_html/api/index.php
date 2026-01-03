@@ -66,6 +66,7 @@ class Container
     private function createInstance(string $className)
     {
         return match ($className) {
+            // Repositorios
             UserRepository::class => new UserRepository($this->getDb()),
             RateRepository::class => new RateRepository($this->getDb()),
             CountryRepository::class => new CountryRepository($this->getDb()),
@@ -82,10 +83,12 @@ class Container
             CuentasAdminRepository::class => new CuentasAdminRepository($this->getDb()),
             SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
 
+            // Servicios
             LogService::class => new LogService($this->getDb()),
             NotificationService::class => new NotificationService($this->get(LogService::class)),
             PDFService::class => new PDFService(),
             FileHandlerService::class => new FileHandlerService(),
+            
             UserService::class => new UserService(
                 $this->get(UserRepository::class),
                 $this->get(NotificationService::class),
@@ -102,18 +105,22 @@ class Container
                 $this->get(SystemSettingsRepository::class),
                 $this->get(NotificationService::class)
             ),
+            
             CuentasBeneficiariasService::class => new CuentasBeneficiariasService(
                 $this->get(CuentasBeneficiariasRepository::class),
                 $this->get(NotificationService::class),
                 $this->get(TipoBeneficiarioRepository::class),
                 $this->get(TipoDocumentoRepository::class)
             ),
+            
             ContabilidadService::class => new ContabilidadService(
                 $this->get(ContabilidadRepository::class),
                 $this->get(CountryRepository::class),
                 $this->get(LogService::class),
                 $this->getDb()
             ),
+            
+            // CAMBIO: Se agregó RateRepository al final de los argumentos
             TransactionService::class => new TransactionService(
                 $this->get(TransactionRepository::class),
                 $this->get(UserRepository::class),
@@ -124,8 +131,10 @@ class Container
                 $this->get(FormaPagoRepository::class),
                 $this->get(ContabilidadService::class),
                 $this->get(CuentasBeneficiariasRepository::class),
-                $this->get(CuentasAdminRepository::class)
+                $this->get(CuentasAdminRepository::class),
+                $this->get(RateRepository::class)
             ),
+            
             DashboardService::class => new DashboardService(
                 $this->get(TransactionRepository::class),
                 $this->get(UserRepository::class),
@@ -135,6 +144,7 @@ class Container
                 $this->get(TasasHistoricoRepository::class)
             ),
 
+            // Controladores
             AuthController::class => new AuthController($this->get(UserService::class)),
             ClientController::class => new ClientController(
                 $this->get(TransactionService::class),
@@ -175,8 +185,6 @@ class Container
 try {
     $container = new Container();
     $accion = $_GET['accion'] ?? '';
-    $requestMethod = $_SERVER['REQUEST_METHOD'];
-
     $routes = [
         // Auth & 2FA
         'loginUser' => [AuthController::class, 'loginUser', 'POST'],
@@ -188,59 +196,71 @@ try {
         'resend2faCode' => [AuthController::class, 'send2FACode', 'POST'],
         'update2faMethod' => [ClientController::class, 'update2faMethod', 'POST'],
 
-        // Client
+        // Client - Utilidades y Datos
         'submitContactForm' => [ClientController::class, 'handleContactForm', 'POST'],
         'getTasa' => [ClientController::class, 'getTasa', 'GET'],
         'getCurrentRate' => [ClientController::class, 'getCurrentRate', 'GET'],
         'getPaises' => [ClientController::class, 'getPaises', 'GET'],
         'getDolarBcv' => [DashboardController::class, 'getDolarBcvData', 'GET'],
         'getActiveDestinationCountries' => [ClientController::class, 'getActiveDestinationCountries', 'GET'],
+        'getFormasDePago' => [ClientController::class, 'getFormasDePago', 'GET'],
+        'getBeneficiaryTypes' => [ClientController::class, 'getBeneficiaryTypes', 'GET'],
+        'getDocumentTypes' => [ClientController::class, 'getDocumentTypes', 'GET'],
+        'getAssignableRoles' => [ClientController::class, 'getAssignableRoles', 'GET'],
+        
+        // Client - Gestión de Cuentas y Perfil
         'getCuentas' => [ClientController::class, 'getCuentas', 'GET'],
         'getBeneficiaryDetails' => [ClientController::class, 'getBeneficiaryDetails', 'GET'],
         'addCuenta' => [ClientController::class, 'addCuenta', 'POST'],
         'updateBeneficiary' => [ClientController::class, 'updateBeneficiary', 'POST'],
         'deleteBeneficiary' => [ClientController::class, 'deleteBeneficiary', 'POST'],
-        'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
-        'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
-        'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
         'getUserProfile' => [ClientController::class, 'getUserProfile', 'GET'],
         'updateUserProfile' => [ClientController::class, 'updateUserProfile', 'POST'],
         'uploadVerificationDocs' => [ClientController::class, 'uploadVerificationDocs', 'POST'],
-        'getFormasDePago' => [ClientController::class, 'getFormasDePago', 'GET'],
-        'getBeneficiaryTypes' => [ClientController::class, 'getBeneficiaryTypes', 'GET'],
-        'getDocumentTypes' => [ClientController::class, 'getDocumentTypes', 'GET'],
-        'getAssignableRoles' => [ClientController::class, 'getAssignableRoles', 'GET'],
         'generate2FASecret' => [ClientController::class, 'generate2FASecret', 'POST'],
         'enable2FA' => [ClientController::class, 'enable2FA', 'POST'],
         'disable2FA' => [ClientController::class, 'disable2FA', 'POST'],
-        'botWebhook' => [BotController::class, 'handleWebhook', 'POST'],
+
+        // Client - Transacciones
+        'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
+        'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
+        'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
         'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
 
-        // Admin
-        'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
-        'deleteRate' => [AdminController::class, 'deleteRate', 'POST'],
+        // Admin - Gestión General
+        'getDashboardStats' => [AdminController::class, 'getDashboardStats', 'GET'],
         'addPais' => [AdminController::class, 'addPais', 'POST'],
         'updatePais' => [AdminController::class, 'updatePais', 'POST'],
         'updatePaisRol' => [AdminController::class, 'updatePaisRol', 'POST'],
         'togglePaisStatus' => [AdminController::class, 'togglePaisStatus', 'POST'],
+        
+        // Admin - Tasas
+        'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
+        'deleteRate' => [AdminController::class, 'deleteRate', 'POST'],
+        'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
+        'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
+        'applyGlobalAdjustment' => [AdminController::class, 'applyGlobalAdjustment', 'POST'],
+        'saveGlobalAdjustmentSettings' => [AdminController::class, 'saveGlobalAdjustmentSettings', 'POST'],
+
+        // Admin - Usuarios
+        'updateVerificationStatus' => [AdminController::class, 'updateVerificationStatus', 'POST'],
+        'toggleUserBlock' => [AdminController::class, 'toggleUserBlock', 'POST'],
+        'updateUserRole' => [AdminController::class, 'updateUserRole', 'POST'],
+        'deleteUser' => [AdminController::class, 'deleteUser', 'POST'],
+        'adminUpdateUser' => [AdminController::class, 'adminUpdateUser', 'POST'],
+
+        // Admin - Transacciones
         'processTransaction' => [AdminController::class, 'processTransaction', 'POST'],
         'rejectTransaction' => [AdminController::class, 'rejectTransaction', 'POST'],
         'adminUploadProof' => [AdminController::class, 'adminUploadProof', 'POST'],
-        'updateVerificationStatus' => [AdminController::class, 'updateVerificationStatus', 'POST'],
-        'toggleUserBlock' => [AdminController::class, 'toggleUserBlock', 'POST'],
-        'getDashboardStats' => [AdminController::class, 'getDashboardStats', 'GET'],
-        'updateUserRole' => [AdminController::class, 'updateUserRole', 'POST'],
-        'deleteUser' => [AdminController::class, 'deleteUser', 'POST'],
+        'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
+        'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
+        'authorizeTransaction' => [AdminController::class, 'authorizeTransaction', 'POST'],
+
+        // Admin - Cuentas Bancarias del Sistema
         'getCuentasAdmin' => [AdminController::class, 'getCuentasAdmin', 'GET'],
         'saveCuentaAdmin' => [AdminController::class, 'saveCuentaAdmin', 'POST'],
         'deleteCuentaAdmin' => [AdminController::class, 'deleteCuentaAdmin', 'POST'],
-        'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
-        'adminUpdateUser' => [AdminController::class, 'adminUpdateUser', 'POST'],
-        'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
-        'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
-        'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
-        'applyGlobalAdjustment' => [AdminController::class, 'applyGlobalAdjustment', 'POST'],
-        'saveGlobalAdjustmentSettings' => [AdminController::class, 'saveGlobalAdjustmentSettings', 'POST'],
 
         // Contabilidad
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
@@ -248,6 +268,7 @@ try {
         'retirarFondos' => [ContabilidadController::class, 'retirarFondos', 'POST'],
         'compraDivisas' => [ContabilidadController::class, 'compraDivisas', 'POST'],
         'getResumenContable' => [ContabilidadController::class, 'getResumenMensual', 'GET'],
+        'botWebhook' => [BotController::class, 'handleWebhook', 'POST'],
     ];
 
     if (isset($routes[$accion])) {
