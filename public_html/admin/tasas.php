@@ -139,7 +139,7 @@ $settings = $pricingService->getGlobalAdjustmentSettings();
                     </div>
                     <div class="col-md-2">
                         <label class="form-label fw-bold">Valor Tasa:</label>
-                        <input type="text" class="form-control" id="rate-value" required disabled>
+                        <input type="text" class="form-control" id="rate-value" required>
                     </div>
                 </div>
                 <div class="row g-3 mt-2 align-items-end">

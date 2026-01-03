@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.success && data.tasa) {
                 referentialRateValue = parseFloat(data.tasa.ValorTasa);
-                if (!isRefCheckbox.checked) updateRealTimeCalculation();
+                if (!isRefCheckbox.checked) calculateValueFromPercent();
             } else {
                 referentialRateValue = 0;
                 if (!isRefCheckbox.checked) rateValueInput.value = 'Falta Referencia';
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const updateRealTimeCalculation = () => {
+    const calculateValueFromPercent = () => {
         if (isRefCheckbox.checked) return;
         if (referentialRateValue <= 0) {
             rateValueInput.value = 'Falta Referencia';
@@ -168,6 +168,17 @@ document.addEventListener('DOMContentLoaded', () => {
         rateValueInput.value = formatNumber(calculatedValue, 6);
     };
 
+    const calculatePercentFromValue = () => {
+        if (isRefCheckbox.checked) return;
+        if (referentialRateValue <= 0) return;
+
+        const val = parseInput(rateValueInput.value);
+        if (val <= 0) return;
+        const calculatedPercent = ((val / referentialRateValue) - 1) * 100;
+        
+        ratePercentInput.value = formatNumber(calculatedPercent, 2);
+    };
+
     const toggleInputsByRef = () => {
         if (isRefCheckbox.checked) {
             ratePercentInput.value = "0,00";
@@ -175,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateValueInput.disabled = false;
             rateValueInput.focus();
         } else {
-            rateValueInput.disabled = true;
+            rateValueInput.disabled = false;
             ratePercentInput.disabled = false;
             fetchReferentialValue();
         }
@@ -270,7 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
     paisOrigenSelect.addEventListener('change', () => { validateForm(); fetchReferentialValue(); });
     paisDestinoSelect.addEventListener('change', () => { validateForm(); fetchReferentialValue(); });
     isRefCheckbox.addEventListener('change', toggleInputsByRef);
-    ratePercentInput.addEventListener('input', updateRealTimeCalculation);
+    ratePercentInput.addEventListener('input', calculateValueFromPercent);
+    rateValueInput.addEventListener('input', calculatePercentFromValue);
+
     form.addEventListener('submit', handleSave);
     cancelEditBtn.addEventListener('click', resetEditor);
 
