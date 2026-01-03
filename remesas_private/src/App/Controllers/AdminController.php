@@ -5,6 +5,7 @@ use App\Services\TransactionService;
 use App\Services\PricingService;
 use App\Services\UserService;
 use App\Services\DashboardService;
+use App\Services\SystemSettingsService; 
 use App\Repositories\RolRepository;
 use App\Repositories\CuentasAdminRepository;
 use Exception;
@@ -17,6 +18,7 @@ class AdminController extends BaseController
     private DashboardService $dashboardService;
     private RolRepository $rolRepo;
     private CuentasAdminRepository $cuentasAdminRepo;
+    private SystemSettingsService $settingsService;
 
     public function __construct(
         TransactionService $txService,
@@ -24,7 +26,8 @@ class AdminController extends BaseController
         UserService $userService,
         DashboardService $dashboardService,
         RolRepository $rolRepo,
-        CuentasAdminRepository $cuentasAdminRepo
+        CuentasAdminRepository $cuentasAdminRepo,
+        SystemSettingsService $settingsService
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -32,15 +35,56 @@ class AdminController extends BaseController
         $this->dashboardService = $dashboardService;
         $this->rolRepo = $rolRepo;
         $this->cuentasAdminRepo = $cuentasAdminRepo;
+        $this->settingsService = $settingsService;
     }
 
-    // --- MÉTODOS PARA ADMIN Y OPERADORES (Gestión de Órdenes) ---
+    // --- GESTIÓN DE VACACIONES (CORREGIDO) ---
+
+    public function getHolidays(): void
+    {
+        $this->ensureAdmin();
+        $holidays = $this->settingsService->getHolidays();
+        $this->sendJsonResponse(['success' => true, 'holidays' => $holidays]);
+    }
+
+    public function addHoliday(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $this->ensureAdmin();
+        
+        $data = $this->getJsonInput();
+        
+        try {
+            $this->settingsService->addHoliday(
+                $adminId, 
+                $data['inicio'] ?? '', 
+                $data['fin'] ?? '', 
+                $data['motivo'] ?? ''
+            );
+            $this->sendJsonResponse(['success' => true, 'message' => 'Feriado programado correctamente.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function deleteHoliday(): void
+    {
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        
+        try {
+            $this->settingsService->deleteHoliday((int)($data['id'] ?? 0));
+            $this->sendJsonResponse(['success' => true, 'message' => 'Feriado eliminado.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    // --- MÉTODOS EXISTENTES (Gestión de Órdenes) ---
 
     public function rejectTransaction(): void
     {
-        // Heredado de BaseController, devuelve int
         $adminId = $this->ensureAdminOrOperator(); 
-        
         $data = $this->getJsonInput();
         $txId = (int) ($data['transactionId'] ?? 0);
         $reason = $data['reason'] ?? '';
@@ -94,7 +138,7 @@ class AdminController extends BaseController
 
     public function pauseTransaction(): void
     {
-        $this->ensureAdminOrOperator(); // Solo validación de permisos
+        $this->ensureAdminOrOperator(); 
         
         try {
             $data = $this->getJsonInput();
@@ -105,7 +149,6 @@ class AdminController extends BaseController
                 throw new Exception("ID de transacción o motivo no válidos.");
             }
 
-            // ID 6 = Pausado
             $success = $this->txService->pause($txId, $motivo, 6);
 
             if (!$success) {
@@ -165,12 +208,12 @@ class AdminController extends BaseController
         }
     }
 
-    // --- MÉTODOS SOLO PARA ADMIN (Configuración y Usuarios) ---
+    // --- MÉTODOS EXISTENTES (Configuración y Usuarios) ---
 
     public function upsertRate(): void
     {
         $adminId = $this->ensureLoggedIn();
-        $this->ensureAdmin(); // Heredado de BaseController
+        $this->ensureAdmin();
         $data = $this->getJsonInput();
 
         try {

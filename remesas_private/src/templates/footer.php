@@ -208,14 +208,15 @@
 <?php
 $jsUtilsPath = '/assets/js/utils/modalUtils.js';
 $jsUtilsFilePath = __DIR__ . '/../../../public_html' . $jsUtilsPath;
-$jsUtilsVersion = file_exists($jsUtilsFilePath) ? filemtime($jsUtilsFilePath) : '1.0.0';
+$jsUtilsVersion = file_exists($jsUtilsFilePath) ? hash_file('md5', $jsUtilsFilePath) : '1.0.0';
 ?>
+<script src="<?php echo BASE_URL; ?>/assets/js/system-lock.js"></script>
 <script src="<?php echo BASE_URL . $jsUtilsPath; ?>?v=<?php echo $jsUtilsVersion; ?>" charset="UTF-8"></script>
 <?php ?>
 
 <script>
-    const baseUrlJs = <?php echo defined('BASE_URL') ? json_encode(rtrim(BASE_URL, '/')) : '""'; ?>;
-    const CSRF_TOKEN = '<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>';
+  const baseUrlJs = <?php echo defined('BASE_URL') ? json_encode(rtrim(BASE_URL, '/')) : '""'; ?>;
+  const CSRF_TOKEN = '<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>';
 </script>
 <?php ?>
 
@@ -229,7 +230,7 @@ if (!empty($baseUrlPhp)) {
   {
     $physicalPath = __DIR__ . '/../../../public_html' . $scriptPath;
     if (file_exists($physicalPath)) {
-      return filemtime($physicalPath);
+      return hash_file('md5', $physicalPath);
     }
     return '1.0.0';
   }
@@ -262,6 +263,25 @@ if (!empty($baseUrlPhp)) {
     if (e.target.tagName === 'IMG' &&
       (e.target.closest('#viewComprobanteModal') || e.target.closest('#userDetailsModal'))) {
       e.preventDefault();
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    const toggleBtn = e.target.closest('.toggle-password');
+    if (!toggleBtn) return;
+    const input = toggleBtn.previousElementSibling;
+    const icon = toggleBtn.querySelector('i');
+
+    if (input && input.tagName === 'INPUT' && icon) {
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye-slash-fill');
+        icon.classList.add('bi-eye-fill');
+      } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-fill');
+        icon.classList.add('bi-eye-slash-fill');
+      }
     }
   });
 </script>

@@ -5,6 +5,7 @@ use App\Services\TransactionService;
 use App\Services\PricingService;
 use App\Services\CuentasBeneficiariasService;
 use App\Services\UserService;
+use App\Services\SystemSettingsService;
 use App\Repositories\FormaPagoRepository;
 use App\Repositories\TipoBeneficiarioRepository;
 use App\Repositories\TipoDocumentoRepository;
@@ -23,6 +24,7 @@ class ClientController extends BaseController
     private TipoDocumentoRepository $tipoDocumentoRepo;
     private RolRepository $rolRepo;
     private NotificationService $notificationService;
+    private SystemSettingsService $settingsService;
 
     public function __construct(
         TransactionService $txService,
@@ -33,7 +35,8 @@ class ClientController extends BaseController
         TipoBeneficiarioRepository $tipoBeneficiarioRepo,
         TipoDocumentoRepository $tipoDocumentoRepo,
         RolRepository $rolRepo,
-        NotificationService $notificationService
+        NotificationService $notificationService,
+        SystemSettingsService $settingsService 
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -44,7 +47,18 @@ class ClientController extends BaseController
         $this->tipoDocumentoRepo = $tipoDocumentoRepo;
         $this->rolRepo = $rolRepo;
         $this->notificationService = $notificationService;
+        $this->settingsService = $settingsService;
     }
+
+    // --- CHECKEO DE SISTEMA---
+
+    public function checkSystemStatus(): void
+    {
+        $status = $this->settingsService->checkSystemAvailability();
+        $this->sendJsonResponse(['success' => true, 'status' => $status]);
+    }
+
+    // --- MÉTODOS EXISTENTES ---
 
     public function getPaises(): void
     {
@@ -186,6 +200,15 @@ class ClientController extends BaseController
     public function createTransaccion(): void
     {
         $userId = $this->ensureLoggedIn();
+        $sysStatus = $this->settingsService->checkSystemAvailability();
+        if (!$sysStatus['available']) {
+            $this->sendJsonResponse([
+                'success' => false, 
+                'error' => "El sistema está cerrado por feriado: " . $sysStatus['message']
+            ], 403);
+            return;
+        }
+
         $data = $this->getJsonInput();
         $data['userID'] = $userId;
         $transactionId = $this->txService->createTransaction($data);
@@ -357,7 +380,6 @@ class ClientController extends BaseController
     {
         $userId = $this->ensureLoggedIn();
         try {
-            // CAMBIO: Usar getJsonInput() para leer el payload JSON del frontend
             $data = $this->getJsonInput();
             $txId = (int) ($data['txId'] ?? 0);
             $mensaje = trim($data['mensaje'] ?? '');

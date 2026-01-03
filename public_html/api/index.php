@@ -17,6 +17,7 @@ use App\Repositories\{
     ContabilidadRepository,
     TasasHistoricoRepository,
     CuentasAdminRepository,
+    HolidayRepository,
     SystemSettingsRepository
 };
 use App\Services\{
@@ -29,6 +30,7 @@ use App\Services\{
     TransactionService,
     CuentasBeneficiariasService,
     DashboardService,
+    SystemSettingsService,
     ContabilidadService
 };
 use App\Controllers\{
@@ -82,6 +84,7 @@ class Container
             TasasHistoricoRepository::class => new TasasHistoricoRepository($this->getDb()),
             CuentasAdminRepository::class => new CuentasAdminRepository($this->getDb()),
             SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
+            HolidayRepository::class => new HolidayRepository($this->getDb()),
 
             // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -134,7 +137,10 @@ class Container
                 $this->get(CuentasAdminRepository::class),
                 $this->get(RateRepository::class)
             ),
-            
+            SystemSettingsService::class => new SystemSettingsService(
+                $this->get(SystemSettingsRepository::class),
+                $this->get(HolidayRepository::class)
+            ),
             DashboardService::class => new DashboardService(
                 $this->get(TransactionRepository::class),
                 $this->get(UserRepository::class),
@@ -156,7 +162,8 @@ class Container
                 $this->get(TipoBeneficiarioRepository::class),
                 $this->get(TipoDocumentoRepository::class),
                 $this->get(RolRepository::class),
-                $this->get(NotificationService::class)
+                $this->get(NotificationService::class),
+                $this->get(SystemSettingsService::class)
             ),
             
             AdminController::class => new AdminController(
@@ -165,7 +172,8 @@ class Container
                 $this->get(UserService::class),
                 $this->get(DashboardService::class),
                 $this->get(RolRepository::class),
-                $this->get(CuentasAdminRepository::class)
+                $this->get(CuentasAdminRepository::class),
+                $this->get(SystemSettingsService::class)
             ),
             
             DashboardController::class => new DashboardController(
@@ -190,8 +198,6 @@ class Container
 try {
     $container = new Container();
     $accion = $_GET['accion'] ?? '';
-    
-    // Matriz de Rutas (Acción => [Clase Controlador, Método, Verbo HTTP])
     $routes = [
         // Auth & 2FA
         'loginUser' => [AuthController::class, 'loginUser', 'POST'],
@@ -214,6 +220,7 @@ try {
         'getBeneficiaryTypes' => [ClientController::class, 'getBeneficiaryTypes', 'GET'],
         'getDocumentTypes' => [ClientController::class, 'getDocumentTypes', 'GET'],
         'getAssignableRoles' => [ClientController::class, 'getAssignableRoles', 'GET'],
+        'checkSystemStatus' => [ClientController::class, 'checkSystemStatus', 'GET'],
         
         // Client - Gestión de Cuentas y Perfil
         'getCuentas' => [ClientController::class, 'getCuentas', 'GET'],
@@ -232,8 +239,8 @@ try {
         'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
         'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
         'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
-        'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'], // Botón "Corregido"
-        'getHistorialTransacciones' => [ClientController::class, 'getTransactionsHistory', 'GET'], // <--- ESTA FALTABA PARA LA TABLA
+        'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
+        'getHistorialTransacciones' => [ClientController::class, 'getTransactionsHistory', 'GET'],
 
         // Admin - Gestión General
         'getDashboardStats' => [AdminController::class, 'getDashboardStats', 'GET'],
@@ -241,6 +248,9 @@ try {
         'updatePais' => [AdminController::class, 'updatePais', 'POST'],
         'updatePaisRol' => [AdminController::class, 'updatePaisRol', 'POST'],
         'togglePaisStatus' => [AdminController::class, 'togglePaisStatus', 'POST'],
+        'getHolidays' => [AdminController::class, 'getHolidays', 'GET'],
+        'addHoliday' => [AdminController::class, 'addHoliday', 'POST'],
+        'deleteHoliday' => [AdminController::class, 'deleteHoliday', 'POST'],
         
         // Admin - Tasas
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
@@ -263,8 +273,6 @@ try {
         'adminUploadProof' => [AdminController::class, 'adminUploadProof', 'POST'],
         'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
         'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
-        
-        // --- RUTAS NUEVAS PARA PAUSA/REANUDACIÓN ADMIN ---
         'resumeTransactionAdmin' => [AdminController::class, 'resumeTransactionAdmin', 'POST'],
         'authorizeTransaction' => [AdminController::class, 'authorizeTransaction', 'POST'],
 
