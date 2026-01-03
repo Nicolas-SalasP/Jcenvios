@@ -126,8 +126,9 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                         <div class="form-text">Sube la captura del pago realizado.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Comisión (Opcional)</label>
-                        <input type="number" step="0.01" class="form-control" name="comisionDestino" placeholder="0.00" value="0">
+                        <label class="form-label fw-bold">Comisión (0.3% Sugerido)</label>
+                        <input type="number" step="0.01" class="form-control" id="opComisionDestino" name="comisionDestino" placeholder="0.00" value="0">
+                        <div class="form-text">Calculado automáticamente. Verifica el valor.</div>
                     </div>
                     <div class="d-grid">
                         <button type="submit" class="btn btn-success btn-lg">Confirmar Envío</button>
@@ -174,7 +175,6 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
         </div>
     </div>
 </div>
-
 
 <script>
     function copiarDatosDirecto(btn, base64Text) {

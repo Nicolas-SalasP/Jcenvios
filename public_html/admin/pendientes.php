@@ -9,7 +9,6 @@ $pageTitle = 'Transacciones Pendientes';
 $pageScript = 'admin.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
-// Actualizamos la consulta para incluir el estado 'Pausado'
 $transacciones = $conexion->query("
     SELECT T.*,
            U.PrimerNombre, U.PrimerApellido,
@@ -75,7 +74,8 @@ $transacciones = $conexion->query("
 
                                 <?php elseif ($tx['EstadoNombre'] == 'En Proceso'): ?>
                                     <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal"
-                                        data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>">
+                                        data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                                        data-monto-destino="<?php echo $tx['MontoDestino']; ?>">
                                         <i class="bi bi-upload"></i> Envío
                                     </button>
                                     <button class="btn btn-sm btn-warning pause-btn" data-bs-toggle="modal"
@@ -121,9 +121,10 @@ $transacciones = $conexion->query("
                             accept="image/png, image/jpeg, application/pdf">
                     </div>
                     <div class="mb-3">
-                        <label for="adminComisionDestino" class="form-label">Comisión Pagada</label>
+                        <label for="adminComisionDestino" class="form-label">Comisión Pagada (0.3% Sugerido)</label>
                         <input type="number" step="0.01" min="0" class="form-control" id="adminComisionDestino"
                             name="comisionDestino" value="0" required>
+                        <div class="form-text">Calculado automáticamente. Puedes editarlo si es necesario.</div>
                     </div>
                     <input type="hidden" id="adminTransactionIdField" name="transactionId">
                 </form>

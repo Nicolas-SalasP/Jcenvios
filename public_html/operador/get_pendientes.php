@@ -113,7 +113,9 @@ foreach ($transacciones as $tx):
                     <button class="btn btn-sm btn-success admin-upload-btn" 
                         data-bs-toggle="modal"
                         data-bs-target="#adminUploadModal"
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Finalizar y Pagar">
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        data-monto-destino="<?php echo $tx['MontoDestino']; ?>"
+                        title="Finalizar y Pagar">
                         <i class="bi bi-upload"></i>
                     </button>
                 <?php endif; ?>

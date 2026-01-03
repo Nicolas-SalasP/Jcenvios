@@ -555,8 +555,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const button = event.relatedTarget;
             if (!button) return;
             const txId = button.dataset.txId;
+            let monto = parseFloat(button.dataset.montoDestino);
+            if (isNaN(monto)) {
+                const row = button.closest('tr');
+                if (row) {
+                    const copyBtn = row.querySelector('.copy-data-btn');
+                    if (copyBtn && copyBtn.dataset.datos) {
+                        try {
+                            const data = JSON.parse(copyBtn.dataset.datos);
+                            let raw = data.monto.toString().split(' ')[0];
+                            raw = raw.replace(/\./g, '');
+                            raw = raw.replace(',', '.');
+                            monto = parseFloat(raw); 
+                        } catch (e) { console.error("Error al obtener monto para comisión", e); }
+                    }
+                }
+            }
+
             if (adminTxIdLabel) adminTxIdLabel.textContent = txId;
             if (adminTransactionIdField) adminTransactionIdField.value = txId;
+            const commissionInput = document.getElementById('adminComisionDestino') || document.getElementById('opComisionDestino') || document.querySelector('[name="comisionDestino"]');
+            
+            if (commissionInput) {
+                if (!isNaN(monto) && monto > 0) {
+                    const comision = (monto * 0.003).toFixed(2);
+                    commissionInput.value = comision;
+                } else {
+                    commissionInput.value = 0;
+                }
+            }
         });
 
         if (adminUploadForm) {
