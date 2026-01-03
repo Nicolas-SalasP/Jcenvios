@@ -78,7 +78,12 @@ class TransactionService
         return $this->getEstadoIdByName($nombreEstado);
     }
 
-    public function pause(int $txId, string $motivo, int $estadoId): bool
+    public function getTransactionsByUser(int $userId): array
+    {
+        return $this->txRepository->getAllByUser($userId);
+    }
+
+    public function pause(int $txId, string $motivo, int $estadoId = 6): bool
     {
         return $this->txRepository->pauseTransaction($txId, $motivo, $estadoId);
     }
@@ -123,9 +128,9 @@ class TransactionService
         $paisOrigenID = $client['PaisID'] ?? 1;
         $paisDestinoID = $beneficiario['PaisID'];
 
-        $tasaInfo = $this->rateRepository->findCurrentRate($paisOrigenID, $paisDestinoID, (float)$data['montoOrigen']);
+        $tasaInfo = $this->rateRepository->findCurrentRate($paisOrigenID, $paisDestinoID, (float) $data['montoOrigen']);
 
-        if ($tasaInfo && isset($tasaInfo['EsRiesgoso']) && (int)$tasaInfo['EsRiesgoso'] === 1) {
+        if ($tasaInfo && isset($tasaInfo['EsRiesgoso']) && (int) $tasaInfo['EsRiesgoso'] === 1) {
             $estadoInicialID = 7;
             $statusKey = 'requires_approval';
         }
@@ -216,7 +221,7 @@ class TransactionService
 
         if ($affectedRows > 0) {
             $txData = $this->txRepository->getFullTransactionDetails($txId);
-            
+
             if ($txData) {
                 $client = $this->userRepository->findUserById($txData['UserID']);
                 $txData['TelefonoCliente'] = $client['Telefono'];
@@ -407,5 +412,23 @@ class TransactionService
         }
 
         $this->notificationService->logAdminAction($adminId, 'Admin editó comisión', "TX ID: $txId. De $oldCommission a $newCommission.");
+    }
+
+    public function adminResumeTransaction(int $txId, int $adminId, string $nota = ''): bool
+    {
+        $estadoEnProceso = 3;
+        $estadoPausado = 6;
+
+        $affected = $this->txRepository->updateStatus($txId, $estadoEnProceso, $estadoPausado);
+
+        if ($affected > 0) {
+            $logMsg = "Admin reanudó orden.";
+            if (!empty($nota)) {
+                $logMsg .= " Nota: $nota";
+            }
+            $this->notificationService->logAdminAction($adminId, 'Orden Reanudada', "TX ID: $txId. $logMsg");
+            return true;
+        }
+        return false;
     }
 }

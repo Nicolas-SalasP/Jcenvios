@@ -53,6 +53,32 @@ class TransactionRepository
         return $newId;
     }
 
+    public function getAllByUser(int $userId): array
+    {
+        $sql = "SELECT
+                    T.TransaccionID, T.FechaTransaccion, T.MontoOrigen, T.MonedaOrigen,
+                    T.MontoDestino, T.MonedaDestino, T.ComprobanteURL, T.ComprobanteEnvioURL,
+                    T.BeneficiarioNombre AS BeneficiarioAlias,
+                    T.FormaPagoID, 
+                    T.EstadoID,
+                    P.NombrePais AS PaisDestino,
+                    ET.NombreEstado AS EstadoNombre,
+                    T.MotivoPausa, T.MensajeReanudacion
+                FROM transacciones AS T
+                JOIN cuentas_beneficiarias AS C ON T.CuentaBeneficiariaID = C.CuentaID
+                JOIN paises AS P ON C.PaisID = P.PaisID
+                LEFT JOIN estados_transaccion AS ET ON T.EstadoID = ET.EstadoID
+                WHERE T.UserID = ?
+                ORDER BY T.FechaTransaccion DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
     public function getFullTransactionDetails(int $transactionId): ?array
     {
         $sql = "SELECT
@@ -421,5 +447,25 @@ class TransactionRepository
         $success = $stmt->execute();
         $stmt->close();
         return $success;
+    }
+    public function isAccountUsedInCompletedOrders(int $cuentaId): bool
+    {
+        $sql = "SELECT COUNT(*) as total FROM transacciones 
+                WHERE CuentaBeneficiariaID = ? AND EstadoID IN (4, 5)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $cuentaId);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        return $res['total'] > 0;
+    }
+
+    public function migratePendingOrdersToNewAccount(int $oldCuentaId, int $newCuentaId): void
+    {
+        $sql = "UPDATE transacciones 
+                SET CuentaBeneficiariaID = ? 
+                WHERE CuentaBeneficiariaID = ? AND EstadoID IN (1, 2, 3, 6, 7)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ii", $newCuentaId, $oldCuentaId);
+        $stmt->execute();
     }
 }

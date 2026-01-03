@@ -3,8 +3,8 @@ namespace App\Controllers;
 
 use App\Services\TransactionService;
 use App\Services\PricingService;
-use App\Services\DashboardService;
 use App\Services\UserService;
+use App\Services\DashboardService;
 use App\Repositories\RolRepository;
 use App\Repositories\CuentasAdminRepository;
 use Exception;
@@ -38,9 +38,10 @@ class AdminController extends BaseController
 
     public function rejectTransaction(): void
     {
-        $adminId = $this->ensureAdminOrOperator();
+        // Heredado de BaseController, devuelve int
+        $adminId = $this->ensureAdminOrOperator(); 
+        
         $data = $this->getJsonInput();
-
         $txId = (int) ($data['transactionId'] ?? 0);
         $reason = $data['reason'] ?? '';
         $actionType = $data['actionType'] ?? 'cancel';
@@ -50,21 +51,30 @@ class AdminController extends BaseController
             return;
         }
 
-        $this->txService->adminRejectPayment($adminId, $txId, $reason, $actionType === 'retry');
-        $this->sendJsonResponse(['success' => true]);
+        try {
+            $this->txService->adminRejectPayment($adminId, $txId, $reason, $actionType === 'retry');
+            $this->sendJsonResponse(['success' => true]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
     }
 
     public function processTransaction(): void
     {
         $adminId = $this->ensureAdminOrOperator();
         $data = $this->getJsonInput();
-        $this->txService->adminConfirmPayment($adminId, (int) ($data['transactionId'] ?? 0));
-        $this->sendJsonResponse(['success' => true]);
+        try {
+            $this->txService->adminConfirmPayment($adminId, (int) ($data['transactionId'] ?? 0));
+            $this->sendJsonResponse(['success' => true]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
     }
 
     public function adminUploadProof(): void
     {
         $adminId = $this->ensureAdminOrOperator();
+        
         $transactionId = (int) ($_POST['transactionId'] ?? 0);
         $fileData = $_FILES['receiptFile'] ?? null;
         $comisionDestino = isset($_POST['comisionDestino']) ? (float) $_POST['comisionDestino'] : 0.00;
@@ -84,7 +94,8 @@ class AdminController extends BaseController
 
     public function pauseTransaction(): void
     {
-        $adminId = $this->ensureAdminOrOperator();
+        $this->ensureAdminOrOperator(); // Solo validación de permisos
+        
         try {
             $data = $this->getJsonInput();
             $txId = (int) ($data['txId'] ?? 0);
@@ -94,14 +105,61 @@ class AdminController extends BaseController
                 throw new Exception("ID de transacción o motivo no válidos.");
             }
 
-            $estadoPausadoID = $this->txService->getEstadoIdByName('Pausado');
-            $success = $this->txService->pause($txId, $motivo, $estadoPausadoID);
+            // ID 6 = Pausado
+            $success = $this->txService->pause($txId, $motivo, 6);
 
             if (!$success) {
-                throw new Exception("No se pudo actualizar el estado de la transacción.");
+                throw new Exception("No se pudo pausar. Verifique que la orden esté 'En Proceso' (ID 3).");
             }
 
             $this->sendJsonResponse(['success' => true, 'message' => 'Orden pausada correctamente.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function resumeTransactionAdmin(): void
+    {
+        $adminId = $this->ensureAdminOrOperator();
+        
+        try {
+            $data = $this->getJsonInput();
+            $txId = (int) ($data['txId'] ?? 0);
+            $nota = trim($data['nota'] ?? '');
+
+            if ($txId <= 0) {
+                throw new Exception("ID inválido");
+            }
+
+            $success = $this->txService->adminResumeTransaction($txId, $adminId, $nota);
+            
+            if ($success) {
+                $this->sendJsonResponse(['success' => true, 'message' => 'Orden reanudada.']);
+            } else {
+                throw new Exception("No se pudo reanudar. Verifique que esté en estado 'Pausado' (ID 6).");
+            }
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function authorizeTransaction(): void
+    {
+        $adminId = $this->ensureAdminOrOperator();
+        
+        try {
+            $data = $this->getJsonInput();
+            $txId = (int) ($data['transactionId'] ?? 0);
+
+            if ($txId <= 0) throw new Exception("ID inválido");
+
+            $success = $this->txService->authorizeRiskyTransaction($txId, $adminId);
+
+            if ($success) {
+                $this->sendJsonResponse(['success' => true, 'message' => 'Riesgo autorizado.']);
+            } else {
+                throw new Exception("No se pudo autorizar. Verifique el estado.");
+            }
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
@@ -112,7 +170,7 @@ class AdminController extends BaseController
     public function upsertRate(): void
     {
         $adminId = $this->ensureLoggedIn();
-        $this->ensureAdmin();
+        $this->ensureAdmin(); // Heredado de BaseController
         $data = $this->getJsonInput();
 
         try {

@@ -3,32 +3,37 @@ namespace App\Services;
 
 use App\Repositories\CuentasBeneficiariasRepository;
 use App\Repositories\TipoBeneficiarioRepository;
+use App\Repositories\TransactionRepository;
 use App\Repositories\TipoDocumentoRepository;
 use App\Services\NotificationService;
 use Exception;
 
 class CuentasBeneficiariasService
 {
-    private CuentasBeneficiariasRepository $cuentasBeneficiariasRepository;
+    private CuentasBeneficiariasRepository $cuentasRepo;
     private NotificationService $notificationService;
     private TipoBeneficiarioRepository $tipoBeneficiarioRepo;
+    private TransactionRepository $txRepo;
     private TipoDocumentoRepository $tipoDocumentoRepo;
 
     public function __construct(
-        CuentasBeneficiariasRepository $cuentasBeneficiariasRepository,
+        CuentasBeneficiariasRepository $cuentasRepo,
         NotificationService $notificationService,
+        TransactionRepository $txRepo,
         TipoBeneficiarioRepository $tipoBeneficiarioRepo,
         TipoDocumentoRepository $tipoDocumentoRepo
     ) {
-        $this->cuentasBeneficiariasRepository = $cuentasBeneficiariasRepository;
+        $this->cuentasRepo = $cuentasRepo;
         $this->notificationService = $notificationService;
+        $this->txRepo = $txRepo;
         $this->tipoBeneficiarioRepo = $tipoBeneficiarioRepo;
         $this->tipoDocumentoRepo = $tipoDocumentoRepo;
     }
 
     public function getAccountsByUser(int $userId, ?int $paisId = null): array
     {
-        $cuentas = $this->cuentasBeneficiariasRepository->findByUserId($userId);
+        // El repositorio ya filtra por Activo = 1
+        $cuentas = $this->cuentasRepo->findByUserId($userId);
 
         if ($paisId !== null) {
             $cuentas = array_filter($cuentas, fn($cuenta) => isset($cuenta['PaisID']) && $cuenta['PaisID'] == $paisId);
@@ -40,81 +45,14 @@ class CuentasBeneficiariasService
 
     public function getAccountDetails(int $userId, int $cuentaId): ?array
     {
-        $cuenta = $this->cuentasBeneficiariasRepository->findByIdAndUserId($cuentaId, $userId);
+        $cuenta = $this->cuentasRepo->findByIdAndUserId($cuentaId, $userId);
         if (!$cuenta) {
             throw new Exception("Cuenta no encontrada o no te pertenece.", 404);
         }
         return $cuenta;
     }
 
-    private function validateAndPrepareBeneficiaryData(array $data): array
-    {
-        $requiredFields = [
-            'alias',
-            'tipoBeneficiario',
-            'primerNombre',
-            'primerApellido',
-            'tipoDocumento',
-            'numeroDocumento',
-            'nombreBanco'
-        ];
-
-        foreach ($requiredFields as $field) {
-            if (!isset($data[$field]) || trim($data[$field]) === '') {
-                throw new Exception("El campo '$field' es obligatorio.", 400);
-            }
-        }
-        if ($data['numeroCuenta'] === 'PAGO MOVIL') {
-            if (empty($data['numeroTelefono'])) {
-                throw new Exception("El teléfono es obligatorio para Pago Móvil.", 400);
-            }
-        } else {
-            if (empty($data['numeroCuenta'])) {
-                throw new Exception("El número de cuenta es obligatorio.", 400);
-            }
-            $cuentaLimpia = preg_replace('/[^0-9]/', '', $data['numeroCuenta']);
-            if (strlen($cuentaLimpia) > 20) {
-                throw new Exception("El número de cuenta no puede exceder los 20 dígitos.", 400);
-            }
-        }
-
-        $doc = trim($data['numeroDocumento']);
-        $tipoDoc = $data['tipoDocumento'];
-
-        $docNumbers = preg_replace('/[^0-9]/', '', $doc);
-
-        if (stripos($tipoDoc, 'Cédula') !== false || stripos($tipoDoc, 'RIF') !== false) {
-            if (strlen($docNumbers) > 9) {
-                throw new Exception("El número de documento (Cédula/RIF) no puede tener más de 9 dígitos.", 400);
-            }
-        }
-
-        $tipoBeneficiarioID = $this->tipoBeneficiarioRepo->findIdByName($data['tipoBeneficiario']);
-        if (!$tipoBeneficiarioID) {
-            if (is_numeric($data['tipoBeneficiario']))
-                $tipoBeneficiarioID = (int) $data['tipoBeneficiario'];
-            else
-                throw new Exception("Tipo de beneficiario no válido.", 400);
-        }
-        $data['tipoBeneficiarioID'] = $tipoBeneficiarioID;
-
-        $tipoDocumentoID = $this->tipoDocumentoRepo->findIdByName($data['tipoDocumento']);
-        if (!$tipoDocumentoID) {
-            if (is_numeric($data['tipoDocumento']))
-                $tipoDocumentoID = (int) $data['tipoDocumento'];
-            else
-                throw new Exception("Tipo de documento no válido.", 400);
-        }
-        $data['titularTipoDocumentoID'] = $tipoDocumentoID;
-
-        $data['segundoNombre'] = $data['segundoNombre'] ?? null;
-        $data['segundoApellido'] = $data['segundoApellido'] ?? null;
-        if (empty($data['numeroTelefono']))
-            $data['numeroTelefono'] = null;
-
-        return $data;
-    }
-
+    // Método unificado para Crear
     public function addAccount(int $userId, array $data): int
     {
         $data = $this->validateAndPrepareBeneficiaryData($data);
@@ -125,8 +63,9 @@ class CuentasBeneficiariasService
         }
 
         try {
-            $newId = $this->cuentasBeneficiariasRepository->create($data);
-            $this->notificationService->logAdminAction($userId, 'Usuario añadió cuenta beneficiaria', "Alias: {$data['alias']} - ID: {$newId}");
+            // Usamos createAndReturnId para consistencia
+            $newId = $this->cuentasRepo->createAndReturnId($data);
+            $this->notificationService->logAdminAction($userId, 'Usuario añadió cuenta', "Alias: {$data['alias']} - ID: {$newId}");
             return $newId;
         } catch (Exception $e) {
             error_log("Error al crear cuenta: " . $e->getMessage());
@@ -134,39 +73,113 @@ class CuentasBeneficiariasService
         }
     }
 
+    // MÉTODO CLAVE: Actualización Inteligente (Versionado)
     public function updateAccount(int $userId, int $cuentaId, array $data): bool
     {
+        // 1. Validar datos primero
         $data = $this->validateAndPrepareBeneficiaryData($data);
 
+        // 2. Verificar propiedad
+        $cuenta = $this->cuentasRepo->findByIdAndUserId($cuentaId, $userId);
+        if (!$cuenta) {
+            throw new Exception("Cuenta no encontrada o acceso denegado.");
+        }
+
+        // 3. Verificar si tiene historial cerrado
+        $hasHistory = $this->txRepo->isAccountUsedInCompletedOrders($cuentaId);
+
         try {
-            $success = $this->cuentasBeneficiariasRepository->update($cuentaId, $userId, $data);
-            $this->notificationService->logAdminAction($userId, 'Usuario actualizó beneficiario', "Alias: {$data['alias']} - ID: {$cuentaId}");
-            return $success;
+            if ($hasHistory) {
+                // === CASO A: TIENE HISTORIAL (VERSIONAR) ===
+
+                // Aseguramos datos críticos para la nueva cuenta
+                $data['UserID'] = $userId;
+                $data['paisID'] = $cuenta['PaisID']; // Mantener país original
+
+                // Crear NUEVA cuenta
+                $newCuentaId = $this->cuentasRepo->createAndReturnId($data);
+
+                if ($newCuentaId > 0) {
+                    // Migrar órdenes activas (Pendientes/Pausadas) a la nueva
+                    $this->txRepo->migratePendingOrdersToNewAccount($cuentaId, $newCuentaId);
+
+                    // Ocultar la vieja (Soft Delete)
+                    $this->cuentasRepo->softDelete($cuentaId);
+
+                    $this->notificationService->logAdminAction($userId, 'Usuario actualizó cuenta (Versionado)', "Old ID: $cuentaId -> New ID: $newCuentaId");
+                    return true;
+                } else {
+                    throw new Exception("Error al crear la versión corregida.");
+                }
+
+            } else {
+                // === CASO B: SIN HISTORIAL (UPDATE SIMPLE) ===
+                $success = $this->cuentasRepo->update($cuentaId, $userId, $data);
+                if ($success) {
+                    $this->notificationService->logAdminAction($userId, 'Usuario actualizó cuenta (Directo)', "ID: $cuentaId");
+                }
+                return $success;
+            }
         } catch (Exception $e) {
-            error_log("Error al actualizar cuenta: " . $e->getMessage());
-            throw new Exception("Error al actualizar el beneficiario.", 500);
+            error_log("Error updateAccount: " . $e->getMessage());
+            throw new Exception("Error al actualizar beneficiario.", 500);
         }
     }
 
+    // Soft Delete para el usuario
     public function deleteAccount(int $userId, int $cuentaId): bool
     {
         try {
-            $success = $this->cuentasBeneficiariasRepository->delete($cuentaId, $userId);
-            if ($success) {
-                $this->notificationService->logAdminAction($userId, 'Usuario eliminó beneficiario', "ID: {$cuentaId}");
-            }
-            return $success;
+            // Verificar si tiene historial
+            $hasHistory = $this->txRepo->isAccountUsedInCompletedOrders($cuentaId);
 
-        } catch (\mysqli_sql_exception $e) {
-            if ($e->getCode() == 1451) {
-                throw new Exception("No se puede eliminar este beneficiario porque está asociado a transacciones pasadas.", 409);
+            if ($hasHistory) {
+                // Si tiene historial, solo Soft Delete (Activo=0)
+                return $this->cuentasRepo->softDelete($cuentaId);
+            } else {
+                // Si está limpia, podemos borrar físico o soft delete (preferimos soft por seguridad)
+                return $this->cuentasRepo->softDelete($cuentaId);
             }
-            error_log("Error SQL eliminar cuenta: " . $e->getMessage());
-            throw new Exception("Error de base de datos al eliminar.", 500);
         } catch (Exception $e) {
-            if ($e->getCode() == 409)
-                throw $e;
-            throw new Exception("Error al eliminar el beneficiario.", 500);
+            error_log("Error deleteAccount: " . $e->getMessage());
+            throw new Exception("Error al eliminar cuenta.", 500);
         }
+    }
+
+    private function validateAndPrepareBeneficiaryData(array $data): array
+    {
+        // Mapeo de campos frontend -> backend si es necesario
+        // Asegúrate que tu JS envíe estos nombres o ajusta aquí
+        $requiredFields = ['alias', 'tipoBeneficiario', 'primerNombre', 'primerApellido', 'tipoDocumento', 'numeroDocumento', 'nombreBanco'];
+
+        foreach ($requiredFields as $field) {
+            if (empty($data[$field]))
+                throw new Exception("El campo '$field' es obligatorio.", 400);
+        }
+
+        // Validación Pago Móvil vs Cuenta
+        if (strtoupper($data['numeroCuenta'] ?? '') === 'PAGO MOVIL') {
+            if (empty($data['numeroTelefono']))
+                throw new Exception("El teléfono es obligatorio para Pago Móvil.", 400);
+        } else {
+            if (empty($data['numeroCuenta']))
+                throw new Exception("El número de cuenta es obligatorio.", 400);
+            $clean = preg_replace('/[^0-9]/', '', $data['numeroCuenta']);
+            if (strlen($clean) > 20)
+                throw new Exception("Cuenta excede 20 dígitos.", 400);
+        }
+
+        // IDs Relacionales (TipoBeneficiario y TipoDocumento)
+        $tbID = $this->tipoBeneficiarioRepo->findIdByName($data['tipoBeneficiario']);
+        $data['tipoBeneficiarioID'] = $tbID ?: (int) $data['tipoBeneficiario'];
+
+        $tdID = $this->tipoDocumentoRepo->findIdByName($data['tipoDocumento']);
+        $data['titularTipoDocumentoID'] = $tdID ?: (int) $data['tipoDocumento'];
+
+        // Limpieza final
+        $data['segundoNombre'] = $data['segundoNombre'] ?? null;
+        $data['segundoApellido'] = $data['segundoApellido'] ?? null;
+
+        return $data;
     }
 }

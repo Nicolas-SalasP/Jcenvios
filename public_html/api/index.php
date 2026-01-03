@@ -109,6 +109,7 @@ class Container
             CuentasBeneficiariasService::class => new CuentasBeneficiariasService(
                 $this->get(CuentasBeneficiariasRepository::class),
                 $this->get(NotificationService::class),
+                $this->get(TransactionRepository::class), // Necesario para versionado de cuentas
                 $this->get(TipoBeneficiarioRepository::class),
                 $this->get(TipoDocumentoRepository::class)
             ),
@@ -120,7 +121,6 @@ class Container
                 $this->getDb()
             ),
             
-            // CAMBIO: Se agregó RateRepository al final de los argumentos
             TransactionService::class => new TransactionService(
                 $this->get(TransactionRepository::class),
                 $this->get(UserRepository::class),
@@ -146,6 +146,7 @@ class Container
 
             // Controladores
             AuthController::class => new AuthController($this->get(UserService::class)),
+            
             ClientController::class => new ClientController(
                 $this->get(TransactionService::class),
                 $this->get(PricingService::class),
@@ -157,6 +158,7 @@ class Container
                 $this->get(RolRepository::class),
                 $this->get(NotificationService::class)
             ),
+            
             AdminController::class => new AdminController(
                 $this->get(TransactionService::class),
                 $this->get(PricingService::class),
@@ -165,13 +167,16 @@ class Container
                 $this->get(RolRepository::class),
                 $this->get(CuentasAdminRepository::class)
             ),
+            
             DashboardController::class => new DashboardController(
                 $this->get(DashboardService::class),
                 $this->get(CountryRepository::class)
             ),
+            
             ContabilidadController::class => new ContabilidadController(
                 $this->get(ContabilidadService::class)
             ),
+            
             BotController::class => new BotController(
                 $this->get(PricingService::class),
                 $this->get(CuentasAdminRepository::class)
@@ -185,6 +190,8 @@ class Container
 try {
     $container = new Container();
     $accion = $_GET['accion'] ?? '';
+    
+    // Matriz de Rutas (Acción => [Clase Controlador, Método, Verbo HTTP])
     $routes = [
         // Auth & 2FA
         'loginUser' => [AuthController::class, 'loginUser', 'POST'],
@@ -225,7 +232,8 @@ try {
         'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
         'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
         'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
-        'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
+        'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'], // Botón "Corregido"
+        'getHistorialTransacciones' => [ClientController::class, 'getTransactionsHistory', 'GET'], // <--- ESTA FALTABA PARA LA TABLA
 
         // Admin - Gestión General
         'getDashboardStats' => [AdminController::class, 'getDashboardStats', 'GET'],
@@ -255,6 +263,9 @@ try {
         'adminUploadProof' => [AdminController::class, 'adminUploadProof', 'POST'],
         'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
         'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
+        
+        // --- RUTAS NUEVAS PARA PAUSA/REANUDACIÓN ADMIN ---
+        'resumeTransactionAdmin' => [AdminController::class, 'resumeTransactionAdmin', 'POST'],
         'authorizeTransaction' => [AdminController::class, 'authorizeTransaction', 'POST'],
 
         // Admin - Cuentas Bancarias del Sistema
@@ -268,6 +279,8 @@ try {
         'retirarFondos' => [ContabilidadController::class, 'retirarFondos', 'POST'],
         'compraDivisas' => [ContabilidadController::class, 'compraDivisas', 'POST'],
         'getResumenContable' => [ContabilidadController::class, 'getResumenMensual', 'GET'],
+
+        // Webhooks
         'botWebhook' => [BotController::class, 'handleWebhook', 'POST'],
     ];
 

@@ -86,6 +86,22 @@ class ClientController extends BaseController
         $this->sendJsonResponse($nombres);
     }
 
+    public function getTransactionsHistory(): void
+    {
+        $userId = $this->ensureLoggedIn();
+
+        try {
+            $transacciones = $this->txService->getTransactionsByUser($userId);
+
+            $this->sendJsonResponse([
+                'success' => true,
+                'transacciones' => $transacciones
+            ]);
+        } catch (\Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
     public function getBeneficiaryTypes(): void
     {
         $tipos = $this->tipoBeneficiarioRepo->findAllActive();
