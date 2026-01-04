@@ -5,6 +5,7 @@ use App\Repositories\RateRepository;
 use App\Repositories\CountryRepository;
 use App\Repositories\SystemSettingsRepository;
 use App\Services\NotificationService;
+use App\Services\SystemSettingsService;
 use Exception;
 use Throwable;
 
@@ -14,17 +15,20 @@ class PricingService
     private CountryRepository $countryRepository;
     private SystemSettingsRepository $settingsRepository;
     private NotificationService $notificationService;
+    private SystemSettingsService $systemService;
 
     public function __construct(
         RateRepository $rateRepository,
         CountryRepository $countryRepository,
         SystemSettingsRepository $settingsRepository,
-        NotificationService $notificationService
+        NotificationService $notificationService,
+        SystemSettingsService $systemService
     ) {
         $this->rateRepository = $rateRepository;
         $this->countryRepository = $countryRepository;
         $this->settingsRepository = $settingsRepository;
         $this->notificationService = $notificationService;
+        $this->systemService = $systemService;
     }
 
     public function runScheduledAdjustment(): bool
@@ -45,6 +49,11 @@ class PricingService
 
     public function applyGlobalAdjustment(int $adminId, float $percentage): int
     {
+        $status = $this->systemService->checkSystemAvailability();
+        if (!$status['available']) {
+            throw new Exception("Operación Bloqueada: El sistema está en modo '{$status['reason']}' ({$status['message']}). Las tasas están congeladas.");
+        }
+
         $tasasRef = $this->rateRepository->findAllReferentialRates();
         $count = 0;
 
@@ -210,6 +219,11 @@ class PricingService
 
     public function updateBcvRate(int $adminId, float $newValue): bool
     {
+        $status = $this->systemService->checkSystemAvailability();
+        if (!$status['available']) {
+            throw new Exception("BLOQUEO AUTOMÁTICO: El sistema está en feriado ({$status['message']}). No se permite actualizar la tasa BCV.");
+        }
+
         $success = $this->settingsRepository->updateValue('tasa_dolar_bcv', (string) $newValue);
         if ($success)
             $this->notificationService->logAdminAction($adminId, 'Actualización Tasa BCV', "Nuevo: " . $newValue);

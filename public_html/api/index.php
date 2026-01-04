@@ -106,13 +106,14 @@ class Container
                 $this->get(RateRepository::class),
                 $this->get(CountryRepository::class),
                 $this->get(SystemSettingsRepository::class),
-                $this->get(NotificationService::class)
+                $this->get(NotificationService::class),
+                $this->get(SystemSettingsService::class)
             ),
 
             CuentasBeneficiariasService::class => new CuentasBeneficiariasService(
                 $this->get(CuentasBeneficiariasRepository::class),
                 $this->get(NotificationService::class),
-                $this->get(TransactionRepository::class), // Necesario para versionado de cuentas
+                $this->get(TransactionRepository::class),
                 $this->get(TipoBeneficiarioRepository::class),
                 $this->get(TipoDocumentoRepository::class)
             ),
@@ -138,13 +139,11 @@ class Container
                 $this->get(RateRepository::class)
             ),
 
-                // --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE ---
             SystemSettingsService::class => new SystemSettingsService(
                 $this->get(SystemSettingsRepository::class),
                 $this->get(HolidayRepository::class),
-                $this->get(LogService::class) // <--- AGREGADO: Inyección de LogService
+                $this->get(LogService::class)
             ),
-                // -------------------------------------
 
             DashboardService::class => new DashboardService(
                 $this->get(TransactionRepository::class),
