@@ -624,6 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const d = btn.dataset;
                 txIdInput.value = d.txId;
                 commissionInput.value = d.currentVal;
+                document.getElementById('modal-commission-tx-id-label').textContent = d.txId;
                 editCommissionModal.show();
             }
         });
@@ -701,85 +702,100 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 5.8 VISOR DE COMPROBANTES
-    const viewModalElement = document.getElementById('viewComprobanteModal');
-    if (viewModalElement) {
-        const modalContent = document.getElementById('comprobante-content');
-        const modalPlaceholder = document.getElementById('comprobante-placeholder');
-        const downloadButton = document.getElementById('download-comprobante');
-        const filenameSpan = document.getElementById('comprobante-filename');
-        const navigationDiv = document.getElementById('comprobante-navigation');
-        const prevButton = document.getElementById('prev-comprobante');
-        const nextButton = document.getElementById('next-comprobante');
-        const indicatorSpan = document.getElementById('comprobante-indicator');
-        const modalLabel = document.getElementById('viewComprobanteModalLabel');
+    // =========================================================
+    // 5.8 VISOR DE COMPROBANTES (ACTUALIZADO: PESTAÑAS)
+    // =========================================================
+    const viewComprobanteModalEl = document.getElementById('viewComprobanteModal');
+    if (viewComprobanteModalEl) {
+        viewComprobanteModalEl.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            if (!button) return;
 
-        let comprobantes = [];
-        let currentIndex = 0;
-        let currentTxId = null;
+            const txId = button.getAttribute('data-tx-id');
+            const userUrl = button.getAttribute('data-comprobante-url');
+            const adminUrl = button.getAttribute('data-envio-url');
+            const startType = button.getAttribute('data-start-type');
+            const modalTitle = viewComprobanteModalEl.querySelector('.modal-title');
+            const imgElement = document.getElementById('comprobante-img-full');
+            const downloadBtn = document.getElementById('download-comprobante-btn');
+            const btnTabUser = document.getElementById('tab-btn-user');
+            const btnTabAdmin = document.getElementById('tab-btn-admin');
 
-        const showComprobante = (index) => {
-            modalContent.innerHTML = '';
-            modalPlaceholder.classList.remove('d-none');
-            if (downloadButton) downloadButton.classList.add('disabled');
-            if (!comprobantes[index]) return;
+            if (modalTitle) modalTitle.textContent = `Comprobante Orden #${txId}`;
 
-            currentIndex = index;
-            const current = comprobantes[index];
-            const secureUrl = `../admin/view_secure_file.php?file=${encodeURIComponent(current.url)}`;
-            const fileName = current.url.split('/').pop();
-            const ext = fileName.split('.').pop().toLowerCase();
+            const setView = (url) => {
+                if (url) {
+                    imgElement.src = url;
+                    imgElement.classList.remove('d-none');
+                    if(downloadBtn) {
+                        downloadBtn.href = url;
+                        downloadBtn.classList.remove('disabled');
+                    }
+                } else {
+                    imgElement.src = ''; 
+                    imgElement.classList.add('d-none');
+                    if(downloadBtn) downloadBtn.classList.add('disabled');
+                }
+            };
 
-            if (modalLabel) modalLabel.textContent = `Comprobante (Tx #${currentTxId})`;
-            if (downloadButton) {
-                downloadButton.href = secureUrl;
-                downloadButton.download = fileName;
-            }
-            if (filenameSpan) filenameSpan.textContent = fileName;
+            const activateUserTab = () => {
+                setView(userUrl);
+                if(btnTabUser) {
+                    btnTabUser.classList.add('btn-primary');
+                    btnTabUser.classList.remove('btn-outline-primary');
+                }
+                if(btnTabAdmin) {
+                    btnTabAdmin.classList.remove('btn-primary');
+                    btnTabAdmin.classList.add('btn-outline-primary');
+                }
+            };
 
-            if (['jpg', 'jpeg', 'png'].includes(ext)) {
-                const img = document.createElement('img');
-                img.src = secureUrl;
-                img.classList.add('img-fluid');
-                img.style.maxHeight = '75vh';
-                img.style.display = 'none';
-                img.onload = () => { modalPlaceholder.classList.add('d-none'); img.style.display = 'block'; if (downloadButton) downloadButton.classList.remove('disabled'); };
-                modalContent.appendChild(img);
-            } else {
-                const iframe = document.createElement('iframe');
-                iframe.src = secureUrl;
-                iframe.style.width = '100%'; iframe.style.height = '75vh';
-                iframe.onload = () => { modalPlaceholder.classList.add('d-none'); if (downloadButton) downloadButton.classList.remove('disabled'); };
-                modalContent.appendChild(iframe);
-            }
+            const activateAdminTab = () => {
+                setView(adminUrl);
+                if(btnTabAdmin) {
+                    btnTabAdmin.classList.add('btn-primary');
+                    btnTabAdmin.classList.remove('btn-outline-primary');
+                }
+                if(btnTabUser) {
+                    btnTabUser.classList.remove('btn-primary');
+                    btnTabUser.classList.add('btn-outline-primary');
+                }
+            };
 
-            if (comprobantes.length > 1 && indicatorSpan) {
-                indicatorSpan.textContent = `${index + 1} / ${comprobantes.length}`;
-                if (prevButton) prevButton.disabled = (index === 0);
-                if (nextButton) nextButton.disabled = (index === comprobantes.length - 1);
-            }
-        };
+            if (startType === 'admin') activateAdminTab();
+            else activateUserTab();
 
-        viewModalElement.addEventListener('show.bs.modal', (event) => {
-            const btn = event.relatedTarget;
-            if (!btn) return;
-            currentTxId = btn.dataset.txId;
-            const userUrl = btn.dataset.comprobanteUrl;
-            const adminUrl = btn.dataset.envioUrl;
-
-            comprobantes = [];
-            if (userUrl) comprobantes.push({ url: userUrl });
-            if (adminUrl) comprobantes.push({ url: adminUrl });
-
-            if (navigationDiv) navigationDiv.classList.toggle('d-none', comprobantes.length <= 1);
-            currentIndex = 0;
-
-            modalContent.innerHTML = '';
-            modalPlaceholder.classList.remove('d-none');
-            if (comprobantes.length > 0) setTimeout(() => showComprobante(currentIndex), 100);
+            if(btnTabUser) btnTabUser.onclick = activateUserTab;
+            if(btnTabAdmin) btnTabAdmin.onclick = activateAdminTab;
         });
-
-        if (prevButton) prevButton.addEventListener('click', () => showComprobante(currentIndex - 1));
-        if (nextButton) nextButton.addEventListener('click', () => showComprobante(currentIndex + 1));
     }
+
+    // =========================================================
+    // 6. LOGICA DE AUTO-REFRESH (POLLING)
+    // =========================================================
+    function startAutoRefresh() {
+        setInterval(async () => {
+            if (document.body.classList.contains('modal-open')) return;
+
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('ajax', '1');
+
+            try {
+                const response = await fetch(currentUrl);
+                if (!response.ok) throw new Error('Error en refresh');
+                
+                const newHtmlRows = await response.text();
+                
+                const tbody = document.getElementById('transactionsTableBody');
+                if (tbody && newHtmlRows.trim().length > 0) {
+                    tbody.innerHTML = newHtmlRows;
+                }
+            } catch (error) {
+                console.warn('Error en auto-refresh:', error);
+            }
+        }, 10000);
+    }
+
+    startAutoRefresh();
+
 });

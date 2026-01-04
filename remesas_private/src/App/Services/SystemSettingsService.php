@@ -3,19 +3,23 @@ namespace App\Services;
 
 use App\Repositories\SystemSettingsRepository;
 use App\Repositories\HolidayRepository;
+use App\Services\LogService;
 use Exception;
 
 class SystemSettingsService
 {
     private SystemSettingsRepository $settingsRepo;
     private HolidayRepository $holidayRepo;
+    private LogService $logService;
 
     public function __construct(
         SystemSettingsRepository $settingsRepo,
-        HolidayRepository $holidayRepo
+        HolidayRepository $holidayRepo,
+        LogService $logService
     ) {
         $this->settingsRepo = $settingsRepo;
         $this->holidayRepo = $holidayRepo;
+        $this->logService = $logService;
     }
 
     // --- GESTIÓN DE VACACIONES (ADMIN) ---
@@ -41,9 +45,19 @@ class SystemSettingsService
             throw new Exception("No puedes crear un feriado que ya terminó.");
         }
 
-        if (!$this->holidayRepo->create($inicio, $fin, $motivo, $adminId)) {
+        $sqlInicio = date('Y-m-d H:i:s', $startTs);
+        $sqlFin = date('Y-m-d H:i:s', $endTs);
+
+        if (!$this->holidayRepo->create($sqlInicio, $sqlFin, $motivo, $adminId)) {
             throw new Exception("Error al guardar el feriado en la base de datos.");
         }
+
+        // --- LOG DE AUDITORÍA ---
+        $this->logService->logAction(
+            $adminId,
+            "Programó Feriado",
+            "Motivo: $motivo | Inicio: $sqlInicio | Fin: $sqlFin"
+        );
     }
 
     public function getHolidays(): array
@@ -51,29 +65,47 @@ class SystemSettingsService
         return $this->holidayRepo->getAllFutureAndCurrent();
     }
 
-    public function deleteHoliday(int $id): void
+    public function deleteHoliday(int $id, int $adminId): void
     {
+        $info = "ID #$id";
+        if (method_exists($this->holidayRepo, 'findById')) {
+            $holiday = $this->holidayRepo->findById($id);
+            if ($holiday) {
+                $info = $holiday['Motivo'] . " (ID: $id)";
+            }
+        }
+
         if (!$this->holidayRepo->delete($id)) {
             throw new Exception("Error al eliminar el feriado.");
         }
+
+        // --- LOG DE AUDITORÍA ---
+        $this->logService->logAction(
+            $adminId,
+            "Eliminó Feriado",
+            "Se eliminó el bloqueo: $info"
+        );
     }
 
     // --- VALIDACIÓN GLOBAL (CLIENTE) ---
 
     public function checkSystemAvailability(): array
     {
-        $activeHoliday = $this->holidayRepo->getActiveHoliday();
+        try {
+            $activeHoliday = $this->holidayRepo->getActiveHoliday();
 
-        if ($activeHoliday) {
-            return [
-                'available' => false,
-                'reason' => 'holiday',
-                'message' => $activeHoliday['Motivo'],
-                'ends_at' => $activeHoliday['FechaFin']
-            ];
+            if ($activeHoliday) {
+                return [
+                    'available' => false,
+                    'reason' => 'holiday',
+                    'message' => $activeHoliday['Motivo'],
+                    'ends_at' => $activeHoliday['FechaFin']
+                ];
+            }
+        } catch (Exception $e) {
+            error_log("Error checkSystemAvailability: " . $e->getMessage());
         }
 
         return ['available' => true];
     }
-
 }

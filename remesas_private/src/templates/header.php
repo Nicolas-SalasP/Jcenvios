@@ -3,7 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Lógica de versión para CSS
+// Lógica de versión para CSS (Cache busting)
 $cssFilePath = __DIR__ . '/../../../public_html/assets/css/style.css';
 $cssVersion = file_exists($cssFilePath) ? hash_file('md5', $cssFilePath) : '1.0.0';
 
@@ -206,6 +206,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                                     class="bi bi-currency-exchange text-warning me-2"></i> Tasas</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/feriados.php"><i
                                                     class="bi bi-calendar-event text-danger me-2"></i> Feriados</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/logs.php"><i
+                                                    class="bi bi-clipboard-data text-secondary me-2"></i> Bitácora</a></li>
                                     </ul>
                                 </li>
                                 <li class="nav-item"><a class="nav-link"

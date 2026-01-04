@@ -68,7 +68,7 @@ class Container
     private function createInstance(string $className)
     {
         return match ($className) {
-            // Repositorios
+                // Repositorios
             UserRepository::class => new UserRepository($this->getDb()),
             RateRepository::class => new RateRepository($this->getDb()),
             CountryRepository::class => new CountryRepository($this->getDb()),
@@ -86,12 +86,12 @@ class Container
             SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
             HolidayRepository::class => new HolidayRepository($this->getDb()),
 
-            // Servicios
+                // Servicios
             LogService::class => new LogService($this->getDb()),
             NotificationService::class => new NotificationService($this->get(LogService::class)),
             PDFService::class => new PDFService(),
             FileHandlerService::class => new FileHandlerService(),
-            
+
             UserService::class => new UserService(
                 $this->get(UserRepository::class),
                 $this->get(NotificationService::class),
@@ -108,7 +108,7 @@ class Container
                 $this->get(SystemSettingsRepository::class),
                 $this->get(NotificationService::class)
             ),
-            
+
             CuentasBeneficiariasService::class => new CuentasBeneficiariasService(
                 $this->get(CuentasBeneficiariasRepository::class),
                 $this->get(NotificationService::class),
@@ -116,14 +116,14 @@ class Container
                 $this->get(TipoBeneficiarioRepository::class),
                 $this->get(TipoDocumentoRepository::class)
             ),
-            
+
             ContabilidadService::class => new ContabilidadService(
                 $this->get(ContabilidadRepository::class),
                 $this->get(CountryRepository::class),
                 $this->get(LogService::class),
                 $this->getDb()
             ),
-            
+
             TransactionService::class => new TransactionService(
                 $this->get(TransactionRepository::class),
                 $this->get(UserRepository::class),
@@ -137,10 +137,15 @@ class Container
                 $this->get(CuentasAdminRepository::class),
                 $this->get(RateRepository::class)
             ),
+
+                // --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE ---
             SystemSettingsService::class => new SystemSettingsService(
                 $this->get(SystemSettingsRepository::class),
-                $this->get(HolidayRepository::class)
+                $this->get(HolidayRepository::class),
+                $this->get(LogService::class) // <--- AGREGADO: Inyección de LogService
             ),
+                // -------------------------------------
+
             DashboardService::class => new DashboardService(
                 $this->get(TransactionRepository::class),
                 $this->get(UserRepository::class),
@@ -150,9 +155,9 @@ class Container
                 $this->get(TasasHistoricoRepository::class)
             ),
 
-            // Controladores
+                // Controladores
             AuthController::class => new AuthController($this->get(UserService::class)),
-            
+
             ClientController::class => new ClientController(
                 $this->get(TransactionService::class),
                 $this->get(PricingService::class),
@@ -165,7 +170,7 @@ class Container
                 $this->get(NotificationService::class),
                 $this->get(SystemSettingsService::class)
             ),
-            
+
             AdminController::class => new AdminController(
                 $this->get(TransactionService::class),
                 $this->get(PricingService::class),
@@ -175,16 +180,16 @@ class Container
                 $this->get(CuentasAdminRepository::class),
                 $this->get(SystemSettingsService::class)
             ),
-            
+
             DashboardController::class => new DashboardController(
                 $this->get(DashboardService::class),
                 $this->get(CountryRepository::class)
             ),
-            
+
             ContabilidadController::class => new ContabilidadController(
                 $this->get(ContabilidadService::class)
             ),
-            
+
             BotController::class => new BotController(
                 $this->get(PricingService::class),
                 $this->get(CuentasAdminRepository::class)
@@ -221,7 +226,7 @@ try {
         'getDocumentTypes' => [ClientController::class, 'getDocumentTypes', 'GET'],
         'getAssignableRoles' => [ClientController::class, 'getAssignableRoles', 'GET'],
         'checkSystemStatus' => [ClientController::class, 'checkSystemStatus', 'GET'],
-        
+
         // Client - Gestión de Cuentas y Perfil
         'getCuentas' => [ClientController::class, 'getCuentas', 'GET'],
         'getBeneficiaryDetails' => [ClientController::class, 'getBeneficiaryDetails', 'GET'],
@@ -251,7 +256,7 @@ try {
         'getHolidays' => [AdminController::class, 'getHolidays', 'GET'],
         'addHoliday' => [AdminController::class, 'addHoliday', 'POST'],
         'deleteHoliday' => [AdminController::class, 'deleteHoliday', 'POST'],
-        
+
         // Admin - Tasas
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
         'deleteRate' => [AdminController::class, 'deleteRate', 'POST'],

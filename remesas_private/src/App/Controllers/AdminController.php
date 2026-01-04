@@ -69,11 +69,14 @@ class AdminController extends BaseController
 
     public function deleteHoliday(): void
     {
+        $adminId = $this->ensureLoggedIn(); 
         $this->ensureAdmin();
         $data = $this->getJsonInput();
+        $holidayId = (int)($data['id'] ?? 0);
         
         try {
-            $this->settingsService->deleteHoliday((int)($data['id'] ?? 0));
+            $this->settingsService->deleteHoliday($holidayId, $adminId);
+            
             $this->sendJsonResponse(['success' => true, 'message' => 'Feriado eliminado.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
