@@ -2,7 +2,6 @@
 require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/../../config.php';
 
-// --- 1. CONFIGURACIÓN DE SESIONES ---
 $session_path = __DIR__ . '/../../sessions';
 if (!is_dir($session_path)) {
     mkdir($session_path, 0700, true);
@@ -22,7 +21,6 @@ session_set_cookie_params([
     'samesite' => 'Lax'
 ]);
 
-// --- 2. CABECERAS DE SEGURIDAD Y CSP ---
 header('X-Content-Type-Options: nosniff');
 
 $cspHost = '';
@@ -56,11 +54,9 @@ header("Content-Security-Policy: " . implode('; ', $cspDirectives));
 
 session_start();
 
-// --- 3. MANEJO DE ERRORES ---
 require_once __DIR__ . '/ErrorHandler.php';
 set_exception_handler('App\\Core\\exception_handler');
 
-// --- 4. LÓGICA DE ACTIVIDAD Y DOBLE FACTOR (2FA) ---
 $tiempo_limite = 15 * 60;
 
 if (isset($_SESSION['user_rol_name']) && in_array($_SESSION['user_rol_name'], ['Admin', 'Operador'])) {
@@ -97,7 +93,6 @@ if (isset($_SESSION['user_id'])) {
     }
 }
 
-// --- 5. CONEXIÓN A BASE DE DATOS ---
 try {
     $conexion = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     if ($conexion->connect_error) {
@@ -114,37 +109,41 @@ try {
 }
 $conexion->set_charset("utf8mb4");
 
-// --- 6. INICIALIZACIÓN DEL CONTENEDOR DE SERVICIOS (Solución Tasas) ---
-// Usamos una clase anónima para gestionar las dependencias complejas sin romper el flujo global
 $container = new class($conexion) {
     private $mysqli;
     public function __construct($m) { $this->mysqli = $m; }
 
     public function get($class) {
         try {
-            // App\Database\Database es Singleton (constructor privado)
             $db = \App\Database\Database::getInstance($this->mysqli);
 
             if ($class === \App\Services\PricingService::class) {
-                // Resolución de la cadena de dependencias detectada en los logs
-                $logService = new \App\Services\LogService($db);
-                $notificationService = new \App\Services\NotificationService($logService);
-                
+                $rateRepo     = new \App\Repositories\RateRepository($db);
+                $countryRepo  = new \App\Repositories\CountryRepository($db);
+                $settingsRepo = new \App\Repositories\SystemSettingsRepository($db);
+                $holidayRepo  = new \App\Repositories\HolidayRepository($db);
+                $logService   = new \App\Services\LogService($db);
+                $notifService = new \App\Services\NotificationService($logService);
+                $systemService = new \App\Services\SystemSettingsService(
+                    $settingsRepo,
+                    $holidayRepo,
+                    $logService
+                );
                 return new \App\Services\PricingService(
-                    new \App\Repositories\RateRepository($db),
-                    new \App\Repositories\CountryRepository($db),
-                    new \App\Repositories\SystemSettingsRepository($db),
-                    $notificationService
+                    $rateRepo,
+                    $countryRepo,
+                    $settingsRepo,
+                    $notifService,
+                    $systemService
                 );
             }
         } catch (Throwable $e) {
-            error_log("Error en el contenedor de servicios: " . $e->getMessage());
+            error_log("Error en el contenedor de servicios (init.php): " . $e->getMessage());
         }
         return null;
     }
 };
 
-// --- 7. FUNCIONES GLOBALES ---
 function logAction($conexion, $accion, $userId = null, $detalles = '')
 {
     $stmt = $conexion->prepare("INSERT INTO logs (UserID, Accion, Detalles) VALUES (?, ?, ?)");
