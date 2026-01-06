@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- REFERENCIAS DOM ---
+    // --- REFERENCIAS DOM GENERALES ---
     const formSteps = document.querySelectorAll('.form-step');
     const nextBtn = document.getElementById('next-btn');
     const prevBtn = document.getElementById('prev-btn');
@@ -20,19 +20,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedCuentaIdInput = document.getElementById('selected-cuenta-id');
     const stepperWrapper = document.querySelector('.stepper-wrapper');
     const stepperItems = document.querySelectorAll('.stepper-item');
+    
+    // Contenedores para ocultar/mostrar lógica Venezuela
+    const containerMontoUsd = document.getElementById('container-monto-usd'); // Asegúrate que el input tenga un div padre con este ID o usa el parent
+    
+    // --- REFERENCIAS DEL MODAL (SISTEMA HÍBRIDO) ---
     const addAccountBtn = document.getElementById('add-account-btn');
     const addAccountModalElement = document.getElementById('addAccountModal');
     const addBeneficiaryForm = document.getElementById('add-beneficiary-form');
     const benefPaisIdInput = document.getElementById('benef-pais-id');
     const phoneCodeSelect = document.getElementById('benef-phone-code');
     const phoneNumberInput = document.getElementById('benef-phone-number');
-    const benefTipoSelect = document.getElementById('benef-tipo');
+
+    // Elementos del Modal
     const benefDocTypeSelect = document.getElementById('benef-doc-type');
     const benefDocNumberInput = document.getElementById('benef-doc-number');
     const benefDocPrefix = document.getElementById('benef-doc-prefix');
-    const containerAccountNum = document.getElementById('container-account-number');
-    const containerPhoneNum = document.getElementById('container-phone-number');
-    const inputAccountNum = document.getElementById('benef-account-num');
+    
+    // Checkboxes y Contenedores
+    const checkBank = document.getElementById('check-include-bank');
+    const checkMobile = document.getElementById('check-include-mobile');
+    const containerBank = document.getElementById('container-bank-input');
+    const containerMobile = document.getElementById('container-mobile-input');
+    const inputAccount = document.getElementById('benef-account-num');
+    const inputPhone = document.getElementById('benef-phone-number');
 
     // Referencias Tasa Paso 1
     const tasaPas1Container = document.getElementById('tasa-referencial-container');
@@ -116,6 +127,38 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
 
+    // --- LÓGICA VENEZUELA: MOSTRAR/OCULTAR Y AJUSTAR DISEÑO ---
+    const toggleBcvFields = () => {
+        const destinoID = parseInt(paisDestinoSelect.value || 0);
+        const selectedOption = paisDestinoSelect.options[paisDestinoSelect.selectedIndex];
+        const monedaDestino = selectedOption ? (selectedOption.dataset.currency || '---') : '---';
+        const currencyLabel = document.getElementById('currency-label-destino');
+        if (currencyLabel) currencyLabel.textContent = monedaDestino;
+        const isVenezuela = (destinoID === 3);
+
+        const usdContainer = document.getElementById('container-monto-usd');
+        const destContainer = document.getElementById('container-col-destino');
+        const bcvRateContainer = document.getElementById('container-bcv-rate');
+
+        if (usdContainer && destContainer) {
+            if (isVenezuela) {
+                usdContainer.classList.remove('d-none');
+                
+                destContainer.classList.remove('col-md-12');
+                destContainer.classList.add('col-md-6');
+                
+                if (bcvRateContainer) bcvRateContainer.classList.remove('d-none');
+            } else {
+                usdContainer.classList.add('d-none');
+                if(montoUsdInput) montoUsdInput.value = ''; 
+                
+                destContainer.classList.remove('col-md-6');
+                destContainer.classList.add('col-md-12'); 
+                
+                if (bcvRateContainer) bcvRateContainer.classList.add('d-none');
+            }
+        }
+    };
     // --- LÓGICA DE NAVEGACIÓN ---
     const updateView = () => {
         formSteps.forEach((step, index) => {
@@ -166,18 +209,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const destinoID = paisDestinoSelect.value;
         if (!origenID || !destinoID) return;
 
-        try {
-            const resBcv = await fetch('../api/?accion=getBcvRate');
-            const dataBcv = await resBcv.json();
-            if (dataBcv.success && dataBcv.rate > 0) {
-                bcvRate = parseFloat(dataBcv.rate);
-                bcvRateDisplay.textContent = `1 USD = ${formatDisplay(bcvRate)} VES`;
-                bcvRateDisplay.classList.add('text-primary');
-            } else {
-                bcvRate = 0;
-                bcvRateDisplay.textContent = 'No disponible';
-            }
-        } catch (e) { console.error("Error BCV", e); }
+        // Solo buscar BCV si es Venezuela (ID 3)
+        if (parseInt(destinoID) === 3) {
+            try {
+                const resBcv = await fetch('../api/?accion=getBcvRate');
+                const dataBcv = await resBcv.json();
+                if (dataBcv.success && dataBcv.rate > 0) {
+                    bcvRate = parseFloat(dataBcv.rate);
+                    bcvRateDisplay.textContent = `1 USD = ${formatDisplay(bcvRate)} VES`;
+                    bcvRateDisplay.classList.add('text-primary');
+                } else {
+                    bcvRate = 0;
+                    bcvRateDisplay.textContent = 'No disponible';
+                }
+            } catch (e) { console.error("Error BCV", e); }
+        } else {
+            bcvRate = 0; // Resetear si no es Vzla
+        }
 
         let montoParaTasa = 0;
         if (activeInputId === 'monto-origen') {
@@ -272,6 +320,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     filterDestinations();
                     loadFormasDePago(selectElement.value);
                     updateReferentialRateStep1();
+                    const selectedOption = selectElement.options[selectElement.selectedIndex];
+                    const monedaOrigen = selectedOption.dataset.currency || '---';
+                    const spanOrigen = document.getElementById('currency-label-origen');
+                    if(spanOrigen) spanOrigen.textContent = monedaOrigen;
+                    const labelOrigen = document.getElementById('label-monto-origen');
+                    if(labelOrigen) labelOrigen.textContent = `Tú envías (${monedaOrigen})`;
                 });
             }
         } catch (error) { console.error('Error loadPaises', error); }
@@ -309,7 +363,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     let num = c.NumeroCuenta === 'PAGO MOVIL' ? c.NumeroTelefono : '...' + c.NumeroCuenta.slice(-4);
                     beneficiaryListDiv.innerHTML += `
                         <label class="list-group-item list-group-item-action d-flex align-items-center" style="cursor:pointer;">
-                            <input type="radio" name="beneficiary-radio" value="${c.CuentaID}" class="form-check-input me-3">
+                            <input type="radio" name="beneficiary-radio" value="${c.CuentaID}" 
+                                   data-banco="${c.NombreBanco}" 
+                                   class="form-check-input me-3">
                             <div><strong>${c.Alias}</strong> <small class="text-muted">(${c.NombreBanco} - ${num})</small></div>
                         </label>`;
                 });
@@ -322,24 +378,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { beneficiaryListDiv.innerHTML = 'Error al cargar.'; }
     };
 
-    const loadTiposBeneficiario = async () => {
-        if (!benefTipoSelect) return;
-        try {
-            const responseT = await fetch(`../api/?accion=getBeneficiaryTypes`);
-            const tipos = await responseT.json();
-            benefTipoSelect.innerHTML = '<option value="">Selecciona...</option>';
-            tipos.forEach(t => benefTipoSelect.innerHTML += `<option value="${t}">${t}</option>`);
-        } catch (e) { console.error(e); }
-    };
-
     const loadTiposDocumento = async () => {
         if (!benefDocTypeSelect) return;
         try {
             const responseD = await fetch(`../api/?accion=getDocumentTypes`);
             const tipos = await responseD.json();
             allDocumentTypes = tipos;
-            // Ordenar por relevancia
-            const sortOrder = ['RUT', 'Cédula', 'DNI (Perú)', 'Pasaporte', 'E-RUT (RIF)', 'Otros'];
+            const sortOrder = ['RUT', 'Cédula', 'RIF', 'DNI (Perú)', 'Pasaporte', 'E-RUT (RIF)', 'Otros'];
             allDocumentTypes.sort((a, b) => {
                 let nameA = a.NombreDocumento || a.nombre || "";
                 let nameB = b.NombreDocumento || b.nombre || "";
@@ -390,6 +435,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     paisDestinoSelect?.addEventListener('change', () => {
         updateReferentialRateStep1();
+        // Llamar a la lógica de ocultar BCV
+        toggleBcvFields();
         fetchRates();
         loadBeneficiaries(paisDestinoSelect.value);
     });
@@ -400,23 +447,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const formaPagoTxt = formaDePagoSelect.value;
         const usdVal = montoUsdInput.value || '0.00';
         let benefAlias = "Seleccionado";
+        let nombreBanco = "";
+
+        // Detección si es Venezuela para el resumen
+        const isVenezuela = (parseInt(paisDestinoSelect.value) === 3);
+
         const selectedRadio = document.querySelector('input[name="beneficiary-radio"]:checked');
         if (selectedRadio) {
             const label = selectedRadio.closest('label');
             const strong = label.querySelector('strong');
+            nombreBanco = selectedRadio.dataset.banco || "";
             if (strong) benefAlias = strong.textContent;
         }
+
+        let warningHtml = "";
+        // Solo mostrar advertencia del banco si es Venezuela (por si acaso hay bancos con nombre similar en otro lado)
+        if (isVenezuela && nombreBanco.toLowerCase().includes("venezuela")) {
+            warningHtml = `
+            <div class="alert alert-danger d-flex align-items-center mt-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2 fs-3"></i>
+                <div>
+                    <strong>Advertencia:</strong> Las transferencias al <strong>Banco de Venezuela</strong> podrían presentar retrasos en su procesamiento.
+                    Pero no se preocupe, su envío se realizará y se le notificará sin problemas.
+                </div>
+            </div>`;
+        }
+        
+        // Construcción condicional de la línea de Dólar BCV
+        let lineaDolarBCV = '';
+        if (isVenezuela) {
+             lineaDolarBCV = `<li class="list-group-item d-flex justify-content-between bg-light"><span>Ref. Dólar BCV:</span> <strong>${usdVal} USD</strong></li>`;
+        }
+
         summaryContainer.innerHTML = `
-            <ul class="list-group list-group-flush">
+            <ul class="list-group list-group-flush mb-3">
                 <li class="list-group-item d-flex justify-content-between"><span>Origen:</span> <strong>${origenTxt}</strong></li>
                 <li class="list-group-item d-flex justify-content-between"><span>Destino:</span> <strong>${d.text}</strong></li>
                 <li class="list-group-item d-flex justify-content-between"><span>Beneficiario:</span> <strong>${benefAlias}</strong></li>
                 <li class="list-group-item d-flex justify-content-between"><span>Forma de Pago:</span> <strong>${formaPagoTxt}</strong></li>
                 <li class="list-group-item d-flex justify-content-between"><span>Monto a Enviar:</span> <strong class="text-primary fs-5">${montoOrigenInput.value} CLP</strong></li>
                 <li class="list-group-item d-flex justify-content-between"><span>Monto a Recibir:</span> <strong class="text-success fs-5">${montoDestinoInput.value} ${d.dataset.currency}</strong></li>
-                <li class="list-group-item d-flex justify-content-between bg-light"><span>Ref. Dólar BCV:</span> <strong>${usdVal} USD</strong></li>
+                ${lineaDolarBCV}
                 <li class="list-group-item d-flex justify-content-between"><small>Tasa Aplicada:</small> <small>${commercialRate.toFixed(5)}</small></li>
-            </ul>`;
+            </ul>
+            ${warningHtml}`;
     };
 
     const checkBusinessHours = () => {
@@ -472,54 +546,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addAccountModalElement) {
         addAccountModalInstance = new bootstrap.Modal(addAccountModalElement);
 
-        addAccountBtn?.addEventListener('click', () => {
-            const paisDestinoID = paisDestinoSelect.value;
-            if (!paisDestinoID) { window.showInfoModal('Atención', 'Selecciona un país de destino primero.', false); return; }
-
-            // Preparar modal
-            benefPaisIdInput.value = paisDestinoID;
-            addBeneficiaryForm.reset();
-            phoneCodeSelect.innerHTML = countryPhoneCodes.map(c => `<option value="${c.code}">${c.flag} ${c.code}</option>`).join('');
-
-            // Resetear visibilidad campos opcionales
-            document.getElementById('container-benef-segundo-nombre').classList.remove('d-none');
-            document.getElementById('container-benef-segundo-apellido').classList.remove('d-none');
-
-            updateDocumentTypesList();
-            updatePaymentFields();
-            addAccountModalInstance.show();
-        });
-
-        const toggleInputVisibility = (toggleId, containerId, inputId, fieldName) => {
-            const toggle = document.getElementById(toggleId), container = document.getElementById(containerId), input = document.getElementById(inputId);
-            if (toggle && container && input) {
-                toggle.checked = false; container.classList.remove('d-none'); input.required = true;
-                toggle.addEventListener('change', async () => {
-                    if (toggle.checked) {
-                        if (await window.showConfirmModal('Confirmar', `¿Sin ${fieldName}?`)) {
-                            container.classList.add('d-none'); input.required = false; input.value = '';
-                        } else toggle.checked = false;
-                    } else { container.classList.remove('d-none'); input.required = true; }
-                });
-            }
-        };
-        toggleInputVisibility('toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname', 'segundo nombre');
-        toggleInputVisibility('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname', 'segundo apellido');
-
-        const updatePaymentFields = () => {
-            if (!benefTipoSelect) return;
-            const typeText = benefTipoSelect.options[benefTipoSelect.selectedIndex]?.text.toLowerCase() || '';
-            const isMobile = typeText.includes('móvil') || typeText.includes('movil');
-            if (isMobile) {
-                containerAccountNum.classList.add('d-none'); inputAccountNum.required = false; inputAccountNum.value = 'PAGO MOVIL';
-                containerPhoneNum.classList.remove('d-none'); phoneNumberInput.required = true; phoneCodeSelect.required = true;
+        // Toggle visibilidad y requerimientos (Sistema Híbrido)
+        const updateInputState = () => {
+            if (checkBank && checkBank.checked) {
+                containerBank.classList.remove('d-none');
+                inputAccount.required = true;
             } else {
-                containerAccountNum.classList.remove('d-none'); inputAccountNum.required = true; if (inputAccountNum.value === 'PAGO MOVIL') inputAccountNum.value = '';
-                containerPhoneNum.classList.add('d-none'); phoneNumberInput.required = false; phoneCodeSelect.required = false;
+                containerBank.classList.add('d-none');
+                inputAccount.required = false;
+                inputAccount.value = ''; // Limpiar si se oculta
+            }
+
+            if (checkMobile && checkMobile.checked) {
+                containerMobile.classList.remove('d-none');
+                inputPhone.required = true;
+            } else {
+                containerMobile.classList.add('d-none');
+                inputPhone.required = false;
+                inputPhone.value = '';
             }
         };
-        benefTipoSelect?.addEventListener('change', updatePaymentFields);
 
+        checkBank?.addEventListener('change', updateInputState);
+        checkMobile?.addEventListener('change', updateInputState);
+
+        // Funciones auxiliares para el Modal
         const updateDocumentTypesList = () => {
             if (!benefDocTypeSelect || !paisDestinoSelect) return;
             const isVenezuela = (parseInt(paisDestinoSelect.value) === 3);
@@ -553,25 +604,76 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         benefDocTypeSelect?.addEventListener('change', updateDocumentValidation);
 
+        const toggleInputVisibility = (toggleId, containerId, inputId, fieldName) => {
+            const toggle = document.getElementById(toggleId), container = document.getElementById(containerId), input = document.getElementById(inputId);
+            if (toggle && container && input) {
+                toggle.checked = false; container.classList.remove('d-none'); input.required = true;
+                toggle.addEventListener('change', async () => {
+                    if (toggle.checked) {
+                        if (await window.showConfirmModal('Confirmar', `¿Sin ${fieldName}?`)) {
+                            container.classList.add('d-none'); input.required = false; input.value = '';
+                        } else toggle.checked = false;
+                    } else { container.classList.remove('d-none'); input.required = true; }
+                });
+            }
+        };
+        toggleInputVisibility('toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname', 'segundo nombre');
+        toggleInputVisibility('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname', 'segundo apellido');
+
+        // Botón Abrir Modal
+        addAccountBtn?.addEventListener('click', () => {
+            const paisDestinoID = paisDestinoSelect.value;
+            if (!paisDestinoID) { window.showInfoModal('Atención', 'Selecciona un país de destino primero.', false); return; }
+
+            benefPaisIdInput.value = paisDestinoID;
+            addBeneficiaryForm.reset();
+
+            // Cargar códigos telefónicos
+            phoneCodeSelect.innerHTML = countryPhoneCodes.map(c => `<option value="${c.code}">${c.flag} ${c.code}</option>`).join('');
+
+            // Resetear estados por defecto
+            checkBank.checked = true;
+            checkMobile.checked = false;
+            updateInputState();
+            
+            // Resetear toggles de segundo nombre/apellido
+            document.getElementById('toggle-benef-segundo-nombre').checked = false;
+            document.getElementById('container-benef-segundo-nombre').classList.remove('d-none');
+            document.getElementById('benef-secondname').required = true;
+            
+            document.getElementById('toggle-benef-segundo-apellido').checked = false;
+            document.getElementById('container-benef-segundo-apellido').classList.remove('d-none');
+            document.getElementById('benef-secondlastname').required = true;
+
+            updateDocumentTypesList();
+            addAccountModalInstance.show();
+        });
+
+        // Submit Formulario
         addBeneficiaryForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!checkBank.checked && !checkMobile.checked) {
+                window.showInfoModal('Error', 'Debes seleccionar al menos una opción: Cuenta Bancaria o Pago Móvil.', false);
+                return;
+            }
+
             const btn = addBeneficiaryForm.closest('.modal-content').querySelector('button[type="submit"]');
             btn.disabled = true; btn.textContent = 'Guardando...';
 
             const formData = new FormData(addBeneficiaryForm);
+
             if (!benefDocPrefix.classList.contains('d-none')) {
                 formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
             }
-            if (!containerPhoneNum.classList.contains('d-none')) {
+            if (checkMobile.checked) {
                 formData.set('numeroTelefono', (formData.get('phoneCode') || '') + (formData.get('phoneNumber') || ''));
             } else {
                 formData.set('numeroTelefono', null);
             }
-
-            formData.delete('phoneCode');
-            formData.delete('phoneNumber');
             const data = Object.fromEntries(formData.entries());
             data.paisID = paisDestinoSelect.value;
+            data.incluirCuentaBancaria = checkBank.checked;
+            data.incluirPagoMovil = checkMobile.checked;
 
             try {
                 const resAdd = await fetch('../api/?accion=addCuenta', {
@@ -580,17 +682,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(data)
                 });
                 const resJ = await resAdd.json();
+
                 if (resJ.success) {
                     addAccountModalInstance.hide();
-                    window.showInfoModal('Éxito', 'Cuenta guardada correctamente.', true);
+                    let msg = 'Beneficiario guardado correctamente.';
+                    if (checkBank.checked && checkMobile.checked) {
+                        msg = 'Se han creado exitosamente la Cuenta Bancaria y el Pago Móvil.';
+                    }
+                    window.showInfoModal('Éxito', msg, true);
                     loadBeneficiaries(paisDestinoSelect.value);
                 } else {
-                    window.showInfoModal('Error', resJ.error, false);
+                    window.showInfoModal('Error', resJ.error || 'Error desconocido', false);
                 }
             } catch (err) {
-                window.showInfoModal('Error', 'Error de conexión.', false);
+                console.error(err);
+                window.showInfoModal('Error', 'Error de conexión con el servidor.', false);
             } finally {
-                btn.disabled = false; btn.textContent = 'Guardar Cuenta';
+                btn.disabled = false; btn.textContent = 'Guardar Todo';
             }
         });
     }
@@ -599,9 +707,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (LOGGED_IN_USER_ID) {
         loadPaises('Origen', paisOrigenSelect);
         loadPaises('Destino', paisDestinoSelect);
-        loadTiposBeneficiario();
         loadTiposDocumento();
         updateView();
         montoOrigenInput.readOnly = false; montoDestinoInput.readOnly = false; montoUsdInput.readOnly = false;
+        toggleBcvFields();
     }
 });

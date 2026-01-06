@@ -12,8 +12,8 @@ class CuentasBeneficiariasService
 {
     private CuentasBeneficiariasRepository $cuentasRepo;
     private NotificationService $notificationService;
-    private TipoBeneficiarioRepository $tipoBeneficiarioRepo;
     private TransactionRepository $txRepo;
+    private TipoBeneficiarioRepository $tipoBeneficiarioRepo;
     private TipoDocumentoRepository $tipoDocumentoRepo;
 
     public function __construct(
@@ -32,151 +32,149 @@ class CuentasBeneficiariasService
 
     public function getAccountsByUser(int $userId, ?int $paisId = null): array
     {
-        // El repositorio ya filtra por Activo = 1
         $cuentas = $this->cuentasRepo->findByUserId($userId);
-
         if ($paisId !== null) {
             $cuentas = array_filter($cuentas, fn($cuenta) => isset($cuenta['PaisID']) && $cuenta['PaisID'] == $paisId);
             $cuentas = array_values($cuentas);
         }
-
         return $cuentas;
     }
 
     public function getAccountDetails(int $userId, int $cuentaId): ?array
     {
         $cuenta = $this->cuentasRepo->findByIdAndUserId($cuentaId, $userId);
-        if (!$cuenta) {
-            throw new Exception("Cuenta no encontrada o no te pertenece.", 404);
-        }
+        if (!$cuenta) throw new Exception("Cuenta no encontrada.", 404);
         return $cuenta;
     }
 
-    // Método unificado para Crear
     public function addAccount(int $userId, array $data): int
     {
-        $data = $this->validateAndPrepareBeneficiaryData($data);
+        $this->validateCommonFields($data);
         $data['UserID'] = $userId;
+        $incluirCuenta = !empty($data['incluirCuentaBancaria']) && filter_var($data['incluirCuentaBancaria'], FILTER_VALIDATE_BOOLEAN);
+        $incluirMovil = !empty($data['incluirPagoMovil']) && filter_var($data['incluirPagoMovil'], FILTER_VALIDATE_BOOLEAN);
 
-        if (!isset($data['paisID']) || empty($data['paisID'])) {
-            throw new Exception("El campo 'paisID' es obligatorio.", 400);
+        if (!$incluirCuenta && !$incluirMovil) {
+            throw new Exception("Debes seleccionar al menos una opción (Cuenta o Pago Móvil).", 400);
         }
 
         try {
-            // Usamos createAndReturnId para consistencia
-            $newId = $this->cuentasRepo->createAndReturnId($data);
-            $this->notificationService->logAdminAction($userId, 'Usuario añadió cuenta', "Alias: {$data['alias']} - ID: {$newId}");
-            return $newId;
+            if ($incluirCuenta && $incluirMovil) {
+                if (empty($data['numeroCuenta'])) throw new Exception("El número de cuenta es obligatorio.", 400);
+                if (empty($data['numeroTelefono'])) throw new Exception("El teléfono es obligatorio para el Pago Móvil.", 400);
+                $data['tipoBeneficiario'] = 'Cuenta Bancaria';
+                $prepared = $this->prepareSingleRecord($data, false); 
+                
+                $newId = $this->cuentasRepo->create($prepared);
+                $this->notificationService->logAdminAction($userId, 'Usuario creó Beneficiario Unificado (Cuenta+PM)', "ID: {$newId}");
+                return $newId;
+            }
+            if ($incluirCuenta) {
+                if (empty($data['numeroCuenta'])) throw new Exception("El número de cuenta es obligatorio.", 400);
+                
+                $data['numeroTelefono'] = null;
+                $data['tipoBeneficiario'] = 'Cuenta Bancaria';
+
+                $prepared = $this->prepareSingleRecord($data, false);
+                $newId = $this->cuentasRepo->create($prepared);
+                $this->notificationService->logAdminAction($userId, 'Usuario creó Cuenta Bancaria', "ID: {$newId}");
+                return $newId;
+            }
+
+            if ($incluirMovil) {
+                if (empty($data['numeroTelefono'])) throw new Exception("El teléfono es obligatorio.", 400);
+
+                $data['tipoBeneficiario'] = 'Pago Móvil';
+                $prepared = $this->prepareSingleRecord($data, true);
+                
+                $newId = $this->cuentasRepo->create($prepared);
+                $this->notificationService->logAdminAction($userId, 'Usuario creó Pago Móvil', "ID: {$newId}");
+                return $newId;
+            }
+
+            return 0;
+
         } catch (Exception $e) {
-            error_log("Error al crear cuenta: " . $e->getMessage());
-            throw new Exception("Error al guardar el beneficiario.", 500);
+            error_log("Error addAccount: " . $e->getMessage());
+            throw new Exception($e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
-    // MÉTODO CLAVE: Actualización Inteligente (Versionado)
     public function updateAccount(int $userId, int $cuentaId, array $data): bool
     {
-        // 1. Validar datos primero
-        $data = $this->validateAndPrepareBeneficiaryData($data);
-
-        // 2. Verificar propiedad
+        $this->validateCommonFields($data);
         $cuenta = $this->cuentasRepo->findByIdAndUserId($cuentaId, $userId);
-        if (!$cuenta) {
-            throw new Exception("Cuenta no encontrada o acceso denegado.");
-        }
+        if (!$cuenta) throw new Exception("Cuenta no encontrada.");
 
-        // 3. Verificar si tiene historial cerrado
+        $data['UserID'] = $userId;
+        $isSoloPagoMovil = (strtoupper($data['numeroCuenta'] ?? '') === 'PAGO MOVIL') || (strtoupper($cuenta['NumeroCuenta']) === 'PAGO MOVIL');
+        if (empty($data['tipoBeneficiario'])) {
+            $data['tipoBeneficiario'] = $isSoloPagoMovil ? 'Pago Móvil' : 'Cuenta Bancaria';
+        }
+        
+        $prepared = $this->prepareSingleRecord($data, $isSoloPagoMovil);
         $hasHistory = $this->txRepo->isAccountUsedInCompletedOrders($cuentaId);
 
         try {
             if ($hasHistory) {
-                // === CASO A: TIENE HISTORIAL (VERSIONAR) ===
-
-                // Aseguramos datos críticos para la nueva cuenta
-                $data['UserID'] = $userId;
-                $data['paisID'] = $cuenta['PaisID']; // Mantener país original
-
-                // Crear NUEVA cuenta
-                $newCuentaId = $this->cuentasRepo->createAndReturnId($data);
+                $prepared['paisID'] = $cuenta['PaisID'];
+                $newCuentaId = $this->cuentasRepo->create($prepared);
 
                 if ($newCuentaId > 0) {
-                    // Migrar órdenes activas (Pendientes/Pausadas) a la nueva
                     $this->txRepo->migratePendingOrdersToNewAccount($cuentaId, $newCuentaId);
-
-                    // Ocultar la vieja (Soft Delete)
                     $this->cuentasRepo->softDelete($cuentaId);
-
-                    $this->notificationService->logAdminAction($userId, 'Usuario actualizó cuenta (Versionado)', "Old ID: $cuentaId -> New ID: $newCuentaId");
                     return true;
-                } else {
-                    throw new Exception("Error al crear la versión corregida.");
                 }
-
+                throw new Exception("Error al versionar cuenta.");
             } else {
-                // === CASO B: SIN HISTORIAL (UPDATE SIMPLE) ===
-                $success = $this->cuentasRepo->update($cuentaId, $userId, $data);
-                if ($success) {
-                    $this->notificationService->logAdminAction($userId, 'Usuario actualizó cuenta (Directo)', "ID: $cuentaId");
-                }
-                return $success;
+                return $this->cuentasRepo->update($cuentaId, $prepared);
             }
         } catch (Exception $e) {
             error_log("Error updateAccount: " . $e->getMessage());
-            throw new Exception("Error al actualizar beneficiario.", 500);
+            throw new Exception("Error al actualizar.", 500);
         }
     }
 
-    // Soft Delete para el usuario
     public function deleteAccount(int $userId, int $cuentaId): bool
     {
-        try {
-            // Verificar si tiene historial
-            $hasHistory = $this->txRepo->isAccountUsedInCompletedOrders($cuentaId);
-
-            if ($hasHistory) {
-                // Si tiene historial, solo Soft Delete (Activo=0)
-                return $this->cuentasRepo->softDelete($cuentaId);
-            } else {
-                // Si está limpia, podemos borrar físico o soft delete (preferimos soft por seguridad)
-                return $this->cuentasRepo->softDelete($cuentaId);
-            }
-        } catch (Exception $e) {
-            error_log("Error deleteAccount: " . $e->getMessage());
-            throw new Exception("Error al eliminar cuenta.", 500);
-        }
+        return $this->cuentasRepo->softDelete($cuentaId);
     }
 
-    private function validateAndPrepareBeneficiaryData(array $data): array
+    private function validateCommonFields(array $data): void
     {
-        // Mapeo de campos frontend -> backend si es necesario
-        // Asegúrate que tu JS envíe estos nombres o ajusta aquí
-        $requiredFields = ['alias', 'tipoBeneficiario', 'primerNombre', 'primerApellido', 'tipoDocumento', 'numeroDocumento', 'nombreBanco'];
+        $requiredFields = ['alias', 'primerNombre', 'primerApellido', 'tipoDocumento', 'numeroDocumento', 'nombreBanco'];
 
         foreach ($requiredFields as $field) {
             if (empty($data[$field]))
                 throw new Exception("El campo '$field' es obligatorio.", 400);
         }
+    }
 
-        // Validación Pago Móvil vs Cuenta
-        if (strtoupper($data['numeroCuenta'] ?? '') === 'PAGO MOVIL') {
-            if (empty($data['numeroTelefono']))
-                throw new Exception("El teléfono es obligatorio para Pago Móvil.", 400);
+    private function prepareSingleRecord(array $data, bool $isSoloPagoMovil): array
+    {
+        if (!$isSoloPagoMovil) {
+            if (!empty($data['numeroCuenta'])) {
+                $clean = preg_replace('/[^0-9]/', '', $data['numeroCuenta']);
+                if (strlen($clean) > 20) throw new Exception("La cuenta excede 20 dígitos.", 400);
+                $data['numeroCuenta'] = $clean;
+            }
         } else {
-            if (empty($data['numeroCuenta']))
-                throw new Exception("El número de cuenta es obligatorio.", 400);
-            $clean = preg_replace('/[^0-9]/', '', $data['numeroCuenta']);
-            if (strlen($clean) > 20)
-                throw new Exception("Cuenta excede 20 dígitos.", 400);
+            $data['numeroCuenta'] = 'PAGO MOVIL';
+        }
+        if (isset($data['tipoBeneficiario'])) {
+            $tbID = $this->tipoBeneficiarioRepo->findIdByName($data['tipoBeneficiario']);
+            $data['tipoBeneficiarioID'] = $tbID ?: 1;
+        } else {
+            $data['tipoBeneficiarioID'] = 1; 
         }
 
-        // IDs Relacionales (TipoBeneficiario y TipoDocumento)
-        $tbID = $this->tipoBeneficiarioRepo->findIdByName($data['tipoBeneficiario']);
-        $data['tipoBeneficiarioID'] = $tbID ?: (int) $data['tipoBeneficiario'];
+        if (isset($data['tipoDocumento']) && is_numeric($data['tipoDocumento'])) {
+            $data['titularTipoDocumentoID'] = (int) $data['tipoDocumento'];
+        } else {
+            $tdID = $this->tipoDocumentoRepo->findIdByName($data['tipoDocumento'] ?? '');
+            $data['titularTipoDocumentoID'] = $tdID ?: 0;
+        }
 
-        $tdID = $this->tipoDocumentoRepo->findIdByName($data['tipoDocumento']);
-        $data['titularTipoDocumentoID'] = $tdID ?: (int) $data['tipoDocumento'];
-
-        // Limpieza final
         $data['segundoNombre'] = $data['segundoNombre'] ?? null;
         $data['segundoApellido'] = $data['segundoApellido'] ?? null;
 

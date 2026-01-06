@@ -74,35 +74,41 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <div class="alert alert-light border border-info d-flex align-items-center mb-4" role="alert">
                             <i class="bi bi-info-circle-fill text-info me-2 fs-4"></i>
                             <div>
-                                <strong>Referencia BCV:</strong> <span id="bcv-rate-display">Cargando...</span>
-                                <div class="small text-muted">Puedes ingresar el monto en cualquiera de los 3 campos.
-                                </div>
+                                <span id="container-bcv-rate" class="d-none">
+                                    <strong>Referencia BCV:</strong> <span id="bcv-rate-display">Cargando...</span><br>
+                                </span>
+                                <div class="small text-muted">Puedes ingresar el monto en cualquiera de los campos
+                                    disponibles.</div>
                             </div>
                         </div>
 
                         <div class="row g-3">
                             <div class="col-md-12">
-                                <label for="monto-origen" class="form-label fw-bold">Tú envías (CLP)</label>
+                                <label for="monto-origen" class="form-label fw-bold" id="label-monto-origen">
+                                    Tú envías (CLP)
+                                </label>
                                 <div class="input-group input-group-lg">
                                     <input type="text" inputmode="decimal" id="monto-origen" class="form-control"
                                         placeholder="0" required>
-                                    <span class="input-group-text bg-light text-muted">CLP</span>
+                                    <span class="input-group-text bg-light text-muted"
+                                        id="currency-label-origen">CLP</span>
                                 </div>
                                 <div class="form-text text-end" id="tasa-comercial-display">Tasa: ...</div>
                             </div>
 
-                            <div class="col-md-6">
-                                <label for="monto-destino" class="form-label fw-bold text-success">Beneficiario recibe
-                                    (VES)</label>
+                            <div class="col-md-6" id="container-col-destino">
+                                <label for="monto-destino" class="form-label fw-bold text-success">
+                                    Beneficiario recibe
+                                </label>
                                 <div class="input-group">
                                     <input type="text" inputmode="decimal" id="monto-destino"
                                         class="form-control border-success" placeholder="0,00">
                                     <span class="input-group-text bg-success text-white"
-                                        id="currency-label-destino">VES</span>
+                                        id="currency-label-destino">...</span>
                                 </div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 d-none" id="container-monto-usd">
                                 <label for="monto-usd" class="form-label fw-bold text-primary">Equivalente en Dólares
                                     (BCV)</label>
                                 <div class="input-group">
@@ -152,35 +158,33 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addAccountModalLabel">Registrar Nueva Cuenta de Beneficiario</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addAccountModalLabel"><i class="bi bi-person-plus-fill me-2"></i>Registrar
+                    Nuevo Beneficiario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="add-beneficiary-form">
                     <input type="hidden" id="benef-pais-id" name="paisID">
+
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="benef-alias" class="form-label">Alias de la cuenta</label>
+                        <div class="col-md-12 mb-3">
+                            <label for="benef-alias" class="form-label">Alias (Nombre corto)</label>
                             <input type="text" class="form-control" id="benef-alias" name="alias" required
                                 placeholder="Ej: Mamá Banesco">
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="benef-tipo" class="form-label">Tipo de Transferencia</label>
-                            <select id="benef-tipo" name="tipoBeneficiario" class="form-select" required>
-                                <option value="">Cargando...</option>
-                            </select>
-                        </div>
                     </div>
-                    <hr>
-                    <h6 class="text-muted">Datos del Titular</h6>
+
+                    <h6 class="text-primary mt-3"><i class="bi bi-person-vcard me-2"></i>Datos del Titular</h6>
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="benef-firstname" class="form-label">Primer Nombre</label>
-                            <input type="text" class="form-control" id="benef-firstname" name="primerNombre" required>
+                            <label class="form-label">Primer Nombre</label>
+                            <input type="text" class="form-control" name="primerNombre" required>
                         </div>
                         <div class="col-md-6 mb-3" id="container-benef-segundo-nombre">
-                            <label for="benef-secondname" class="form-label">Segundo Nombre</label>
+                            <label class="form-label">Segundo Nombre</label>
                             <input type="text" class="form-control" id="benef-secondname" name="segundoNombre" required>
                         </div>
                     </div>
@@ -189,13 +193,14 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="form-check-label small text-muted" for="toggle-benef-segundo-nombre">No tiene
                             segundo nombre</label>
                     </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="benef-lastname" class="form-label">Primer Apellido</label>
-                            <input type="text" class="form-control" id="benef-lastname" name="primerApellido" required>
+                            <label class="form-label">Primer Apellido</label>
+                            <input type="text" class="form-control" name="primerApellido" required>
                         </div>
                         <div class="col-md-6 mb-3" id="container-benef-segundo-apellido">
-                            <label for="benef-secondlastname" class="form-label">Segundo Apellido</label>
+                            <label class="form-label">Segundo Apellido</label>
                             <input type="text" class="form-control" id="benef-secondlastname" name="segundoApellido"
                                 required>
                         </div>
@@ -205,53 +210,72 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="form-check-label small text-muted" for="toggle-benef-segundo-apellido">No tiene
                             segundo apellido</label>
                     </div>
+
                     <div class="row">
                         <div class="col-md-5 mb-3">
-                            <label for="benef-doc-type" class="form-label">Tipo de Documento</label>
+                            <label for="benef-doc-type" class="form-label">Tipo Documento</label>
                             <select id="benef-doc-type" name="tipoDocumento" class="form-select" required>
                                 <option value="">Cargando...</option>
                             </select>
                         </div>
                         <div class="col-md-7 mb-3">
-                            <label for="benef-doc-number" class="form-label">Número de Documento</label>
+                            <label class="form-label">Número Documento</label>
                             <div class="input-group">
                                 <select class="input-group-text d-none" id="benef-doc-prefix" style="max-width: 80px;">
                                     <option value="V">V</option>
                                     <option value="E">E</option>
                                     <option value="J">J</option>
-                                    <option value="G">G</option>
                                     <option value="P">P</option>
+                                    <option value="G">G</option>
                                 </select>
                                 <input type="text" class="form-control" id="benef-doc-number" name="numeroDocumento"
                                     required>
                             </div>
                         </div>
                     </div>
+
                     <div class="mb-3">
                         <label for="benef-bank" class="form-label">Nombre del Banco</label>
-                        <input type="text" class="form-control" id="benef-bank" name="nombreBanco" required>
+                        <input type="text" class="form-control" id="benef-bank" name="nombreBanco" required
+                            placeholder="Ej: Banesco, Mercantil...">
                     </div>
-                    <div class="row">
-                        <div class="col-md-12 mb-3" id="container-account-number">
-                            <label for="benef-account-num" class="form-label">Número de Cuenta (20 dígitos)</label>
-                            <input type="text" class="form-control" id="benef-account-num" name="numeroCuenta" required
-                                maxlength="20" placeholder="0102...">
+
+                    <hr>
+                    <h6 class="text-primary"><i class="bi bi-wallet2 me-2"></i>Datos de Cuenta y Pago Móvil</h6>
+                    <p class="small text-muted">Seleccione qué datos desea registrar (Puede marcar ambos).</p>
+
+                    <div class="card bg-light border-0 p-3 mb-3">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="check-include-bank"
+                                name="incluirCuentaBancaria" checked>
+                            <label class="form-check-label fw-bold" for="check-include-bank">Registrar Cuenta
+                                Bancaria</label>
                         </div>
-                        <div class="col-md-12 mb-3 d-none" id="container-phone-number">
-                            <label for="benef-phone-number" class="form-label">Teléfono (Pago Móvil)</label>
+                        <div id="container-bank-input" class="mb-3 ps-4">
+                            <input type="text" class="form-control" id="benef-account-num" name="numeroCuenta"
+                                maxlength="20" placeholder="Número de cuenta (20 dígitos)">
+                        </div>
+
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="check-include-mobile"
+                                name="incluirPagoMovil">
+                            <label class="form-check-label fw-bold" for="check-include-mobile">Registrar Pago
+                                Móvil</label>
+                        </div>
+                        <div id="container-mobile-input" class="mb-3 ps-4 d-none">
                             <div class="input-group">
                                 <select class="input-group-text" id="benef-phone-code" name="phoneCode"
                                     style="max-width: 130px;"></select>
                                 <input type="tel" class="form-control" id="benef-phone-number" name="phoneNumber"
-                                    placeholder="Número">
+                                    placeholder="Ej: 4141234567">
                             </div>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="submit" class="btn btn-primary" form="add-beneficiary-form">Guardar Cuenta</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary px-4" form="add-beneficiary-form">Guardar Todo</button>
             </div>
         </div>
     </div>

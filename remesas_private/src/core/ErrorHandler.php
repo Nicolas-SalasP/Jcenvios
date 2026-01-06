@@ -14,23 +14,36 @@ function exception_handler(\Throwable $exception): void
 
     $response = [
         'success' => false,
-        'error' => 'Ocurrió un error inesperado en el servidor.'
+        'error' => $exception->getMessage()
     ];
 
     if (defined('IS_DEV_ENVIRONMENT') && IS_DEV_ENVIRONMENT) {
-        $response['error'] = $exception->getMessage();
         $response['trace'] = explode("\n", $exception->getTraceAsString());
         $response['file'] = $exception->getFile() . ':' . $exception->getLine();
     }
 
-    http_response_code($statusCode);
-    header('Content-Type: application/json');
-    echo json_encode($response);
+    if (ob_get_length()) {
+        ob_clean();
+    }
 
+    http_response_code($statusCode);
+    header('Content-Type: application/json; charset=utf-8');
+    $json = json_encode($response, JSON_UNESCAPED_UNICODE);
+
+    if ($json === false) {
+        $safeResponse = [
+            'success' => false,
+            'error' => 'Ocurrio un error en el servidor (Fallo de codificacion JSON). Revise los logs.',
+            'raw_error' => utf8_encode($exception->getMessage())
+        ];
+        echo json_encode($safeResponse);
+    } else {
+        echo $json;
+    }
     error_log(
-        "Excepción no controlada: " . $exception->getMessage() .
+        "Excepcion API ($statusCode): " . $exception->getMessage() .
         " en " . $exception->getFile() .
-        " en la línea " . $exception->getLine()
+        " linea " . $exception->getLine()
     );
 
     exit();
