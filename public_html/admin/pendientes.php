@@ -89,8 +89,8 @@ $transacciones = $conexion->query($sql)->fetch_all(MYSQLI_ASSOC);
                                 <?php elseif (!empty($tx['ComprobanteURL'])): ?>
                                     <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
                                         data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        data-comprobante-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteURL']); ?>"
-                                        data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? BASE_URL . htmlspecialchars($tx['ComprobanteEnvioURL']) : ''; ?>">
+                                        data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
+                                        data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>">
                                         <i class="bi bi-eye"></i> Ver
                                     </button>
                                 <?php else: ?>

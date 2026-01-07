@@ -724,27 +724,51 @@ document.addEventListener('DOMContentLoaded', () => {
             if (modalTitle) modalTitle.textContent = `Comprobante Orden #${txId}`;
 
             const setView = (url) => {
+                const imgElement = document.getElementById('comprobante-img-full');
+                const downloadBtn = document.getElementById('download-comprobante-btn');
+                const modalBody = imgElement.parentElement;
+                const oldIframe = modalBody.querySelector('iframe');
+                if (oldIframe) oldIframe.remove();
+
+                if (!url || !url.includes('view_secure_file.php')) {
+                    console.error('URL de comprobante inválida o insegura:', url);
+                    return;
+                }
                 if (url) {
-                    imgElement.src = url;
-                    imgElement.classList.remove('d-none');
-                    if(downloadBtn) {
-                        downloadBtn.href = url;
+                    let finalUrl = url;
+                    const isPdf = finalUrl.toLowerCase().includes('.pdf');
+
+                    if (isPdf) {
+                        imgElement.classList.add('d-none');
+                        const iframe = document.createElement('iframe');
+                        iframe.src = finalUrl;
+                        iframe.style.width = "100%";
+                        iframe.style.height = "70vh";
+                        iframe.style.border = "none";
+                        modalBody.appendChild(iframe);
+                    } else {
+                        imgElement.src = finalUrl;
+                        imgElement.classList.remove('d-none');
+                    }
+
+                    if (downloadBtn) {
+                        downloadBtn.href = finalUrl;
                         downloadBtn.classList.remove('disabled');
                     }
                 } else {
-                    imgElement.src = ''; 
+                    imgElement.src = '';
                     imgElement.classList.add('d-none');
-                    if(downloadBtn) downloadBtn.classList.add('disabled');
+                    if (downloadBtn) downloadBtn.classList.add('disabled');
                 }
             };
 
             const activateUserTab = () => {
                 setView(userUrl);
-                if(btnTabUser) {
+                if (btnTabUser) {
                     btnTabUser.classList.add('btn-primary');
                     btnTabUser.classList.remove('btn-outline-primary');
                 }
-                if(btnTabAdmin) {
+                if (btnTabAdmin) {
                     btnTabAdmin.classList.remove('btn-primary');
                     btnTabAdmin.classList.add('btn-outline-primary');
                 }
@@ -752,11 +776,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const activateAdminTab = () => {
                 setView(adminUrl);
-                if(btnTabAdmin) {
+                if (btnTabAdmin) {
                     btnTabAdmin.classList.add('btn-primary');
                     btnTabAdmin.classList.remove('btn-outline-primary');
                 }
-                if(btnTabUser) {
+                if (btnTabUser) {
                     btnTabUser.classList.remove('btn-primary');
                     btnTabUser.classList.add('btn-outline-primary');
                 }
@@ -765,8 +789,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (startType === 'admin') activateAdminTab();
             else activateUserTab();
 
-            if(btnTabUser) btnTabUser.onclick = activateUserTab;
-            if(btnTabAdmin) btnTabAdmin.onclick = activateAdminTab;
+            if (btnTabUser) btnTabUser.onclick = activateUserTab;
+            if (btnTabAdmin) btnTabAdmin.onclick = activateAdminTab;
         });
     }
 
@@ -783,9 +807,9 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const response = await fetch(currentUrl);
                 if (!response.ok) throw new Error('Error en refresh');
-                
+
                 const newHtmlRows = await response.text();
-                
+
                 const tbody = document.getElementById('transactionsTableBody');
                 if (tbody && newHtmlRows.trim().length > 0) {
                     tbody.innerHTML = newHtmlRows;

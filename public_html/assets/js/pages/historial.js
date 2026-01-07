@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    
     if (!window.showConfirmModal) {
         window.showConfirmModal = async (title, message) => confirm(`${title}\n\n${message}`);
     }
@@ -14,16 +13,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const noResultsDiv = document.getElementById('no-results');
     const searchInput = document.getElementById('searchInput');
     const statusFilter = document.getElementById('statusFilter');
-    
-    let allTransactions = []; 
+
+    let allTransactions = [];
 
     const formatCurrency = (amount, currency) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: currency }).format(amount);
 
     const getStatusBadge = (statusId, statusName) => {
         const id = parseInt(statusId);
-        
+
         if (id === 6) return `<span class="badge bg-warning text-dark"><i class="bi bi-pause-circle-fill"></i> Pausado</span>`;
-        
+
         let badgeClass = 'bg-secondary';
         switch (statusName) {
             case 'Exitoso': badgeClass = 'bg-success'; break;
@@ -51,9 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const getFileExt = (path) => path ? path.split('.').pop().toLowerCase() : 'jpg';
+
     const renderTable = (transactions) => {
         if (!tableBody) return;
-        
+
         if (transactions.length === 0) {
             tableBody.innerHTML = '';
             if (noResultsDiv) {
@@ -64,20 +65,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (noResultsDiv) noResultsDiv.classList.add('d-none');
-        
+
         tableBody.innerHTML = transactions.map(tx => {
             const estadoId = parseInt(tx.EstadoID);
             const motivoSafe = (tx.MotivoPausa || '').replace(/"/g, '&quot;');
             let btns = '';
 
-            if (estadoId === 6) { 
+            if (estadoId === 6) {
                 btns += `
                     <button class="btn btn-sm btn-info text-white view-reason-btn me-1" data-reason="${motivoSafe}" title="Ver Motivo"><i class="bi bi-info-circle"></i> Ver Motivo</button>
                     <button class="btn btn-sm btn-primary resume-order-btn" data-bs-toggle="modal" data-bs-target="#resumeOrderModal" data-tx-id="${tx.TransaccionID}" title="Notificar Corrección"><i class="bi bi-check-circle"></i> Corregido</button>
                 `;
             }
 
-            if (estadoId === 1) { 
+            if (estadoId === 1) {
                 btns += `<button class="btn btn-sm btn-outline-danger cancel-btn" data-tx-id="${tx.TransaccionID}" title="Cancelar Orden"><i class="bi bi-x-circle"></i> Cancelar</button>`;
             }
 
@@ -88,13 +89,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (tx.ComprobanteURL) {
-                btns += ` <button class="btn btn-sm btn-outline-secondary view-comprobante-btn" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal" data-tx-id="${tx.TransaccionID}" data-comprobante-url="../${tx.ComprobanteURL}" data-start-type="user" title="Ver Pago"><i class="bi bi-eye"></i> Ver Pago</button>`;
+                const ext = getFileExt(tx.ComprobanteURL);
+                const originalName = tx.ComprobanteURL.split('/').pop();
+                btns += ` <button class="btn btn-sm btn-outline-secondary view-comprobante-btn" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#viewComprobanteModal" 
+                            data-tx-id="${tx.TransaccionID}" 
+                            data-comprobante-url="ver-comprobantes.php?id=${tx.TransaccionID}&type=user"
+                            data-file-ext="${ext}"
+                            data-file-name="${originalName}"
+                            data-start-type="user" 
+                            title="Ver Pago"><i class="bi bi-eye"></i> Ver Pago</button>`;
             }
 
             btns += ` <a href="../generar-factura.php?id=${tx.TransaccionID}" target="_blank" class="btn btn-sm btn-info" title="Descargar PDF"><i class="bi bi-file-earmark-pdf"></i> Ver Orden</a>`;
 
             if (tx.ComprobanteEnvioURL) {
-                btns += ` <button class="btn btn-sm btn-success view-comprobante-btn" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal" data-tx-id="${tx.TransaccionID}" data-envio-url="../${tx.ComprobanteEnvioURL}" data-start-type="admin" title="Ver Comprobante Envío"><i class="bi bi-receipt"></i> Ver Envío</button>`;
+                const ext = getFileExt(tx.ComprobanteEnvioURL);
+                const originalName = tx.ComprobanteEnvioURL.split('/').pop();
+                btns += ` <button class="btn btn-sm btn-success view-comprobante-btn" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#viewComprobanteModal" 
+                            data-tx-id="${tx.TransaccionID}" 
+                            data-envio-url="ver-comprobantes.php?id=${tx.TransaccionID}&type=admin"
+                            data-file-ext="${ext}"
+                            data-file-name="${originalName}"
+                            data-start-type="admin" 
+                            title="Ver Comprobante Envío"><i class="bi bi-receipt"></i> Ver Envío</button>`;
             }
 
             return `
@@ -118,12 +139,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const status = statusFilter ? statusFilter.value : 'all';
 
         const filtered = allTransactions.filter(tx => {
-            const matchText = 
+            const matchText =
                 tx.TransaccionID.toString().includes(term) ||
                 (tx.BeneficiarioNombre && tx.BeneficiarioNombre.toLowerCase().includes(term)) ||
                 (tx.BeneficiarioAlias && tx.BeneficiarioAlias.toLowerCase().includes(term)) ||
                 tx.MontoOrigen.toString().includes(term);
-            
+
             const matchStatus = status === 'all' || tx.EstadoID == status;
             return matchText && matchStatus;
         });
@@ -133,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchInput) searchInput.addEventListener('input', filterData);
     if (statusFilter) statusFilter.addEventListener('change', filterData);
 
+    // Eventos Globales de Tabla
     if (tableBody) {
         tableBody.addEventListener('click', (e) => {
             const btn = e.target.closest('button');
@@ -151,10 +173,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const txIdField = document.getElementById('transactionIdField');
                 const txLabel = document.getElementById('modal-tx-id');
                 const modalEl = document.getElementById('uploadReceiptModal');
-                
+
                 if (txIdField) txIdField.value = btn.dataset.id;
                 if (txLabel) txLabel.textContent = btn.dataset.id;
-                
+
                 if (modalEl) {
                     const modal = new bootstrap.Modal(modalEl);
                     modal.show();
@@ -167,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- LÓGICA DE SUBIDA (CÁMARA / ARCHIVO) ---
     const uploadModalElement = document.getElementById('uploadReceiptModal');
     const uploadForm = document.getElementById('upload-receipt-form');
     const transactionIdField = document.getElementById('transactionIdField');
@@ -278,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- REANUDAR ORDEN ---
     const resumeForm = document.getElementById('resume-order-form');
     const resumeTxIdField = document.getElementById('resume-tx-id');
     const resumeModalEl = document.getElementById('resumeOrderModal');
@@ -301,14 +325,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await res.json();
                 if (data.success) {
                     const modal = bootstrap.Modal.getInstance(resumeModalEl);
-                    if(modal) modal.hide();
+                    if (modal) modal.hide();
                     window.showInfoModal('Enviado', 'Notificación enviada.', true, loadHistorial);
                 } else { throw new Error(data.error); }
-            } catch (err) { alert(err.message || "Error conexión."); } 
+            } catch (err) { alert(err.message || "Error conexión."); }
             finally { submitBtn.disabled = false; submitBtn.textContent = originalText; }
         });
     }
 
+    // --- CANCELAR ORDEN ---
     document.addEventListener('click', async (e) => {
         const btn = e.target.closest('.cancel-btn');
         if (!btn) return;
@@ -326,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- VISOR DE COMPROBANTES (MODAL) ---
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
         const modalContent = document.getElementById('comprobante-content');
@@ -346,17 +372,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!comprobantes[currentIndex]) return;
             const current = comprobantes[currentIndex];
             const typeText = current.type === 'user' ? 'Pago' : 'Envío';
-            
+
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');
-            if(modalLabel) modalLabel.textContent = `${typeText} #${currentTxId}`;
-            if(filenameSpan) filenameSpan.textContent = current.url.split('/').pop();
-            if(downloadButton) {
-                downloadButton.href = current.url;
-                downloadButton.download = current.url.split('/').pop();
-            }
 
-            const ext = current.url.split('.').pop().toLowerCase();
+            if (modalLabel) modalLabel.textContent = `${typeText} #${currentTxId}`;
+            if (filenameSpan) filenameSpan.textContent = current.name || 'documento';
+
+            if (downloadButton) {
+                downloadButton.href = current.url;
+                downloadButton.download = current.name || `comprobante_${currentTxId}`;
+            }
+            const ext = current.ext || current.url.split('.').pop().toLowerCase();
+
             let mediaEl;
             if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
                 mediaEl = document.createElement('img');
@@ -367,44 +395,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 mediaEl.style.width = '100%'; mediaEl.style.height = '75vh'; mediaEl.style.border = '0';
             } else {
                 mediaEl = document.createElement('div');
-                mediaEl.textContent = 'Vista no disponible.';
+                mediaEl.textContent = 'Vista previa no disponible. Descarga el archivo para verlo.';
                 mediaEl.className = 'text-white text-center p-5';
             }
 
             mediaEl.src = current.url;
             mediaEl.onload = () => { modalPlaceholder.classList.add('d-none'); };
             modalContent.appendChild(mediaEl);
-
             if (comprobantes.length > 1) {
-                if(navigationDiv) navigationDiv.classList.remove('d-none');
-                if(indicatorSpan) indicatorSpan.textContent = `${currentIndex + 1} / ${comprobantes.length}`;
-                if(prevButton) prevButton.disabled = currentIndex === 0;
-                if(nextButton) nextButton.disabled = currentIndex === comprobantes.length - 1;
+                if (navigationDiv) navigationDiv.classList.remove('d-none');
+                if (indicatorSpan) indicatorSpan.textContent = `${currentIndex + 1} / ${comprobantes.length}`;
+                if (prevButton) prevButton.disabled = currentIndex === 0;
+                if (nextButton) nextButton.disabled = currentIndex === comprobantes.length - 1;
             } else {
-                if(navigationDiv) navigationDiv.classList.add('d-none');
+                if (navigationDiv) navigationDiv.classList.add('d-none');
             }
         };
 
         viewModalElement.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
             if (!btn) return;
+
             currentTxId = btn.dataset.txId || '';
             comprobantes = [];
-            if (btn.dataset.comprobanteUrl) comprobantes.push({ type: 'user', url: btn.dataset.comprobanteUrl });
-            if (btn.dataset.envioUrl) comprobantes.push({ type: 'admin', url: btn.dataset.envioUrl });
+            if (btn.dataset.comprobanteUrl) {
+                comprobantes.push({
+                    type: 'user',
+                    url: btn.dataset.comprobanteUrl,
+                    ext: btn.dataset.fileExt,
+                    name: btn.dataset.fileName
+                });
+            }
+            if (btn.dataset.envioUrl) {
+                comprobantes.push({
+                    type: 'admin',
+                    url: btn.dataset.envioUrl,
+                    ext: btn.dataset.fileExt,
+                    name: btn.dataset.fileName
+                });
+            }
 
             if (comprobantes.length === 0) {
-                modalPlaceholder.textContent = 'Sin documentos.';
+                modalPlaceholder.textContent = 'Documento no disponible.';
                 return;
             }
-            currentIndex = (btn.dataset.startType === 'admin' && btn.dataset.envioUrl) ? comprobantes.findIndex(c=>c.type==='admin') : 0;
-            if(currentIndex === -1) currentIndex = 0;
+
+            currentIndex = 0;
             renderVisor();
         });
 
-        if(prevButton) prevButton.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; renderVisor(); } });
-        if(nextButton) nextButton.addEventListener('click', () => { if (currentIndex < comprobantes.length - 1) { currentIndex++; renderVisor(); } });
-        viewModalElement.addEventListener('hidden.bs.modal', () => { modalContent.innerHTML = ''; });
+        if (prevButton) prevButton.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; renderVisor(); } });
+        if (nextButton) nextButton.addEventListener('click', () => { if (currentIndex < comprobantes.length - 1) { currentIndex++; renderVisor(); } });
+
+        viewModalElement.addEventListener('hidden.bs.modal', () => {
+            modalContent.innerHTML = '';
+            modalPlaceholder.classList.remove('d-none');
+        });
     }
 
     loadHistorial();

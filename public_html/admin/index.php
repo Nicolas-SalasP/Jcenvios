@@ -161,8 +161,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     <?php if (!empty($tx['ComprobanteURL'])): ?>
                         <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
                             data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                            data-comprobante-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteURL']); ?>"
-                            data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? BASE_URL . htmlspecialchars($tx['ComprobanteEnvioURL']) : ''; ?>"
+                            data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
+                            data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>"
                             data-start-type="user" title="Ver">
                             <i class="bi bi-eye"></i>
                         </button>
@@ -174,8 +174,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
                         <button class="btn btn-sm btn-success view-comprobante-btn-admin" data-bs-toggle="modal"
                             data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                            data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? BASE_URL . htmlspecialchars($tx['ComprobanteURL']) : ''; ?>"
-                            data-envio-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteEnvioURL']); ?>"
+                            data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']) : ''; ?>"
+                            data-envio-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
                             data-start-type="admin" title="Ver">
                             <i class="bi bi-receipt"></i>
                         </button>
@@ -311,8 +311,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                 <?php if (!empty($tx['ComprobanteURL'])): ?>
                                     <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
                                         data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        data-comprobante-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteURL']); ?>"
-                                        data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? BASE_URL . htmlspecialchars($tx['ComprobanteEnvioURL']) : ''; ?>"
+                                        data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
+                                        data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>"
                                         data-start-type="user" title="Ver">
                                         <i class="bi bi-eye"></i>
                                     </button>
@@ -324,8 +324,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                 <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
                                     <button class="btn btn-sm btn-success view-comprobante-btn-admin" data-bs-toggle="modal"
                                         data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? BASE_URL . htmlspecialchars($tx['ComprobanteURL']) : ''; ?>"
-                                        data-envio-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteEnvioURL']); ?>"
+                                        data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']) : ''; ?>"
+                                        data-envio-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
                                         data-start-type="admin" title="Ver">
                                         <i class="bi bi-receipt"></i>
                                     </button>

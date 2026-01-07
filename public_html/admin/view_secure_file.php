@@ -40,6 +40,7 @@ if (strpos($fileRequest, 'public_html/') === 0) {
 }
 
 // --- 4. VALIDACIÓN DE PERMISOS ---
+// --- 4. VALIDACIÓN DE PERMISOS ---
 $hasPermission = false;
 
 if ($isAdminOrOperator) {
@@ -51,6 +52,24 @@ else {
         $prefix = 'user_profile_' . $userId . '_';
         if (strpos($filename, $prefix) === 0) {
             $hasPermission = true;
+        }
+    }
+    if (!$hasPermission && (strpos($fileRequest, 'receipts') !== false || strpos($fileRequest, 'proof_of_sending') !== false)) {
+        $dbPath = $fileRequest; 
+        
+        $sqlPerm = "SELECT TransaccionID FROM transacciones 
+                    WHERE UserID = ? 
+                    AND (ComprobanteURL = ? OR ComprobanteEnvioURL = ?)";
+        
+        $stmtPerm = $conexion->prepare($sqlPerm);
+        if ($stmtPerm) {
+            $stmtPerm->bind_param("iss", $userId, $dbPath, $dbPath);
+            $stmtPerm->execute();
+            $resPerm = $stmtPerm->get_result();
+            if ($resPerm->num_rows > 0) {
+                $hasPermission = true;
+            }
+            $stmtPerm->close();
         }
     }
 }
