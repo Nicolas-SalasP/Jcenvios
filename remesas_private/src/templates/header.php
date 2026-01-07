@@ -192,6 +192,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         </li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/usuarios.php"><i
                                                     class="bi bi-people text-primary me-2"></i> Usuarios</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/verificaciones.php"><i 
+                                                    class="bi bi-person-badge text-dark me-2"></i> Verificaciones</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/cuentas.php"><i
                                                     class="bi bi-bank text-success me-2"></i> Ctas. Bancarias</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/paises.php"><i
@@ -224,8 +226,6 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         href="<?php echo BASE_URL; ?>/dashboard/index.php">Enviar Dinero</a></li>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/historial.php">Historial</a></li>
-                                <li class="nav-item"><a class="nav-link"
-                                        href="<?php echo BASE_URL; ?>/dashboard/beneficiarios.php">Beneficiarios</a></li>
                             <?php endif; ?>
 
                         <?php else: ?>
