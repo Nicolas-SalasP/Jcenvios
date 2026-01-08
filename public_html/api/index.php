@@ -245,6 +245,7 @@ try {
         'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
         'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
         'getHistorialTransacciones' => [ClientController::class, 'getTransactionsHistory', 'GET'],
+        'checkSessionStatus' => [ClientController::class, 'checkSessionStatus', 'GET'],
 
         // Admin - Gestión General
         'getDashboardStats' => [AdminController::class, 'getDashboardStats', 'GET'],

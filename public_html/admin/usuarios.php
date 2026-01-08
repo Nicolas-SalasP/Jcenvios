@@ -132,7 +132,9 @@ if (!$isAjax) {
                     </thead>
                     <tbody>
                         <?php if (empty($usuarios)): ?>
-                            <tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td>
+                            </tr>
                         <?php endif; ?>
                         
                         <?php foreach ($usuarios as $user): ?>
@@ -192,10 +194,14 @@ if (!$isAjax) {
                                         </button>
 
                                         <button class="btn btn-sm btn-primary admin-edit-user-btn" 
-                                                data-user-id="<?php echo $user['UserID']; ?>"
-                                                data-nombre1="<?php echo htmlspecialchars($user['PrimerNombre']); ?>"
-                                                data-apellido1="<?php echo htmlspecialchars($user['PrimerApellido']); ?>"
-                                                data-documento="<?php echo htmlspecialchars($user['NumeroDocumento']); ?>">
+                                            data-user-id="<?php echo $user['UserID']; ?>"
+                                            data-nombre1="<?php echo htmlspecialchars($user['PrimerNombre']); ?>"
+                                            data-nombre2="<?php echo htmlspecialchars($user['SegundoNombre'] ?? ''); ?>" 
+                                            data-apellido1="<?php echo htmlspecialchars($user['PrimerApellido']); ?>"
+                                            data-apellido2="<?php echo htmlspecialchars($user['SegundoApellido'] ?? ''); ?>"
+                                            data-documento="<?php echo htmlspecialchars($user['NumeroDocumento']); ?>"
+                                            data-telefono="<?php echo htmlspecialchars($user['Telefono'] ?? ''); ?>" 
+                                            data-email="<?php echo htmlspecialchars($user['Email']); ?>">
                                             <i class="bi bi-pencil-square"></i>
                                         </button>
 
@@ -246,20 +252,38 @@ if (!$isAjax) {
                 <div class="row g-4">
                     <div class="col-lg-4 text-center border-end">
                         <h6 class="text-muted mb-3">Foto de Perfil</h6>
-                        <img id="docsProfilePic" src="" class="rounded-circle shadow-sm border" style="width: 180px; height: 180px; object-fit: cover;">
+                        <div class="position-relative d-inline-block">
+                            <img id="docsProfilePic" src="" class="rounded-circle shadow-sm border" style="width: 180px; height: 180px; object-fit: cover;">
+                            <div class="mt-2">
+                                <a id="btnProfileView" href="#" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver en grande"><i class="bi bi-search"></i></a>
+                                <a id="btnProfileDown" href="#" download class="btn btn-sm btn-outline-dark" title="Descargar"><i class="bi bi-download"></i></a>
+                            </div>
+                        </div>
                     </div>
+                    
                     <div class="col-lg-8">
                         <div class="row g-3">
                             <div class="col-md-6 text-center">
                                 <p class="small fw-bold mb-1">Frente</p>
-                                <div class="bg-dark p-1 rounded" style="min-height: 250px;">
-                                    <img id="docsImgFrente" src="" class="img-fluid rounded" style="max-height: 250px;">
+                                <div class="bg-dark p-2 rounded d-flex align-items-center justify-content-center position-relative" style="min-height: 250px; background-color: #f8f9fa !important; border: 1px dashed #ccc;">
+                                    <img id="docsImgFrente" src="" class="img-fluid rounded" style="max-height: 230px;">
+                                    <div id="noDocFrente" class="text-muted d-none">No disponible</div>
+                                </div>
+                                <div class="mt-2 btn-group">
+                                    <a id="btnFrenteView" href="#" target="_blank" class="btn btn-sm btn-outline-primary" title="Abrir en nueva pestaña"><i class="bi bi-search"></i> Zoom</a>
+                                    <a id="btnFrenteDown" href="#" download class="btn btn-sm btn-outline-dark" title="Descargar"><i class="bi bi-download"></i></a>
                                 </div>
                             </div>
+
                             <div class="col-md-6 text-center">
                                 <p class="small fw-bold mb-1">Reverso</p>
-                                <div class="bg-dark p-1 rounded" style="min-height: 250px;">
-                                    <img id="docsImgReverso" src="" class="img-fluid rounded" style="max-height: 250px;">
+                                <div class="bg-dark p-2 rounded d-flex align-items-center justify-content-center position-relative" style="min-height: 250px; background-color: #f8f9fa !important; border: 1px dashed #ccc;">
+                                    <img id="docsImgReverso" src="" class="img-fluid rounded" style="max-height: 230px;">
+                                    <div id="noDocReverso" class="text-muted d-none">No disponible</div>
+                                </div>
+                                <div class="mt-2 btn-group">
+                                    <a id="btnReversoView" href="#" target="_blank" class="btn btn-sm btn-outline-primary" title="Abrir en nueva pestaña"><i class="bi bi-search"></i> Zoom</a>
+                                    <a id="btnReversoDown" href="#" download class="btn btn-sm btn-outline-dark" title="Descargar"><i class="bi bi-download"></i></a>
                                 </div>
                             </div>
                         </div>
@@ -270,24 +294,52 @@ if (!$isAjax) {
     </div>
 </div>
 
-<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+<<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">Editar Usuario</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <form id="edit-user-form">
+            <form id="edit-user-form">
+                <div class="modal-body">
                     <input type="hidden" id="edit-user-id" name="userId">
-                    <div class="row mb-3">
-                        <div class="col-6"><label class="form-label small fw-bold">Nombre</label><input type="text" class="form-control" id="edit-nombre1" name="primerNombre" required></div>
-                        <div class="col-6"><label class="form-label small fw-bold">Apellido</label><input type="text" class="form-control" id="edit-apellido1" name="primerApellido" required></div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Primer Nombre</label>
+                            <input type="text" class="form-control" id="edit-nombre1" name="primerNombre" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Segundo Nombre</label>
+                            <input type="text" class="form-control" id="edit-nombre2" name="segundoNombre">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Primer Apellido</label>
+                            <input type="text" class="form-control" id="edit-apellido1" name="primerApellido" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Segundo Apellido</label>
+                            <input type="text" class="form-control" id="edit-apellido2" name="segundoApellido">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Nro. Documento</label>
+                            <input type="text" class="form-control" id="edit-documento" name="numeroDocumento" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Teléfono</label>
+                            <input type="text" class="form-control" id="edit-telefono" name="telefono">
+                        </div>
                     </div>
-                    <div class="mb-3"><label class="form-label small fw-bold">Documento</label><input type="text" class="form-control" id="edit-documento" name="numeroDocumento" required></div>
-                    <div class="d-grid"><button type="submit" class="btn btn-primary">Guardar Cambios</button></div>
-                </form>
-            </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

@@ -400,14 +400,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const editUserBtn = target.closest('.admin-edit-user-btn');
         if (editUserBtn) {
             const d = editUserBtn.dataset;
-            document.getElementById('edit-user-id').value = d.userId;
-            document.getElementById('edit-nombre1').value = d.nombre1;
-            document.getElementById('edit-nombre2').value = d.nombre2 || '';
-            document.getElementById('edit-apellido1').value = d.apellido1;
-            document.getElementById('edit-apellido2').value = d.apellido2 || '';
-            document.getElementById('edit-telefono').value = d.telefono;
-            document.getElementById('edit-documento').value = d.documento;
-            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+            const safeSetValue = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.value = value;
+                } else {
+                    console.warn(`Advertencia: No se encontró el input con ID '${id}' en el modal.`);
+                }
+            };
+
+            safeSetValue('edit-user-id', d.userId);
+            safeSetValue('edit-nombre1', d.nombre1);
+            safeSetValue('edit-nombre2', d.nombre2 || '');
+            safeSetValue('edit-apellido1', d.apellido1);
+            safeSetValue('edit-apellido2', d.apellido2 || '');
+            safeSetValue('edit-telefono', d.telefono);
+            safeSetValue('edit-documento', d.documento);
+
+            const modalEl = document.getElementById('editUserModal');
+            if (modalEl) {
+                new bootstrap.Modal(modalEl).show();
+            }
         }
 
         // Ver Docs Usuario
@@ -419,9 +432,45 @@ document.addEventListener('DOMContentLoaded', () => {
             const urlP = d.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.fotoPerfil)}` : def;
             const urlF = d.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgFrente)}` : '';
             const urlR = d.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgReverso)}` : '';
-            document.getElementById('docsProfilePic').src = urlP;
-            document.getElementById('docsImgFrente').src = urlF;
-            document.getElementById('docsImgReverso').src = urlR;
+            const imgP = document.getElementById('docsProfilePic');
+            imgP.src = urlP;
+            document.getElementById('btnProfileView').href = urlP;
+            document.getElementById('btnProfileDown').href = urlP;
+            const imgF = document.getElementById('docsImgFrente');
+            const btnFView = document.getElementById('btnFrenteView');
+            const btnFDown = document.getElementById('btnFrenteDown');
+            
+            if (urlF) {
+                imgF.src = urlF;
+                imgF.classList.remove('d-none');
+                btnFView.href = urlF;
+                btnFDown.href = urlF;
+                btnFView.classList.remove('disabled');
+                btnFDown.classList.remove('disabled');
+            } else {
+                imgF.src = '';
+                imgF.classList.add('d-none');
+                btnFView.classList.add('disabled');
+                btnFDown.classList.add('disabled');
+            }
+            const imgR = document.getElementById('docsImgReverso');
+            const btnRView = document.getElementById('btnReversoView');
+            const btnRDown = document.getElementById('btnReversoDown');
+
+            if (urlR) {
+                imgR.src = urlR;
+                imgR.classList.remove('d-none');
+                btnRView.href = urlR;
+                btnRDown.href = urlR;
+                btnRView.classList.remove('disabled');
+                btnRDown.classList.remove('disabled');
+            } else {
+                imgR.src = '';
+                imgR.classList.add('d-none');
+                btnRView.classList.add('disabled');
+                btnRDown.classList.add('disabled');
+            }
+
             new bootstrap.Modal(document.getElementById('userDocsModal')).show();
         }
     });

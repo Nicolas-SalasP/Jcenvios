@@ -36,7 +36,7 @@ class ClientController extends BaseController
         TipoDocumentoRepository $tipoDocumentoRepo,
         RolRepository $rolRepo,
         NotificationService $notificationService,
-        SystemSettingsService $settingsService 
+        SystemSettingsService $settingsService
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -203,7 +203,7 @@ class ClientController extends BaseController
         $sysStatus = $this->settingsService->checkSystemAvailability();
         if (!$sysStatus['available']) {
             $this->sendJsonResponse([
-                'success' => false, 
+                'success' => false,
                 'error' => "El sistema está cerrado por feriado: " . $sysStatus['message']
             ], 403);
             return;
@@ -398,6 +398,73 @@ class ClientController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Solicitud enviada correctamente. El operador revisará los cambios.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function checkSessionStatus()
+    {
+        if (ob_get_length()) ob_clean(); 
+        
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        if (!isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'logged_in' => false]);
+            return;
+        }
+
+        $userId = $_SESSION['user_id'];
+        
+        try {
+            $db = \App\Database\Database::getInstance()->getConnection();
+            $sql = "SELECT u.VerificacionEstadoID, ev.NombreEstado as EstadoVerificacion, 
+                           u.RolID, r.NombreRol 
+                    FROM usuarios u
+                    JOIN estados_verificacion ev ON u.VerificacionEstadoID = ev.EstadoID
+                    JOIN roles r ON u.RolID = r.RolID
+                    WHERE u.UserID = ?";
+            
+            $stmt = $db->prepare($sql);
+            if (!$stmt) {
+                throw new Exception("Error en preparación SQL: " . $db->error);
+            }
+
+            $stmt->bind_param("i", $userId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $user = $result->fetch_assoc();
+            $stmt->close();
+
+            if (!$user) {
+                echo json_encode(['success' => false, 'logged_in' => false]);
+                return;
+            }
+            $currentVerif = $_SESSION['verification_status'] ?? '';
+            $currentRol = $_SESSION['user_rol_name'] ?? '';
+
+            $needsRefresh = false;
+            if ($user['EstadoVerificacion'] !== $currentVerif) {
+                $_SESSION['verification_status'] = $user['EstadoVerificacion'];
+                $_SESSION['verification_status_id'] = $user['VerificacionEstadoID'];
+                $needsRefresh = true;
+            }
+            if ($user['NombreRol'] !== $currentRol) {
+                $_SESSION['user_rol_name'] = $user['NombreRol'];
+                $_SESSION['user_rol_id'] = $user['RolID'];
+                $needsRefresh = true;
+            }
+            session_write_close();
+
+            echo json_encode([
+                'success' => true,
+                'logged_in' => true,
+                'needs_refresh' => $needsRefresh
+            ]);
+
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
     }
 }

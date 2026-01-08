@@ -29,13 +29,21 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
                 <form id="profile-form" class="d-none" enctype="multipart/form-data">
                     <div class="text-center mb-4">
-                        <img id="profile-img-preview" src="<?php echo BASE_URL; ?>/assets/img/SoloLogoNegroSinFondo.png"
-                            alt="Foto de perfil" class="rounded-circle"
-                            style="width: 150px; height: 150px; object-fit: cover; border: 4px solid #eee;">
-                        <div class="mt-2">
-                            <label for="profile-foto-input" class="btn btn-sm btn-outline-primary">Cambiar Foto</label>
-                            <input type="file" class="d-none" id="profile-foto-input" name="fotoPerfil"
-                                accept="image/png, image/jpeg, image/webp">
+                        <div class="position-relative d-inline-block">
+                            <img id="profile-img-preview" src="<?php echo BASE_URL; ?>/assets/img/SoloLogoNegroSinFondo.png"
+                                alt="Foto de perfil" class="rounded-circle"
+                                style="width: 150px; height: 150px; object-fit: cover; border: 4px solid #eee;">
+                            
+                            <div id="photo-required-badge" class="d-none position-absolute top-0 end-0 bg-danger text-white rounded-circle p-1" style="width: 20px; height: 20px; border: 2px solid white;"></div>
+                        </div>
+
+                        <div class="mt-3">
+                            <button type="button" id="btn-open-camera" class="btn btn-sm btn-primary">
+                                <i class="bi bi-camera-fill me-1"></i> Tomar Foto
+                            </button>
+                            <p class="small text-muted mt-1 mb-0" style="font-size: 0.8rem;">
+                                <i class="bi bi-info-circle"></i> Obligatorio: Selfie en vivo.
+                            </p>
                         </div>
                     </div>
 
@@ -53,14 +61,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
 
                     <div class="mb-3">
-                        <label for="profile-telefono" class="form-label">Teléfono</label>
+                        <label for="profile-telefono" class="form-label">Teléfono </label>
                         <div class="input-group">
                             <select class="input-group-text" id="profile-phone-code" name="profilePhoneCode"
                                 style="max-width: 130px;" disabled></select>
-                            <input type="tel" id="profile-telefono" name="telefono" class="form-control" readonly
-                                style="background-color: #e9ecef;">
-                        </div>
-                        <div class="form-text text-muted">Para cambiar su número, contacte a soporte.</div>
+                            <input type="tel" id="profile-telefono" name="telefono" class="form-control"
+                                style="background-color: #fff;"> </div>
+                        <div class="form-text text-muted">Mantenga su número actualizado.</div>
                     </div>
 
                     <div class="mb-3">
@@ -220,6 +227,38 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 <button type="submit" class="btn btn-primary" form="add-beneficiary-form">Guardar Beneficiario</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="cameraModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fs-6">Tomar Selfie (Perfil)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="btn-close-camera"></button>
+            </div>
+            <div class="modal-body text-center p-3 position-relative">
+                <div class="rounded overflow-hidden position-relative mx-auto" style="max-width: 400px;">
+                    <video id="video-feed" autoplay playsinline style="width: 100%; height: auto; transform: scaleX(-1); border-radius: 10px;"></video>
+                    
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                                width: 180px; height: 240px; 
+                                border: 2px dashed rgba(255,255,255,0.8); 
+                                border-radius: 50%; pointer-events: none;
+                                box-shadow: 0 0 0 999px rgba(0,0,0,0.5);"></div>
+                    <div class="position-absolute bottom-0 w-100 text-center pb-2 text-white small" style="z-index: 5;">
+                        Ubique su rostro en el óvalo
+                    </div>
+                </div>
+                
+                <canvas id="capture-canvas" class="d-none"></canvas>
+            </div>
+            <div class="modal-footer border-0 justify-content-center pt-0">
+                <button type="button" id="btn-capture-photo" class="btn btn-light rounded-circle p-3 shadow-lg">
+                    <i class="bi bi-circle-fill text-danger fs-1"></i>
+                </button>
             </div>
         </div>
     </div>

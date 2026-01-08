@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. UTILIDADES
     if (!window.showConfirmModal) {
         window.showConfirmModal = async (title, message) => confirm(`${title}\n\n${message}`);
     }
@@ -20,9 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const getStatusBadge = (statusId, statusName) => {
         const id = parseInt(statusId);
-
         if (id === 6) return `<span class="badge bg-warning text-dark"><i class="bi bi-pause-circle-fill"></i> Pausado</span>`;
-
         let badgeClass = 'bg-secondary';
         switch (statusName) {
             case 'Exitoso': badgeClass = 'bg-success'; break;
@@ -38,12 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('../api/?accion=getHistorialTransacciones');
             const data = await response.json();
-
             if (!data.success) throw new Error(data.error || 'Error desconocido');
-
             allTransactions = data.transacciones || [];
             renderTable(allTransactions);
-
         } catch (error) {
             console.error(error);
             if (tableBody) tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">No se pudo cargar el historial.</td></tr>`;
@@ -54,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderTable = (transactions) => {
         if (!tableBody) return;
-
         if (transactions.length === 0) {
             tableBody.innerHTML = '';
             if (noResultsDiv) {
@@ -63,7 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return;
         }
-
         if (noResultsDiv) noResultsDiv.classList.add('d-none');
 
         tableBody.innerHTML = transactions.map(tx => {
@@ -77,17 +71,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="btn btn-sm btn-primary resume-order-btn" data-bs-toggle="modal" data-bs-target="#resumeOrderModal" data-tx-id="${tx.TransaccionID}" title="Notificar Corrección"><i class="bi bi-check-circle"></i> Corregido</button>
                 `;
             }
-
             if (estadoId === 1) {
                 btns += `<button class="btn btn-sm btn-outline-danger cancel-btn" data-tx-id="${tx.TransaccionID}" title="Cancelar Orden"><i class="bi bi-x-circle"></i> Cancelar</button>`;
             }
-
             if (!tx.ComprobanteURL && estadoId === 1) {
                 btns += ` <button class="btn btn-sm btn-warning upload-btn" data-id="${tx.TransaccionID}" title="Subir Comprobante"><i class="bi bi-upload"></i> Subir Pago</button>`;
             } else if (tx.ComprobanteURL && ![4, 5, 6].includes(estadoId)) {
                 btns += ` <button class="btn btn-sm btn-secondary upload-btn" data-id="${tx.TransaccionID}" title="Modificar Pago"><i class="bi bi-pencil-square"></i> Modificar</button>`;
             }
 
+            // --- CORRECCIÓN RUTA: Apuntamos a ver-comprobantes.php ---
             if (tx.ComprobanteURL) {
                 const ext = getFileExt(tx.ComprobanteURL);
                 btns += ` <button class="btn btn-sm btn-outline-secondary view-comprobante-btn" 
@@ -121,9 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${tx.BeneficiarioNombre || tx.BeneficiarioAlias || 'N/A'}</td>
                     <td>${formatCurrency(tx.MontoOrigen, tx.MonedaOrigen)}</td>
                     <td>${formatCurrency(tx.MontoDestino, tx.MonedaDestino)}</td>
-                    <td>
-                        ${getStatusBadge(estadoId, tx.EstadoNombre)}
-                    </td>
+                    <td>${getStatusBadge(estadoId, tx.EstadoNombre)}</td>
                     <td class="d-flex flex-wrap gap-1">${btns}</td>
                 </tr>
             `;
@@ -133,14 +124,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterData = () => {
         const term = searchInput ? searchInput.value.toLowerCase() : '';
         const status = statusFilter ? statusFilter.value : 'all';
-
         const filtered = allTransactions.filter(tx => {
             const matchText =
                 tx.TransaccionID.toString().includes(term) ||
                 (tx.BeneficiarioNombre && tx.BeneficiarioNombre.toLowerCase().includes(term)) ||
                 (tx.BeneficiarioAlias && tx.BeneficiarioAlias.toLowerCase().includes(term)) ||
                 tx.MontoOrigen.toString().includes(term);
-
             const matchStatus = status === 'all' || tx.EstadoID == status;
             return matchText && matchStatus;
         });
@@ -155,42 +144,32 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody.addEventListener('click', (e) => {
             const btn = e.target.closest('button');
             if (!btn) return;
-
             if (btn.classList.contains('view-reason-btn')) {
                 const reasonText = document.getElementById('reason-content-text');
                 const reasonModalEl = document.getElementById('viewReasonModal');
                 if (reasonText && reasonModalEl) {
                     reasonText.textContent = btn.dataset.reason;
-                    const modal = new bootstrap.Modal(reasonModalEl);
-                    modal.show();
+                    new bootstrap.Modal(reasonModalEl).show();
                 }
-            }
-            else if (btn.classList.contains('upload-btn')) {
+            } else if (btn.classList.contains('upload-btn')) {
                 const txIdField = document.getElementById('transactionIdField');
                 const txLabel = document.getElementById('modal-tx-id');
                 const modalEl = document.getElementById('uploadReceiptModal');
-
                 if (txIdField) txIdField.value = btn.dataset.id;
                 if (txLabel) txLabel.textContent = btn.dataset.id;
-
-                if (modalEl) {
-                    const modal = new bootstrap.Modal(modalEl);
-                    modal.show();
-                }
-            }
-            else if (btn.classList.contains('resume-order-btn')) {
+                if (modalEl) new bootstrap.Modal(modalEl).show();
+            } else if (btn.classList.contains('resume-order-btn')) {
                 const resumeField = document.getElementById('resume-tx-id');
                 if (resumeField) resumeField.value = btn.dataset.txId;
             }
         });
     }
 
-    // --- LÓGICA DE SUBIDA (CÁMARA / ARCHIVO) ---
+    // --- LÓGICA DE SUBIDA OPTIMIZADA (IOS FIX + COMPRESIÓN) ---
     const uploadModalElement = document.getElementById('uploadReceiptModal');
     const uploadForm = document.getElementById('upload-receipt-form');
     const transactionIdField = document.getElementById('transactionIdField');
     const modalTxIdLabel = document.getElementById('modal-tx-id');
-
     const cameraSection = document.getElementById('camera-section');
     const videoEl = document.getElementById('camera-video');
     const canvasEl = document.getElementById('camera-canvas');
@@ -202,6 +181,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let stream = null;
     let uploadModalInstance = null;
+
+    // >>> FUNCIÓN DE COMPRESIÓN AGREGADA <<<
+    const compressImage = (file) => {
+        return new Promise((resolve, reject) => {
+            if (!file.type.match(/image.*/)) {
+                resolve(file); // No comprimir si no es imagen (ej: pdf)
+                return;
+            }
+            const maxWidth = 1280; // Resolución HD suficiente para comprobantes
+            const quality = 0.8;   // 80% de calidad
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => {
+                        if (!blob) { reject(new Error('Error al comprimir')); return; }
+                        const compressedFile = new File([blob], file.name, {
+                            type: 'image/jpeg', lastModified: Date.now()
+                        });
+                        resolve(compressedFile);
+                    }, 'image/jpeg', quality);
+                };
+                img.onerror = (err) => reject(err);
+            };
+            reader.onerror = (err) => reject(err);
+        });
+    };
 
     if (uploadModalElement && uploadForm) {
         uploadModalInstance = bootstrap.Modal.getInstance(uploadModalElement) || new bootstrap.Modal(uploadModalElement);
@@ -228,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cameraToggleContainer.classList.add('d-none');
             } catch (err) {
                 console.error("Error cámara:", err);
-                alert("No se pudo iniciar la cámara. Verifica permisos o usa 'Seleccionar archivo'.");
+                alert("No se pudo iniciar la cámara.");
             }
         };
 
@@ -268,24 +287,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         uploadModalElement.addEventListener('hidden.bs.modal', stopCamera);
 
+        // >>> SUBMIT ACTUALIZADO CON COMPRESIÓN <<<
         uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitBtn = uploadForm.querySelector('button[type="submit"]');
             const originalText = submitBtn.textContent;
-            if (fileInput.files.length === 0) { alert("Selecciona archivo o toma foto."); return; }
-            submitBtn.disabled = true; submitBtn.textContent = 'Subiendo...';
+            
+            if (fileInput.files.length === 0) { alert("Selecciona archivo."); return; }
+            
+            submitBtn.disabled = true; submitBtn.textContent = 'Procesando...'; // Feedback visual
+
             try {
+                // 1. Obtener archivo original
+                const originalFile = fileInput.files[0];
+                
+                // 2. Comprimir solo si es imagen (fix para subidas pesadas de iPhone)
+                let fileToUpload = originalFile;
+                if (originalFile.type.startsWith('image/')) {
+                    fileToUpload = await compressImage(originalFile);
+                }
+
+                const formData = new FormData(uploadForm);
+                // Reemplazamos el archivo en el FormData con el comprimido
+                formData.set('receiptFile', fileToUpload, fileToUpload.name);
+
                 const response = await fetch('../api/?accion=uploadReceipt', {
-                    method: 'POST', body: new FormData(uploadForm)
+                    method: 'POST', body: formData
                 });
                 const result = await response.json();
+                
                 if (response.ok && result.success) {
                     if (uploadModalInstance) uploadModalInstance.hide();
-                    window.showInfoModal('¡Éxito!', 'Comprobante subido correctamente.', true, () => {
+                    window.showInfoModal('¡Éxito!', 'Comprobante subido.', true, () => {
                         loadHistorial();
                     });
                 } else {
-                    throw new Error(result.error || 'Error al procesar la subida.');
+                    throw new Error(result.error || 'Error al subir.');
                 }
             } catch (error) {
                 console.error(error);
@@ -301,7 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const resumeForm = document.getElementById('resume-order-form');
     const resumeTxIdField = document.getElementById('resume-tx-id');
     const resumeModalEl = document.getElementById('resumeOrderModal');
-
     if (resumeForm) {
         resumeForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -309,10 +345,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const originalText = submitBtn.textContent;
             const txId = resumeTxIdField.value;
             const mensaje = document.getElementById('resume-message').value.trim();
-
             if (!mensaje) { alert("Escribe un mensaje."); return; }
             submitBtn.disabled = true; submitBtn.textContent = 'Enviando...';
-
             try {
                 const res = await fetch('../api/?accion=resumeOrder', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -320,8 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    const modal = bootstrap.Modal.getInstance(resumeModalEl);
-                    if (modal) modal.hide();
+                    bootstrap.Modal.getInstance(resumeModalEl).hide();
                     window.showInfoModal('Enviado', 'Notificación enviada.', true, loadHistorial);
                 } else { throw new Error(data.error); }
             } catch (err) { alert(err.message || "Error conexión."); }
@@ -348,6 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- VISOR DE COMPROBANTES (MODAL) ---
+    // MEJORADO: CSS FIX PARA IOS
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
         const modalContent = document.getElementById('comprobante-content');
@@ -380,6 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 downloadButton.href = finalUrl;
                 downloadButton.download = `comprobante_${currentTxId}`;
             }
+            // Detectar PDF por extensión o si la URL es del admin (que a veces genera PDF)
             const isPdf = current.url.includes('type=admin') || current.ext === 'pdf';
 
             let mediaEl;
@@ -390,8 +425,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 mediaEl.style.border = '0';
             } else {
                 mediaEl = document.createElement('img');
-                mediaEl.className = 'img-fluid d-block mx-auto';
+                // IOS FIX: object-fit contain y display block centrado
+                mediaEl.style.maxWidth = '100%';
                 mediaEl.style.maxHeight = '75vh';
+                mediaEl.style.objectFit = 'contain'; 
+                mediaEl.style.display = 'block';
+                mediaEl.style.margin = '0 auto';
             }
             mediaEl.onload = () => modalPlaceholder.classList.add('d-none');
             mediaEl.onerror = () => {
@@ -401,7 +440,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             mediaEl.src = finalUrl;
             modalContent.appendChild(mediaEl);
+            
+            // Fallback para ocultar spinner en iframes
             if (isPdf) setTimeout(() => modalPlaceholder.classList.add('d-none'), 2000);
+
             if (comprobantes.length > 1) {
                 if (navigationDiv) navigationDiv.classList.remove('d-none');
                 if (indicatorSpan) indicatorSpan.textContent = `${currentIndex + 1} / ${comprobantes.length}`;

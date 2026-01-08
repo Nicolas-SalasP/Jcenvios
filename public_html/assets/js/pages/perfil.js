@@ -1,10 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- REFERENCIAS DOM ---
+    // --- REFERENCIAS DOM PERFIL ---
     const profileForm = document.getElementById('profile-form');
     const profileLoading = document.getElementById('profile-loading');
     const profileImgPreview = document.getElementById('profile-img-preview');
-    const profileFotoInput = document.getElementById('profile-foto-input');
     const profileSaveBtn = document.getElementById('profile-save-btn');
     const nombreCompletoEl = document.getElementById('profile-nombre');
     const emailEl = document.getElementById('profile-email');
@@ -12,9 +11,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const telefonoEl = document.getElementById('profile-telefono');
     const profilePhoneCodeEl = document.getElementById('profile-phone-code');
     const estadoBadge = document.getElementById('profile-estado');
-    const defaultPhoto = `${baseUrlJs}/assets/img/SoloLogoNegroSinFondo.png`;
+    const defaultPhoto = `../assets/img/SoloLogoNegroSinFondo.png`;
 
-    // Referencias Modal Beneficiario
+    // --- REFERENCIAS CÁMARA ---
+    const btnOpenCamera = document.getElementById('btn-open-camera');
+    const cameraModalEl = document.getElementById('cameraModal');
+    const video = document.getElementById('video-feed');
+    const canvas = document.getElementById('capture-canvas');
+    const btnCapture = document.getElementById('btn-capture-photo');
+    const btnCloseCamera = document.getElementById('btn-close-camera');
+    const photoRequiredBadge = document.getElementById('photo-required-badge');
+
+    let stream = null;
+    let cameraModal = null;
+    let capturedBlob = null;
+
+    if (cameraModalEl) {
+        cameraModal = new bootstrap.Modal(cameraModalEl);
+    }
+
+    // --- REFERENCIAS BENEFICIARIOS (Tu código original) ---
     const beneficiariosLoading = document.getElementById('beneficiarios-loading');
     const beneficiaryListContainer = document.getElementById('beneficiary-list-container');
     const addAccountModalElement = document.getElementById('addAccountModal');
@@ -29,7 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const benefDocNumberInput = document.getElementById('benef-doc-number');
     const benefDocPrefix = document.getElementById('benef-doc-prefix');
 
-    // Contenedores Dinámicos
     const containerAccountNum = document.getElementById('container-account-number');
     const containerPhoneNum = document.getElementById('container-phone-number');
     const inputAccountNum = document.getElementById('benef-account-num');
@@ -37,6 +52,166 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectPhoneCode = document.getElementById('benef-phone-code');
 
     let allDocumentTypes = [];
+    let currentBeneficiaries = [];
+    let isSubmittingBeneficiary = false;
+
+    // =========================================================
+    // 1. LÓGICA DE CÁMARA Y FOTO DE PERFIL
+    // =========================================================
+
+    const startCamera = async () => {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } 
+            });
+            video.srcObject = stream;
+            cameraModal.show();
+        } catch (err) {
+            alert('No se pudo acceder a la cámara. Por favor, concede permisos.');
+            console.error(err);
+        }
+    };
+
+    const stopCamera = () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+    };
+
+    const takePhoto = () => {
+        if (!video || !canvas) return;
+        const size = Math.min(video.videoWidth, video.videoHeight);
+        const startX = (video.videoWidth - size) / 2;
+        const startY = (video.videoHeight - size) / 2;
+
+        const outputSize = 500;
+        canvas.width = outputSize;
+        canvas.height = outputSize;
+
+        const ctx = canvas.getContext('2d');
+        ctx.translate(outputSize, 0);
+        ctx.scale(-1, 1);
+        
+        ctx.drawImage(video, startX, startY, size, size, 0, 0, outputSize, outputSize);
+        canvas.toBlob((blob) => {
+            if (!blob) { alert("Error al procesar la imagen"); return; }
+            
+            capturedBlob = blob;
+            const url = URL.createObjectURL(blob);
+            profileImgPreview.src = url;
+            
+            if (photoRequiredBadge) photoRequiredBadge.classList.add('d-none');
+            
+            stopCamera();
+            cameraModal.hide();
+        }, 'image/jpeg', 0.70);
+    };
+
+    if (btnOpenCamera) btnOpenCamera.addEventListener('click', startCamera);
+    if (btnCapture) btnCapture.addEventListener('click', takePhoto);
+    
+    if (cameraModalEl) {
+        cameraModalEl.addEventListener('hidden.bs.modal', stopCamera);
+    }
+    if (btnCloseCamera) {
+        btnCloseCamera.addEventListener('click', () => {
+            stopCamera();
+            cameraModal.hide();
+        });
+    }
+
+    // Guardar Perfil
+    if (profileForm) {
+        profileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const isDefaultPhoto = profileImgPreview.src.includes('SoloLogoNegroSinFondo');
+            if (isDefaultPhoto && !capturedBlob) {
+                alert("La foto de perfil es obligatoria. Por favor, tome una selfie.");
+                return;
+            }
+
+            profileSaveBtn.disabled = true;
+            const originalText = profileSaveBtn.innerHTML;
+            profileSaveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+            const formData = new FormData();
+            const fullPhone = (profilePhoneCodeEl.value || '') + (telefonoEl.value || '');
+            formData.append('telefono', fullPhone);
+            if (capturedBlob) {
+                formData.append('fotoPerfil', capturedBlob, 'perfil_cam.jpg');
+            }
+
+            try {
+                const response = await fetch('../api/?accion=updateUserProfile', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    window.showInfoModal('Éxito', 'Perfil actualizado correctamente.', true);
+                    loadUserProfile(); 
+                    capturedBlob = null; 
+                } else {
+                    window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
+                }
+            } catch (error) {
+                window.showInfoModal('Error', 'Error de conexión.', false);
+            } finally {
+                profileSaveBtn.disabled = false;
+                profileSaveBtn.innerHTML = originalText;
+            }
+        });
+    }
+
+    // =========================================================
+    // 2. UTILIDADES Y CARGA DE DATOS (Tu código original)
+    // =========================================================
+
+    const countryPhoneCodes = [
+        { code: '+54', name: 'Argentina', flag: '🇦🇷' },
+        { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
+        { code: '+55', name: 'Brasil', flag: '🇧🇷' },
+        { code: '+56', name: 'Chile', flag: '🇨🇱' },
+        { code: '+57', name: 'Colombia', flag: '🇨🇴' },
+        { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
+        { code: '+53', name: 'Cuba', flag: '🇨🇺' },
+        { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
+        { code: '+503', name: 'El Salvador', flag: '🇸🇻' },
+        { code: '+502', name: 'Guatemala', flag: '🇬🇹' },
+        { code: '+504', name: 'Honduras', flag: '🇭🇳' },
+        { code: '+52', name: 'México', flag: '🇲🇽' },
+        { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
+        { code: '+507', name: 'Panamá', flag: '🇵🇦' },
+        { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
+        { code: '+51', name: 'Perú', flag: '🇵🇪' },
+        { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
+        { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
+        { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
+        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
+        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
+        { code: '+39', name: 'Italia', flag: '🇮🇹' },
+        { code: '+34', name: 'España', flag: '🇪🇸' },
+        { code: '+351', name: 'Portugal', flag: '🇵🇹' },
+        { code: '+33', name: 'Francia', flag: '🇫🇷' },
+        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
+        { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
+        { code: '+41', name: 'Suiza', flag: '🇨🇭' },
+        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
+        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' }
+    ];
+
+    const loadPhoneCodes = (selectElement) => {
+        if (!selectElement) return;
+        countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
+        selectElement.innerHTML = '<option value="">Código...</option>';
+        countryPhoneCodes.forEach(country => {
+            if (country.code) {
+                selectElement.innerHTML += `<option value="${country.code}">${country.flag} ${country.code}</option>`;
+            }
+        });
+    };
 
     const toggleInputVisibility = (toggleId, containerId, inputId, fieldName) => {
         const toggle = document.getElementById(toggleId);
@@ -72,53 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleInputVisibility('toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname', 'segundo nombre');
     toggleInputVisibility('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname', 'segundo apellido');
 
-    const countryPhoneCodes = [
-        { code: '+54', name: 'Argentina', flag: '🇦🇷' },
-        { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
-        { code: '+55', name: 'Brasil', flag: '🇧🇷' },
-        { code: '+56', name: 'Chile', flag: '🇨🇱' },
-        { code: '+57', name: 'Colombia', flag: '🇨🇴' },
-        { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
-        { code: '+53', name: 'Cuba', flag: '🇨🇺' },
-        { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
-        { code: '+503', name: 'El Salvador', flag: '🇸🇻' },
-        { code: '+502', name: 'Guatemala', flag: '🇬🇹' },
-        { code: '+504', name: 'Honduras', flag: '🇭🇳' },
-        { code: '+52', name: 'México', flag: '🇲🇽' },
-        { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
-        { code: '+507', name: 'Panamá', flag: '🇵🇦' },
-        { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
-        { code: '+51', name: 'Perú', flag: '🇵🇪' },
-        { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
-        { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
-        { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
-        { code: '+39', name: 'Italia', flag: '🇮🇹' },
-        { code: '+34', name: 'España', flag: '🇪🇸' },
-        { code: '+351', name: 'Portugal', flag: '🇵🇹' },
-        { code: '+33', name: 'Francia', flag: '🇫🇷' },
-        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
-        { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
-        { code: '+41', name: 'Suiza', flag: '🇨🇭' },
-        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
-        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' }
-    ];
-
-    let currentBeneficiaries = [];
-    let isSubmittingBeneficiary = false;
-
-    const loadPhoneCodes = (selectElement) => {
-        if (!selectElement) return;
-        countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
-        selectElement.innerHTML = '<option value="">Código...</option>';
-        countryPhoneCodes.forEach(country => {
-            if (country.code) {
-                selectElement.innerHTML += `<option value="${country.code}">${country.flag} ${country.code}</option>`;
-            }
-        });
-    };
-
     const setPhoneCodeByPais = (paisId, selectElement) => {
         if (!selectElement) return;
         const map = { "1": "+56", "3": "+58", "2": "+57", "5": "+51" };
@@ -128,9 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateDocumentValidation = () => {
         const paisId = parseInt(benefPaisIdInput.value);
         const docTypeOption = benefDocTypeSelect.options[benefDocTypeSelect.selectedIndex];
-        // FIX: Respaldo para evitar undefined antes de toLowerCase
         const docName = docTypeOption ? (docTypeOption.text || "").toLowerCase() : '';
-
         const isVenezuela = (paisId === 3);
 
         benefDocPrefix.classList.add('d-none');
@@ -145,14 +271,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 benefDocNumberInput.maxLength = 8;
                 benefDocNumberInput.placeholder = '12345678';
                 benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
-
             } else if (docName.includes('rif') || docName.includes('e-rut')) {
                 benefDocPrefix.classList.remove('d-none');
                 benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option>';
                 benefDocNumberInput.maxLength = 9;
                 benefDocNumberInput.placeholder = '123456789';
                 benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
-
             } else if (docName.includes('pasaporte')) {
                 benefDocPrefix.classList.remove('d-none');
                 benefDocPrefix.innerHTML = '<option value="P">P</option><option value="V">V</option><option value="E">E</option>';
@@ -189,21 +313,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateDocumentTypesList = () => {
         const paisId = parseInt(benefPaisIdInput.value);
         const isVenezuela = (paisId === 3);
-
         benefDocTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
-
         allDocumentTypes.forEach(doc => {
-            // FIX: Uso de NombreDocumento para evitar TypeError
             const nombreDoc = doc.nombre || doc.NombreDocumento || "";
             const name = nombreDoc.toUpperCase();
             let show = true;
-
             if (isVenezuela) {
                 if (name === 'RUT' || name === 'DNI') show = false;
             } else {
                 if (name === 'RIF' || name === 'E-RUT (RIF)') show = false;
             }
-
             if (show) {
                 benefDocTypeSelect.innerHTML += `<option value="${doc.id || doc.TipoDocumentoID}">${nombreDoc}</option>`;
             }
@@ -214,7 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const updatePaymentFields = () => {
         const typeText = benefTipoSelect.options[benefTipoSelect.selectedIndex]?.text.toLowerCase() || '';
         const isMobile = typeText.includes('móvil') || typeText.includes('movil');
-
         if (isMobile) {
             containerAccountNum.classList.add('d-none');
             inputAccountNum.required = false;
@@ -227,7 +345,6 @@ document.addEventListener('DOMContentLoaded', () => {
             containerAccountNum.classList.remove('d-none');
             inputAccountNum.required = true;
             if (inputAccountNum.value === 'PAGO MOVIL') inputAccountNum.value = '';
-
             containerPhoneNum.classList.add('d-none');
             inputPhoneNum.required = false;
             if (selectPhoneCode) selectPhoneCode.required = false;
@@ -236,7 +353,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     benefTipoSelect.addEventListener('change', updatePaymentFields);
     benefDocTypeSelect.addEventListener('change', updateDocumentValidation);
-
     benefPaisIdInput.addEventListener('change', () => {
         setPhoneCodeByPais(benefPaisIdInput.value, selectPhoneCode);
         updateDocumentTypesList();
@@ -248,57 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LÓGICA DE PERFIL (FOTO Y EDICIÓN) ---
-
-    // 1. Previsualización de Foto
-    profileFotoInput?.addEventListener('change', function() {
-        const file = this.files[0];
-        if (file) {
-            if (file.size > 2 * 1024 * 1024) {
-                window.showInfoModal('Error', 'La imagen no debe superar los 2MB.', false);
-                this.value = '';
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = (e) => profileImgPreview.src = e.target.result;
-            reader.readAsDataURL(file);
-        }
-    });
-
-    // 2. Guardar Cambios de Perfil
-    profileForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        profileSaveBtn.disabled = true;
-        const originalText = profileSaveBtn.innerHTML;
-        profileSaveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
-
-        // Usamos FormData para soportar la subida de la imagen
-        const formData = new FormData(profileForm);
-        const fullPhone = (profilePhoneCodeEl.value || '') + (telefonoEl.value || '');
-        formData.set('telefono', fullPhone);
-
-        try {
-            // FIX: Se cambió 'updateProfile' por 'updateUserProfile' para coincidir con el Router de la API
-            const response = await fetch('../api/?accion=updateUserProfile', {
-                method: 'POST',
-                body: formData 
-            });
-            const result = await response.json();
-            if (result.success) {
-                window.showInfoModal('Éxito', 'Perfil actualizado correctamente.', true);
-                loadUserProfile();
-            } else {
-                window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
-            }
-        } catch (error) {
-            window.showInfoModal('Error', 'Error de conexión con el servidor.', false);
-        } finally {
-            profileSaveBtn.disabled = false;
-            profileSaveBtn.innerHTML = originalText;
-        }
-    });
-
-
     const loadDropdownData = async (endpoint, selectElement, textKey = 'nombre', valueKey = '') => {
         const valKey = valueKey || textKey;
         selectElement.disabled = true;
@@ -307,16 +372,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`../api/?accion=${endpoint}`);
             if (!response.ok) throw new Error(`Error al cargar ${endpoint}`);
             const data = await response.json();
-
             if (endpoint === 'getDocumentTypes') {
                 allDocumentTypes = data;
             }
-
             selectElement.innerHTML = '<option value="">Selecciona...</option>';
             data.forEach(item => {
                 let text, value;
                 if (typeof item === 'object') {
-                    // FIX: Soporte dinámico para NombreDocumento o NombreTipo
                     text = item[textKey] || item['NombreDocumento'] || item['NombreTipo'] || "";
                     value = item[valKey] || item['TipoDocumentoID'] || item['PaisID'] || "";
                 } else {
@@ -338,7 +400,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             if (result.success && result.profile) {
                 const p = result.profile;
-                // Mostramos nombre y apellido unidos en el campo de solo lectura (o el que uses para visualización)
                 nombreCompletoEl.value = `${p.PrimerNombre || ''} ${p.PrimerApellido || ''}`.trim();
                 emailEl.value = p.Email;
                 documentoEl.value = p.NumeroDocumento;
@@ -361,8 +422,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     estadoBadge.classList.add('bg-warning');
                 }
 
-                const photoUrl = p.FotoPerfilURL ? `${baseUrlJs}/admin/view_secure_file.php?file=${encodeURIComponent(p.FotoPerfilURL)}` : defaultPhoto;
-                profileImgPreview.src = photoUrl;
+                if (p.FotoPerfilURL) {
+                    let url = `../admin/view_secure_file.php?file=${encodeURIComponent(p.FotoPerfilURL)}`;
+                    profileImgPreview.src = url;
+                    if (photoRequiredBadge) photoRequiredBadge.classList.add('d-none');
+                } else {
+                    profileImgPreview.src = defaultPhoto;
+                    if (photoRequiredBadge) photoRequiredBadge.classList.remove('d-none');
+                }
 
                 profileLoading.classList.add('d-none');
                 profileForm.classList.remove('d-none');
@@ -384,7 +451,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (detalle === 'PAGO MOVIL' || detalle.length < 6) {
                         detalle = c.NumeroTelefono || 'Teléfono';
                     }
-
                     beneficiaryListContainer.innerHTML += `
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
@@ -409,12 +475,10 @@ document.addEventListener('DOMContentLoaded', () => {
         addAccountModalLabel.textContent = 'Registrar Nuevo Beneficiario';
         benefCuentaIdInput.value = '';
         benefPaisIdInput.disabled = false;
-
         const containerSecName = document.getElementById('container-benef-segundo-nombre');
         const containerSecLast = document.getElementById('container-benef-segundo-apellido');
         if (containerSecName) containerSecName.classList.remove('d-none');
         if (containerSecLast) containerSecLast.classList.remove('d-none');
-
         updatePaymentFields();
     });
 
@@ -422,21 +486,14 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         if (isSubmittingBeneficiary) return;
         isSubmittingBeneficiary = true;
-
         const submitBtn = addBeneficiaryForm.closest('.modal-content').querySelector('button[type="submit"]');
         submitBtn.disabled = true;
-
         const formData = new FormData(addBeneficiaryForm);
-
-        // Reconstrucción del número de documento con prefijo si aplica
         if (!benefDocPrefix.classList.contains('d-none')) {
             const fullDoc = benefDocPrefix.value + formData.get('numeroDocumento');
             formData.set('numeroDocumento', fullDoc);
         }
-
         const data = Object.fromEntries(formData.entries());
-
-        // Manejo del teléfono dinámico
         if (containerPhoneNum.classList.contains('d-none')) {
             data.numeroTelefono = null;
         } else {
@@ -444,19 +501,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         delete data.phoneCode;
         delete data.phoneNumber;
-
-        // Asegurar valor PAGO MOVIL si aplica
         if (containerAccountNum.classList.contains('d-none')) {
             data.numeroCuenta = 'PAGO MOVIL';
         }
-
-        // FIX: Asegurar que el paisID se envíe incluso si el campo está disabled en el DOM
         if (benefPaisIdInput.disabled) {
             data.paisID = benefPaisIdInput.value;
         }
-
         const action = data.cuentaId ? 'updateBeneficiary' : 'addCuenta';
-        
         try {
             const res = await fetch(`../api/?accion=${action}`, {
                 method: 'POST',
@@ -480,7 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
     beneficiaryListContainer.addEventListener('click', async (e) => {
         const editBtn = e.target.closest('.edit-benef-btn');
         const delBtn = e.target.closest('.del-benef-btn');
-
         if (editBtn) {
             const id = editBtn.dataset.id;
             try {
@@ -493,18 +543,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     benefCuentaIdInput.value = d.CuentaID;
                     benefPaisIdInput.value = d.PaisID;
                     benefPaisIdInput.disabled = true;
-
                     setPhoneCodeByPais(d.PaisID, selectPhoneCode);
                     updateDocumentTypesList();
-
                     document.getElementById('benef-alias').value = d.Alias;
                     benefTipoSelect.value = d.TipoBeneficiarioNombre;
                     updatePaymentFields();
-
                     document.getElementById('benef-firstname').value = d.TitularPrimerNombre;
                     document.getElementById('benef-lastname').value = d.TitularPrimerApellido;
-
-                    // Manejo de visibilidad de nombres opcionales en edición
                     const secNameInput = document.getElementById('benef-secondname');
                     if (d.TitularSegundoNombre) {
                         secNameInput.value = d.TitularSegundoNombre;
@@ -514,7 +559,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('toggle-benef-segundo-nombre').checked = true;
                         document.getElementById('container-benef-segundo-nombre').classList.add('d-none');
                     }
-
                     const secLastInput = document.getElementById('benef-secondlastname');
                     if (d.TitularSegundoApellido) {
                         secLastInput.value = d.TitularSegundoApellido;
@@ -524,11 +568,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('toggle-benef-segundo-apellido').checked = true;
                         document.getElementById('container-benef-segundo-apellido').classList.add('d-none');
                     }
-
                     document.getElementById('benef-bank').value = d.NombreBanco;
                     document.getElementById('benef-account-num').value = d.NumeroCuenta;
-
-                    // Extracción de prefijo de documento (V/E/P...)
                     let docNum = d.TitularNumeroDocumento;
                     const firstChar = (docNum || "").charAt(0).toUpperCase();
                     if (['V', 'E', 'J', 'G', 'P'].includes(firstChar) && !benefDocPrefix.classList.contains('d-none')) {
@@ -536,7 +577,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         docNum = docNum.substring(1);
                     }
                     document.getElementById('benef-doc-number').value = docNum;
-
                     if (d.NumeroTelefono) {
                         const codeMatch = countryPhoneCodes.find(c => d.NumeroTelefono.startsWith(c.code));
                         if (codeMatch) {
@@ -546,12 +586,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             inputPhoneNum.value = d.NumeroTelefono;
                         }
                     }
-
                     addAccountModal.show();
                 }
             } catch (e) { console.error(e); }
         }
-
         if (delBtn) {
             if (await window.showConfirmModal('Eliminar', '¿Estás seguro de eliminar este beneficiario?')) {
                 const id = delBtn.dataset.id;
@@ -565,6 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Carga inicial
     Promise.all([
         loadDropdownData('getPaises&rol=Destino', benefPaisIdInput, 'NombrePais', 'PaisID'),
         loadDropdownData('getBeneficiaryTypes', benefTipoSelect, 'nombre'),

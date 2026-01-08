@@ -16,6 +16,7 @@ $user_role = $_SESSION['user_rol_name'] ?? '';
 $is_admin = ($user_role === 'Admin');
 $is_operator = ($user_role === 'Operador');
 $two_fa_enabled = (isset($_SESSION['twofa_enabled']) && $_SESSION['twofa_enabled'] == 1);
+$verifStatusId = isset($_SESSION['verification_status_id']) ? (int)$_SESSION['verification_status_id'] : 0;
 
 // Lógica de Foto de Perfil
 $photoUrl = BASE_URL . '/assets/img/SoloLogoNegroSinFondo.png';
@@ -42,7 +43,6 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
     <link rel="icon" href="<?php echo BASE_URL; ?>/assets/img/SoloLogoNegroSinFondo.png">
 
     <style>
-        /* HEADER ESTILOS */
         .main-header {
             background: #fff;
             border-bottom: 1px solid #f0f0f0;
@@ -75,7 +75,6 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             border: 2px solid #e9ecef;
         }
 
-        /* Estilo para el Dropdown de Gestión */
         .dropdown-menu-custom {
             border: none;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
@@ -103,7 +102,6 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             display: inline-block;
         }
 
-        /* AJUSTES RESPONSIVOS (Móvil) */
         @media (max-width: 991.98px) {
             .navbar-collapse {
                 background: white;
@@ -122,7 +120,6 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 border-bottom: 1px solid #f8f9fa;
             }
 
-            /* Botones full width en móvil */
             .d-flex.align-items-center.gap-2 {
                 flex-direction: column;
                 width: 100%;
@@ -134,7 +131,6 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 justify-content: center;
             }
 
-            /* Ajuste dropdown gestión en móvil */
             .dropdown-menu-custom {
                 box-shadow: none;
                 border: 1px solid #eee;
@@ -147,6 +143,44 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
     <?php if (isset($pageScript) && $pageScript === 'seguridad.js'): ?>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <?php endif; ?>
+
+    <?php 
+    if ($is_logged_in && $verifStatusId !== 3): 
+    ?>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                let isChecking = false;
+                const CHECK_INTERVAL = 30000;
+
+                const checkStatus = async () => {
+                    if (isChecking || document.hidden) return;
+                    
+                    isChecking = true;
+
+                    try {
+                        const baseUrl = "<?php echo BASE_URL; ?>";
+                        const response = await fetch(`${baseUrl}/api/?accion=checkSessionStatus&_=${new Date().getTime()}`);
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.success && data.needs_refresh) {
+                                console.log("Estado de verificación actualizado. Recargando...");
+                                window.location.reload();
+                            }
+                        }
+                    } catch (error) {
+                    } finally {
+                        isChecking = false;
+                    }
+                };
+                setInterval(checkStatus, CHECK_INTERVAL);
+                document.addEventListener("visibilitychange", () => {
+                    if (!document.hidden) checkStatus();
+                });
+            });
+        </script>
+    <?php endif; ?>
+
 </head>
 
 <body class="d-flex flex-column min-vh-100 bg-light" data-base-url="<?php echo htmlspecialchars(BASE_URL); ?>"
