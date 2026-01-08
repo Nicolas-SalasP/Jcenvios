@@ -90,14 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (tx.ComprobanteURL) {
                 const ext = getFileExt(tx.ComprobanteURL);
-                const originalName = tx.ComprobanteURL.split('/').pop();
                 btns += ` <button class="btn btn-sm btn-outline-secondary view-comprobante-btn" 
                             data-bs-toggle="modal" 
                             data-bs-target="#viewComprobanteModal" 
                             data-tx-id="${tx.TransaccionID}" 
                             data-comprobante-url="ver-comprobantes.php?id=${tx.TransaccionID}&type=user"
                             data-file-ext="${ext}"
-                            data-file-name="${originalName}"
                             data-start-type="user" 
                             title="Ver Pago"><i class="bi bi-eye"></i> Ver Pago</button>`;
             }
@@ -106,14 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (tx.ComprobanteEnvioURL) {
                 const ext = getFileExt(tx.ComprobanteEnvioURL);
-                const originalName = tx.ComprobanteEnvioURL.split('/').pop();
                 btns += ` <button class="btn btn-sm btn-success view-comprobante-btn" 
                             data-bs-toggle="modal" 
                             data-bs-target="#viewComprobanteModal" 
                             data-tx-id="${tx.TransaccionID}" 
                             data-envio-url="ver-comprobantes.php?id=${tx.TransaccionID}&type=admin"
                             data-file-ext="${ext}"
-                            data-file-name="${originalName}"
                             data-start-type="admin" 
                             title="Ver Comprobante Envío"><i class="bi bi-receipt"></i> Ver Envío</button>`;
             }
@@ -378,30 +374,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (modalLabel) modalLabel.textContent = `${typeText} #${currentTxId}`;
             if (filenameSpan) filenameSpan.textContent = current.name || 'documento';
+            const finalUrl = current.url;
 
             if (downloadButton) {
-                downloadButton.href = current.url;
-                downloadButton.download = current.name || `comprobante_${currentTxId}`;
+                downloadButton.href = finalUrl;
+                downloadButton.download = `comprobante_${currentTxId}`;
             }
-            const ext = current.ext || current.url.split('.').pop().toLowerCase();
+            const isPdf = current.url.includes('type=admin') || current.ext === 'pdf';
 
             let mediaEl;
-            if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+            if (isPdf) {
+                mediaEl = document.createElement('iframe');
+                mediaEl.style.width = '100%';
+                mediaEl.style.height = '75vh';
+                mediaEl.style.border = '0';
+            } else {
                 mediaEl = document.createElement('img');
                 mediaEl.className = 'img-fluid d-block mx-auto';
                 mediaEl.style.maxHeight = '75vh';
-            } else if (ext === 'pdf') {
-                mediaEl = document.createElement('iframe');
-                mediaEl.style.width = '100%'; mediaEl.style.height = '75vh'; mediaEl.style.border = '0';
-            } else {
-                mediaEl = document.createElement('div');
-                mediaEl.textContent = 'Vista previa no disponible. Descarga el archivo para verlo.';
-                mediaEl.className = 'text-white text-center p-5';
             }
+            mediaEl.onload = () => modalPlaceholder.classList.add('d-none');
+            mediaEl.onerror = () => {
+                modalPlaceholder.classList.add('d-none');
+                console.error("Error al cargar el archivo:", finalUrl);
+            };
 
-            mediaEl.src = current.url;
-            mediaEl.onload = () => { modalPlaceholder.classList.add('d-none'); };
+            mediaEl.src = finalUrl;
             modalContent.appendChild(mediaEl);
+            if (isPdf) setTimeout(() => modalPlaceholder.classList.add('d-none'), 2000);
             if (comprobantes.length > 1) {
                 if (navigationDiv) navigationDiv.classList.remove('d-none');
                 if (indicatorSpan) indicatorSpan.textContent = `${currentIndex + 1} / ${comprobantes.length}`;

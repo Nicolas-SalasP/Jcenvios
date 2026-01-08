@@ -410,10 +410,19 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     <button type="button" class="btn btn-outline-primary" id="tab-btn-admin"><i
                             class="bi bi-send me-2"></i>Envío Admin</button>
                 </div>
-                <div class="p-3"
+                <div class="p-3 position-relative"
                     style="min-height: 400px; display: flex; align-items: center; justify-content: center;">
-                    <img id="comprobante-img-full" src="" class="img-fluid rounded shadow-sm" style="max-height: 70vh;"
-                        alt="Comprobante">
+                    <div id="comprobante-placeholder"
+                        class="position-absolute d-flex align-items-center justify-content-center" style="inset: 0;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                    </div>
+                    <img id="comprobante-img-full" src="" class="img-fluid rounded shadow-sm d-none"
+                        style="max-height: 70vh;" alt="Comprobante">
+                    <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none border-0 rounded shadow-sm"
+                        style="min-height: 70vh;" loading="lazy">
+                    </iframe>
                 </div>
             </div>
             <div class="modal-footer justify-content-center border-top-0">

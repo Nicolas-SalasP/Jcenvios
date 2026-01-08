@@ -254,6 +254,10 @@ $transacciones = $conexion->query($sql)->fetch_all(MYSQLI_ASSOC);
             <div class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center">
                 <div id="comprobante-placeholder" class="spinner-border text-light"></div>
                 <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center">
+                    <img id="comprobante-img-full" class="img-fluid d-none" alt="Comprobante">
+                    <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0">
+                    </iframe>
+
                 </div>
             </div>
         </div>

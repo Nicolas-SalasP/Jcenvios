@@ -118,11 +118,11 @@ function getStatusBadgeClass($statusName)
 
                                     <td>
                                         <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
-                                            <button class="btn btn-sm btn-success view-comprobante-btn-admin" data-bs-toggle="modal"
+                                            <button class="btn btn-sm btn-success view-comprobante-btn" data-bs-toggle="modal"
                                                 data-bs-target="#viewComprobanteModal"
-                                                data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-comprobante-url=""
-                                                data-envio-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteEnvioURL']); ?>"
-                                                data-start-type="admin" title="Ver Comprobante">
+                                                data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                                                data-comprobante-url="/admin/view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
+                                                title="Ver Comprobante">
                                                 <i class="bi bi-eye"></i> Ver
                                             </button>
                                         <?php else: ?>
@@ -195,11 +195,17 @@ function getStatusBadgeClass($statusName)
             </div>
             <div class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center">
                 <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-                <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center">
-                </div>
+                <img id="comprobante-img-full" class="img-fluid d-none" alt="Comprobante">
+                <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
+                <a id="download-comprobante-btn" class="btn btn-light position-absolute top-0 end-0 m-3 d-none"
+                    download>
+                    <i class="bi bi-download"></i>
+                </a>
+
             </div>
         </div>
     </div>
 </div>
+
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

@@ -724,41 +724,59 @@ document.addEventListener('DOMContentLoaded', () => {
             if (modalTitle) modalTitle.textContent = `Comprobante Orden #${txId}`;
 
             const setView = (url) => {
-                const imgElement = document.getElementById('comprobante-img-full');
+                const img = document.getElementById('comprobante-img-full');
+                const pdf = document.getElementById('comprobante-pdf-full');
+                const spinner = document.getElementById('comprobante-placeholder');
                 const downloadBtn = document.getElementById('download-comprobante-btn');
-                const modalBody = imgElement.parentElement;
-                const oldIframe = modalBody.querySelector('iframe');
-                if (oldIframe) oldIframe.remove();
 
-                if (!url || !url.includes('view_secure_file.php')) {
-                    console.error('URL de comprobante inválida o insegura:', url);
+                if (!img || !pdf || !spinner) {
+                    console.warn('Visor de comprobantes: elementos requeridos no existen');
                     return;
                 }
-                if (url) {
-                    let finalUrl = url;
-                    const isPdf = finalUrl.toLowerCase().includes('.pdf');
 
-                    if (isPdf) {
-                        imgElement.classList.add('d-none');
-                        const iframe = document.createElement('iframe');
-                        iframe.src = finalUrl;
-                        iframe.style.width = "100%";
-                        iframe.style.height = "70vh";
-                        iframe.style.border = "none";
-                        modalBody.appendChild(iframe);
-                    } else {
-                        imgElement.src = finalUrl;
-                        imgElement.classList.remove('d-none');
-                    }
+                spinner.classList.remove('d-none');
+                img.classList.add('d-none');
+                pdf.classList.add('d-none');
 
-                    if (downloadBtn) {
-                        downloadBtn.href = finalUrl;
-                        downloadBtn.classList.remove('disabled');
-                    }
+                img.onload = img.onerror = pdf.onload = pdf.onerror = null;
+
+                if (!url) {
+                    spinner.classList.add('d-none');
+                    return;
+                }
+                let finalUrl = url;
+                if (!finalUrl.includes('view_secure_file.php')) {
+                    let path = finalUrl.replace(/https?:\/\/jcenvios\.cl\//, '').replace(/^\/+/, '');
+                    finalUrl = 'view_secure_file.php?file=' + encodeURIComponent(path);
+                }
+                if (!finalUrl.includes('view_secure_file.php')) {
+                    spinner.classList.add('d-none');
+                    console.error('URL de comprobante inválida o insegura:', finalUrl);
+                    return;
+                }
+                const isPdf = finalUrl.toLowerCase().includes('.pdf');
+
+                if (isPdf) {
+                    pdf.src = finalUrl;
+                    pdf.classList.remove('d-none');
+                    pdf.onload = () => spinner.classList.add('d-none');
+                    pdf.onerror = () => {
+                        spinner.classList.add('d-none');
+                        alert('No se pudo cargar el comprobante PDF.');
+                    };
                 } else {
-                    imgElement.src = '';
-                    imgElement.classList.add('d-none');
-                    if (downloadBtn) downloadBtn.classList.add('disabled');
+                    img.src = finalUrl;
+                    img.classList.remove('d-none');
+                    img.onload = () => spinner.classList.add('d-none');
+                    img.onerror = () => {
+                        spinner.classList.add('d-none');
+                        alert('No se pudo cargar la imagen del comprobante.');
+                    };
+                }
+
+                if (downloadBtn) {
+                    downloadBtn.href = finalUrl;
+                    downloadBtn.classList.remove('disabled');
                 }
             };
 
