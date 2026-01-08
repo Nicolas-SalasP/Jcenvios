@@ -154,12 +154,26 @@ class TransactionRepository
         return $affectedRows;
     }
 
-    public function uploadAdminProof(int $transactionId, string $dbPath, int $estadoPagadoID, int $estadoEnProcesoID, float $comisionDestino): int
+    public function findByAdminProofHash(string $hash): ?array
     {
-        $sql = "UPDATE transacciones SET ComprobanteEnvioURL = ?, EstadoID = ?, ComisionDestino = ?
-                WHERE TransaccionID = ? AND EstadoID = ?";
+        $sql = "SELECT TransaccionID FROM transacciones WHERE ComprobanteEnvioHash = ? LIMIT 1";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("sdiii", $dbPath, $estadoPagadoID, $comisionDestino, $transactionId, $estadoEnProcesoID);
+        $stmt->bind_param("s", $hash);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result;
+    }
+
+    public function uploadAdminProof(int $transactionId, string $dbPath, string $fileHash, int $estadoPagadoID, int $estadoEnProcesoID, float $comisionDestino): int
+    {
+        $sql = "UPDATE transacciones 
+            SET ComprobanteEnvioURL = ?, ComprobanteEnvioHash = ?, EstadoID = ?, ComisionDestino = ?
+            WHERE TransaccionID = ? AND EstadoID = ?";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ssidii", $dbPath, $fileHash, $estadoPagadoID, $comisionDestino, $transactionId, $estadoEnProcesoID);
+
         $stmt->execute();
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
@@ -468,4 +482,5 @@ class TransactionRepository
         $stmt->bind_param("ii", $newCuentaId, $oldCuentaId);
         $stmt->execute();
     }
+
 }

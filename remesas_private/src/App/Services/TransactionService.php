@@ -358,32 +358,60 @@ class TransactionService
         if (empty($fileData) || $fileData['error'] === UPLOAD_ERR_NO_FILE) {
             throw new Exception("No se recibió ningún archivo.", 400);
         }
-
+        $fileHash = hash_file('sha256', $fileData['tmp_name']);
+        if ($fileHash === false) {
+            throw new Exception("Error de seguridad: No se pudo verificar la integridad del archivo.", 500);
+        }
+        $existingTx = $this->txRepository->findByAdminProofHash($fileHash);
+        
+        if ($existingTx) {
+            if ((int)$existingTx['TransaccionID'] !== $txId) {
+                throw new Exception("Este comprobante ya fue utilizado en la transacción #" . $existingTx['TransaccionID'] . ". Por seguridad, no se permiten archivos duplicados entre órdenes distintas.", 409);
+            }
+        }
+        try {
+            $currentTxData = $this->txRepository->getFullTransactionDetails($txId);
+            
+            if ($currentTxData && !empty($currentTxData['ComprobanteEnvioURL'])) {
+                $oldFilePath = $this->fileHandler->getAbsolutePath($currentTxData['ComprobanteEnvioURL']);
+                if (file_exists($oldFilePath)) {
+                    unlink($oldFilePath);
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Advertencia [handleAdminProofUpload]: No se pudo borrar el comprobante antiguo de TX $txId: " . $e->getMessage());
+        }
         $relativePath = $this->fileHandler->saveAdminProofFile($fileData, $txId);
         $estadoPagadoID = $this->getEstadoId(self::ESTADO_PAGADO);
         $estadoEnProcesoID = $this->getEstadoId(self::ESTADO_EN_PROCESO);
-
-        $affectedRows = $this->txRepository->uploadAdminProof($txId, $relativePath, $estadoPagadoID, $estadoEnProcesoID, $comisionDestino);
+        $affectedRows = $this->txRepository->uploadAdminProof(
+            $txId, 
+            $relativePath, 
+            $fileHash,
+            $estadoPagadoID, 
+            $estadoEnProcesoID, 
+            $comisionDestino
+        );
 
         if ($affectedRows === 0) {
             @unlink($this->fileHandler->getAbsolutePath($relativePath));
-            throw new Exception("No se pudo completar la transacción. Verifique que esté 'En Proceso'.", 409);
+            throw new Exception("No se pudo completar la transacción. Verifique que la orden esté en estado 'En Proceso'.", 409);
         }
-
         $txData = $this->txRepository->getFullTransactionDetails($txId);
 
         if ($txData && !empty($txData['PaisDestinoID'])) {
             $this->contabilidadService->registrarGasto(
                 (int) $txData['PaisDestinoID'],
                 (float) $txData['MontoDestino'],
-                (float) $txData['ComisionDestino'],
+                (float) $txData['ComisionDestino'], 
                 $adminId,
                 $txId
             );
         }
 
         $this->notificationService->sendPaymentConfirmationToClientWhatsApp($txData);
-        $this->notificationService->logAdminAction($adminId, 'Admin completó transacción', "TX ID: $txId. Estado: Exitoso.");
+        $this->notificationService->logAdminAction($adminId, 'Admin completó transacción', "TX ID: $txId. Estado: Exitoso. Comprobante actualizado.");
+        
         return true;
     }
 
