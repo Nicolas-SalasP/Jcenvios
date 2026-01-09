@@ -439,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgF = document.getElementById('docsImgFrente');
             const btnFView = document.getElementById('btnFrenteView');
             const btnFDown = document.getElementById('btnFrenteDown');
-            
+
             if (urlF) {
                 imgF.src = urlF;
                 imgF.classList.remove('d-none');
@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pauseModalEl) {
         pauseModalEl.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
-            if(btn) document.getElementById('pause-tx-id').value = btn.dataset.txId;
+            if (btn) document.getElementById('pause-tx-id').value = btn.dataset.txId;
         });
 
         const pauseForm = document.getElementById('pause-form');
@@ -562,7 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resumeModalEl) {
         resumeModalEl.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
-            if(btn) document.getElementById('resume-tx-id').value = btn.dataset.txId;
+            if (btn) document.getElementById('resume-tx-id').value = btn.dataset.txId;
         });
 
         const resumeForm = document.getElementById('resume-form');
@@ -618,11 +618,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         adminUploadModalEl.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
-            if(!btn) return;
+            if (!btn) return;
 
             const txId = btn.dataset.txId;
             const monto = parseFloat(btn.dataset.montoDestino);
-            const paisDestinoId = btn.dataset.paisId; 
+            const paisDestinoId = parseInt(btn.dataset.paisId, 10);
+
+            if (!paisDestinoId || isNaN(paisDestinoId)) {
+                cuentaSelect.innerHTML = '<option value="">⚠️ País destino no válido</option>';
+                cuentaSelect.disabled = true;
+                return;
+            }
+
+            cuentaSelect.disabled = false;
 
             if (txIdField) txIdField.value = txId;
             if (txIdLabel) txIdLabel.textContent = txId;
@@ -633,10 +641,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (cuentaSelect) {
                 cuentaSelect.innerHTML = '<option value="">-- Seleccionar Banco --</option>';
-                
+
                 if (window.cuentasDestino && Array.isArray(window.cuentasDestino)) {
-                    const cuentasFiltradas = window.cuentasDestino.filter(c => c.PaisID == paisDestinoId);
-                    
+                    const cuentasFiltradas = window.cuentasDestino.filter(c =>
+                        parseInt(c.PaisID, 10) === paisDestinoId
+                    );
+
+
                     if (cuentasFiltradas.length > 0) {
                         cuentasFiltradas.forEach(cuenta => {
                             const option = document.createElement('option');
@@ -663,7 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const formData = new FormData(uploadForm);
-                    if(cuentaSelect && !cuentaSelect.value) {
+                    if (cuentaSelect && !cuentaSelect.value) {
                         throw new Error("⚠️ Por favor, selecciona la cuenta bancaria desde donde salió el dinero.");
                     }
 
@@ -671,16 +682,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         method: 'POST', body: formData
                     });
                     const result = await res.json();
-                    
+
                     if (result.success) {
                         window.showInfoModal('Éxito', 'Transacción completada y saldo descontado.', true, () => window.location.reload());
                     } else {
                         window.showInfoModal('Error', result.error, false);
                     }
-                } catch (e) { 
-                    window.showInfoModal('Error', e.message || 'Error de red', false); 
-                } finally { 
-                    btn.disabled = false; btn.textContent = originalText; 
+                } catch (e) {
+                    window.showInfoModal('Error', e.message || 'Error de red', false);
+                } finally {
+                    btn.disabled = false; btn.textContent = originalText;
                 }
             });
         }
@@ -745,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const rejectReasonInput = document.getElementById('reject-reason');
         rejectionModalEl.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
-            if(btn) {
+            if (btn) {
                 rejectTxIdInput.value = btn.dataset.txId;
                 rejectReasonInput.value = '';
             }

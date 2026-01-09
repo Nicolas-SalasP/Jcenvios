@@ -115,7 +115,9 @@ class Container
                 $this->get(NotificationService::class),
                 $this->get(TransactionRepository::class),
                 $this->get(TipoBeneficiarioRepository::class),
-                $this->get(TipoDocumentoRepository::class)
+                $this->get(TipoDocumentoRepository::class),
+                $this->get(PDFService::class),
+                $this->get(FileHandlerService::class)
             ),
 
             ContabilidadService::class => new ContabilidadService(
@@ -191,7 +193,8 @@ class Container
 
             BotController::class => new BotController(
                 $this->get(PricingService::class),
-                $this->get(CuentasAdminRepository::class)
+                $this->get(CuentasAdminRepository::class),
+                $this->get(NotificationService::class)
             ),
 
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")

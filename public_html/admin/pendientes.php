@@ -4,10 +4,21 @@ require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
     die("Acceso denegado.");
 }
-$sqlCuentas = "SELECT c.CuentaAdminID, c.Banco, c.Titular, c.SaldoActual, p.CodigoMoneda AS Moneda, c.PaisID 
-               FROM cuentas_bancarias_admin c
-               JOIN paises p ON c.PaisID = p.PaisID
-               WHERE c.RolCuentaID = 2 AND c.Activo = 1";
+$sqlCuentas = "
+    SELECT
+        c.CuentaAdminID,
+        c.Banco,
+        c.Titular,
+        c.SaldoActual,
+        p.CodigoMoneda,
+        c.PaisID
+    FROM cuentas_bancarias_admin c
+    JOIN paises p 
+        ON c.PaisID = p.PaisID
+    WHERE c.Activo = 1
+      AND (p.Rol = 'Destino' OR p.Rol = 'Ambos')
+";
+
 $cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
 
 $pageTitle = 'Transacciones Pendientes';

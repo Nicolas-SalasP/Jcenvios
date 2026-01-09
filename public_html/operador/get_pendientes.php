@@ -18,11 +18,11 @@ $sql = "
         T.BeneficiarioNumeroCuenta, T.BeneficiarioTelefono,
         T.MontoDestino, T.MonedaDestino,
         T.ComprobanteURL, T.ComprobanteEnvioURL,
-        CB.PaisID AS PaisDestinoID -- <--- DATO CLAVE PARA EL MODAL DE BANCOS
+        CB.PaisID AS PaisDestinoID
     FROM transacciones T
     JOIN usuarios U ON T.UserID = U.UserID
     LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
-    LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID -- <--- JOIN AGREGADO
+    LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
     WHERE T.EstadoID IN ($estadosSQL)
     ORDER BY T.FechaTransaccion ASC
 ";
@@ -72,6 +72,9 @@ foreach ($transacciones as $tx):
         <td>
             <div class="fw-bold">
                 <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+            </div>
+            <div class="text-muted" style="font-size: 0.75rem;">
+                <?php echo htmlspecialchars($tx['Email']); ?>
             </div>
         </td>
         <td class="fw-bold text-success">

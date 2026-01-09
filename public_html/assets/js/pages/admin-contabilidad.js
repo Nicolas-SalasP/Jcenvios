@@ -30,9 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UTILIDADES ---
 
-    // Función para determinar si una moneda requiere decimales visualmente
     const requiereDecimales = (currencyCode) => {
-        // Solo USD, PEN y EUR muestran 2 decimales. COP y VES muestran 0 por limpieza visual.
         const conDecimales = ['USD', 'PEN', 'EUR', 'BRL', 'GBP'];
         return conDecimales.includes(currencyCode);
     };
@@ -60,8 +58,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!result.success) throw new Error(result.error);
 
-            // Guardamos todas las cuentas bancarias
             STATE.todasLasCuentas = result.origen || [];
+
+            // DEBUG: Descomenta esto si necesitas ver qué IDs trae tu API
+            // console.log("Cuentas cargadas:", STATE.todasLasCuentas);
 
             renderizarInterfaz();
         } catch (error) {
@@ -81,9 +81,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderOrigen = () => {
         if (!DOM.containerOrigen) return;
 
-        // FILTRO: Solo cuentas con Rol 'Origen' o 'Ambos' van a la izquierda
+        // CORRECCIÓN CLAVE: 
+        // Filtramos por RolCuentaID == 1 (Origen según tu DB) o RolID == 1
+        // Usamos == para que no importe si es string "1" o numero 1.
         const origen = STATE.todasLasCuentas.filter(acc =>
-            (acc.Rol === 'Origen' || acc.Rol === 'Ambos')
+            acc.RolCuentaID == 1 || acc.RolID == 1 || acc.Rol === 'Origen'
         );
 
         DOM.containerOrigen.innerHTML = '';
@@ -111,13 +113,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const busqueda = (DOM.filtroDestino?.value || '').toLowerCase();
 
-        // FILTRO: Solo cuentas con Rol estrictamente 'Destino' van a la derecha
-        // Esto evita que las cuentas 'Ambos' se repitan si ya están en Origen
+        // CORRECCIÓN CLAVE:
+        // Filtramos por RolCuentaID == 2 (Destino según tu DB)
         const destino = STATE.todasLasCuentas.filter(acc => {
-            const esDestinoPuro = (acc.Rol === 'Destino');
+            // Aceptamos RolCuentaID 2, RolID 2 o explícitamente el texto 'Destino'
+            const esDestino = (acc.RolCuentaID == 2 || acc.RolID == 2 || acc.Rol === 'Destino');
+
             const coincide = (acc.Banco || '').toLowerCase().includes(busqueda) ||
                 (acc.NombrePais || '').toLowerCase().includes(busqueda);
-            return esDestinoPuro && coincide;
+            return esDestino && coincide;
         });
 
         DOM.containerDestino.innerHTML = '';
@@ -157,8 +161,9 @@ document.addEventListener('DOMContentLoaded', () => {
                    </option>`).join('');
         };
 
-        const origen = STATE.todasLasCuentas.filter(acc => acc.Rol === 'Origen' || acc.Rol === 'Ambos');
-        const destino = STATE.todasLasCuentas.filter(acc => acc.Rol === 'Destino');
+        // Aplicamos la misma lógica estricta a los selectores
+        const origen = STATE.todasLasCuentas.filter(acc => acc.RolCuentaID == 1 || acc.RolID == 1 || acc.Rol === 'Origen');
+        const destino = STATE.todasLasCuentas.filter(acc => acc.RolCuentaID == 2 || acc.RolID == 2 || acc.Rol === 'Destino');
 
         if (DOM.txOrigen) DOM.txOrigen.innerHTML = buildOptions(origen);
         if (DOM.txDestino) DOM.txDestino.innerHTML = buildOptions(destino);
@@ -182,16 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!select) return;
 
         select.innerHTML = '<option value="">Seleccione...</option>';
+
+        // Misma lógica estricta para el historial
         const list = tipo === 'banco'
-            ? STATE.todasLasCuentas.filter(acc => acc.Rol === 'Origen' || acc.Rol === 'Ambos')
-            : STATE.todasLasCuentas.filter(acc => acc.Rol === 'Destino');
+            ? STATE.todasLasCuentas.filter(acc => acc.RolCuentaID == 1 || acc.RolID == 1 || acc.Rol === 'Origen')
+            : STATE.todasLasCuentas.filter(acc => acc.RolCuentaID == 2 || acc.RolID == 2 || acc.Rol === 'Destino');
 
         list.forEach(acc => {
             select.innerHTML += `<option value="${acc.CuentaAdminID}">${acc.Banco} (${acc.NombrePais})</option>`;
         });
     };
 
-    // Preview de saldos en transferencia
     [DOM.txOrigen, DOM.txDestino].forEach((sel, i) => {
         if (!sel) return;
         sel.addEventListener('change', () => {
@@ -238,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const monto = form.querySelector('input[type="number"]');
                     const desc = form.querySelector('textarea');
 
-                    // Siempre enviamos bancoId al backend unificado
                     payload = {
                         bancoId: select.value,
                         monto: monto.value,
@@ -268,11 +273,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    setupFormHandler('form-transferencia', 'transferenciaInterna', 'Transferencia realizada.', true);
-    setupFormHandler('form-recarga-banco', 'agregarFondos', 'Ingreso registrado.');
-    setupFormHandler('form-retiro-banco', 'retirarFondos', 'Retiro registrado.');
-    setupFormHandler('form-recarga-pais', 'agregarFondos', 'Ajuste registrado.');
-    setupFormHandler('form-retiro-pais', 'retirarFondos', 'Gasto registrado.');
+    setupFormHandler('form-transferencia', 'transferenciaInterna', 'Transferencia realizada con éxito.', true);
+    setupFormHandler('form-recarga-banco', 'agregarFondos', 'Ingreso registrado correctamente.');
+    setupFormHandler('form-retiro-banco', 'retirarFondos', 'Retiro registrado correctamente.');
+    setupFormHandler('form-recarga-pais', 'agregarFondos', 'Ajuste positivo registrado.');
+    setupFormHandler('form-retiro-pais', 'retirarFondos', 'Gasto/Retiro registrado.');
 
     // --- LÓGICA DEL HISTORIAL ---
 
