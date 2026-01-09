@@ -6,9 +6,6 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $pageTitle = 'Mi Perfil';
-
-$pageScript = '';
-
 $pageScripts = [
     'components/rut-validator.js',
     'pages/perfil.js'
@@ -30,11 +27,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <form id="profile-form" class="d-none" enctype="multipart/form-data">
                     <div class="text-center mb-4">
                         <div class="position-relative d-inline-block">
-                            <img id="profile-img-preview" src="<?php echo BASE_URL; ?>/assets/img/SoloLogoNegroSinFondo.png"
-                                alt="Foto de perfil" class="rounded-circle"
+                            <img id="profile-img-preview"
+                                src="<?php echo BASE_URL; ?>/assets/img/SoloLogoNegroSinFondo.png" alt="Foto de perfil"
+                                class="rounded-circle"
                                 style="width: 150px; height: 150px; object-fit: cover; border: 4px solid #eee;">
-                            
-                            <div id="photo-required-badge" class="d-none position-absolute top-0 end-0 bg-danger text-white rounded-circle p-1" style="width: 20px; height: 20px; border: 2px solid white;"></div>
+                            <div id="photo-required-badge"
+                                class="d-none position-absolute top-0 end-0 bg-danger text-white rounded-circle p-1"
+                                style="width: 20px; height: 20px; border: 2px solid white;"></div>
                         </div>
 
                         <div class="mt-3">
@@ -65,8 +64,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <div class="input-group">
                             <select class="input-group-text" id="profile-phone-code" name="profilePhoneCode"
                                 style="max-width: 130px;" disabled></select>
-                            <input type="tel" id="profile-telefono" name="telefono" class="form-control"
-                                style="background-color: #fff;"> </div>
+                            <input type="tel" id="profile-telefono" name="telefono" class="form-control" readonly disabled>
+                        </div>
                         <div class="form-text text-muted">Mantenga su número actualizado.</div>
                     </div>
 
@@ -104,12 +103,14 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     data-bs-backdrop="static">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addAccountModalLabel">Registrar Beneficiario</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addAccountModalLabel"><i class="bi bi-person-plus-fill me-2"></i>Registrar
+                    Beneficiario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="add-beneficiary-form" novalidate>
+                <form id="add-beneficiary-form">
                     <input type="hidden" id="benef-cuenta-id" name="cuentaId">
 
                     <div class="row">
@@ -120,33 +121,21 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="benef-alias" class="form-label">Alias de la cuenta</label>
+                            <label for="benef-alias" class="form-label">Alias (Nombre corto)</label>
                             <input type="text" class="form-control" id="benef-alias" name="alias" required
                                 placeholder="Ej: Mamá Banesco">
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label for="benef-tipo" class="form-label">Tipo de Transferencia</label>
-                            <select id="benef-tipo" name="tipoBeneficiario" class="form-select" required>
-                                <option value="">Cargando...</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <hr>
-                    <h6 class="text-muted">Datos del Titular</h6>
+                    <h6 class="text-primary mt-3"><i class="bi bi-person-vcard me-2"></i>Datos del Titular</h6>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="benef-firstname" class="form-label">Primer Nombre <span
-                                    class="text-danger">*</span></label>
+                            <label class="form-label">Primer Nombre</label>
                             <input type="text" class="form-control" id="benef-firstname" name="primerNombre" required>
                         </div>
                         <div class="col-md-6 mb-3" id="container-benef-segundo-nombre">
-                            <label for="benef-secondname" class="form-label">Segundo Nombre <span
-                                    class="text-danger">*</span></label>
+                            <label class="form-label">Segundo Nombre</label>
                             <input type="text" class="form-control" id="benef-secondname" name="segundoNombre" required>
                         </div>
                     </div>
@@ -158,13 +147,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="benef-lastname" class="form-label">Primer Apellido <span
-                                    class="text-danger">*</span></label>
+                            <label class="form-label">Primer Apellido</label>
                             <input type="text" class="form-control" id="benef-lastname" name="primerApellido" required>
                         </div>
                         <div class="col-md-6 mb-3" id="container-benef-segundo-apellido">
-                            <label for="benef-secondlastname" class="form-label">Segundo Apellido <span
-                                    class="text-danger">*</span></label>
+                            <label class="form-label">Segundo Apellido</label>
                             <input type="text" class="form-control" id="benef-secondlastname" name="segundoApellido"
                                 required>
                         </div>
@@ -177,20 +164,20 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
                     <div class="row">
                         <div class="col-md-5 mb-3">
-                            <label for="benef-doc-type" class="form-label">Tipo de Documento</label>
+                            <label for="benef-doc-type" class="form-label">Tipo Documento</label>
                             <select id="benef-doc-type" name="tipoDocumento" class="form-select" required>
                                 <option value="">Cargando...</option>
                             </select>
                         </div>
                         <div class="col-md-7 mb-3">
-                            <label for="benef-doc-number" class="form-label">Número de Documento</label>
+                            <label class="form-label">Número Documento</label>
                             <div class="input-group">
                                 <select class="input-group-text d-none" id="benef-doc-prefix" style="max-width: 80px;">
                                     <option value="V">V</option>
                                     <option value="E">E</option>
                                     <option value="J">J</option>
-                                    <option value="G">G</option>
                                     <option value="P">P</option>
+                                    <option value="G">G</option>
                                 </select>
                                 <input type="text" class="form-control" id="benef-doc-number" name="numeroDocumento"
                                     required>
@@ -201,32 +188,45 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     <div class="mb-3">
                         <label for="benef-bank" class="form-label">Nombre del Banco</label>
                         <input type="text" class="form-control" id="benef-bank" name="nombreBanco" required
-                            placeholder="Ej: Banesco, Venezuela, Mercantil">
+                            placeholder="Ej: Banesco, Mercantil...">
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-12 mb-3" id="container-account-number">
-                            <label for="benef-account-num" class="form-label">Número de Cuenta (20 dígitos)</label>
-                            <input type="text" class="form-control" id="benef-account-num" name="numeroCuenta" required
-                                maxlength="20" placeholder="0102...">
+                    <hr>
+                    <h6 class="text-primary"><i class="bi bi-wallet2 me-2"></i>Datos de Cuenta y Pago Móvil</h6>
+                    <p class="small text-muted">Seleccione qué datos desea registrar (Puede marcar ambos).</p>
+
+                    <div class="card bg-light border-0 p-3 mb-3">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="check-include-bank"
+                                name="incluirCuentaBancaria" checked>
+                            <label class="form-check-label fw-bold" for="check-include-bank">Registrar Cuenta
+                                Bancaria</label>
+                        </div>
+                        <div id="container-bank-input" class="mb-3 ps-4">
+                            <input type="text" class="form-control" id="benef-account-num" name="numeroCuenta"
+                                maxlength="20" placeholder="Número de cuenta (20 dígitos)">
                         </div>
 
-                        <div class="col-md-12 mb-3 d-none" id="container-phone-number">
-                            <label for="benef-phone-number" class="form-label">Teléfono (Pago Móvil)</label>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="check-include-mobile"
+                                name="incluirPagoMovil">
+                            <label class="form-check-label fw-bold" for="check-include-mobile">Registrar Pago
+                                Móvil</label>
+                        </div>
+                        <div id="container-mobile-input" class="mb-3 ps-4 d-none">
                             <div class="input-group">
                                 <select class="input-group-text" id="benef-phone-code" name="phoneCode"
                                     style="max-width: 130px;"></select>
                                 <input type="tel" class="form-control" id="benef-phone-number" name="phoneNumber"
-                                    placeholder="Número">
+                                    placeholder="Ej: 4141234567">
                             </div>
                         </div>
                     </div>
-
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="submit" class="btn btn-primary" form="add-beneficiary-form">Guardar Beneficiario</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary px-4" form="add-beneficiary-form">Guardar Todo</button>
             </div>
         </div>
     </div>
@@ -237,22 +237,19 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         <div class="modal-content bg-dark text-white">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fs-6">Tomar Selfie (Perfil)</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="btn-close-camera"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    id="btn-close-camera"></button>
             </div>
             <div class="modal-body text-center p-3 position-relative">
                 <div class="rounded overflow-hidden position-relative mx-auto" style="max-width: 400px;">
-                    <video id="video-feed" autoplay playsinline style="width: 100%; height: auto; transform: scaleX(-1); border-radius: 10px;"></video>
-                    
+                    <video id="video-feed" autoplay playsinline
+                        style="width: 100%; height: auto; transform: scaleX(-1); border-radius: 10px;"></video>
                     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
                                 width: 180px; height: 240px; 
                                 border: 2px dashed rgba(255,255,255,0.8); 
                                 border-radius: 50%; pointer-events: none;
                                 box-shadow: 0 0 0 999px rgba(0,0,0,0.5);"></div>
-                    <div class="position-absolute bottom-0 w-100 text-center pb-2 text-white small" style="z-index: 5;">
-                        Ubique su rostro en el óvalo
-                    </div>
                 </div>
-                
                 <canvas id="capture-canvas" class="d-none"></canvas>
             </div>
             <div class="modal-footer border-0 justify-content-center pt-0">

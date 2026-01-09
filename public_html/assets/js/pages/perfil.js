@@ -40,13 +40,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const benefCuentaIdInput = document.getElementById('benef-cuenta-id');
     const benefPaisIdInput = document.getElementById('benef-pais-id');
-    const benefTipoSelect = document.getElementById('benef-tipo');
     const benefDocTypeSelect = document.getElementById('benef-doc-type');
     const benefDocNumberInput = document.getElementById('benef-doc-number');
     const benefDocPrefix = document.getElementById('benef-doc-prefix');
 
-    const containerAccountNum = document.getElementById('container-account-number');
-    const containerPhoneNum = document.getElementById('container-phone-number');
+    const checkIncludeBank = document.getElementById('check-include-bank');
+    const checkIncludeMobile = document.getElementById('check-include-mobile');
+    const containerBankInput = document.getElementById('container-bank-input');
+    const containerMobileInput = document.getElementById('container-mobile-input');
     const inputAccountNum = document.getElementById('benef-account-num');
     const inputPhoneNum = document.getElementById('benef-phone-number');
     const selectPhoneCode = document.getElementById('benef-phone-code');
@@ -56,13 +57,79 @@ document.addEventListener('DOMContentLoaded', () => {
     let isSubmittingBeneficiary = false;
 
     // =========================================================
-    // 1. LÓGICA DE CÁMARA Y FOTO DE PERFIL
+    // 1. LÓGICA DE CÁMARA Y DE PERFIL
     // =========================================================
+    const updateSwitchUI = () => {
+        if (containerBankInput) {
+            containerBankInput.classList.toggle('d-none', !checkIncludeBank.checked);
+            inputAccountNum.required = checkIncludeBank.checked;
+        }
+        if (containerMobileInput) {
+            containerMobileInput.classList.toggle('d-none', !checkIncludeMobile.checked);
+            inputPhoneNum.required = checkIncludeMobile.checked;
+            if (selectPhoneCode) selectPhoneCode.required = checkIncludeMobile.checked;
+        }
+    };
+
+    if (checkIncludeBank) checkIncludeBank.addEventListener('change', updateSwitchUI);
+    if (checkIncludeMobile) checkIncludeMobile.addEventListener('change', updateSwitchUI);
+
+    addBeneficiaryForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!checkIncludeBank.checked && !checkIncludeMobile.checked) {
+            window.showInfoModal('Error', 'Debes seleccionar al menos una opción (Cuenta o Pago Móvil).', false);
+            return;
+        }
+
+        if (isSubmittingBeneficiary) return;
+        isSubmittingBeneficiary = true;
+
+        const formData = new FormData(addBeneficiaryForm);
+        if (!benefDocPrefix.classList.contains('d-none')) {
+            formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
+        }
+
+        const data = Object.fromEntries(formData.entries());
+
+        data.incluirCuentaBancaria = checkIncludeBank.checked;
+        data.incluirPagoMovil = checkIncludeMobile.checked;
+
+        if (!checkIncludeBank.checked) {
+            data.numeroCuenta = null;
+        }
+
+        if (checkIncludeMobile.checked) {
+            data.numeroTelefono = (data.phoneCode || '') + (data.phoneNumber || '');
+        } else {
+            data.numeroTelefono = null;
+        }
+
+        const action = data.cuentaId ? 'updateBeneficiary' : 'addCuenta';
+
+        try {
+            const res = await fetch(`../api/?accion=${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                addAccountModal.hide();
+                window.showInfoModal('Éxito', 'Beneficiario guardado correctamente.', true);
+                loadBeneficiaries();
+            } else throw new Error(result.error);
+        } catch (err) {
+            window.showInfoModal('Error', err.message, false);
+        } finally {
+            isSubmittingBeneficiary = false;
+        }
+    });
+
 
     const startCamera = async () => {
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } 
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
             });
             video.srcObject = stream;
             cameraModal.show();
@@ -92,17 +159,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = canvas.getContext('2d');
         ctx.translate(outputSize, 0);
         ctx.scale(-1, 1);
-        
+
         ctx.drawImage(video, startX, startY, size, size, 0, 0, outputSize, outputSize);
         canvas.toBlob((blob) => {
             if (!blob) { alert("Error al procesar la imagen"); return; }
-            
+
             capturedBlob = blob;
             const url = URL.createObjectURL(blob);
             profileImgPreview.src = url;
-            
+
             if (photoRequiredBadge) photoRequiredBadge.classList.add('d-none');
-            
+
             stopCamera();
             cameraModal.hide();
         }, 'image/jpeg', 0.70);
@@ -110,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnOpenCamera) btnOpenCamera.addEventListener('click', startCamera);
     if (btnCapture) btnCapture.addEventListener('click', takePhoto);
-    
+
     if (cameraModalEl) {
         cameraModalEl.addEventListener('hidden.bs.modal', stopCamera);
     }
@@ -148,11 +215,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: formData
                 });
                 const result = await response.json();
-                
+
                 if (result.success) {
                     window.showInfoModal('Éxito', 'Perfil actualizado correctamente.', true);
-                    loadUserProfile(); 
-                    capturedBlob = null; 
+                    loadUserProfile();
+                    capturedBlob = null;
                 } else {
                     window.showInfoModal('Error', result.error || 'No se pudo actualizar.', false);
                 }
@@ -330,28 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDocumentValidation();
     };
 
-    const updatePaymentFields = () => {
-        const typeText = benefTipoSelect.options[benefTipoSelect.selectedIndex]?.text.toLowerCase() || '';
-        const isMobile = typeText.includes('móvil') || typeText.includes('movil');
-        if (isMobile) {
-            containerAccountNum.classList.add('d-none');
-            inputAccountNum.required = false;
-            inputAccountNum.value = 'PAGO MOVIL';
-            containerPhoneNum.classList.remove('d-none');
-            inputPhoneNum.required = true;
-            inputPhoneNum.value = '';
-            if (selectPhoneCode) selectPhoneCode.required = true;
-        } else {
-            containerAccountNum.classList.remove('d-none');
-            inputAccountNum.required = true;
-            if (inputAccountNum.value === 'PAGO MOVIL') inputAccountNum.value = '';
-            containerPhoneNum.classList.add('d-none');
-            inputPhoneNum.required = false;
-            if (selectPhoneCode) selectPhoneCode.required = false;
-        }
-    };
-
-    benefTipoSelect.addEventListener('change', updatePaymentFields);
     benefDocTypeSelect.addEventListener('change', updateDocumentValidation);
     benefPaisIdInput.addEventListener('change', () => {
         setPhoneCodeByPais(benefPaisIdInput.value, selectPhoneCode);
@@ -447,9 +492,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (cuentas.length > 0) {
                 cuentas.forEach(c => {
-                    let detalle = c.NumeroCuenta;
-                    if (detalle === 'PAGO MOVIL' || detalle.length < 6) {
-                        detalle = c.NumeroTelefono || 'Teléfono';
+                    let detalle = '';
+                    if (c.NumeroCuenta) {
+                        detalle = c.NumeroCuenta;
+                    } else if (c.NumeroTelefono) {
+                        detalle = c.NumeroTelefono;
+                    } else {
+                        detalle = 'Sin datos de pago';
                     }
                     beneficiaryListContainer.innerHTML += `
                         <div class="list-group-item d-flex justify-content-between align-items-center">
@@ -479,53 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const containerSecLast = document.getElementById('container-benef-segundo-apellido');
         if (containerSecName) containerSecName.classList.remove('d-none');
         if (containerSecLast) containerSecLast.classList.remove('d-none');
-        updatePaymentFields();
-    });
-
-    addBeneficiaryForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (isSubmittingBeneficiary) return;
-        isSubmittingBeneficiary = true;
-        const submitBtn = addBeneficiaryForm.closest('.modal-content').querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        const formData = new FormData(addBeneficiaryForm);
-        if (!benefDocPrefix.classList.contains('d-none')) {
-            const fullDoc = benefDocPrefix.value + formData.get('numeroDocumento');
-            formData.set('numeroDocumento', fullDoc);
-        }
-        const data = Object.fromEntries(formData.entries());
-        if (containerPhoneNum.classList.contains('d-none')) {
-            data.numeroTelefono = null;
-        } else {
-            data.numeroTelefono = (data.phoneCode || '') + (data.phoneNumber || '');
-        }
-        delete data.phoneCode;
-        delete data.phoneNumber;
-        if (containerAccountNum.classList.contains('d-none')) {
-            data.numeroCuenta = 'PAGO MOVIL';
-        }
-        if (benefPaisIdInput.disabled) {
-            data.paisID = benefPaisIdInput.value;
-        }
-        const action = data.cuentaId ? 'updateBeneficiary' : 'addCuenta';
-        try {
-            const res = await fetch(`../api/?accion=${action}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await res.json();
-            if (result.success) {
-                addAccountModal.hide();
-                window.showInfoModal('Éxito', 'Beneficiario guardado correctamente.', true);
-                loadBeneficiaries();
-            } else throw new Error(result.error);
-        } catch (err) {
-            window.showInfoModal('Error', err.message, false);
-        } finally {
-            submitBtn.disabled = false;
-            isSubmittingBeneficiary = false;
-        }
     });
 
     beneficiaryListContainer.addEventListener('click', async (e) => {
@@ -546,37 +548,53 @@ document.addEventListener('DOMContentLoaded', () => {
                     setPhoneCodeByPais(d.PaisID, selectPhoneCode);
                     updateDocumentTypesList();
                     document.getElementById('benef-alias').value = d.Alias;
-                    benefTipoSelect.value = d.TipoBeneficiarioNombre;
-                    updatePaymentFields();
                     document.getElementById('benef-firstname').value = d.TitularPrimerNombre;
                     document.getElementById('benef-lastname').value = d.TitularPrimerApellido;
+
                     const secNameInput = document.getElementById('benef-secondname');
+                    const secNameContainer = document.getElementById('container-benef-segundo-nombre');
+                    const secNameToggle = document.getElementById('toggle-benef-segundo-nombre');
+                    
                     if (d.TitularSegundoNombre) {
                         secNameInput.value = d.TitularSegundoNombre;
-                        document.getElementById('container-benef-segundo-nombre').classList.remove('d-none');
-                        document.getElementById('toggle-benef-segundo-nombre').checked = false;
+                        secNameContainer.classList.remove('d-none');
+                        secNameInput.required = true;
+                        secNameToggle.checked = false;
                     } else {
-                        document.getElementById('toggle-benef-segundo-nombre').checked = true;
-                        document.getElementById('container-benef-segundo-nombre').classList.add('d-none');
+                        secNameInput.value = '';
+                        secNameContainer.classList.add('d-none');
+                        secNameInput.required = false;
+                        secNameToggle.checked = true;
                     }
+
                     const secLastInput = document.getElementById('benef-secondlastname');
+                    const secLastContainer = document.getElementById('container-benef-segundo-apellido');
+                    const secLastToggle = document.getElementById('toggle-benef-segundo-apellido');
                     if (d.TitularSegundoApellido) {
                         secLastInput.value = d.TitularSegundoApellido;
-                        document.getElementById('container-benef-segundo-apellido').classList.remove('d-none');
-                        document.getElementById('toggle-benef-segundo-apellido').checked = false;
+                        secLastContainer.classList.remove('d-none');
+                        secLastInput.required = true;
+                        secLastToggle.checked = false;
                     } else {
-                        document.getElementById('toggle-benef-segundo-apellido').checked = true;
-                        document.getElementById('container-benef-segundo-apellido').classList.add('d-none');
+                        secLastInput.value = '';
+                        secLastContainer.classList.add('d-none');
+                        secLastInput.required = false;
+                        secLastToggle.checked = true;
                     }
-                    document.getElementById('benef-bank').value = d.NombreBanco;
-                    document.getElementById('benef-account-num').value = d.NumeroCuenta;
+                    const bankInput = document.getElementById('benef-bank');
+                    if (bankInput) {
+                        bankInput.value = d.NombreBanco || '';
+                    }
+                    const accInput = document.getElementById('benef-account-num');
+                    if (accInput) accInput.value = d.NumeroCuenta || '';
                     let docNum = d.TitularNumeroDocumento;
                     const firstChar = (docNum || "").charAt(0).toUpperCase();
                     if (['V', 'E', 'J', 'G', 'P'].includes(firstChar) && !benefDocPrefix.classList.contains('d-none')) {
                         benefDocPrefix.value = firstChar;
                         docNum = docNum.substring(1);
                     }
-                    document.getElementById('benef-doc-number').value = docNum;
+                    const docInput = document.getElementById('benef-doc-number');
+                    if (docInput) docInput.value = docNum || '';
                     if (d.NumeroTelefono) {
                         const codeMatch = countryPhoneCodes.find(c => d.NumeroTelefono.startsWith(c.code));
                         if (codeMatch) {
@@ -586,6 +604,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             inputPhoneNum.value = d.NumeroTelefono;
                         }
                     }
+                    checkIncludeBank.checked = !!d.NumeroCuenta;
+                    checkIncludeMobile.checked = !!d.NumeroTelefono;
+                    updateSwitchUI();
                     addAccountModal.show();
                 }
             } catch (e) { console.error(e); }
@@ -606,7 +627,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Carga inicial
     Promise.all([
         loadDropdownData('getPaises&rol=Destino', benefPaisIdInput, 'NombrePais', 'PaisID'),
-        loadDropdownData('getBeneficiaryTypes', benefTipoSelect, 'nombre'),
         loadDropdownData('getDocumentTypes', benefDocTypeSelect, 'nombre')
     ]).then(() => {
         loadPhoneCodes(selectPhoneCode);
