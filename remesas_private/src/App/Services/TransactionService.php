@@ -90,6 +90,7 @@ class TransactionService
 
     public function requestResume(int $txId, int $userId, string $mensaje, int $estadoId): bool
     {
+        $this->fileHandler->deleteOrderPdf($txId);
         return $this->txRepository->requestResume($txId, $userId, $mensaje, $estadoId);
     }
 
@@ -363,15 +364,15 @@ class TransactionService
             throw new Exception("Error de seguridad: No se pudo verificar la integridad del archivo.", 500);
         }
         $existingTx = $this->txRepository->findByAdminProofHash($fileHash);
-        
+
         if ($existingTx) {
-            if ((int)$existingTx['TransaccionID'] !== $txId) {
+            if ((int) $existingTx['TransaccionID'] !== $txId) {
                 throw new Exception("Este comprobante ya fue utilizado en la transacción #" . $existingTx['TransaccionID'] . ". Por seguridad, no se permiten archivos duplicados entre órdenes distintas.", 409);
             }
         }
         try {
             $currentTxData = $this->txRepository->getFullTransactionDetails($txId);
-            
+
             if ($currentTxData && !empty($currentTxData['ComprobanteEnvioURL'])) {
                 $oldFilePath = $this->fileHandler->getAbsolutePath($currentTxData['ComprobanteEnvioURL']);
                 if (file_exists($oldFilePath)) {
@@ -385,11 +386,11 @@ class TransactionService
         $estadoPagadoID = $this->getEstadoId(self::ESTADO_PAGADO);
         $estadoEnProcesoID = $this->getEstadoId(self::ESTADO_EN_PROCESO);
         $affectedRows = $this->txRepository->uploadAdminProof(
-            $txId, 
-            $relativePath, 
+            $txId,
+            $relativePath,
             $fileHash,
-            $estadoPagadoID, 
-            $estadoEnProcesoID, 
+            $estadoPagadoID,
+            $estadoEnProcesoID,
             $comisionDestino
         );
 
@@ -403,7 +404,7 @@ class TransactionService
             $this->contabilidadService->registrarGasto(
                 (int) $txData['PaisDestinoID'],
                 (float) $txData['MontoDestino'],
-                (float) $txData['ComisionDestino'], 
+                (float) $txData['ComisionDestino'],
                 $adminId,
                 $txId
             );
@@ -411,7 +412,7 @@ class TransactionService
 
         $this->notificationService->sendPaymentConfirmationToClientWhatsApp($txData);
         $this->notificationService->logAdminAction($adminId, 'Admin completó transacción', "TX ID: $txId. Estado: Exitoso. Comprobante actualizado.");
-        
+
         return true;
     }
 
@@ -448,8 +449,12 @@ class TransactionService
         $estadoPausado = 6;
 
         $affected = $this->txRepository->updateStatus($txId, $estadoEnProceso, $estadoPausado);
-
         if ($affected > 0) {
+            $txData = $this->txRepository->getFullTransactionDetails($txId);
+            if ($txData) {
+                $pdfContent = $this->pdfService->generateOrder($txData);
+                $this->fileHandler->savePdfTemporarily($pdfContent, $txId);
+            }
             $logMsg = "Admin reanudó orden.";
             if (!empty($nota)) {
                 $logMsg .= " Nota: $nota";
