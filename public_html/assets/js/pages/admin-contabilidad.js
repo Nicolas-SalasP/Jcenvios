@@ -1,283 +1,338 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- REFERENCIAS DOM ---
-    const saldosContainer = document.getElementById('saldos-container');
-    const saldosLoading = document.getElementById('saldos-loading');
-    const bancosContainer = document.getElementById('bancos-container');
-    const bancosLoading = document.getElementById('bancos-loading');
 
-    // Selectores Formularios
-    const compraBancoOrigen = document.getElementById('compra-banco-origen');
-    const compraPaisDestino = document.getElementById('compra-pais-destino');
+    // --- ESTADO GLOBAL ---
+    const STATE = {
+        todasLasCuentas: []
+    };
 
-    // Selectores Modales
-    const modalRecargaBancoSelect = document.getElementById('recarga-banco-select');
-    const modalRetiroBancoSelect = document.getElementById('retiro-banco-select');
-    const modalRetiroPaisSelect = document.getElementById('retiro-pais-select');
-    const modalRecargaPaisSelect = document.getElementById('recarga-pais-select');
+    // --- REFERENCIAS AL DOM ---
+    const DOM = {
+        containerOrigen: document.getElementById('container-origen'),
+        containerDestino: document.getElementById('container-destino'),
+        filtroDestino: document.getElementById('filtro-destino'),
 
-    // Historial
-    const resumenTipo = document.getElementById('resumen-tipo');
-    const resumenEntidad = document.getElementById('resumen-entidad-id');
+        // Selects Sección Transferencia
+        txOrigen: document.getElementById('tx-origen-id'),
+        txDestino: document.getElementById('tx-destino-id'),
+        txSaldoOrigen: document.getElementById('tx-saldo-origen'),
+        txSaldoDestino: document.getElementById('tx-saldo-destino'),
 
-    // Forms
-    const formResumenGastos = document.getElementById('form-resumen-gastos');
-    const formCompraDivisas = document.getElementById('form-compra-divisas');
-    const formRecargaBanco = document.getElementById('form-recarga-banco');
-    const formRetiroBanco = document.getElementById('form-retiro-banco');
-    const formRetiroPais = document.getElementById('form-retiro-pais');
-    const formRecargaPais = document.getElementById('form-recarga-pais');
+        // Formularios Principales
+        formTx: document.getElementById('form-transferencia'),
+        formResumen: document.getElementById('form-resumen-gastos'),
 
-    // Visuales
-    const resumenResultado = document.getElementById('resumen-resultado');
-    const resumenTotalGastado = document.getElementById('resumen-total-gastado');
-    const resumenTextoInfo = document.getElementById('resumen-texto-info');
-    const resumenMovimientosTbody = document.getElementById('resumen-movimientos-tbody');
-    const resumenTitulo = document.getElementById('resumen-titulo');
+        // Resultados Historial
+        resumenResultado: document.getElementById('resumen-resultado'),
+        resumenTitulo: document.getElementById('resumen-titulo'),
+        resumenTotalGastado: document.getElementById('resumen-total-gastado'),
+        resumenMovimientosTbody: document.getElementById('resumen-movimientos-tbody')
+    };
 
-    let cachePaises = [];
-    let cacheBancos = [];
+    // --- UTILIDADES ---
+
+    // Función para determinar si una moneda requiere decimales visualmente
+    const requiereDecimales = (currencyCode) => {
+        // Solo USD, PEN y EUR muestran 2 decimales. COP y VES muestran 0 por limpieza visual.
+        const conDecimales = ['USD', 'PEN', 'EUR', 'BRL', 'GBP'];
+        return conDecimales.includes(currencyCode);
+    };
 
     const numberFormatter = (currencyCode, value) => {
         try {
-            const code = (currencyCode && currencyCode.length === 3) ? currencyCode : 'USD';
-            const val = isNaN(parseFloat(value)) ? 0 : parseFloat(value);
-            return new Intl.NumberFormat('es-ES', { style: 'currency', currency: code }).format(val);
+            const decimals = requiereDecimales(currencyCode) ? 2 : 0;
+            return new Intl.NumberFormat('es-CL', {
+                style: 'currency',
+                currency: currencyCode || 'USD',
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            }).format(parseFloat(value) || 0);
         } catch (e) { return value; }
     };
 
-    const actualizarDropdownHistorial = () => {
-        if (!resumenEntidad || !resumenTipo) return;
-        const tipo = resumenTipo.value;
-        resumenEntidad.innerHTML = '<option value="">Seleccione...</option>';
-        if (tipo === 'pais') {
-            cachePaises.forEach(p => {
-                resumenEntidad.innerHTML += `<option value="${p.PaisID}">${p.NombrePais} (${p.CodigoMoneda})</option>`;
-            });
-        } else {
-            cacheBancos.forEach(b => {
-                resumenEntidad.innerHTML += `<option value="${b.CuentaAdminID}">${b.Banco} - ${b.Titular}</option>`;
-            });
-        }
-    };
-
-    if (resumenTipo) {
-        resumenTipo.addEventListener('change', actualizarDropdownHistorial);
-    }
-
-    const cargarDatos = async () => {
+    // --- CARGA INICIAL DE DATOS ---
+    window.cargarDatosGenerales = async () => {
         try {
-            if (saldosLoading) saldosLoading.classList.remove('d-none');
-            if (bancosLoading) bancosLoading.classList.remove('d-none');
-            if (saldosContainer) saldosContainer.classList.add('d-none');
-            if (bancosContainer) bancosContainer.classList.add('d-none');
+            if (DOM.containerOrigen) DOM.containerOrigen.innerHTML = '<div class="col-12 text-center p-4"><div class="spinner-border text-primary"></div></div>';
+            if (DOM.containerDestino) DOM.containerDestino.innerHTML = '<div class="col-12 text-center p-4"><div class="spinner-border text-success"></div></div>';
 
-            const response = await fetch('../api/?accion=getSaldosContables');
+            const response = await fetch('../api/?accion=getContabilidadGlobal');
             const result = await response.json();
 
             if (!result.success) throw new Error(result.error);
 
-            cachePaises = result.saldos || [];
-            cacheBancos = result.bancos || [];
+            // Guardamos todas las cuentas bancarias
+            STATE.todasLasCuentas = result.origen || [];
 
-            // 1. Paises
-            if (saldosContainer) {
-                saldosContainer.innerHTML = '';
-                const paisOptions = '<option value="">Seleccione...</option>' +
-                    cachePaises.map(s => `<option value="${s.PaisID}">${s.NombrePais} (${s.CodigoMoneda})</option>`).join('');
-
-                if (compraPaisDestino) compraPaisDestino.innerHTML = paisOptions;
-                if (modalRetiroPaisSelect) modalRetiroPaisSelect.innerHTML = paisOptions;
-                if (modalRecargaPaisSelect) modalRecargaPaisSelect.innerHTML = paisOptions;
-
-                if (cachePaises.length === 0) {
-                    saldosContainer.innerHTML = '<div class="col-12 text-center text-muted">No hay países.</div>';
-                } else {
-                    cachePaises.forEach(p => {
-                        const val = parseFloat(p.SaldoActual);
-                        const isLow = val < parseFloat(p.UmbralAlerta || 50000);
-                        saldosContainer.innerHTML += `
-                            <div class="col-md-4 mb-3">
-                                <div class="card ${isLow ? 'border-danger' : 'shadow-sm'} h-100">
-                                    <div class="card-body text-center">
-                                        <h6 class="text-muted">${p.NombrePais}</h6>
-                                        <h3 class="${isLow ? 'text-danger' : 'text-success'}">${numberFormatter(p.CodigoMoneda, val)}</h3>
-                                    </div>
-                                </div>
-                            </div>`;
-                    });
-                }
-            }
-
-            // 2. Bancos
-            if (bancosContainer) {
-                bancosContainer.innerHTML = '';
-                const bancoOptions = '<option value="">Seleccione cuenta...</option>' +
-                    cacheBancos.map(b => `<option value="${b.CuentaAdminID}">${b.Banco} - ${b.Titular} (${b.CodigoMoneda})</option>`).join('');
-
-                if (compraBancoOrigen) compraBancoOrigen.innerHTML = bancoOptions;
-                if (modalRecargaBancoSelect) modalRecargaBancoSelect.innerHTML = bancoOptions;
-                if (modalRetiroBancoSelect) modalRetiroBancoSelect.innerHTML = bancoOptions;
-
-                if (cacheBancos.length === 0) {
-                    bancosContainer.innerHTML = '<div class="col-12 text-center text-muted">No hay bancos.</div>';
-                } else {
-                    cacheBancos.forEach(b => {
-                        const val = parseFloat(b.SaldoActual);
-                        bancosContainer.innerHTML += `
-                            <div class="col-md-4 mb-3">
-                                <div class="card shadow-sm border-primary h-100">
-                                    <div class="card-body">
-                                        <h6 class="text-primary fw-bold text-truncate">${b.Banco}</h6>
-                                        <h4 class="text-dark">${numberFormatter(b.CodigoMoneda, val)}</h4>
-                                        <small class="text-muted d-block text-truncate">${b.Titular}</small>
-                                    </div>
-                                </div>
-                            </div>`;
-                    });
-                }
-            }
-            actualizarDropdownHistorial();
-        } catch (error) { console.error(error); }
-        finally {
-            if (saldosLoading) saldosLoading.classList.add('d-none');
-            if (bancosLoading) bancosLoading.classList.add('d-none');
-            if (saldosContainer) saldosContainer.classList.remove('d-none');
-            if (bancosContainer) bancosContainer.classList.remove('d-none');
+            renderizarInterfaz();
+        } catch (error) {
+            console.error("Error al cargar datos:", error);
+            if (window.showInfoModal) window.showInfoModal('Error', 'No se pudieron cargar los saldos.', false);
         }
     };
 
-    // --- MANEJO DE HISTORIAL ---
-    if (formResumenGastos) {
-        formResumenGastos.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!resumenEntidad.value) {
-                window.showInfoModal('Error', 'Por favor selecciona un País o Banco.', false);
-                return;
-            }
-            const btn = e.target.querySelector('button');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-            resumenResultado.style.display = 'none';
+    const renderizarInterfaz = () => {
+        renderOrigen();
+        renderDestino();
+        actualizarTodosLosSelects();
+    };
 
-            const tipo = resumenTipo.value;
-            const id = resumenEntidad.value;
-            const [anio, mes] = document.getElementById('resumen-mes').value.split('-');
+    // --- RENDERIZADO DE CUADRADOS (GRID) ---
 
-            try {
-                const res = await fetch(`../api/?accion=getResumenContable&tipo=${tipo}&id=${id}&mes=${mes}&anio=${anio}`);
-                const r = await res.json();
-                if (r.success) {
-                    const d = r.resumen;
-                    if (resumenTitulo) resumenTitulo.textContent = `${d.Entidad} - ${mes}/${anio}`;
-                    if (resumenTotalGastado) {
-                        resumenTotalGastado.textContent = (tipo === 'pais') ? numberFormatter(d.Moneda, d.TotalGastado) : '';
-                        resumenTextoInfo.textContent = (tipo === 'pais') ? 'Gastos operativos' : 'Movimientos del Banco';
-                    }
+    const renderOrigen = () => {
+        if (!DOM.containerOrigen) return;
 
-                    resumenMovimientosTbody.innerHTML = '';
-                    if (d.Movimientos && d.Movimientos.length > 0) {
-                        d.Movimientos.forEach(m => {
-                            let color = 'text-dark';
-                            const tipoMov = m.TipoMovimiento;
-                            if (['GASTO_TX', 'GASTO_COMISION', 'GASTO_VARIO', 'RETIRO_DIVISAS'].includes(tipoMov)) color = 'text-danger';
-                            if (['RECARGA', 'INGRESO_VENTA', 'COMPRA_DIVISA', 'SALDO_INICIAL'].includes(tipoMov)) color = 'text-success';
+        // FILTRO: Solo cuentas con Rol 'Origen' o 'Ambos' van a la izquierda
+        const origen = STATE.todasLasCuentas.filter(acc =>
+            (acc.Rol === 'Origen' || acc.Rol === 'Ambos')
+        );
 
-                            const resp = m.AdminNombre ? `<small>${m.AdminNombre} ${m.AdminApellido}</small>` : '<small>Sistema</small>';
-                            const referencia = m.TransaccionID ? `<strong>Orden #${m.TransaccionID}</strong>` : '-';
-                            const descripcion = m.Descripcion || '<em class="text-muted">Sin descripción</em>';
-                            const nombreTipo = m.NombreVisible || m.TipoMovimiento;
+        DOM.containerOrigen.innerHTML = '';
+        if (origen.length === 0) {
+            DOM.containerOrigen.innerHTML = '<div class="col-12 text-center text-muted p-3">No hay cuentas de origen.</div>';
+            return;
+        }
 
-                            resumenMovimientosTbody.innerHTML += `
-                                <tr>
-                                    <td>${new Date(m.Timestamp).toLocaleString('es-CL')}</td>
-                                    <td><span class="fw-bold small ${color}">${nombreTipo}</span></td>
-                                    <td>${referencia}</td>
-                                    <td>${descripcion}</td>
-                                    <td>${resp}</td>
-                                    <td class="text-end fw-bold ${color}">${numberFormatter(d.Moneda, m.Monto)}</td>
-                                </tr>`;
-                        });
-                    } else {
-                        resumenMovimientosTbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-3">No hay movimientos en este período.</td></tr>';
-                    }
-                    resumenResultado.style.display = 'block';
-                } else throw new Error(r.error);
-            } catch (err) {
-                window.showInfoModal('Error', err.message, false);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Consultar';
-            }
-        });
-    }
-
-    // --- MANEJO DE FORMULARIOS MODALES ---
-    const handleFormSubmit = async (formId, actionUrl, payload, modalId, successMsg) => {
-        const form = document.getElementById(formId);
-        if (!form) return;
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = e.target.querySelector('button');
-            btn.disabled = true;
-            try {
-                // Obtener valores frescos al momento del submit
-                const finalPayload = {};
-                for (const key in payload) {
-                    finalPayload[key] = document.getElementById(payload[key]).value;
-                }
-
-                const res = await fetch(actionUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(finalPayload)
-                });
-                const r = await res.json();
-                if (r.success) {
-                    window.showInfoModal('Éxito', successMsg, true);
-                    const modalEl = document.getElementById(modalId);
-                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-                    modal.hide();
-                    form.reset();
-                    cargarDatos();
-                } else throw new Error(r.error);
-            } catch (err) { window.showInfoModal('Error', err.message, false); }
-            finally { btn.disabled = false; }
+        origen.forEach(acc => {
+            DOM.containerOrigen.innerHTML += `
+                <div class="col-md-4 mb-3">
+                    <div class="card shadow-sm border-primary border-start border-4 h-100">
+                        <div class="card-body">
+                            <h6 class="text-primary fw-bold text-truncate mb-1" title="${acc.Banco}">${acc.Banco}</h6>
+                            <h4 class="text-dark mb-1">${numberFormatter(acc.CodigoMoneda, acc.SaldoActual)}</h4>
+                            <small class="text-muted d-block text-truncate small">${acc.Titular}</small>
+                        </div>
+                    </div>
+                </div>`;
         });
     };
 
-    handleFormSubmit('form-recarga-banco', '../api/?accion=agregarFondos', { bancoId: 'recarga-banco-select', monto: 'recarga-banco-monto', descripcion: 'recarga-banco-desc' }, 'modalRecargaBanco', 'Saldo bancario actualizado.');
-    handleFormSubmit('form-retiro-banco', '../api/?accion=retirarFondos', { bancoId: 'retiro-banco-select', monto: 'retiro-banco-monto', descripcion: 'retiro-banco-desc' }, 'modalRetiroBanco', 'Retiro bancario registrado.');
-    handleFormSubmit('form-recarga-pais', '../api/?accion=agregarFondos', { paisId: 'recarga-pais-select', monto: 'recarga-pais-monto', descripcion: 'recarga-pais-desc' }, 'modalRecargaPais', 'Caja país recargada.');
-    handleFormSubmit('form-retiro-pais', '../api/?accion=retirarFondos', { paisId: 'retiro-pais-select', monto: 'retiro-pais-monto', descripcion: 'retiro-pais-desc' }, 'modalRetiroPais', 'Retiro de caja registrado.');
+    const renderDestino = () => {
+        if (!DOM.containerDestino) return;
 
-    // Compra Divisas
-    if (formCompraDivisas) {
-        formCompraDivisas.addEventListener('submit', async (e) => {
+        const busqueda = (DOM.filtroDestino?.value || '').toLowerCase();
+
+        // FILTRO: Solo cuentas con Rol estrictamente 'Destino' van a la derecha
+        // Esto evita que las cuentas 'Ambos' se repitan si ya están en Origen
+        const destino = STATE.todasLasCuentas.filter(acc => {
+            const esDestinoPuro = (acc.Rol === 'Destino');
+            const coincide = (acc.Banco || '').toLowerCase().includes(busqueda) ||
+                (acc.NombrePais || '').toLowerCase().includes(busqueda);
+            return esDestinoPuro && coincide;
+        });
+
+        DOM.containerDestino.innerHTML = '';
+        if (destino.length === 0) {
+            DOM.containerDestino.innerHTML = '<div class="col-12 text-center text-muted p-3">No hay cuentas de destino.</div>';
+            return;
+        }
+
+        destino.forEach(acc => {
+            const saldo = parseFloat(acc.SaldoActual);
+            const alerta = saldo < 50000 ? 'border-danger' : 'border-success';
+            const colorSaldo = saldo < 50000 ? 'text-danger' : 'text-success';
+
+            DOM.containerDestino.innerHTML += `
+                <div class="col-md-4 mb-3">
+                    <div class="card shadow-sm ${alerta} border-start border-4 h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <h6 class="text-dark fw-bold text-truncate mb-0" style="max-width: 70%">${acc.Banco}</h6>
+                                <span class="badge bg-light text-dark border small" style="font-size: 0.65rem;">${acc.NombrePais}</span>
+                            </div>
+                            <h4 class="${colorSaldo} mb-1">${numberFormatter(acc.CodigoMoneda, acc.SaldoActual)}</h4>
+                            <small class="text-muted d-block text-truncate small">${acc.Titular}</small>
+                        </div>
+                    </div>
+                </div>`;
+        });
+    };
+
+    // --- LÓGICA DE SELECTS ---
+
+    const actualizarTodosLosSelects = () => {
+        const buildOptions = (list) => {
+            return '<option value="">Seleccione cuenta...</option>' +
+                list.map(acc => `<option value="${acc.CuentaAdminID}" data-saldo="${acc.SaldoActual}" data-moneda="${acc.CodigoMoneda}">
+                        ${acc.Banco} - ${acc.NombrePais}
+                   </option>`).join('');
+        };
+
+        const origen = STATE.todasLasCuentas.filter(acc => acc.Rol === 'Origen' || acc.Rol === 'Ambos');
+        const destino = STATE.todasLasCuentas.filter(acc => acc.Rol === 'Destino');
+
+        if (DOM.txOrigen) DOM.txOrigen.innerHTML = buildOptions(origen);
+        if (DOM.txDestino) DOM.txDestino.innerHTML = buildOptions(destino);
+
+        const mapaModales = {
+            'recarga-origen-select': origen, 'retiro-origen-select': origen,
+            'recarga-destino-select': destino, 'retiro-destino-select': destino
+        };
+
+        Object.keys(mapaModales).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = buildOptions(mapaModales[id]);
+        });
+
+        actualizarDropdownHistorial();
+    };
+
+    const actualizarDropdownHistorial = () => {
+        const tipo = document.getElementById('resumen-tipo').value;
+        const select = document.getElementById('resumen-entidad-id');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Seleccione...</option>';
+        const list = tipo === 'banco'
+            ? STATE.todasLasCuentas.filter(acc => acc.Rol === 'Origen' || acc.Rol === 'Ambos')
+            : STATE.todasLasCuentas.filter(acc => acc.Rol === 'Destino');
+
+        list.forEach(acc => {
+            select.innerHTML += `<option value="${acc.CuentaAdminID}">${acc.Banco} (${acc.NombrePais})</option>`;
+        });
+    };
+
+    // Preview de saldos en transferencia
+    [DOM.txOrigen, DOM.txDestino].forEach((sel, i) => {
+        if (!sel) return;
+        sel.addEventListener('change', () => {
+            const opt = sel.options[sel.selectedIndex];
+            const info = i === 0 ? DOM.txSaldoOrigen : DOM.txSaldoDestino;
+            if (opt && opt.value) {
+                info.innerHTML = `Saldo: <strong>${numberFormatter(opt.dataset.moneda, opt.dataset.saldo)}</strong>`;
+            } else { info.innerText = 'Saldo: -'; }
+        });
+    });
+
+    if (DOM.filtroDestino) {
+        DOM.filtroDestino.addEventListener('input', renderDestino);
+    }
+
+    if (document.getElementById('resumen-tipo')) {
+        document.getElementById('resumen-tipo').addEventListener('change', actualizarDropdownHistorial);
+    }
+
+    // --- ENVÍO DE FORMULARIOS ---
+
+    const setupFormHandler = (formId, action, successMsg, isTransfer = false) => {
+        const form = document.getElementById(formId);
+        if (!form) return;
+
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!await window.showConfirmModal('Confirmar', '¿Procesar compra de divisas?')) return;
-            const btn = e.target.querySelector('button');
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
             btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
             try {
-                const res = await fetch('../api/?accion=compraDivisas', {
+                let payload = {};
+                if (isTransfer) {
+                    payload = {
+                        origen_id: DOM.txOrigen.value,
+                        destino_id: DOM.txDestino.value,
+                        monto_salida: document.getElementById('tx-monto-salida').value,
+                        monto_entrada: document.getElementById('tx-monto-entrada').value
+                    };
+                } else {
+                    const select = form.querySelector('select');
+                    const monto = form.querySelector('input[type="number"]');
+                    const desc = form.querySelector('textarea');
+
+                    // Siempre enviamos bancoId al backend unificado
+                    payload = {
+                        bancoId: select.value,
+                        monto: monto.value,
+                        descripcion: desc.value
+                    };
+                }
+
+                const res = await fetch(`../api/?accion=${action}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        bancoOrigenId: compraBancoOrigen.value,
-                        paisDestinoId: compraPaisDestino.value,
-                        montoSalida: document.getElementById('compra-monto-salida').value,
-                        montoEntrada: document.getElementById('compra-monto-entrada').value
-                    })
+                    body: JSON.stringify(payload)
                 });
-                const r = await res.json();
-                if (r.success) {
-                    window.showInfoModal('Éxito', 'Operación registrada.', true);
-                    formCompraDivisas.reset();
-                    cargarDatos();
-                } else throw new Error(r.error);
-            } catch (e) { window.showInfoModal('Error', e.message, false); }
-            finally { btn.disabled = false; }
+                const result = await res.json();
+
+                if (result.success) {
+                    if (window.showInfoModal) window.showInfoModal('Éxito', successMsg, true);
+                    form.reset();
+                    bootstrap.Modal.getInstance(form.closest('.modal'))?.hide();
+                    cargarDatosGenerales();
+                } else throw new Error(result.error);
+            } catch (err) {
+                if (window.showInfoModal) window.showInfoModal('Error', err.message, false);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+    };
+
+    setupFormHandler('form-transferencia', 'transferenciaInterna', 'Transferencia realizada.', true);
+    setupFormHandler('form-recarga-banco', 'agregarFondos', 'Ingreso registrado.');
+    setupFormHandler('form-retiro-banco', 'retirarFondos', 'Retiro registrado.');
+    setupFormHandler('form-recarga-pais', 'agregarFondos', 'Ajuste registrado.');
+    setupFormHandler('form-retiro-pais', 'retirarFondos', 'Gasto registrado.');
+
+    // --- LÓGICA DEL HISTORIAL ---
+
+    if (DOM.formResumen) {
+        DOM.formResumen.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('resumen-entidad-id').value;
+            const [anio, mes] = document.getElementById('resumen-mes').value.split('-');
+
+            if (!id) return;
+
+            const btn = DOM.formResumen.querySelector('button');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            try {
+                const res = await fetch(`../api/?accion=getResumenContable&id=${id}&mes=${mes}&anio=${anio}`);
+                const result = await res.json();
+
+                if (result.success) {
+                    const data = result.resumen;
+                    DOM.resumenResultado.style.display = 'block';
+                    DOM.resumenTitulo.innerText = `${data.Entidad} - ${mes}/${anio}`;
+
+                    if (DOM.resumenTotalGastado) {
+                        DOM.resumenTotalGastado.innerText = numberFormatter(data.Moneda, data.TotalGastado || 0);
+                    }
+
+                    DOM.resumenMovimientosTbody.innerHTML = '';
+                    if (data.Movimientos && data.Movimientos.length > 0) {
+                        data.Movimientos.forEach(m => {
+                            const esIngreso = ['RECARGA', 'INGRESO_VENTA', 'COMPRA_DIVISA', 'SALDO_INICIAL', 'DEPOSITO'].includes(m.TipoMovimiento);
+
+                            DOM.resumenMovimientosTbody.innerHTML += `
+                                <tr>
+                                    <td><small>${new Date(m.Timestamp).toLocaleString('es-CL')}</small></td>
+                                    <td><span class="badge bg-light text-dark border small">${m.NombreVisible || m.TipoMovimiento}</span></td>
+                                    <td>${m.TransaccionID ? '<strong>#' + m.TransaccionID + '</strong>' : '-'}</td>
+                                    <td><small>${m.Descripcion || ''}</small></td>
+                                    <td>
+                                        <div class="fw-bold small">${m.AdminNombre || 'Sistema'} ${m.AdminApellido || ''}</div>
+                                        <div class="text-muted" style="font-size: 0.65rem;">${m.AdminEmail || ''}</div>
+                                    </td>
+                                    <td class="text-end fw-bold ${esIngreso ? 'text-success' : 'text-danger'}">
+                                        ${esIngreso ? '+' : '-'}${numberFormatter(data.Moneda, m.Monto)}
+                                    </td>
+                                </tr>`;
+                        });
+                    } else {
+                        DOM.resumenMovimientosTbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-4">Sin movimientos.</td></tr>';
+                    }
+                } else throw new Error(result.error);
+            } catch (err) {
+                if (window.showInfoModal) window.showInfoModal('Error', err.message, false);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Consultar';
+            }
         });
     }
 
-    cargarDatos();
+    cargarDatosGenerales();
 });

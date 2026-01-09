@@ -8,8 +8,14 @@ if (
     die("Acceso denegado.");
 }
 
+$sqlCuentas = "SELECT c.CuentaAdminID, c.Banco, c.Titular, c.SaldoActual, p.CodigoMoneda AS Moneda, c.PaisID 
+               FROM cuentas_bancarias_admin c
+               JOIN paises p ON c.PaisID = p.PaisID
+               WHERE c.RolCuentaID = 2 AND c.Activo = 1";
+$cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
+
 $pageTitle = 'Órdenes por Pagar';
-$pageScript = 'admin.js'; 
+$pageScript = 'admin.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
 $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
@@ -20,7 +26,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
         <h1>
             <?php echo $isOperator ? 'Órdenes por Pagar' : 'Gestión de Pendientes'; ?>
         </h1>
-        
+
         <button id="btnRefresh" class="btn btn-primary" onclick="cargarTablaPendientes()">
             <i class="bi bi-arrow-clockwise"></i> Actualizar Lista
         </button>
@@ -67,7 +73,8 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                     <strong class="fs-5 text-muted">Monto a Pagar:</strong>
                     <div class="d-flex align-items-center">
                         <span class="fs-3 fw-bold text-success me-3" id="copy-monto-display"></span>
-                        <button class="btn btn-outline-success btn-sm" onclick="copyToClipboard('copy-monto-value', this)"><i class="bi bi-clipboard"></i></button>
+                        <button class="btn btn-outline-success btn-sm"
+                            onclick="copyToClipboard('copy-monto-value', this)"><i class="bi bi-clipboard"></i></button>
                         <input type="hidden" id="copy-monto-value">
                     </div>
                 </div>
@@ -77,28 +84,32 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                         <label class="small text-muted fw-bold">Banco</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-banco" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i class="bi bi-clipboard"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i
+                                    class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <label class="small text-muted fw-bold" id="label-cuenta-tipo">Cuenta</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-cuenta" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i class="bi bi-clipboard"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i
+                                    class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <label class="small text-muted fw-bold">Documento</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-doc" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-doc', this)"><i class="bi bi-clipboard"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-doc', this)"><i
+                                    class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
                     <div class="col-md-8">
                         <label class="small text-muted fw-bold">Beneficiario</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-nombre" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-nombre', this)"><i class="bi bi-clipboard"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-nombre', this)"><i
+                                    class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
                 </div>
@@ -118,20 +129,54 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="admin-upload-form">
+                <form id="admin-upload-form" enctype="multipart/form-data">
                     <input type="hidden" id="adminTransactionIdField" name="transactionId">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cuenta de Salida (Desde dónde pagas)</label>
+                        <select class="form-select" name="cuentaSalidaID" id="cuentaSalidaSelect" required>
+                            <option value="">-- Cargando Bancos... --</option>
+                        </select>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Comprobante de Transferencia</label>
-                        <input class="form-control" type="file" name="receiptFile" accept="image/*,application/pdf" required>
+                        <input class="form-control" type="file" name="receiptFile" accept="image/*,application/pdf"
+                            required>
                         <div class="form-text">Sube la captura del pago realizado.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Comisión (0.3% Sugerido)</label>
-                        <input type="number" step="0.01" class="form-control" id="opComisionDestino" name="comisionDestino" placeholder="0.00" value="0">
+                        <input type="number" step="0.01" class="form-control" id="opComisionDestino"
+                            name="comisionDestino" placeholder="0.00" value="0">
                         <div class="form-text">Calculado automáticamente. Verifica el valor.</div>
                     </div>
                     <div class="d-grid">
                         <button type="submit" class="btn btn-success btn-lg">Confirmar Envío</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pauseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-pause-circle-fill"></i> Pausar Transacción</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>La orden quedará pausada para el usuario. Escribe el motivo para que pueda corregirlo.</p>
+                <form id="pause-form">
+                    <input type="hidden" id="pause-tx-id" name="txId">
+                    <div class="mb-3">
+                        <textarea class="form-control" name="motivo" rows="3" required
+                            placeholder="Ej: Cuenta destino inactiva / Datos incorrectos..."></textarea>
+                    </div>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning">Pausar Orden</button>
                     </div>
                 </form>
             </div>
@@ -150,11 +195,14 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                 <input type="hidden" id="reject-tx-id">
                 <div class="mb-3">
                     <label class="form-label">Motivo</label>
-                    <textarea class="form-control" id="reject-reason" rows="3" placeholder="Ej: Comprobante ilegible..."></textarea>
+                    <textarea class="form-control" id="reject-reason" rows="3"
+                        placeholder="Ej: Comprobante ilegible..."></textarea>
                 </div>
                 <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-warning confirm-reject-btn" data-type="retry">Solicitar Corrección</button>
-                    <button type="button" class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar Definitivamente</button>
+                    <button type="button" class="btn btn-warning confirm-reject-btn" data-type="retry">Solicitar
+                        Corrección</button>
+                    <button type="button" class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar
+                        Definitivamente</button>
                 </div>
             </div>
         </div>
@@ -170,7 +218,8 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
             </div>
             <div class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center">
                 <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-                <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center"></div>
+                <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center">
+                </div>
             </div>
         </div>
     </div>
@@ -180,14 +229,14 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
     function copiarDatosDirecto(btn, base64Text) {
         try {
             const text = atob(base64Text);
-            
+
             navigator.clipboard.writeText(text).then(() => {
                 const originalHtml = btn.innerHTML;
                 const originalClass = btn.className;
-                
+
                 btn.innerHTML = '<i class="bi bi-check2-all"></i> ¡Copiado!';
                 btn.className = 'btn btn-sm btn-success d-flex align-items-center gap-1';
-                
+
                 setTimeout(() => {
                     btn.innerHTML = originalHtml;
                     btn.className = originalClass;
@@ -205,7 +254,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
     function cargarTablaPendientes() {
         const btn = document.getElementById('btnRefresh');
         const icon = btn.querySelector('i');
-        
+
         icon.classList.add('spin-anim');
         btn.disabled = true;
 
@@ -223,29 +272,22 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
             });
     }
 
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         const btn = e.target.closest('.copy-data-btn');
-        
         if (btn) {
             try {
                 const data = JSON.parse(btn.dataset.datos);
-                
                 document.getElementById('copy-tx-id').textContent = data.id;
                 document.getElementById('copy-monto-display').textContent = data.monto;
                 document.getElementById('copy-monto-value').value = data.monto;
-                
                 document.getElementById('copy-banco').value = data.banco;
                 document.getElementById('copy-nombre').value = data.nombre;
                 document.getElementById('copy-doc').value = data.doc;
                 document.getElementById('copy-cuenta').value = data.cuenta;
                 document.getElementById('label-cuenta-tipo').textContent = data.tipo === 'Pago Móvil' ? 'Teléfono' : 'Cuenta';
-
                 const modal = new bootstrap.Modal(document.getElementById('copyDataModal'));
                 modal.show();
-
-            } catch (err) {
-                console.error("Error al parsear datos JSON del botón:", err);
-            }
+            } catch (err) { console.error("Error JSON:", err); }
         }
     });
 
@@ -274,6 +316,10 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
             });
         };
     }
+</script>
+
+<script>
+    window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
 </script>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

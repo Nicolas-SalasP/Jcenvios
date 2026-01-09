@@ -483,4 +483,26 @@ class TransactionRepository
         $stmt->execute();
     }
 
+    public function updateCuentaSalida(int $txId, int $cuentaId): bool
+    {
+        $sql = "UPDATE transacciones SET CuentaAdminSalidaID = ? WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ii", $cuentaId, $txId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
+    public function getPendingTransactionsByAccountId(int $cuentaBeneficiariaId): array
+    {
+        $sql = "SELECT TransaccionID FROM transacciones 
+            WHERE CuentaBeneficiariaID = ? 
+            AND EstadoID IN (1, 6, 7)";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $cuentaBeneficiariaId);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+
 }

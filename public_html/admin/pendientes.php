@@ -4,6 +4,11 @@ require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
     die("Acceso denegado.");
 }
+$sqlCuentas = "SELECT c.CuentaAdminID, c.Banco, c.Titular, c.SaldoActual, p.CodigoMoneda AS Moneda, c.PaisID 
+               FROM cuentas_bancarias_admin c
+               JOIN paises p ON c.PaisID = p.PaisID
+               WHERE c.RolCuentaID = 2 AND c.Activo = 1";
+$cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
 
 $pageTitle = 'Transacciones Pendientes';
 $pageScript = 'admin.js';
@@ -14,10 +19,12 @@ $sql = "
            U.PrimerNombre, U.PrimerApellido, U.UserID as UsuarioID,
            T.BeneficiarioNombre AS BeneficiarioNombreCompleto,
            ET.NombreEstado AS EstadoNombre,
-           ET.EstadoID
+           ET.EstadoID,
+           CB.PaisID AS PaisDestinoID
     FROM transacciones T
     JOIN usuarios U ON T.UserID = U.UserID
     JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
+    LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
     WHERE ET.EstadoID IN (2, 3, 6, 7)
     ORDER BY CASE WHEN ET.EstadoID = 7 THEN 0 ELSE 1 END, T.FechaTransaccion ASC
 ";
@@ -125,8 +132,8 @@ $transacciones = $conexion->query($sql)->fetch_all(MYSQLI_ASSOC);
                                 <?php elseif ($estadoId === 3): ?>
                                     <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal"
                                         data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        data-monto-destino="<?php echo $tx['MontoDestino']; ?>">
-                                        Pagar
+                                        data-monto-destino="<?php echo $tx['MontoDestino']; ?>"
+                                        data-pais-id="<?php echo $tx['PaisDestinoID']; ?>"> Pagar
                                     </button>
 
                                     <button class="btn btn-sm btn-warning pause-btn-modal" data-bs-toggle="modal"
@@ -203,6 +210,13 @@ $transacciones = $conexion->query($sql)->fetch_all(MYSQLI_ASSOC);
             <div class="modal-body">
                 <form id="admin-upload-form" enctype="multipart/form-data">
                     <input type="hidden" id="adminTransactionIdField" name="transactionId">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cuenta de Salida (Desde dónde pagas)</label>
+                        <select class="form-select" name="cuentaSalidaID" id="cuentaSalidaSelect" required>
+                            <option value="">-- Cargando Bancos... --</option>
+                        </select>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Comprobante de Pago</label>
                         <input class="form-control" type="file" name="receiptFile" required
@@ -263,5 +277,9 @@ $transacciones = $conexion->query($sql)->fetch_all(MYSQLI_ASSOC);
         </div>
     </div>
 </div>
+
+<script>
+    window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
+</script>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

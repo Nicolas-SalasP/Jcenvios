@@ -6,6 +6,8 @@ use App\Repositories\TipoBeneficiarioRepository;
 use App\Repositories\TransactionRepository;
 use App\Repositories\TipoDocumentoRepository;
 use App\Services\NotificationService;
+use App\Services\PDFService;
+use App\Services\FileHandlerService;
 use Exception;
 
 class CuentasBeneficiariasService
@@ -15,19 +17,25 @@ class CuentasBeneficiariasService
     private TransactionRepository $txRepo;
     private TipoBeneficiarioRepository $tipoBeneficiarioRepo;
     private TipoDocumentoRepository $tipoDocumentoRepo;
+    private PDFService $pdfService;
+    private FileHandlerService $fileHandler;
 
     public function __construct(
         CuentasBeneficiariasRepository $cuentasRepo,
         NotificationService $notificationService,
         TransactionRepository $txRepo,
         TipoBeneficiarioRepository $tipoBeneficiarioRepo,
-        TipoDocumentoRepository $tipoDocumentoRepo
+        TipoDocumentoRepository $tipoDocumentoRepo,
+        PDFService $pdfService,
+        FileHandlerService $fileHandler
     ) {
         $this->cuentasRepo = $cuentasRepo;
         $this->notificationService = $notificationService;
         $this->txRepo = $txRepo;
         $this->tipoBeneficiarioRepo = $tipoBeneficiarioRepo;
         $this->tipoDocumentoRepo = $tipoDocumentoRepo;
+        $this->pdfService = $pdfService;
+        $this->fileHandler = $fileHandler;
     }
 
     public function getAccountsByUser(int $userId, ?int $paisId = null): array
@@ -123,11 +131,16 @@ class CuentasBeneficiariasService
                 if ($newCuentaId > 0) {
                     $this->txRepo->migratePendingOrdersToNewAccount($cuentaId, $newCuentaId);
                     $this->cuentasRepo->softDelete($cuentaId);
+                    $this->regeneratePdfsForPendingOrders($newCuentaId);
                     return true;
                 }
                 throw new Exception("Error al versionar cuenta.");
             } else {
-                return $this->cuentasRepo->update($cuentaId, $prepared);
+                $updated = $this->cuentasRepo->update($cuentaId, $prepared);
+                if ($updated) {
+                    $this->regeneratePdfsForPendingOrders($cuentaId);
+                }
+                return $updated;
             }
         } catch (Exception $e) {
             error_log("Error updateAccount: " . $e->getMessage());
@@ -179,5 +192,23 @@ class CuentasBeneficiariasService
         $data['segundoApellido'] = $data['segundoApellido'] ?? null;
 
         return $data;
+    }
+
+    private function regeneratePdfsForPendingOrders(int $cuentaBeneficiariaId): void
+    {
+        $pendingTransactions = $this->txRepo->getPendingTransactionsByAccountId($cuentaBeneficiariaId);
+
+        foreach ($pendingTransactions as $tx) {
+            try {
+                $fullTxData = $this->txRepo->getFullTransactionDetails($tx['TransaccionID']);
+                
+                if ($fullTxData) {
+                    $pdfContent = $this->pdfService->generateOrder($fullTxData);
+                    $this->fileHandler->savePdfTemporarily($pdfContent, $tx['TransaccionID']);
+                }
+            } catch (Exception $e) {
+                error_log("No se pudo regenerar PDF para TX #{$tx['TransaccionID']}: " . $e->getMessage());
+            }
+        }
     }
 }

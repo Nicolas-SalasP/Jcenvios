@@ -121,10 +121,10 @@ class AdminController extends BaseController
     public function adminUploadProof(): void
     {
         $adminId = $this->ensureAdminOrOperator();
-        
         $transactionId = (int) ($_POST['transactionId'] ?? 0);
         $fileData = $_FILES['receiptFile'] ?? null;
         $comisionDestino = isset($_POST['comisionDestino']) ? (float) $_POST['comisionDestino'] : 0.00;
+        $cuentaSalidaId = !empty($_POST['cuentaSalidaID']) ? (int) $_POST['cuentaSalidaID'] : null;
 
         if ($transactionId <= 0 || $fileData === null) {
             $this->sendJsonResponse(['success' => false, 'error' => 'ID de transacción inválido o archivo no recibido.'], 400);
@@ -132,7 +132,14 @@ class AdminController extends BaseController
         }
 
         try {
-            $this->txService->handleAdminProofUpload($adminId, $transactionId, $fileData, $comisionDestino);
+            $this->txService->handleAdminProofUpload(
+                $adminId, 
+                $transactionId, 
+                $fileData, 
+                $comisionDestino, 
+                $cuentaSalidaId
+            );
+            
             $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
@@ -363,16 +370,46 @@ class AdminController extends BaseController
         $this->ensureLoggedIn();
         $this->ensureAdmin();
         $data = $this->getJsonInput();
+        $id = $data['CuentaAdminID'] ?? $data['id'] ?? null;
+        $rolId = isset($data['RolCuentaID']) ? (int)$data['RolCuentaID'] : (isset($data['rolCuentaId']) ? (int)$data['rolCuentaId'] : 1);
+        
+        $repoData = [
+            'id' => $id,
+            'rolCuentaId' => $rolId,
+            'paisId' => $data['PaisID'] ?? $data['paisId'] ?? 0,
+            'banco' => $data['Banco'] ?? $data['banco'] ?? '',
+            'titular' => $data['Titular'] ?? $data['titular'] ?? '',
+            'tipoCuenta' => $data['TipoCuenta'] ?? $data['tipoCuenta'] ?? '',
+            'numeroCuenta' => $data['NumeroCuenta'] ?? $data['numeroCuenta'] ?? '',
+            'rut' => $data['RUT'] ?? $data['rut'] ?? '',
+            'email' => $data['Email'] ?? $data['email'] ?? '',
+            'colorHex' => $data['ColorHex'] ?? $data['colorHex'] ?? '#000000',
+            'saldoInicial' => $data['saldoInicial'] ?? 0.00,
+            'activo' => $data['Activo'] ?? $data['activo'] ?? 1,
+            'formaPagoId' => null,
+            'instrucciones' => '' 
+        ];
 
-        if (empty($data['banco']) || empty($data['titular']) || empty($data['numeroCuenta']) || empty($data['rut'])) {
-            throw new Exception("Faltan campos obligatorios.", 400);
+        if (empty($repoData['banco']) || empty($repoData['titular']) || empty($repoData['numeroCuenta'])) {
+            throw new Exception("Banco, Titular y Número de Cuenta son obligatorios.", 400);
         }
-
-        if (isset($data['id']) && $data['id'] > 0) {
-            $this->cuentasAdminRepo->update((int) $data['id'], $data);
+        if ($rolId === 2) {
+            $repoData['formaPagoId'] = 1; 
+            $repoData['instrucciones'] = null;
         } else {
-            $this->cuentasAdminRepo->create($data);
+            $fpId = $data['FormaPagoID'] ?? $data['formaPagoId'] ?? 0;
+            if (empty($fpId)) {
+                throw new Exception("Debes seleccionar una Forma de Pago para cuentas de Origen.", 400);
+            }
+            $repoData['formaPagoId'] = (int)$fpId;
+            $repoData['instrucciones'] = $data['Instrucciones'] ?? $data['instrucciones'] ?? '';
         }
+        if ($id && $id > 0) {
+            $this->cuentasAdminRepo->update((int)$id, $repoData);
+        } else {
+            $this->cuentasAdminRepo->create($repoData);
+        }
+        
         $this->sendJsonResponse(['success' => true]);
     }
 

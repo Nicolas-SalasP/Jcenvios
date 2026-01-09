@@ -354,7 +354,7 @@ class TransactionService
         return true;
     }
 
-    public function handleAdminProofUpload(int $adminId, int $txId, array $fileData, float $comisionDestino): bool
+    public function handleAdminProofUpload(int $adminId, int $txId, array $fileData, float $comisionDestino, ?int $cuentaSalidaId = null): bool
     {
         if (empty($fileData) || $fileData['error'] === UPLOAD_ERR_NO_FILE) {
             throw new Exception("No se recibió ningún archivo.", 400);
@@ -364,17 +364,31 @@ class TransactionService
             throw new Exception("Error de seguridad: No se pudo verificar la integridad del archivo.", 500);
         }
         $existingTx = $this->txRepository->findByAdminProofHash($fileHash);
-
         if ($existingTx) {
             if ((int) $existingTx['TransaccionID'] !== $txId) {
-                throw new Exception("Este comprobante ya fue utilizado en la transacción #" . $existingTx['TransaccionID'] . ". Por seguridad, no se permiten archivos duplicados entre órdenes distintas.", 409);
+                throw new Exception("Este comprobante ya fue utilizado en la transacción #" . $existingTx['TransaccionID'] . ". Por seguridad, no se permiten archivos duplicados.", 409);
             }
         }
-        try {
-            $currentTxData = $this->txRepository->getFullTransactionDetails($txId);
 
-            if ($currentTxData && !empty($currentTxData['ComprobanteEnvioURL'])) {
-                $oldFilePath = $this->fileHandler->getAbsolutePath($currentTxData['ComprobanteEnvioURL']);
+        $txData = $this->txRepository->getFullTransactionDetails($txId);
+        if (!$txData) {
+            throw new Exception("Transacción no encontrada.", 404);
+        }
+
+        $cuentaAdmin = null;
+        if ($cuentaSalidaId) {
+            $cuentaAdmin = $this->cuentasAdminRepo->getById($cuentaSalidaId);
+            if (!$cuentaAdmin) {
+                throw new Exception("La cuenta bancaria de salida seleccionada no existe.", 404);
+            }
+            if ((float) $cuentaAdmin['SaldoActual'] < (float) $txData['MontoDestino']) {
+                throw new Exception("Saldo insuficiente en la cuenta " . $cuentaAdmin['Banco'] . ". Saldo actual: " . $cuentaAdmin['SaldoActual'], 400);
+            }
+        }
+
+        try {
+            if (!empty($txData['ComprobanteEnvioURL'])) {
+                $oldFilePath = $this->fileHandler->getAbsolutePath($txData['ComprobanteEnvioURL']);
                 if (file_exists($oldFilePath)) {
                     unlink($oldFilePath);
                 }
@@ -398,16 +412,29 @@ class TransactionService
             @unlink($this->fileHandler->getAbsolutePath($relativePath));
             throw new Exception("No se pudo completar la transacción. Verifique que la orden esté en estado 'En Proceso'.", 409);
         }
-        $txData = $this->txRepository->getFullTransactionDetails($txId);
 
-        if ($txData && !empty($txData['PaisDestinoID'])) {
-            $this->contabilidadService->registrarGasto(
-                (int) $txData['PaisDestinoID'],
+        if ($cuentaSalidaId && $cuentaAdmin) {
+            $nuevoSaldo = (float) $cuentaAdmin['SaldoActual'] - (float) $txData['MontoDestino'];
+            $this->cuentasAdminRepo->updateSaldo($cuentaSalidaId, $nuevoSaldo);
+
+            $this->txRepository->updateCuentaSalida($txId, $cuentaSalidaId);
+
+            $this->contabilidadService->registrarEgresoPago(
+                (int) $cuentaSalidaId,
                 (float) $txData['MontoDestino'],
-                (float) $txData['ComisionDestino'],
                 $adminId,
                 $txId
             );
+        } else {
+            if (!empty($txData['PaisDestinoID'])) {
+                $this->contabilidadService->registrarGasto(
+                    (int) $txData['PaisDestinoID'],
+                    (float) $txData['MontoDestino'],
+                    (float) $comisionDestino,
+                    $adminId,
+                    $txId
+                );
+            }
         }
 
         $this->notificationService->sendPaymentConfirmationToClientWhatsApp($txData);

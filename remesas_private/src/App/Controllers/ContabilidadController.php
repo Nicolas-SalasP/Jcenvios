@@ -34,19 +34,17 @@ class ContabilidadController extends BaseController
         $monto = (float) ($data['monto'] ?? 0);
         $descripcion = trim($data['descripcion'] ?? '');
 
-        if ($monto <= 0) {
+        if ($monto <= 0)
             throw new Exception("El monto debe ser positivo.", 400);
-        }
-        if (empty($descripcion)) {
+        if (empty($descripcion))
             throw new Exception("La descripción es obligatoria.", 400);
-        }
 
         if (!empty($data['bancoId'])) {
             $this->contabilidadService->agregarFondosBanco((int) $data['bancoId'], $monto, $adminId, $descripcion);
         } elseif (!empty($data['paisId'])) {
-            $this->contabilidadService->agregarFondosPais((int) $data['paisId'], $monto, $adminId, $descripcion);
+            $this->contabilidadService->agregarFondosBanco((int) $data['paisId'], $monto, $adminId, $descripcion);
         } else {
-            throw new Exception("Datos incompletos: Se requiere bancoId o paisId.", 400);
+            throw new Exception("Datos incompletos: Se requiere ID de cuenta.", 400);
         }
 
         $this->sendJsonResponse(['success' => true, 'message' => 'Fondos agregados con éxito.']);
@@ -59,23 +57,22 @@ class ContabilidadController extends BaseController
         $monto = (float) ($data['monto'] ?? 0);
         $descripcion = trim($data['descripcion'] ?? $data['motivo'] ?? '');
 
-        if ($monto <= 0) {
+        if ($monto <= 0)
             throw new Exception("El monto debe ser positivo.", 400);
-        }
-        if (empty($descripcion)) {
+        if (empty($descripcion))
             throw new Exception("El motivo o descripción es obligatorio.", 400);
-        }
 
         if (!empty($data['bancoId'])) {
             $this->contabilidadService->registrarRetiroBanco((int) $data['bancoId'], $monto, $descripcion, $adminId);
         } elseif (!empty($data['paisId'])) {
-            $this->contabilidadService->registrarGastoPais((int) $data['paisId'], $monto, $descripcion, $adminId);
+            $this->contabilidadService->registrarRetiroBanco((int) $data['paisId'], $monto, $descripcion, $adminId);
         } else {
-            throw new Exception("Debe especificar bancoId o paisId para el retiro.", 400);
+            throw new Exception("Debe especificar una cuenta para el retiro.", 400);
         }
 
         $this->sendJsonResponse(['success' => true, 'message' => 'Retiro registrado correctamente.']);
     }
+
     public function registrarGastoVario(): void
     {
         $this->retirarFondos();
@@ -101,7 +98,7 @@ class ContabilidadController extends BaseController
 
     public function getResumenMensual(): void
     {
-        $tipo = $_GET['tipo'] ?? 'pais';
+        $tipo = $_GET['tipo'] ?? 'banco';
         $id = (int) ($_GET['id'] ?? 0);
         $mes = (int) ($_GET['mes'] ?? 0);
         $anio = (int) ($_GET['anio'] ?? 0);
@@ -112,5 +109,50 @@ class ContabilidadController extends BaseController
 
         $resumen = $this->contabilidadService->getResumenMensual($tipo, $id, $mes, $anio);
         $this->sendJsonResponse(['success' => true, 'resumen' => $resumen]);
+    }
+
+    public function getContabilidadGlobal(): void
+    {
+        try {
+            $bancos = $this->contabilidadService->getSaldosBancos();
+
+            $this->sendJsonResponse([
+                'success' => true,
+                'origen' => $bancos
+            ]);
+
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function transferenciaInterna(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Método no permitido'], 405);
+            return;
+        }
+
+        try {
+            $adminId = $this->ensureLoggedIn();
+            $input = $this->getJsonInput();
+
+            if (empty($input['origen_id']) || empty($input['destino_id']) || empty($input['monto_salida'])) {
+                throw new Exception("Faltan datos para la transferencia");
+            }
+
+            $this->contabilidadService->registrarTransferencia(
+                (int) $input['origen_id'],
+                (int) $input['destino_id'],
+                (float) $input['monto_salida'],
+                (float) ($input['monto_entrada'] ?? $input['monto_salida']),
+                $adminId
+            );
+
+            $this->sendJsonResponse(['success' => true, 'message' => 'Transferencia registrada correctamente']);
+
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 }

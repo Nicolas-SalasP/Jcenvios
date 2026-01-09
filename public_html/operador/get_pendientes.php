@@ -17,10 +17,12 @@ $sql = "
         T.BeneficiarioNombre, T.BeneficiarioDocumento, T.BeneficiarioBanco, 
         T.BeneficiarioNumeroCuenta, T.BeneficiarioTelefono,
         T.MontoDestino, T.MonedaDestino,
-        T.ComprobanteURL, T.ComprobanteEnvioURL
+        T.ComprobanteURL, T.ComprobanteEnvioURL,
+        CB.PaisID AS PaisDestinoID -- <--- DATO CLAVE PARA EL MODAL DE BANCOS
     FROM transacciones T
     JOIN usuarios U ON T.UserID = U.UserID
     LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
+    LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID -- <--- JOIN AGREGADO
     WHERE T.EstadoID IN ($estadosSQL)
     ORDER BY T.FechaTransaccion ASC
 ";
@@ -115,14 +117,22 @@ foreach ($transacciones as $tx):
                         data-bs-target="#adminUploadModal"
                         data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                         data-monto-destino="<?php echo $tx['MontoDestino']; ?>"
+                        data-pais-id="<?php echo $tx['PaisDestinoID']; ?>" 
                         title="Finalizar y Pagar">
                         <i class="bi bi-upload"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning pause-btn-modal" 
+                        data-bs-toggle="modal"
+                        data-bs-target="#pauseModal" 
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        title="Pausar Orden">
+                        <i class="bi bi-pause-circle-fill"></i>
                     </button>
                 <?php endif; ?>
 
                 <?php if (!$isOperator && $tx['EstadoNombre'] === 'En Verificación'): ?>
                     <button class="btn btn-sm btn-success process-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Aprobar"><i class="bi bi-check-lg"></i></button>
-                    <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectionModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Rechazar"><i class="bi bi-x-lg"></i></button>
+                    <button class="btn btn-sm btn-danger reject-btn" data-bs-toggle="modal" data-bs-target="#rejectionModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Rechazar"><i class="bi bi-x-lg"></i></button>
                 <?php endif; ?>
             </div>
         </td>

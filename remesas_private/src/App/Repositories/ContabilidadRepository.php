@@ -46,11 +46,11 @@ class ContabilidadRepository
     public function getSaldosBancos(): array
     {
         $sql = "SELECT c.CuentaAdminID, c.Banco, c.Titular, c.SaldoActual, 
-                       p.CodigoMoneda, p.NombrePais
-                FROM cuentas_bancarias_admin c
-                JOIN paises p ON c.PaisID = p.PaisID
-                WHERE c.Activo = 1
-                ORDER BY p.NombrePais, c.Banco";
+                   p.CodigoMoneda, p.NombrePais, p.Rol 
+            FROM cuentas_bancarias_admin c
+            JOIN paises p ON c.PaisID = p.PaisID
+            WHERE c.Activo = 1
+            ORDER BY p.NombrePais, c.Banco";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

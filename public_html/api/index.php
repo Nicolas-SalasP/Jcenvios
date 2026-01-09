@@ -292,6 +292,8 @@ try {
         'retirarFondos' => [ContabilidadController::class, 'retirarFondos', 'POST'],
         'compraDivisas' => [ContabilidadController::class, 'compraDivisas', 'POST'],
         'getResumenContable' => [ContabilidadController::class, 'getResumenMensual', 'GET'],
+        'getContabilidadGlobal' => [ContabilidadController::class, 'getContabilidadGlobal', 'GET'],
+        'transferenciaInterna' => [ContabilidadController::class, 'transferenciaInterna', 'POST'],
 
         // Webhooks
         'botWebhook' => [BotController::class, 'handleWebhook', 'POST'],

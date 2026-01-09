@@ -54,24 +54,40 @@ class CuentasAdminRepository
 
     public function create(array $data): int
     {
-        $sql = "INSERT INTO cuentas_bancarias_admin (FormaPagoID, PaisID, Banco, Titular, TipoCuenta, NumeroCuenta, RUT, Email, Instrucciones, ColorHex, SaldoActual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO cuentas_bancarias_admin 
+                (FormaPagoID, PaisID, RolCuentaID, Banco, Titular, TipoCuenta, NumeroCuenta, RUT, Email, Instrucciones, ColorHex, SaldoActual, Activo) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
         $stmt = $this->db->prepare($sql);
-
-        $saldoInicial = isset($data['saldoInicial']) ? (float) $data['saldoInicial'] : 0.00;
+        $formaPagoId = $data['formaPagoId'] ?? 1;
+        $paisId = $data['paisId'] ?? 0;
+        $rolId = $data['rolCuentaId'] ?? 1;
+        $banco = $data['banco'] ?? '';
+        $titular = $data['titular'] ?? '';
+        $tipoCuenta = $data['tipoCuenta'] ?? '';
+        $numeroCuenta = $data['numeroCuenta'] ?? '';
+        $rut = $data['rut'] ?? '';
+        $email = $data['email'] ?? '';
+        $instrucciones = $data['instrucciones'] ?? ''; 
+        $colorHex = $data['colorHex'] ?? '#000000';
+        $saldoInicial = isset($data['saldoInicial']) ? (float)$data['saldoInicial'] : 0.00;
+        $activo = isset($data['activo']) ? (int)$data['activo'] : 1;
 
         $stmt->bind_param(
-            "iissssssssd",
-            $data['formaPagoId'],
-            $data['paisId'],
-            $data['banco'],
-            $data['titular'],
-            $data['tipoCuenta'],
-            $data['numeroCuenta'],
-            $data['rut'],
-            $data['email'],
-            $data['instrucciones'],
-            $data['colorHex'],
-            $saldoInicial
+            "iiissssssssdi",
+            $formaPagoId,
+            $paisId,
+            $rolId,
+            $banco,
+            $titular,
+            $tipoCuenta,
+            $numeroCuenta,
+            $rut,
+            $email,
+            $instrucciones,
+            $colorHex,
+            $saldoInicial,
+            $activo
         );
 
         if ($stmt->execute()) {
@@ -82,24 +98,42 @@ class CuentasAdminRepository
 
     public function update(int $id, array $data): bool
     {
-        $sql = "UPDATE cuentas_bancarias_admin SET FormaPagoID=?, PaisID=?, Banco=?, Titular=?, TipoCuenta=?, NumeroCuenta=?, RUT=?, Email=?, Instrucciones=?, ColorHex=?, Activo=? WHERE CuentaAdminID=?";
+        $sql = "UPDATE cuentas_bancarias_admin 
+                SET FormaPagoID=?, PaisID=?, RolCuentaID=?, Banco=?, Titular=?, TipoCuenta=?, NumeroCuenta=?, RUT=?, Email=?, Instrucciones=?, ColorHex=?, Activo=? 
+                WHERE CuentaAdminID=?";
+        
         $stmt = $this->db->prepare($sql);
-        $activoInt = (int) $data['activo'];
+        
+        $formaPagoId = $data['formaPagoId'] ?? 1;
+        $paisId = $data['paisId'] ?? 0;
+        $rolId = $data['rolCuentaId'] ?? 1;
+        $banco = $data['banco'] ?? '';
+        $titular = $data['titular'] ?? '';
+        $tipoCuenta = $data['tipoCuenta'] ?? '';
+        $numeroCuenta = $data['numeroCuenta'] ?? '';
+        $rut = $data['rut'] ?? '';
+        $email = $data['email'] ?? '';
+        $instrucciones = $data['instrucciones'] ?? '';
+        $colorHex = $data['colorHex'] ?? '#000000';
+        $activo = isset($data['activo']) ? (int)$data['activo'] : 1;
+
         $stmt->bind_param(
-            "iissssssssii",
-            $data['formaPagoId'],
-            $data['paisId'],
-            $data['banco'],
-            $data['titular'],
-            $data['tipoCuenta'],
-            $data['numeroCuenta'],
-            $data['rut'],
-            $data['email'],
-            $data['instrucciones'],
-            $data['colorHex'],
-            $activoInt,
+            "iiissssssssii",
+            $formaPagoId,
+            $paisId,
+            $rolId,
+            $banco,
+            $titular,
+            $tipoCuenta,
+            $numeroCuenta,
+            $rut,
+            $email,
+            $instrucciones,
+            $colorHex,
+            $activo,
             $id
         );
+        
         $success = $stmt->execute();
         $stmt->close();
         return $success;

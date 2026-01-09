@@ -527,12 +527,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5. GESTIÓN DE TRANSACCIONES (MODALES Y ACCIONES)
     // ==========================================
 
-    // 5.1 PAUSAR (MODAL)
     const pauseModalEl = document.getElementById('pauseModal');
     if (pauseModalEl) {
         pauseModalEl.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
-            document.getElementById('pause-tx-id').value = btn.dataset.txId;
+            if(btn) document.getElementById('pause-tx-id').value = btn.dataset.txId;
         });
 
         const pauseForm = document.getElementById('pause-form');
@@ -541,9 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const btn = pauseForm.querySelector('button[type="submit"]');
                 btn.disabled = true;
-
                 const data = Object.fromEntries(new FormData(pauseForm).entries());
-
                 try {
                     const res = await fetch('../api/?accion=pauseTransaction', {
                         method: 'POST',
@@ -551,10 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: JSON.stringify(data)
                     });
                     const result = await res.json();
-
-                    const modal = bootstrap.Modal.getInstance(pauseModalEl);
-                    modal.hide();
-
+                    bootstrap.Modal.getInstance(pauseModalEl).hide();
                     if (result.success) window.location.reload();
                     else window.showInfoModal('Error', result.error, false);
                 } catch (err) { window.showInfoModal('Error', 'Error de conexión', false); }
@@ -568,7 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resumeModalEl) {
         resumeModalEl.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
-            document.getElementById('resume-tx-id').value = btn.dataset.txId;
+            if(btn) document.getElementById('resume-tx-id').value = btn.dataset.txId;
         });
 
         const resumeForm = document.getElementById('resume-form');
@@ -577,9 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const btn = resumeForm.querySelector('button[type="submit"]');
                 btn.disabled = true;
-
                 const data = Object.fromEntries(new FormData(resumeForm).entries());
-
                 try {
                     const res = await fetch('../api/?accion=resumeTransactionAdmin', {
                         method: 'POST',
@@ -587,10 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: JSON.stringify(data)
                     });
                     const result = await res.json();
-
-                    const modal = bootstrap.Modal.getInstance(resumeModalEl);
-                    modal.hide();
-
+                    bootstrap.Modal.getInstance(resumeModalEl).hide();
                     if (result.success) window.location.reload();
                     else window.showInfoModal('Error', result.error, false);
                 } catch (err) { window.showInfoModal('Error', 'Error de conexión', false); }
@@ -618,18 +607,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 5.4 SUBIR COMPROBANTE (PAGAR)
+    // 5.4 SUBIR COMPROBANTE (PAGAR) - ACTUALIZADO CON SELECCIÓN DE BANCO
     const adminUploadModalEl = document.getElementById('adminUploadModal');
     if (adminUploadModalEl) {
         const uploadForm = document.getElementById('admin-upload-form');
         const txIdField = document.getElementById('adminTransactionIdField');
         const txIdLabel = document.getElementById('modal-admin-tx-id');
-        const comisionInput = document.getElementById('adminComisionDestino');
+        const comisionInput = document.getElementById('adminComisionDestino') || document.getElementById('opComisionDestino');
+        const cuentaSelect = document.getElementById('cuentaSalidaSelect');
 
         adminUploadModalEl.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
+            if(!btn) return;
+
             const txId = btn.dataset.txId;
             const monto = parseFloat(btn.dataset.montoDestino);
+            const paisDestinoId = btn.dataset.paisId; 
 
             if (txIdField) txIdField.value = txId;
             if (txIdLabel) txIdLabel.textContent = txId;
@@ -638,23 +631,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isNaN(monto) && monto > 0) comisionInput.value = (monto * 0.003).toFixed(2);
                 else comisionInput.value = 0;
             }
+            if (cuentaSelect) {
+                cuentaSelect.innerHTML = '<option value="">-- Seleccionar Banco --</option>';
+                
+                if (window.cuentasDestino && Array.isArray(window.cuentasDestino)) {
+                    const cuentasFiltradas = window.cuentasDestino.filter(c => c.PaisID == paisDestinoId);
+                    
+                    if (cuentasFiltradas.length > 0) {
+                        cuentasFiltradas.forEach(cuenta => {
+                            const option = document.createElement('option');
+                            option.value = cuenta.CuentaAdminID;
+                            option.textContent = `${cuenta.Banco} - ${cuenta.Titular} (Saldo: ${cuenta.SaldoActual} ${cuenta.Moneda || ''})`;
+                            cuentaSelect.appendChild(option);
+                        });
+                    } else {
+                        const option = document.createElement('option');
+                        option.textContent = "No hay cuentas de salida para este país";
+                        option.disabled = true;
+                        cuentaSelect.appendChild(option);
+                    }
+                }
+            }
         });
 
         if (uploadForm) {
             uploadForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const btn = uploadForm.querySelector('button[type="submit"]');
+                const originalText = btn.textContent;
                 btn.disabled = true; btn.textContent = 'Procesando...';
 
                 try {
+                    const formData = new FormData(uploadForm);
+                    if(cuentaSelect && !cuentaSelect.value) {
+                        throw new Error("⚠️ Por favor, selecciona la cuenta bancaria desde donde salió el dinero.");
+                    }
+
                     const res = await fetch('../api/?accion=adminUploadProof', {
-                        method: 'POST', body: new FormData(uploadForm)
+                        method: 'POST', body: formData
                     });
                     const result = await res.json();
-                    if (result.success) window.location.reload();
-                    else window.showInfoModal('Error', result.error, false);
-                } catch (e) { window.showInfoModal('Error', 'Error de red', false); }
-                finally { btn.disabled = false; btn.textContent = 'Confirmar Envío'; }
+                    
+                    if (result.success) {
+                        window.showInfoModal('Éxito', 'Transacción completada y saldo descontado.', true, () => window.location.reload());
+                    } else {
+                        window.showInfoModal('Error', result.error, false);
+                    }
+                } catch (e) { 
+                    window.showInfoModal('Error', e.message || 'Error de red', false); 
+                } finally { 
+                    btn.disabled = false; btn.textContent = originalText; 
+                }
             });
         }
     }
@@ -710,17 +737,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 5.7 RECHAZAR PAGO (MODAL)
-    const rejectionModal = document.getElementById('rejectionModal');
-    if (rejectionModal) {
-        const rejectionModalInstance = new bootstrap.Modal(rejectionModal);
+    // 5.7 RECHAZAR PAGO (MODAL) - CORREGIDO PARA FUNCIONAR SIEMPRE
+    const rejectionModalEl = document.getElementById('rejectionModal');
+    if (rejectionModalEl) {
+        const rejectionModalInstance = new bootstrap.Modal(rejectionModalEl);
         const rejectTxIdInput = document.getElementById('reject-tx-id');
         const rejectReasonInput = document.getElementById('reject-reason');
-
-        rejectionModal.addEventListener('show.bs.modal', (e) => {
+        rejectionModalEl.addEventListener('show.bs.modal', (e) => {
             const btn = e.relatedTarget;
-            rejectTxIdInput.value = btn.dataset.txId;
-            rejectReasonInput.value = '';
+            if(btn) {
+                rejectTxIdInput.value = btn.dataset.txId;
+                rejectReasonInput.value = '';
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.reject-btn');
+            if (btn && rejectTxIdInput) {
+                rejectTxIdInput.value = btn.dataset.txId;
+                rejectReasonInput.value = '';
+                rejectionModalInstance.show();
+            }
         });
 
         document.querySelectorAll('.confirm-reject-btn').forEach(btn => {
