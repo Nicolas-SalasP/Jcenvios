@@ -58,9 +58,18 @@ class TransactionRepository
         $sql = "SELECT
                     T.TransaccionID, T.FechaTransaccion, T.MontoOrigen, T.MonedaOrigen,
                     T.MontoDestino, T.MonedaDestino, T.ComprobanteURL, T.ComprobanteEnvioURL,
+                    
+                    -- DATOS DE LA CUENTA (SNAPSHOT) --
+                    T.BeneficiarioNombre, 
                     T.BeneficiarioNombre AS BeneficiarioAlias,
+                    T.BeneficiarioDocumento, 
+                    T.BeneficiarioBanco, 
+                    T.BeneficiarioNumeroCuenta, 
+                    T.BeneficiarioTelefono,
+                    
                     T.FormaPagoID, 
                     T.EstadoID,
+                    T.CuentaBeneficiariaID, 
                     P.NombrePais AS PaisDestino,
                     ET.NombreEstado AS EstadoNombre,
                     T.MotivoPausa, T.MensajeReanudacion
@@ -106,7 +115,6 @@ class TransactionRepository
             TD_B.NombreDocumento AS BeneficiarioTipoDocumentoNombre,
             TB.Nombre AS BeneficiarioTipoNombre,
             
-            -- Campos para el sistema de Pausa
             T.MotivoPausa, T.MensajeReanudacion
             
         FROM transacciones AS T
@@ -128,6 +136,32 @@ class TransactionRepository
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         return $result;
+    }
+
+    public function updateBeneficiarySnapshot(int $txId, array $data): bool
+    {
+        $sql = "UPDATE transacciones SET 
+                    BeneficiarioNombre = ?,
+                    BeneficiarioDocumento = ?,
+                    BeneficiarioBanco = ?,
+                    BeneficiarioNumeroCuenta = ?,
+                    BeneficiarioTelefono = ?
+                WHERE TransaccionID = ?";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param(
+            "sssssi", 
+            $data['nombre'],
+            $data['documento'],
+            $data['banco'],
+            $data['cuenta'],
+            $data['telefono'],
+            $txId
+        );
+        
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
     }
 
     public function uploadUserReceipt(int $transactionId, int $userId, string $dbPath, string $fileHash, int $estadoEnVerificacionID, int $estadoPendienteID): int
@@ -254,12 +288,9 @@ class TransactionRepository
         return $success;
     }
 
-    // --- MÉTODOS PARA ESTADÍSTICAS ---
-
     public function countByStatus(array $statusIDs): int
     {
-        if (empty($statusIDs))
-            return 0;
+        if (empty($statusIDs)) return 0;
         $placeholders = implode(',', array_fill(0, count($statusIDs), '?'));
         $sql = "SELECT COUNT(TransaccionID) as total FROM transacciones WHERE EstadoID IN ($placeholders)";
         $stmt = $this->db->prepare($sql);
@@ -302,8 +333,6 @@ class TransactionRepository
         $stmt->close();
         return $result['EstadoID'] ?? null;
     }
-
-    // --- MÉTODOS PARA DASHBOARD ---
 
     public function getTopCountries(string $direction = 'Destino', int $limit = 5): array
     {
@@ -415,8 +444,6 @@ class TransactionRepository
         return $result;
     }
 
-    // --- MÉTODOS PARA BOT DE CORREOS ---
-
     public function findPendingByAmount(float $monto, int $horasTolerancia): array
     {
         $sql = "SELECT TransaccionID, UserID, MontoOrigen, Email, PrimerNombre, Telefono 
@@ -504,5 +531,5 @@ class TransactionRepository
         $stmt->execute();
         return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     }
-
+    
 }

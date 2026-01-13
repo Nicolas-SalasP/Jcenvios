@@ -133,18 +133,27 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">Notificar Corrección</h5>
+                <h5 class="modal-title">Corregir Transacción</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Si ya corregiste los datos, envía un mensaje para continuar.</p>
+                <p>Modifique los datos necesarios y presione enviar.</p>
                 <form id="resume-order-form">
                     <input type="hidden" id="resume-tx-id" name="txId">
+                    
                     <div class="mb-3">
-                        <label for="resume-message" class="form-label">Mensaje para el operador</label>
-                        <textarea class="form-control" id="resume-message" name="mensaje" rows="3" required placeholder="Ej: Ya corregí el número de cuenta."></textarea>
+                        <label for="resume-account-select" class="form-label fw-bold">Cuenta Beneficiaria</label>
+                        <select class="form-select" id="resume-account-select" name="newAccountId">
+                            <option value="">Cargando cuentas...</option>
+                        </select>
+                        <div class="form-text">Si seleccionas otra cuenta, la orden se actualizará con los nuevos datos bancarios.</div>
                     </div>
-                    <div class="d-grid"><button type="submit" class="btn btn-primary">Enviar</button></div>
+
+                    <div class="mb-3">
+                        <label for="resume-message" class="form-label">Mensaje (Opcional)</label>
+                        <textarea class="form-control" id="resume-message" name="mensaje" rows="2" placeholder="Ej: Ya corregí el número de cuenta."></textarea>
+                    </div>
+                    <div class="d-grid"><button type="submit" class="btn btn-primary">Guardar Corrección</button></div>
                 </form>
             </div>
         </div>

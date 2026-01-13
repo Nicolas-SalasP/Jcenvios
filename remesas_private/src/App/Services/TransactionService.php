@@ -88,8 +88,14 @@ class TransactionService
         return $this->txRepository->pauseTransaction($txId, $motivo, $estadoId);
     }
 
-    public function requestResume(int $txId, int $userId, string $mensaje, int $estadoId): bool
+    public function requestResume(int $txId, int $userId, string $mensaje, int $estadoId, ?array $beneficiaryData = null): bool
     {
+        if ($beneficiaryData) {
+            if (empty($beneficiaryData['nombre']) || empty($beneficiaryData['cuenta'])) {
+                throw new Exception("Nombre y Cuenta son obligatorios para corregir.");
+            }
+            $this->txRepository->updateBeneficiarySnapshot($txId, $beneficiaryData);
+        }
         $this->fileHandler->deleteOrderPdf($txId);
         return $this->txRepository->requestResume($txId, $userId, $mensaje, $estadoId);
     }

@@ -33,6 +33,56 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const getFileExt = (path) => path ? path.split('.').pop().toLowerCase() : 'jpg';
+
+    const injectResumeForm = () => {
+        const form = document.getElementById('resume-order-form');
+        if (!form) return;
+        form.innerHTML = `
+            <input type="hidden" id="resume-tx-id" name="txId">
+            <div class="alert alert-info py-2 small mb-3">
+                <i class="bi bi-pencil-square"></i> Edita los datos incorrectos y guarda los cambios.
+            </div>
+            
+            <div class="mb-2">
+                <label class="form-label fw-bold small mb-1">Nombre del Beneficiario</label>
+                <input type="text" class="form-control form-control-sm" id="edit-benef-name" required>
+            </div>
+
+            <div class="row g-2 mb-2">
+                <div class="col-6">
+                    <label class="form-label fw-bold small mb-1">Documento</label>
+                    <input type="text" class="form-control form-control-sm" id="edit-benef-doc" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold small mb-1">Teléfono</label>
+                    <input type="text" class="form-control form-control-sm" id="edit-benef-phone">
+                </div>
+            </div>
+
+            <div class="row g-2 mb-3">
+                <div class="col-6">
+                    <label class="form-label fw-bold small mb-1">Banco</label>
+                    <input type="text" class="form-control form-control-sm" id="edit-benef-bank" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-bold small mb-1">Número de Cuenta</label>
+                    <input type="text" class="form-control form-control-sm" id="edit-benef-account" required>
+                </div>
+            </div>
+
+            <div class="mb-3 border-top pt-2">
+                <label for="resume-message" class="form-label small text-muted">Mensaje adicional (Opcional)</label>
+                <textarea class="form-control form-control-sm" id="resume-message" name="mensaje" rows="2" placeholder="Ej: Corregí el número de cuenta que estaba errado."></textarea>
+            </div>
+
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-2"></i> Guardar y Corregir
+                </button>
+            </div>
+        `;
+    };
+
     const loadHistorial = async () => {
         try {
             const response = await fetch('../api/?accion=getHistorialTransacciones');
@@ -69,7 +119,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (estadoId === 6) {
                 btns += `
                     <button class="btn btn-sm btn-info text-white view-reason-btn me-1" data-reason="${motivoSafe}" title="Ver Motivo"><i class="bi bi-info-circle"></i> Ver Motivo</button>
-                    <button class="btn btn-sm btn-primary resume-order-btn" data-bs-toggle="modal" data-bs-target="#resumeOrderModal" data-tx-id="${tx.TransaccionID}" title="Notificar Corrección"><i class="bi bi-check-circle"></i> Corregido</button>
+                    <button class="btn btn-sm btn-primary resume-order-btn" 
+                        data-bs-toggle="modal" 
+                        data-bs-target="#resumeOrderModal" 
+                        data-tx-id="${tx.TransaccionID}" 
+                        
+                        data-benef-name="${tx.BeneficiarioNombre || tx.BeneficiarioAlias || ''}"
+                        data-benef-doc="${tx.BeneficiarioDocumento || ''}"
+                        data-benef-bank="${tx.BeneficiarioBanco || ''}"
+                        data-benef-account="${tx.BeneficiarioNumeroCuenta || ''}"
+                        data-benef-phone="${tx.BeneficiarioTelefono || ''}"
+
+                        title="Modificar Datos"><i class="bi bi-pencil-square"></i> Corregir</button>
                 `;
             }
             if (estadoId === 1) {
@@ -149,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody.addEventListener('click', (e) => {
             const btn = e.target.closest('button');
             if (!btn) return;
+            
             if (btn.classList.contains('view-reason-btn')) {
                 const reasonText = document.getElementById('reason-content-text');
                 const reasonModalEl = document.getElementById('viewReasonModal');
@@ -166,6 +228,18 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (btn.classList.contains('resume-order-btn')) {
                 const resumeField = document.getElementById('resume-tx-id');
                 if (resumeField) resumeField.value = btn.dataset.txId;
+                const inputs = {
+                    'edit-benef-name': btn.dataset.benefName,
+                    'edit-benef-doc': btn.dataset.benefDoc,
+                    'edit-benef-bank': btn.dataset.benefBank,
+                    'edit-benef-account': btn.dataset.benefAccount,
+                    'edit-benef-phone': btn.dataset.benefPhone
+                };
+
+                for (const [id, value] of Object.entries(inputs)) {
+                    const el = document.getElementById(id);
+                    if (el) el.value = value || '';
+                }
             }
         });
     }
@@ -333,31 +407,56 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- REANUDAR ORDEN ---
+    // --- REANUDAR/CORREGIR ORDEN (LÓGICA ACTUALIZADA) ---
     const resumeForm = document.getElementById('resume-order-form');
-    const resumeTxIdField = document.getElementById('resume-tx-id');
     const resumeModalEl = document.getElementById('resumeOrderModal');
     if (resumeForm) {
         resumeForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitBtn = resumeForm.querySelector('button[type="submit"]');
             const originalText = submitBtn.textContent;
-            const txId = resumeTxIdField.value;
+            const txId = document.getElementById('resume-tx-id').value;
             const mensaje = document.getElementById('resume-message').value.trim();
-            if (!mensaje) { alert("Escribe un mensaje."); return; }
+            
+            const beneficiaryData = {
+                nombre: document.getElementById('edit-benef-name').value.trim(),
+                documento: document.getElementById('edit-benef-doc').value.trim(),
+                banco: document.getElementById('edit-benef-bank').value.trim(),
+                cuenta: document.getElementById('edit-benef-account').value.trim(),
+                telefono: document.getElementById('edit-benef-phone').value.trim()
+            };
+
+            if (!beneficiaryData.nombre || !beneficiaryData.cuenta) {
+                alert("Por favor completa los datos obligatorios.");
+                return;
+            }
+
             submitBtn.disabled = true; submitBtn.textContent = 'Enviando...';
+            
             try {
                 const res = await fetch('../api/?accion=resumeOrder', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ txId, mensaje })
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        txId, 
+                        mensaje,
+                        beneficiaryData
+                    })
                 });
                 const data = await res.json();
+                
                 if (data.success) {
                     bootstrap.Modal.getInstance(resumeModalEl).hide();
-                    window.showInfoModal('Enviado', 'Notificación enviada.', true, loadHistorial);
-                } else { throw new Error(data.error); }
-            } catch (err) { alert(err.message || "Error conexión."); }
-            finally { submitBtn.disabled = false; submitBtn.textContent = originalText; }
+                    window.showInfoModal('Corrección Enviada', 'La orden ha sido actualizada y enviada a revisión.', true, loadHistorial);
+                } else { 
+                    throw new Error(data.error); 
+                }
+            } catch (err) { 
+                alert(err.message || "Error conexión."); 
+            } finally { 
+                submitBtn.disabled = false; 
+                submitBtn.textContent = originalText; 
+            }
         });
     }
 
@@ -491,7 +590,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- CARGA INICIAL Y AUTO-REFRESH ---
+    // --- CARGA INICIAL, INYECCIÓN DE MODAL Y AUTO-REFRESH ---
+    injectResumeForm();
     loadHistorial();
     setInterval(loadHistorial, 10000);
 });

@@ -381,21 +381,27 @@ class ClientController extends BaseController
         $userId = $this->ensureLoggedIn();
         try {
             $data = $this->getJsonInput();
+
             $txId = (int) ($data['txId'] ?? 0);
             $mensaje = trim($data['mensaje'] ?? '');
+            $beneficiaryData = $data['beneficiaryData'] ?? null;
 
-            if ($txId <= 0 || empty($mensaje)) {
-                throw new Exception("Datos incompletos para reanudar la orden.");
+            if ($txId <= 0) {
+                throw new Exception("Identificador de transacción inválido.");
+            }
+
+            if (empty($mensaje) && empty($beneficiaryData)) {
+                throw new Exception("Debes ingresar un mensaje o corregir algún dato.");
             }
 
             $estadoEnProcesoID = $this->txService->getEstadoIdByName('En Proceso');
-            $success = $this->txService->requestResume($txId, $userId, $mensaje, $estadoEnProcesoID);
+            $success = $this->txService->requestResume($txId, $userId, $mensaje, $estadoEnProcesoID, $beneficiaryData);
 
             if (!$success) {
-                throw new Exception("No se pudo enviar la solicitud de reanudación.");
+                throw new Exception("No se pudo actualizar la orden. Intente nuevamente.");
             }
 
-            $this->sendJsonResponse(['success' => true, 'message' => 'Solicitud enviada correctamente. El operador revisará los cambios.']);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Corrección aplicada y orden enviada a revisión.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
@@ -403,8 +409,9 @@ class ClientController extends BaseController
 
     public function checkSessionStatus()
     {
-        if (ob_get_length()) ob_clean(); 
-        
+        if (ob_get_length())
+            ob_clean();
+
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
@@ -415,7 +422,7 @@ class ClientController extends BaseController
         }
 
         $userId = $_SESSION['user_id'];
-        
+
         try {
             $db = \App\Database\Database::getInstance()->getConnection();
             $sql = "SELECT u.VerificacionEstadoID, ev.NombreEstado as EstadoVerificacion, 
@@ -424,7 +431,7 @@ class ClientController extends BaseController
                     JOIN estados_verificacion ev ON u.VerificacionEstadoID = ev.EstadoID
                     JOIN roles r ON u.RolID = r.RolID
                     WHERE u.UserID = ?";
-            
+
             $stmt = $db->prepare($sql);
             if (!$stmt) {
                 throw new Exception("Error en preparación SQL: " . $db->error);
