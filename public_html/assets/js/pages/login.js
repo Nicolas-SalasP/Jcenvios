@@ -35,7 +35,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFieldVisibility('toggle-segundo-apellido', 'container-segundo-apellido', 'register-segundo-apellido');
 
     const countryPhoneCodes = [
+        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
         { code: '+54', name: 'Argentina', flag: '🇦🇷' },
+        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
         { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
         { code: '+55', name: 'Brasil', flag: '🇧🇷' },
         { code: '+56', name: 'Chile', flag: '🇨🇱' },
@@ -43,35 +45,31 @@ document.addEventListener('DOMContentLoaded', () => {
         { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
         { code: '+53', name: 'Cuba', flag: '🇨🇺' },
         { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
+        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
         { code: '+503', name: 'El Salvador', flag: '🇸🇻' },
+        { code: '+34', name: 'España', flag: '🇪🇸' },
+        { code: '+33', name: 'Francia', flag: '🇫🇷' },
         { code: '+502', name: 'Guatemala', flag: '🇬🇹' },
         { code: '+504', name: 'Honduras', flag: '🇭🇳' },
+        { code: '+39', name: 'Italia', flag: '🇮🇹' },
         { code: '+52', name: 'México', flag: '🇲🇽' },
         { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
+        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' },
         { code: '+507', name: 'Panamá', flag: '🇵🇦' },
         { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
         { code: '+51', name: 'Perú', flag: '🇵🇪' },
-        { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
-        { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
-        { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
-        { code: '+39', name: 'Italia', flag: '🇮🇹' },
-        { code: '+34', name: 'España', flag: '🇪🇸' },
         { code: '+351', name: 'Portugal', flag: '🇵🇹' },
-        { code: '+33', name: 'Francia', flag: '🇫🇷' },
-        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
+        { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
         { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
+        { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
         { code: '+41', name: 'Suiza', flag: '🇨🇭' },
-        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
-        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' }
+        { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
+        { code: '+58', name: 'Venezuela', flag: '🇻🇪' }
     ];
 
     const loadPhoneCodes = (selectElement) => {
         if (!selectElement) return;
-
         countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
-
         selectElement.innerHTML = '<option value="">Código...</option>';
         countryPhoneCodes.forEach(country => {
             if (country.code) {

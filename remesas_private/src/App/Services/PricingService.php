@@ -135,6 +135,20 @@ class PricingService
         return true;
     }
 
+    private function getCalculationMode(int $origenId, int $destinoId): string
+    {
+        $inverseRoutes = [
+            '2-3', // Col -> Ven
+            '4-1', // Peru -> Chile
+            '2-1', // Col -> Chile
+            '3-1', // Ven -> Chile
+            '3-4',  // Ven -> Peru
+        ];
+
+        $routeKey = "{$origenId}-{$destinoId}";
+        return in_array($routeKey, $inverseRoutes) ? 'divide' : 'multiply';
+    }
+
     public function getCurrentRate(int $origenID, int $destinoID, float $montoOrigen = 0): array
     {
         if ($origenID === $destinoID) {
@@ -143,25 +157,17 @@ class PricingService
 
         if ($montoOrigen == 0) {
             $tasaInfo = $this->rateRepository->findReferentialRate($origenID, $destinoID);
-            if ($tasaInfo)
-                return $tasaInfo;
-            throw new Exception("Esta ruta no tiene una Tasa Referencial configurada.", 404);
-        }
-
-        $tasaInfo = $this->rateRepository->findCurrentRate($origenID, $destinoID, $montoOrigen);
-
-        if (!$tasaInfo) {
-            $limits = $this->rateRepository->getRouteLimits($origenID, $destinoID);
-            if ($montoOrigen > 0) {
-                if ($limits['min'] > 0 && $montoOrigen < $limits['min']) {
-                    throw new Exception("Monto inferior al mínimo permitido (" . number_format($limits['min'], 2, ',', '.') . ").", 400);
-                }
-                if ($limits['max'] > 0 && $montoOrigen > $limits['max']) {
-                    throw new Exception("Monto excede el máximo permitido (" . number_format($limits['max'], 2, ',', '.') . ").", 400);
-                }
+            if (!$tasaInfo) {
+                throw new Exception("Esta ruta no tiene una Tasa Referencial configurada.", 404);
             }
-            throw new Exception("No existe una tasa configurada para esta ruta.", 404);
+        } else {
+            $tasaInfo = $this->rateRepository->findCurrentRate($origenID, $destinoID, $montoOrigen);
+            if (!$tasaInfo) {
+                $limits = $this->rateRepository->getRouteLimits($origenID, $destinoID);
+                throw new Exception("No existe una tasa configurada para esta ruta.", 404);
+            }
         }
+        $tasaInfo['operation'] = $this->getCalculationMode($origenID, $destinoID);
 
         return $tasaInfo;
     }

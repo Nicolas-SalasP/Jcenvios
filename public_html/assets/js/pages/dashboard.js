@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const stepperItems = document.querySelectorAll('.stepper-item');
     
     // Contenedores para ocultar/mostrar lógica Venezuela
-    const containerMontoUsd = document.getElementById('container-monto-usd'); // Asegúrate que el input tenga un div padre con este ID o usa el parent
+    const containerMontoUsd = document.getElementById('container-monto-usd'); 
     
     // --- REFERENCIAS DEL MODAL (SISTEMA HÍBRIDO) ---
     const addAccountBtn = document.getElementById('add-account-btn');
@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let fetchRateTimer = null;
     let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
+    let calculationMode = 'multiply';
     const LOGGED_IN_USER_ID = userIdInput ? userIdInput.value : null;
 
     // --- UTILIDADES DE FORMATEO ---
@@ -102,7 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const countryPhoneCodes = [
+        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
         { code: '+54', name: 'Argentina', flag: '🇦🇷' },
+        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
         { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
         { code: '+55', name: 'Brasil', flag: '🇧🇷' },
         { code: '+56', name: 'Chile', flag: '🇨🇱' },
@@ -110,20 +113,26 @@ document.addEventListener('DOMContentLoaded', () => {
         { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
         { code: '+53', name: 'Cuba', flag: '🇨🇺' },
         { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
+        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
         { code: '+503', name: 'El Salvador', flag: '🇸🇻' },
+        { code: '+34', name: 'España', flag: '🇪🇸' },
+        { code: '+33', name: 'Francia', flag: '🇫🇷' },
         { code: '+502', name: 'Guatemala', flag: '🇬🇹' },
         { code: '+504', name: 'Honduras', flag: '🇭🇳' },
+        { code: '+39', name: 'Italia', flag: '🇮🇹' },
         { code: '+52', name: 'México', flag: '🇲🇽' },
         { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
+        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' },
         { code: '+507', name: 'Panamá', flag: '🇵🇦' },
         { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
         { code: '+51', name: 'Perú', flag: '🇵🇪' },
+        { code: '+351', name: 'Portugal', flag: '🇵🇹' },
         { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
+        { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
         { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
+        { code: '+41', name: 'Suiza', flag: '🇨🇭' },
         { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
-        { code: '+34', name: 'España', flag: '🇪🇸' }
+        { code: '+58', name: 'Venezuela', flag: '🇻🇪' }
     ];
     countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -232,10 +241,10 @@ document.addEventListener('DOMContentLoaded', () => {
             montoParaTasa = parseInput(montoOrigenInput.value, false);
         } else if (activeInputId === 'monto-destino') {
             let ves = parseInput(montoDestinoInput.value, false);
-            montoParaTasa = commercialRate > 0 ? (ves / commercialRate) : 0;
+            montoParaTasa = commercialRate > 0 ? ((calculationMode === 'divide') ? ves * commercialRate : ves / commercialRate) : 0;
         } else if (activeInputId === 'monto-usd') {
             let usd = parseInput(montoUsdInput.value, true);
-            montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? (usd * bcvRate / commercialRate) : 0;
+            montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? ((calculationMode === 'divide') ? (usd * bcvRate * commercialRate) : (usd * bcvRate / commercialRate)) : 0;
         }
 
         if (montoParaTasa > 0 && montoParaTasa < 10) montoParaTasa = 0;
@@ -251,6 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (dataRate.success && dataRate.tasa) {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
                 selectedTasaIdInput.value = dataRate.tasa.TasaID;
+                calculationMode = dataRate.tasa.operation || 'multiply'; 
                 const monD = paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency || 'VES';
                 tasaComercialDisplay.textContent = `Tasa Comercial: 1 CLP = ${commercialRate.toFixed(5)} ${monD}`;
                 tasaComercialDisplay.className = 'form-text text-end fw-bold text-primary';
@@ -269,16 +279,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const recalculateAll = () => {
         if (commercialRate <= 0) return;
         let clp = 0, ves = 0, usd = 0;
+        
         if (activeInputId === 'monto-origen') {
             clp = parseInput(montoOrigenInput.value, false);
-            ves = clp * commercialRate;
+            ves = (calculationMode === 'divide') ? (clp / commercialRate) : (clp * commercialRate);
+            
             if (bcvRate > 0) usd = ves / bcvRate;
             if (document.activeElement !== montoDestinoInput) montoDestinoInput.value = formatDisplay(ves);
             if (document.activeElement !== montoUsdInput) montoUsdInput.value = formatDisplay(usd);
         }
         else if (activeInputId === 'monto-destino') {
             ves = parseInput(montoDestinoInput.value, false);
-            clp = Math.ceil(ves / commercialRate);
+            clp = (calculationMode === 'divide') ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
+            
             if (bcvRate > 0) usd = ves / bcvRate;
             if (document.activeElement !== montoOrigenInput) montoOrigenInput.value = formatDisplay(clp);
             if (document.activeElement !== montoUsdInput) montoUsdInput.value = formatDisplay(usd);
@@ -287,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
             usd = parseInput(montoUsdInput.value, true);
             if (bcvRate > 0) {
                 ves = usd * bcvRate;
-                clp = Math.ceil(ves / commercialRate);
+                clp = (calculationMode === 'divide') ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
             }
             if (document.activeElement !== montoOrigenInput) montoOrigenInput.value = formatDisplay(clp);
             if (document.activeElement !== montoDestinoInput) montoDestinoInput.value = formatDisplay(ves);

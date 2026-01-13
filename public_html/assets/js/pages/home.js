@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let fetchTimer = null;
     let activeInputId = 'calc-monto-origen';
     let isVenezuelaDest = false;
+    let calculationMode = 'multiply';
 
     const parseInput = (val, isUsd = false) => {
         if (!val) return 0;
@@ -201,16 +202,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let montoParaTasa = 0;
-        const isColombia = selectOrigen.options[selectOrigen.selectedIndex]?.text === 'Colombia';
 
         if (activeInputId === 'calc-monto-origen') {
             montoParaTasa = parseInput(inputOrigen.value, false);
         } else if (activeInputId === 'calc-monto-destino') {
             let ves = parseInput(inputDestino.value, false);
-            montoParaTasa = commercialRate > 0 ? (isColombia ? ves * commercialRate : ves / commercialRate) : 0;
+            montoParaTasa = commercialRate > 0 ? ((calculationMode === 'divide') ? ves * commercialRate : ves / commercialRate) : 0;
         } else if (activeInputId === 'calc-monto-usd') {
             let usd = parseInput(inputUsd.value, true);
-            montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? (isColombia ? (usd * bcvRate * commercialRate) : (usd * bcvRate / commercialRate)) : 0;
+            montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? ((calculationMode === 'divide') ? (usd * bcvRate * commercialRate) : (usd * bcvRate / commercialRate)) : 0;
         }
 
         if (routeMin > 0 && montoParaTasa > 0 && montoParaTasa < routeMin) {
@@ -238,6 +238,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const dataRate = await respRate.json();
             if (dataRate.success && dataRate.tasa) {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
+                calculationMode = dataRate.tasa.operation || 'multiply';
+                
                 if (tasaInfo) {
                     tasaInfo.textContent = `Tasa: 1 ${labelMonedaOrigen.textContent} = ${commercialRate.toFixed(5)} ${labelMonedaDestino.textContent}`;
                     tasaInfo.classList.replace('text-danger', 'text-primary');
@@ -265,11 +267,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (commercialRate <= 0) return;
 
         let clp = 0, ves = 0, usd = 0;
-        const isColombia = selectOrigen.options[selectOrigen.selectedIndex]?.text === 'Colombia';
 
         if (activeInputId === 'calc-monto-origen') {
             clp = parseInput(inputOrigen.value, false);
-            ves = isColombia ? (clp / commercialRate) : (clp * commercialRate);
+            ves = (calculationMode === 'divide') ? (clp / commercialRate) : (clp * commercialRate);
             if (isVenezuelaDest && bcvRate > 0) usd = ves / bcvRate;
 
             inputDestino.value = formatDisplay(ves);
@@ -277,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else if (activeInputId === 'calc-monto-destino') {
             ves = parseInput(inputDestino.value, false);
-            clp = isColombia ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
+            clp = (calculationMode === 'divide') ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
             if (isVenezuelaDest && bcvRate > 0) usd = ves / bcvRate;
 
             inputOrigen.value = formatDisplay(clp);
@@ -286,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (activeInputId === 'calc-monto-usd' && isVenezuelaDest) {
             usd = parseInput(inputUsd.value, true);
             ves = usd * bcvRate;
-            clp = isColombia ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
+            clp = (calculationMode === 'divide') ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
 
             inputOrigen.value = formatDisplay(clp);
             inputDestino.value = formatDisplay(ves);
