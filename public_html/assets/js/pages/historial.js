@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. UTILIDADES
     if (!window.showConfirmModal) {
         window.showConfirmModal = async (title, message) => confirm(`${title}\n\n${message}`);
     }
@@ -33,20 +32,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<span class="badge ${badgeClass}">${statusName}</span>`;
     };
 
+    const getFileExt = (path) => path ? path.split('.').pop().toLowerCase() : 'jpg';
     const loadHistorial = async () => {
         try {
             const response = await fetch('../api/?accion=getHistorialTransacciones');
             const data = await response.json();
             if (!data.success) throw new Error(data.error || 'Error desconocido');
             allTransactions = data.transacciones || [];
-            renderTable(allTransactions);
+            filterData(); 
+
         } catch (error) {
             console.error(error);
-            if (tableBody) tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">No se pudo cargar el historial.</td></tr>`;
+            if (tableBody && allTransactions.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">No se pudo cargar el historial.</td></tr>`;
+            }
         }
     };
-
-    const getFileExt = (path) => path ? path.split('.').pop().toLowerCase() : 'jpg';
 
     const renderTable = (transactions) => {
         if (!tableBody) return;
@@ -80,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 btns += ` <button class="btn btn-sm btn-secondary upload-btn" data-id="${tx.TransaccionID}" title="Modificar Pago"><i class="bi bi-pencil-square"></i> Modificar</button>`;
             }
 
-            // --- CORRECCIÓN RUTA: Apuntamos a ver-comprobantes.php ---
             if (tx.ComprobanteURL) {
                 const ext = getFileExt(tx.ComprobanteURL);
                 btns += ` <button class="btn btn-sm btn-outline-secondary view-comprobante-btn" 
@@ -124,6 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterData = () => {
         const term = searchInput ? searchInput.value.toLowerCase() : '';
         const status = statusFilter ? statusFilter.value : 'all';
+        if (allTransactions.length === 0) {
+            renderTable([]);
+            return;
+        }
+
         const filtered = allTransactions.filter(tx => {
             const matchText =
                 tx.TransaccionID.toString().includes(term) ||
@@ -182,15 +187,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let stream = null;
     let uploadModalInstance = null;
 
-    // >>> FUNCIÓN DE COMPRESIÓN AGREGADA <<<
     const compressImage = (file) => {
         return new Promise((resolve, reject) => {
             if (!file.type.match(/image.*/)) {
-                resolve(file); // No comprimir si no es imagen (ej: pdf)
+                resolve(file);
                 return;
             }
-            const maxWidth = 1280; // Resolución HD suficiente para comprobantes
-            const quality = 0.8;   // 80% de calidad
+            const maxWidth = 1280; 
+            const quality = 0.8;   
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = (event) => {
@@ -287,7 +291,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         uploadModalElement.addEventListener('hidden.bs.modal', stopCamera);
 
-        // >>> SUBMIT ACTUALIZADO CON COMPRESIÓN <<<
         uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitBtn = uploadForm.querySelector('button[type="submit"]');
@@ -295,20 +298,16 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (fileInput.files.length === 0) { alert("Selecciona archivo."); return; }
             
-            submitBtn.disabled = true; submitBtn.textContent = 'Procesando...'; // Feedback visual
+            submitBtn.disabled = true; submitBtn.textContent = 'Procesando...'; 
 
             try {
-                // 1. Obtener archivo original
                 const originalFile = fileInput.files[0];
-                
-                // 2. Comprimir solo si es imagen (fix para subidas pesadas de iPhone)
                 let fileToUpload = originalFile;
                 if (originalFile.type.startsWith('image/')) {
                     fileToUpload = await compressImage(originalFile);
                 }
 
                 const formData = new FormData(uploadForm);
-                // Reemplazamos el archivo en el FormData con el comprimido
                 formData.set('receiptFile', fileToUpload, fileToUpload.name);
 
                 const response = await fetch('../api/?accion=uploadReceipt', {
@@ -380,8 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- VISOR DE COMPROBANTES (MODAL) ---
-    // MEJORADO: CSS FIX PARA IOS
+    // --- VISOR DE COMPROBANTES ---
     const viewModalElement = document.getElementById('viewComprobanteModal');
     if (viewModalElement) {
         const modalContent = document.getElementById('comprobante-content');
@@ -414,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 downloadButton.href = finalUrl;
                 downloadButton.download = `comprobante_${currentTxId}`;
             }
-            // Detectar PDF por extensión o si la URL es del admin (que a veces genera PDF)
+            
             const isPdf = current.url.includes('type=admin') || current.ext === 'pdf';
 
             let mediaEl;
@@ -425,7 +423,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 mediaEl.style.border = '0';
             } else {
                 mediaEl = document.createElement('img');
-                // IOS FIX: object-fit contain y display block centrado
                 mediaEl.style.maxWidth = '100%';
                 mediaEl.style.maxHeight = '75vh';
                 mediaEl.style.objectFit = 'contain'; 
@@ -441,7 +438,6 @@ document.addEventListener('DOMContentLoaded', () => {
             mediaEl.src = finalUrl;
             modalContent.appendChild(mediaEl);
             
-            // Fallback para ocultar spinner en iframes
             if (isPdf) setTimeout(() => modalPlaceholder.classList.add('d-none'), 2000);
 
             if (comprobantes.length > 1) {
@@ -495,5 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- CARGA INICIAL Y AUTO-REFRESH ---
     loadHistorial();
+    setInterval(loadHistorial, 10000);
 });
