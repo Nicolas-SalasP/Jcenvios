@@ -147,10 +147,10 @@ class TransactionRepository
                     BeneficiarioNumeroCuenta = ?,
                     BeneficiarioTelefono = ?
                 WHERE TransaccionID = ?";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param(
-            "sssssi", 
+            "sssssi",
             $data['nombre'],
             $data['documento'],
             $data['banco'],
@@ -158,7 +158,7 @@ class TransactionRepository
             $data['telefono'],
             $txId
         );
-        
+
         $success = $stmt->execute();
         $stmt->close();
         return $success;
@@ -214,20 +214,27 @@ class TransactionRepository
         return $affectedRows;
     }
 
-    public function updateStatus(int $id, int $newStatusID, ?int $requiredStatusID = null): int
+    public function updateStatus(int $id, int $newStatusID, $requiredStatusID = null): int
     {
         $sql = "UPDATE transacciones SET EstadoID = ? WHERE TransaccionID = ?";
-        $paramTypes = "ii";
+        $types = "ii";
         $params = [$newStatusID, $id];
 
         if ($requiredStatusID !== null) {
-            $sql .= " AND EstadoID = ?";
-            $paramTypes .= "i";
-            $params[] = $requiredStatusID;
+            if (is_array($requiredStatusID)) {
+                $placeholders = implode(',', array_fill(0, count($requiredStatusID), '?'));
+                $sql .= " AND EstadoID IN ($placeholders)";
+                $types .= str_repeat("i", count($requiredStatusID));
+                $params = array_merge($params, $requiredStatusID);
+            } else {
+                $sql .= " AND EstadoID = ?";
+                $types .= "i";
+                $params[] = $requiredStatusID;
+            }
         }
 
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param($paramTypes, ...$params);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
@@ -244,15 +251,25 @@ class TransactionRepository
         return $success;
     }
 
-    public function cancel(int $transactionId, int $userId, int $estadoCanceladoID, int $estadoPendienteID): int
+    public function cancel(int $transactionId, int $userId, int $estadoCanceladoID, array $allowedStatusIds): int
     {
+        if (empty($allowedStatusIds)) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($allowedStatusIds), '?'));
+
         $sql = "UPDATE transacciones SET EstadoID = ?
-                WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?";
+                WHERE TransaccionID = ? AND UserID = ? AND EstadoID IN ($placeholders)";
+
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iiii", $estadoCanceladoID, $transactionId, $userId, $estadoPendienteID);
+        $types = "iii" . str_repeat("i", count($allowedStatusIds));
+        $params = array_merge([$estadoCanceladoID, $transactionId, $userId], $allowedStatusIds);
+        $stmt->bind_param($types, ...$params);
+
         $stmt->execute();
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
+
         return $affectedRows;
     }
 
@@ -290,7 +307,8 @@ class TransactionRepository
 
     public function countByStatus(array $statusIDs): int
     {
-        if (empty($statusIDs)) return 0;
+        if (empty($statusIDs))
+            return 0;
         $placeholders = implode(',', array_fill(0, count($statusIDs), '?'));
         $sql = "SELECT COUNT(TransaccionID) as total FROM transacciones WHERE EstadoID IN ($placeholders)";
         $stmt = $this->db->prepare($sql);
@@ -531,5 +549,4 @@ class TransactionRepository
         $stmt->execute();
         return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     }
-    
 }

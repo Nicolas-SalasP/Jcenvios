@@ -34,6 +34,7 @@ class TransactionService
     private const ESTADO_PAGADO = 'Exitoso';
     private const ESTADO_CANCELADO = 'Cancelado';
     private const ESTADO_PENDIENTE_APROBACION = 'Pendiente de Aprobación';
+    private const ESTADO_PAUSADO = 'Pausado';
 
     public function __construct(
         TransactionRepository $txRepository,
@@ -88,6 +89,7 @@ class TransactionService
         return $this->txRepository->pauseTransaction($txId, $motivo, $estadoId);
     }
 
+    // --- REANUDAR CON CORRECCIÓN ---
     public function requestResume(int $txId, int $userId, string $mensaje, int $estadoId, ?array $beneficiaryData = null): bool
     {
         if ($beneficiaryData) {
@@ -100,6 +102,36 @@ class TransactionService
         return $this->txRepository->requestResume($txId, $userId, $mensaje, $estadoId);
     }
 
+    public function cancelTransaction(int $txId, int $userId): bool
+    {
+        $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
+
+        $nombresPermitidos = [
+            self::ESTADO_PENDIENTE_PAGO, 
+            self::ESTADO_EN_VERIFICACION, 
+            self::ESTADO_EN_PROCESO, 
+            self::ESTADO_PAUSADO
+        ];
+        
+        $allowedStatusIds = [];
+        foreach ($nombresPermitidos as $nombre) {
+            try {
+                $id = $this->getEstadoId($nombre);
+                if ($id) $allowedStatusIds[] = $id;
+            } catch (Exception $e) { continue; }
+        }
+
+        $affectedRows = $this->txRepository->cancel($txId, $userId, $estadoCanceladoID, $allowedStatusIds);
+
+        if ($affectedRows === 0) {
+            throw new Exception("No se puede cancelar la transacción en su estado actual.", 409);
+        }
+
+        $this->notificationService->logAdminAction($userId, 'Usuario canceló transacción', "TX ID: $txId");
+        return true;
+    }
+
+    
     public function createTransaction(array $data): array
     {
         $client = $this->userRepository->findUserById($data['userID']);
@@ -124,7 +156,6 @@ class TransactionService
             throw new Exception("El monto debe ser mayor a cero.", 400);
         }
 
-        // --- LÓGICA DE RIESGO Y ESTADOS ---
         $estadoInicialID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
         $statusKey = 'created';
         $beneficiario = $this->cuentasRepo->findByIdAndUserId((int) $data['cuentaID'], (int) $data['userID']);
@@ -144,7 +175,6 @@ class TransactionService
 
         $data['estadoID'] = $estadoInicialID;
 
-        // --- LÓGICA DE REVENDEDOR ---
         if ((isset($client['Rol']) && $client['Rol'] === 'Revendedor') || (isset($client['RolID']) && $client['RolID'] == 4)) {
             $porcentaje = $client['PorcentajeComision'] ?? 0;
             if ($porcentaje > 0) {
@@ -155,7 +185,6 @@ class TransactionService
             }
         }
 
-        // Mapeo de datos del beneficiario para el historial
         $data['beneficiarioNombre'] = trim(implode(' ', array_filter([
             $beneficiario['TitularPrimerNombre'],
             $beneficiario['TitularSegundoNombre'],
@@ -289,20 +318,6 @@ class TransactionService
         return true;
     }
 
-    public function cancelTransaction(int $txId, int $userId): bool
-    {
-        $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
-        $estadoPendienteID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
-        $affectedRows = $this->txRepository->cancel($txId, $userId, $estadoCanceladoID, $estadoPendienteID);
-
-        if ($affectedRows === 0) {
-            throw new Exception("No se puede cancelar la transacción en su estado actual.", 409);
-        }
-
-        $this->notificationService->logAdminAction($userId, 'Usuario canceló transacción', "TX ID: $txId");
-        return true;
-    }
-
     public function adminConfirmPayment(int $adminId, int $txId): bool
     {
         $estadoEnProcesoID = $this->getEstadoId(self::ESTADO_EN_PROCESO);
@@ -336,18 +351,21 @@ class TransactionService
     {
         $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
         $estadoPendienteID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
-        $estadoEnVerificacionID = $this->getEstadoId(self::ESTADO_EN_VERIFICACION);
+        $estadosPermitidos = [
+            $this->getEstadoId(self::ESTADO_EN_VERIFICACION),
+            $this->getEstadoId(self::ESTADO_EN_PROCESO),
+            $this->getEstadoId(self::ESTADO_PAUSADO)
+        ];
 
         $nuevoEstadoID = $isSoftReject ? $estadoPendienteID : $estadoCanceladoID;
 
         $txData = $this->txRepository->getFullTransactionDetails($txId);
         if (!$txData)
             throw new Exception("Transacción no encontrada.", 404);
-
-        $affectedRows = $this->txRepository->updateStatus($txId, $nuevoEstadoID, $estadoEnVerificacionID);
+        $affectedRows = $this->txRepository->updateStatus($txId, $nuevoEstadoID, $estadosPermitidos);
 
         if ($affectedRows === 0) {
-            throw new Exception("No se pudo rechazar. Verifique que la orden esté 'En Verificación'.", 409);
+            throw new Exception("No se pudo rechazar/cancelar. El estado actual de la orden no permite esta acción.", 409);
         }
 
         if ($isSoftReject) {

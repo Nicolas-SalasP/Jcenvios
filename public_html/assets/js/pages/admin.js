@@ -4,18 +4,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // 0. UTILIDADES GLOBALES & HELPERS
     // =================================================
 
-    // Función segura para confirmación (Reemplaza confirm nativo si se desea, o lo usa)
     window.showConfirmModal = async (title, message) => {
         return confirm(`${title}\n\n${message}`);
     };
 
-    // Función para mostrar mensajes (Reemplaza alert nativo si se desea)
     window.showInfoModal = (title, message, isSuccess = false, callback = null) => {
         alert(`${title}: ${message}`);
         if (callback) callback();
     };
 
-    // Copiar al portapapeles
     window.copyToClipboard = (elementId, btnElement) => {
         const input = document.getElementById(elementId);
         if (!input) return;
