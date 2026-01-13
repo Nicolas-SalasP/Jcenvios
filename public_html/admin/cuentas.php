@@ -89,8 +89,9 @@ $paises = $conexion->query("SELECT PaisID, NombrePais FROM paises WHERE Activo =
                             <select class="form-select border-primary" id="rol-cuenta-id" name="RolCuentaID" required>
                                 <option value="1">Origen (Entrada)</option>
                                 <option value="2">Destino (Salida)</option>
+                                <option value="3">Mixta (Entrada y Salida)</option>
                             </select>
-                            <div class="form-text small">Destino = Cuentas para pagar a clientes.</div>
+                            <div class="form-text small">Mixta = Sirve para recibir y pagar.</div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">País de la Cuenta</label>

@@ -38,7 +38,7 @@ class AdminController extends BaseController
         $this->settingsService = $settingsService;
     }
 
-    // --- GESTIÓN DE VACACIONES (CORREGIDO) ---
+    // --- GESTIÓN DE VACACIONES ---
 
     public function getHolidays(): void
     {
@@ -76,14 +76,13 @@ class AdminController extends BaseController
         
         try {
             $this->settingsService->deleteHoliday($holidayId, $adminId);
-            
             $this->sendJsonResponse(['success' => true, 'message' => 'Feriado eliminado.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
     }
 
-    // --- MÉTODOS EXISTENTES (Gestión de Órdenes) ---
+    // --- GESTIÓN DE TRANSACCIONES ---
 
     public function rejectTransaction(): void
     {
@@ -121,18 +120,18 @@ class AdminController extends BaseController
     public function adminUploadProof(): void
     {
         $adminId = $this->ensureAdminOrOperator();
-        $transactionId = (int) ($_POST['transactionId'] ?? 0);
-        $fileData = $_FILES['receiptFile'] ?? null;
-        $comisionDestino = isset($_POST['comisionDestino']) ? (float) $_POST['comisionDestino'] : 0.00;
-        $cuentaSalidaId = !empty($_POST['cuentaSalidaID']) ? (int) $_POST['cuentaSalidaID'] : null;
-
-        if ($transactionId <= 0 || $fileData === null) {
-            $this->sendJsonResponse(['success' => false, 'error' => 'ID de transacción inválido o archivo no recibido.'], 400);
+        if (!isset($_FILES['receiptFile']) || empty($_POST['transactionId'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
             return;
         }
 
+        $transactionId = (int) $_POST['transactionId'];
+        $fileData = $_FILES['receiptFile'];
+        $comisionDestino = isset($_POST['comisionDestino']) ? (float) $_POST['comisionDestino'] : 0.00;
+        $cuentaSalidaId = !empty($_POST['cuentaSalidaID']) ? (int) $_POST['cuentaSalidaID'] : null;
+
         try {
-            $this->txService->handleAdminProofUpload(
+            $success = $this->txService->handleAdminProofUpload(
                 $adminId, 
                 $transactionId, 
                 $fileData, 
@@ -140,10 +139,19 @@ class AdminController extends BaseController
                 $cuentaSalidaId
             );
             
-            $this->sendJsonResponse(['success' => true]);
+            if ($success) {
+                $this->sendJsonResponse(['success' => true]);
+            } else {
+                $this->sendJsonResponse(['success' => false, 'error' => 'No se pudo actualizar la orden.'], 500);
+            }
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
         }
+    }
+
+    public function uploadProof(): void
+    {
+        $this->adminUploadProof();
     }
 
     public function pauseTransaction(): void
@@ -196,6 +204,11 @@ class AdminController extends BaseController
         }
     }
 
+    public function resumeTransaction(): void
+    {
+        $this->resumeTransactionAdmin();
+    }
+
     public function authorizeTransaction(): void
     {
         $adminId = $this->ensureAdminOrOperator();
@@ -218,7 +231,37 @@ class AdminController extends BaseController
         }
     }
 
-    // --- MÉTODOS EXISTENTES (Configuración y Usuarios) ---
+    public function updateTxCommission(): void
+    {
+        $adminId = $this->ensureAdminOrOperator();
+        $data = $this->getJsonInput();
+
+        $txId = (int) ($data['transactionId'] ?? 0);
+        if ($txId <= 0 || !isset($data['newCommission'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos.'], 400);
+            return;
+        }
+
+        $newCommission = (float) $data['newCommission'];
+        if ($newCommission < 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'La comisión no puede ser negativa.'], 400);
+            return;
+        }
+
+        try {
+            $this->txService->adminUpdateCommission($adminId, $txId, $newCommission);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Comisión actualizada correctamente.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateCommission(): void
+    {
+        $this->updateTxCommission();
+    }
+
+    // --- CONFIGURACIÓN Y USUARIOS ---
 
     public function upsertRate(): void
     {
@@ -358,6 +401,38 @@ class AdminController extends BaseController
         $this->sendJsonResponse(['success' => true, 'message' => 'Usuario eliminado.']);
     }
 
+    public function adminUpdateUser(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $data = $this->getJsonInput();
+
+        try {
+            $this->userService->adminUpdateUserData($adminId, $data);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Datos del usuario actualizados.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function toggleUserBlock(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        $targetUserId = (int) ($data['userId'] ?? 0);
+        $newStatus = $data['newStatus'] ?? '';
+
+        if ($targetUserId <= 0 || !in_array($newStatus, ['active', 'blocked'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos.'], 400);
+            return;
+        }
+
+        $this->userService->toggleUserBlock($adminId, $targetUserId, $newStatus);
+        $this->sendJsonResponse(['success' => true]);
+    }
+
+    // --- GESTIÓN DE CUENTAS ADMIN ---
+
     public function getCuentasAdmin(): void
     {
         $this->ensureAdmin();
@@ -399,7 +474,7 @@ class AdminController extends BaseController
         } else {
             $fpId = $data['FormaPagoID'] ?? $data['formaPagoId'] ?? 0;
             if (empty($fpId)) {
-                throw new Exception("Debes seleccionar una Forma de Pago para cuentas de Origen.", 400);
+                throw new Exception("Debes seleccionar una Forma de Pago para cuentas de Origen o Mixtas.", 400);
             }
             $repoData['formaPagoId'] = (int)$fpId;
             $repoData['instrucciones'] = $data['Instrucciones'] ?? $data['instrucciones'] ?? '';
@@ -422,60 +497,7 @@ class AdminController extends BaseController
         $this->sendJsonResponse(['success' => true]);
     }
 
-    public function toggleUserBlock(): void
-    {
-        $adminId = $this->ensureLoggedIn();
-        $this->ensureAdmin();
-        $data = $this->getJsonInput();
-        $targetUserId = (int) ($data['userId'] ?? 0);
-        $newStatus = $data['newStatus'] ?? '';
-
-        if ($targetUserId <= 0 || !in_array($newStatus, ['active', 'blocked'])) {
-            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos.'], 400);
-            return;
-        }
-
-        $this->userService->toggleUserBlock($adminId, $targetUserId, $newStatus);
-        $this->sendJsonResponse(['success' => true]);
-    }
-
-    public function updateTxCommission(): void
-    {
-        $adminId = $this->ensureAdminOrOperator();
-        $data = $this->getJsonInput();
-
-        $txId = (int) ($data['transactionId'] ?? 0);
-        if ($txId <= 0 || !isset($data['newCommission'])) {
-            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos.'], 400);
-            return;
-        }
-
-        $newCommission = (float) $data['newCommission'];
-        if ($newCommission < 0) {
-            $this->sendJsonResponse(['success' => false, 'error' => 'La comisión no puede ser negativa.'], 400);
-            return;
-        }
-
-        try {
-            $this->txService->adminUpdateCommission($adminId, $txId, $newCommission);
-            $this->sendJsonResponse(['success' => true, 'message' => 'Comisión actualizada correctamente.']);
-        } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
-        }
-    }
-
-    public function adminUpdateUser(): void
-    {
-        $adminId = $this->ensureLoggedIn();
-        $data = $this->getJsonInput();
-
-        try {
-            $this->userService->adminUpdateUserData($adminId, $data);
-            $this->sendJsonResponse(['success' => true, 'message' => 'Datos del usuario actualizados.']);
-        } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
-        }
-    }
+    // --- BCV Y AJUSTE GLOBAL ---
 
     public function updateBcvRate(): void
     {

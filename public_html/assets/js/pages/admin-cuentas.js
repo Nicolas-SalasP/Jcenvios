@@ -139,13 +139,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${acciones}</td>
                 </tr>
             `;
-
-            if (rolId === 2) {
-                tbodyDestino.innerHTML += rowHTML;
-                countDestino++;
-            } else {
+                    
+            if (rolId === 1 || rolId === 3) {
                 tbodyOrigen.innerHTML += rowHTML;
                 countOrigen++;
+            }
+            if (rolId === 2 || rolId === 3) {
+                tbodyDestino.innerHTML += rowHTML;
+                countDestino++;
             }
         });
 

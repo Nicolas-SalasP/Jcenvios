@@ -59,10 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!result.success) throw new Error(result.error);
 
             STATE.todasLasCuentas = result.origen || [];
-
-            // DEBUG: Descomenta esto si necesitas ver qué IDs trae tu API
-            // console.log("Cuentas cargadas:", STATE.todasLasCuentas);
-
             renderizarInterfaz();
         } catch (error) {
             console.error("Error al cargar datos:", error);
@@ -81,12 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderOrigen = () => {
         if (!DOM.containerOrigen) return;
 
-        // CORRECCIÓN CLAVE: 
-        // Filtramos por RolCuentaID == 1 (Origen según tu DB) o RolID == 1
-        // Usamos == para que no importe si es string "1" o numero 1.
-        const origen = STATE.todasLasCuentas.filter(acc =>
-            acc.RolCuentaID == 1 || acc.RolID == 1 || acc.Rol === 'Origen'
-        );
+        // FILTRO: Incluir Rol 1 (Origen) y Rol 3 (Mixta)
+        const origen = STATE.todasLasCuentas.filter(acc => {
+            const r = parseInt(acc.RolCuentaID || acc.RolID);
+            return r === 1 || r === 3 || acc.Rol === 'Origen';
+        });
 
         DOM.containerOrigen.innerHTML = '';
         if (origen.length === 0) {
@@ -113,12 +108,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const busqueda = (DOM.filtroDestino?.value || '').toLowerCase();
 
-        // CORRECCIÓN CLAVE:
-        // Filtramos por RolCuentaID == 2 (Destino según tu DB)
+        // FILTRO: Incluir Rol 2 (Destino) y Rol 3 (Mixta)
         const destino = STATE.todasLasCuentas.filter(acc => {
-            // Aceptamos RolCuentaID 2, RolID 2 o explícitamente el texto 'Destino'
-            const esDestino = (acc.RolCuentaID == 2 || acc.RolID == 2 || acc.Rol === 'Destino');
-
+            const r = parseInt(acc.RolCuentaID || acc.RolID);
+            const esDestino = (r === 2 || r === 3 || acc.Rol === 'Destino');
+            
             const coincide = (acc.Banco || '').toLowerCase().includes(busqueda) ||
                 (acc.NombrePais || '').toLowerCase().includes(busqueda);
             return esDestino && coincide;
@@ -157,13 +151,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const buildOptions = (list) => {
             return '<option value="">Seleccione cuenta...</option>' +
                 list.map(acc => `<option value="${acc.CuentaAdminID}" data-saldo="${acc.SaldoActual}" data-moneda="${acc.CodigoMoneda}">
-                        ${acc.Banco} - ${acc.NombrePais}
-                   </option>`).join('');
+                        ${acc.Banco} - ${acc.Titular} - ${acc.NombrePais}
+                </option>`).join('');
         };
 
-        // Aplicamos la misma lógica estricta a los selectores
-        const origen = STATE.todasLasCuentas.filter(acc => acc.RolCuentaID == 1 || acc.RolID == 1 || acc.Rol === 'Origen');
-        const destino = STATE.todasLasCuentas.filter(acc => acc.RolCuentaID == 2 || acc.RolID == 2 || acc.Rol === 'Destino');
+        const origen = STATE.todasLasCuentas.filter(acc => {
+            const r = parseInt(acc.RolCuentaID || acc.RolID);
+            return r === 1 || r === 3 || acc.Rol === 'Origen';
+        });
+        
+        const destino = STATE.todasLasCuentas.filter(acc => {
+            const r = parseInt(acc.RolCuentaID || acc.RolID);
+            return r === 2 || r === 3 || acc.Rol === 'Destino';
+        });
 
         if (DOM.txOrigen) DOM.txOrigen.innerHTML = buildOptions(origen);
         if (DOM.txDestino) DOM.txDestino.innerHTML = buildOptions(destino);
@@ -188,13 +188,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         select.innerHTML = '<option value="">Seleccione...</option>';
 
-        // Misma lógica estricta para el historial
         const list = tipo === 'banco'
-            ? STATE.todasLasCuentas.filter(acc => acc.RolCuentaID == 1 || acc.RolID == 1 || acc.Rol === 'Origen')
-            : STATE.todasLasCuentas.filter(acc => acc.RolCuentaID == 2 || acc.RolID == 2 || acc.Rol === 'Destino');
+            ? STATE.todasLasCuentas.filter(acc => {
+                const r = parseInt(acc.RolCuentaID || acc.RolID);
+                return r === 1 || r === 3 || acc.Rol === 'Origen';
+            })
+            : STATE.todasLasCuentas.filter(acc => {
+                const r = parseInt(acc.RolCuentaID || acc.RolID);
+                return r === 2 || r === 3 || acc.Rol === 'Destino';
+            });
 
         list.forEach(acc => {
-            select.innerHTML += `<option value="${acc.CuentaAdminID}">${acc.Banco} (${acc.NombrePais})</option>`;
+            select.innerHTML += `<option value="${acc.CuentaAdminID}">${acc.Banco} - ${acc.Titular} (${acc.NombrePais})</option>`;
         });
     };
 

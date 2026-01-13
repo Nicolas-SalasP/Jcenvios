@@ -15,8 +15,8 @@ class CuentasAdminRepository
     public function findAll(): array
     {
         $sql = "SELECT c.*, 
-                       COALESCE(f.Nombre, 'Sin Forma Pago') as FormaPagoNombre, 
-                       COALESCE(p.NombrePais, 'Sin País') as NombrePais 
+                    COALESCE(f.Nombre, 'Sin Forma Pago') as FormaPagoNombre, 
+                    COALESCE(p.NombrePais, 'Sin País') as NombrePais 
                 FROM cuentas_bancarias_admin c
                 LEFT JOIN formas_pago f ON c.FormaPagoID = f.FormaPagoID
                 LEFT JOIN paises p ON c.PaisID = p.PaisID
@@ -31,7 +31,10 @@ class CuentasAdminRepository
     public function findActiveByFormaPagoAndPais(int $formaPagoId, int $paisId): ?array
     {
         $sql = "SELECT * FROM cuentas_bancarias_admin 
-                WHERE FormaPagoID = ? AND PaisID = ? AND Activo = 1 
+                WHERE FormaPagoID = ? 
+                AND PaisID = ? 
+                AND Activo = 1 
+                AND RolCuentaID IN (1, 3)
                 LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("ii", $formaPagoId, $paisId);
@@ -39,6 +42,23 @@ class CuentasAdminRepository
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         return $result;
+    }
+
+    public function getCuentasParaPago(int $paisDestinoId): array
+    {
+        $sql = "SELECT CuentaAdminID, Banco, Titular, SaldoActual, Moneda 
+                FROM cuentas_bancarias_admin 
+                WHERE PaisID = ? 
+                AND Activo = 1 
+                AND RolCuentaID IN (2, 3)
+                ORDER BY Banco ASC";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $paisDestinoId);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $res;
     }
 
     public function getById(int $id): ?array

@@ -14,9 +14,9 @@ $sqlCuentas = "
         p.CodigoMoneda,
         c.PaisID
     FROM cuentas_bancarias_admin c
-    JOIN paises p 
-        ON c.PaisID = p.PaisID
+    JOIN paises p ON c.PaisID = p.PaisID
     WHERE c.Activo = 1
+    AND c.RolCuentaID IN (2, 3) 
     AND (p.Rol = 'Destino' OR p.Rol = 'Ambos')
 ";
 $cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
@@ -69,6 +69,40 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
+<div class="modal fade" id="adminUploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Finalizar Orden #<span id="modal-admin-tx-id"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="admin-upload-form" enctype="multipart/form-data">
+                    <input type="hidden" id="adminTransactionIdField" name="transactionId">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cuenta de Salida (Desde dónde pagas)</label>
+                        <select class="form-select" name="cuentaSalidaID" id="cuentaSalidaSelect" required>
+                            <option value="">-- Cargando Bancos... --</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Comprobante de Pago</label>
+                        <input class="form-control" type="file" name="receiptFile" required
+                            accept="image/*, application/pdf">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Comisión (0.3% Sugerido)</label>
+                        <input type="number" step="0.01" class="form-control" id="adminComisionDestino"
+                            name="comisionDestino" value="0">
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">Confirmar y Finalizar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="pauseModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -81,7 +115,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <form id="pause-form">
                     <input type="hidden" id="pause-tx-id" name="txId">
                     <div class="mb-3">
-                        <textarea class="form-control" name="motivo" rows="3" required placeholder="Ej: Cuenta destino inactiva..."></textarea>
+                        <textarea class="form-control" name="motivo" rows="3" required
+                            placeholder="Ej: Cuenta destino inactiva..."></textarea>
                     </div>
                     <div class="text-end">
                         <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
@@ -118,38 +153,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
-<div class="modal fade" id="adminUploadModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title">Finalizar Orden #<span id="modal-admin-tx-id"></span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="admin-upload-form" enctype="multipart/form-data">
-                    <input type="hidden" id="adminTransactionIdField" name="transactionId">
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Cuenta de Salida (Desde dónde pagas)</label>
-                        <select class="form-select" name="cuentaSalidaID" id="cuentaSalidaSelect" required>
-                            <option value="">-- Cargando Bancos... --</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Comprobante de Pago</label>
-                        <input class="form-control" type="file" name="receiptFile" required accept="image/*, application/pdf">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Comisión (0.3% Sugerido)</label>
-                        <input type="number" step="0.01" class="form-control" id="adminComisionDestino" name="comisionDestino" value="0">
-                    </div>
-                    <button type="submit" class="btn btn-success w-100">Confirmar y Finalizar</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="modal fade" id="rejectionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -161,11 +164,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <input type="hidden" id="reject-tx-id">
                 <div class="mb-3">
                     <label class="form-label">Motivo del rechazo:</label>
-                    <textarea class="form-control" id="reject-reason" rows="3" placeholder="Ej: Comprobante ilegible..."></textarea>
+                    <textarea class="form-control" id="reject-reason" rows="3"
+                        placeholder="Ej: Comprobante ilegible..."></textarea>
                 </div>
                 <div class="d-grid gap-2">
                     <button class="btn btn-warning confirm-reject-btn" data-type="retry">Solicitar Corrección</button>
-                    <button class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar Definitivamente</button>
+                    <button class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar
+                        Definitivamente</button>
                 </div>
             </div>
         </div>
@@ -194,11 +199,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
 </script>
 
-<?php 
-require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; 
+<?php
+require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';
 
-// --- HELPER FUNCTION PARA RENDERIZAR FILAS (Se usa tanto en carga normal como AJAX) ---
-function renderTableRows($transacciones) {
+function renderTableRows($transacciones)
+{
     if (empty($transacciones)) {
         echo '<tr><td colspan="6" class="text-center py-5"><h4 class="text-muted">¡Todo al día! No hay órdenes pendientes.</h4></td></tr>';
         return;
@@ -208,8 +213,10 @@ function renderTableRows($transacciones) {
         $rowClass = '';
         $estadoId = (int) $tx['EstadoID'];
 
-        if ($estadoId === 7) $rowClass = 'table-danger border-danger';
-        elseif ($estadoId === 6) $rowClass = 'table-warning';
+        if ($estadoId === 7)
+            $rowClass = 'table-danger border-danger';
+        elseif ($estadoId === 6)
+            $rowClass = 'table-warning';
         ?>
         <tr class="<?php echo $rowClass; ?>">
             <td><strong>#<?php echo $tx['TransaccionID']; ?></strong></td>
@@ -235,9 +242,8 @@ function renderTableRows($transacciones) {
                 <?php if ($estadoId === 7): ?>
                     <span class="text-muted small"><i class="bi bi-lock"></i> Bloqueado</span>
                 <?php elseif (!empty($tx['ComprobanteURL'])): ?>
-                    <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" 
-                        data-bs-toggle="modal" data-bs-target="#viewComprobanteModal" 
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                    <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
+                        data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                         data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
                         data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>">
                         <i class="bi bi-eye"></i> Ver
@@ -247,29 +253,40 @@ function renderTableRows($transacciones) {
                 <?php endif; ?>
             </td>
             <td class="d-flex flex-wrap gap-1">
-                <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Ver Orden"><i class="bi bi-file-earmark-pdf"></i></a>
+                <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
+                    class="btn btn-sm btn-outline-dark" title="Ver Orden"><i class="bi bi-file-earmark-pdf"></i></a>
 
                 <?php if ($estadoId === 7): ?>
-                    <button class="btn btn-sm btn-success authorize-risk-btn w-100" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-shield-check"></i> Autorizar</button>
-                
+                    <button class="btn btn-sm btn-success authorize-risk-btn w-100"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-shield-check"></i> Autorizar</button>
+
                 <?php elseif ($estadoId === 6): ?>
-                    <button class="btn btn-sm btn-outline-primary resume-btn-modal" data-bs-toggle="modal" data-bs-target="#resumeModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-play-fill"></i> Reanudar</button>
-                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
+                    <button class="btn btn-sm btn-outline-primary resume-btn-modal" data-bs-toggle="modal"
+                        data-bs-target="#resumeModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i
+                            class="bi bi-play-fill"></i> Reanudar</button>
+                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
 
                 <?php elseif ($estadoId === 2): ?>
-                    <button class="btn btn-sm btn-success process-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>">Confirmar</button>
-                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>">Rechazar</button>
+                    <button class="btn btn-sm btn-success process-btn"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>">Confirmar</button>
+                    <button class="btn btn-sm btn-danger reject-btn"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>">Rechazar</button>
 
                 <?php elseif ($estadoId === 3): ?>
-                    <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal" data-bs-target="#adminUploadModal" 
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-monto-destino="<?php echo $tx['MontoDestino']; ?>" data-pais-id="<?php echo $tx['PaisDestinoID']; ?>"> Pagar
+                    <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal"
+                        data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        data-monto-destino="<?php echo $tx['MontoDestino']; ?>" data-pais-id="<?php echo $tx['PaisDestinoID']; ?>">
+                        Pagar
                     </button>
-                    <button class="btn btn-sm btn-warning pause-btn-modal" data-bs-toggle="modal" data-bs-target="#pauseModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-pause-circle-fill"></i></button>
-                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
+                    <button class="btn btn-sm btn-warning pause-btn-modal" data-bs-toggle="modal" data-bs-target="#pauseModal"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-pause-circle-fill"></i></button>
+                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
                 <?php endif; ?>
             </td>
         </tr>
-    <?php 
+    <?php
     }
 }
 ?>
