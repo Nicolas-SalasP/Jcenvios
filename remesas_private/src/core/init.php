@@ -79,7 +79,7 @@ if (isset($_SESSION['user_id'])) {
         $two_fa_grace_period = $tiempo_limite;
         $current_page = basename($_SERVER['SCRIPT_NAME']);
         $is_on_auth_page = in_array($current_page, ['verify-2fa.php', 'logout.php']);
-        $is_api_call = (strpos($_SERVER['REQUEST_URI'], '/api/') !== false);
+        $is_api_call = (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false);
 
         if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad'] >= $two_fa_grace_period)) {
             $_SESSION['2fa_user_id'] = $_SESSION['user_id'];
@@ -99,7 +99,7 @@ try {
         throw new Exception("Error de conexión: " . $conexion->connect_error);
     }
 } catch (Exception $e) {
-    if (strpos($_SERVER['REQUEST_URI'], '/api/') !== false) {
+    if (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false) {
         header('Content-Type: application/json');
         http_response_code(500);
         die(json_encode(['success' => false, 'error' => 'Error de conexión a la base de datos.']));

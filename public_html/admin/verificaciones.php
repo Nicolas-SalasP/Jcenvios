@@ -1,24 +1,20 @@
 <?php
 require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
-// 1. Verificación de Seguridad
 if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
     header('HTTP/1.1 403 Forbidden');
     die("Acceso denegado.");
 }
 
-// 2. Parámetros de Filtro
 $busqueda = isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
 $estadoFiltro = isset($_GET['estado']) ? $_GET['estado'] : '';
 
-// 3. Construcción de la Consulta (Solo estados 1 y 2 según usuarios.sql)
-// VerificacionEstadoID 1 = Pendiente (Faltan docs), 2 = En Revisión (Listo para revisar)
 $conditions = "U.VerificacionEstadoID IN (1, 2) AND U.Eliminado = 0";
 $params = [];
 $types = "";
 
 if ($busqueda !== '') {
-    $conditions .= " AND (U.PrimerNombre LIKE ? OR U.PrimerApellido LIKE ? OR U.Email LIKE ? OR U.NumeroDocumento LIKE ?)";
+    $conditions .= " AND (U.PrimerNombre LIKE ? OR U.PrimerApellido LIKE ? OR U.Email LIKE ? OR U.Telefono LIKE ?)";
     $term = "%$busqueda%";
     array_push($params, $term, $term, $term, $term);
     $types .= "ssss";
@@ -44,7 +40,6 @@ $stmt->execute();
 $usuariosPendientes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// 4. Lógica de Respuesta AJAX
 $isAjax = (isset($_GET['ajax']) && $_GET['ajax'] == '1');
 
 if (!$isAjax) {
@@ -63,7 +58,7 @@ if (!$isAjax) {
             <form id="filter-form" method="GET" class="row g-2">
                 <div class="col-md-5">
                     <label class="form-label small fw-bold">Buscar Usuario</label>
-                    <input type="text" name="buscar" id="search-input" class="form-control form-control-sm" placeholder="Nombre, Email o Documento..." value="<?php echo htmlspecialchars($busqueda); ?>">
+                    <input type="text" name="buscar" id="search-input" class="form-control form-control-sm" placeholder="Nombre, Email o Teléfono..." value="<?php echo htmlspecialchars($busqueda); ?>">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small fw-bold">Estado</label>
@@ -105,7 +100,6 @@ if (!$isAjax) {
                         <?php else: ?>
                             <?php foreach ($usuariosPendientes as $user): ?>
                                 <?php 
-                                    // 1 = Pendiente de subir, 2 = En Revisión (ya subió)
                                     $tieneDocs = ($user['VerificacionEstadoID'] == 2); 
                                     $badgeClass = $tieneDocs ? 'bg-info' : 'bg-warning text-dark';
                                     $statusText = $tieneDocs ? 'Listo para Revisar' : 'Faltan Documentos';
@@ -114,7 +108,7 @@ if (!$isAjax) {
                                     <td><?php echo $user['UserID']; ?></td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?></strong><br>
-                                        <small class="text-muted"><?php echo htmlspecialchars(($user['NombreDocumento'] ?? 'DOC') . ': ' . $user['NumeroDocumento']); ?></small>
+                                        <small class="text-muted"><i class="bi bi-telephone"></i> <?php echo htmlspecialchars($user['Telefono']); ?></small>
                                     </td>
                                     <td><?php echo htmlspecialchars($user['Email']); ?></td>
                                     <td>

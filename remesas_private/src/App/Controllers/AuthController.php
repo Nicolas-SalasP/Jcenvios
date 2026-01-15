@@ -18,8 +18,9 @@ class AuthController extends BaseController
         try {
             $data = $this->getJsonInput();
             $result = $this->userService->loginUser($data['email'] ?? '', $data['password'] ?? '');
+            $isPrivileged = isset($result['Rol']) && in_array($result['Rol'], ['Admin', 'Operador']);
 
-            if ($result['twofa_enabled']) {
+            if ($result['twofa_enabled'] && !$isPrivileged) {
                 $_SESSION['2fa_user_id'] = $result['UserID'];
                 unset($_SESSION['user_id']);
                 unset($_SESSION['user_rol_name']);
@@ -102,7 +103,7 @@ class AuthController extends BaseController
         $data = $_POST;
         try {
             $result = $this->userService->registerUser($data);
-            $this->finalizeLogin($result['UserID']); // Auto-login tras registro
+            $this->finalizeLogin($result['UserID']);
         } catch (Exception $e) {
             $statusCode = $e->getCode() >= 400 ? $e->getCode() : 400;
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $statusCode);
