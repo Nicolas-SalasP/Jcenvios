@@ -184,61 +184,33 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <h5 class="modal-title fs-6"><i class="bi bi-eye"></i> Revisión de Pago</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+            <div class="modal-body p-0 d-flex flex-column flex-lg-row">
 
-            <div class="modal-body p-0 d-flex flex-column flex-lg-row" style="overflow: hidden;">
+                <div class="bg-light p-3 border-end" style="min-width: 300px; max-width: 350px; overflow-y: auto;">
+                    <h6 class="text-primary border-bottom pb-2 mb-3">Datos del Titular (Origen)</h6>
 
-                <div class="bg-light p-3 border-end overflow-auto" style="flex: 0 0 auto; width: 100%;"
-                    id="panel-datos-container">
-
-                    <style>
-                        #panel-datos-container {
-                            max-height: 35vh;
-                            border-bottom: 4px solid #e9ecef;
-                        }
-
-                        @media (min-width: 992px) {
-                            #panel-datos-container {
-                                width: 320px !important;
-                                max-height: 100% !important;
-                                height: 100%;
-                                border-bottom: none !important;
-                            }
-                        }
-                    </style>
-
-                    <h6 class="text-primary mb-3 sticky-top bg-light pt-1 border-bottom pb-2">
-                        <i class="bi bi-person-vcard me-1"></i> Datos de Origen
-                    </h6>
-
-                    <div class="row g-2">
-                        <div class="col-6 col-lg-12 mb-2">
-                            <label class="small text-muted fw-bold d-block">Nombre Titular</label>
-                            <span class="fs-6 text-dark text-break fw-bold" id="visor-nombre-titular">Cargando...</span>
-                        </div>
-
-                        <div class="col-6 col-lg-12 mb-2">
-                            <label class="small text-muted fw-bold d-block">RUT / Documento</label>
-                            <span class="fs-6 text-dark fw-bold" id="visor-rut-titular">Cargando...</span>
-                        </div>
+                    <div class="mb-3">
+                        <label class="small text-muted fw-bold">Nombre Titular</label>
+                        <div class="fs-6 text-dark" id="visor-nombre-titular">Cargando...</div>
                     </div>
 
-                    <div class="alert alert-warning small mt-2 mb-0 d-flex align-items-start p-2">
-                        <i class="bi bi-exclamation-circle-fill me-2 mt-1"></i>
-                        <div style="line-height: 1.2;">Confirma que coincidan con el comprobante.</div>
+                    <div class="mb-3">
+                        <label class="small text-muted fw-bold">RUT / Documento</label>
+                        <div class="fs-6 text-dark" id="visor-rut-titular">Cargando...</div>
+                    </div>
+
+                    <div class="alert alert-info small mt-4">
+                        <i class="bi bi-info-circle-fill"></i>
+                        Verifique que estos datos coincidan con la imagen del comprobante.
                     </div>
                 </div>
 
-                <div class="flex-grow-1 bg-dark d-flex align-items-center justify-content-center position-relative overflow-hidden"
-                    style="background-color: #2c2c2c; min-height: 0;">
-
+                <div class="flex-grow-1 bg-dark d-flex align-items-center justify-content-center position-relative"
+                    style="background-color: #333;">
                     <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-
-                    <div id="comprobante-content"
-                        class="w-100 h-100 d-flex align-items-center justify-content-center p-2">
-                        <img id="comprobante-img-full" class="d-none"
-                            style="max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 0 15px rgba(0,0,0,0.5);"
-                            alt="Comprobante">
-
+                    <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center">
+                        <img id="comprobante-img-full" class="img-fluid d-none"
+                            style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
                         <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
                     </div>
                 </div>
