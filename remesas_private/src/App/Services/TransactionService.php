@@ -107,18 +107,21 @@ class TransactionService
         $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
 
         $nombresPermitidos = [
-            self::ESTADO_PENDIENTE_PAGO, 
-            self::ESTADO_EN_VERIFICACION, 
-            self::ESTADO_EN_PROCESO, 
+            self::ESTADO_PENDIENTE_PAGO,
+            self::ESTADO_EN_VERIFICACION,
+            self::ESTADO_EN_PROCESO,
             self::ESTADO_PAUSADO
         ];
-        
+
         $allowedStatusIds = [];
         foreach ($nombresPermitidos as $nombre) {
             try {
                 $id = $this->getEstadoId($nombre);
-                if ($id) $allowedStatusIds[] = $id;
-            } catch (Exception $e) { continue; }
+                if ($id)
+                    $allowedStatusIds[] = $id;
+            } catch (Exception $e) {
+                continue;
+            }
         }
 
         $affectedRows = $this->txRepository->cancel($txId, $userId, $estadoCanceladoID, $allowedStatusIds);
@@ -131,7 +134,7 @@ class TransactionService
         return true;
     }
 
-    
+
     public function createTransaction(array $data): array
     {
         $client = $this->userRepository->findUserById($data['userID']);
@@ -175,6 +178,7 @@ class TransactionService
 
         $data['estadoID'] = $estadoInicialID;
 
+        $ganancia = 0;
         if ((isset($client['Rol']) && $client['Rol'] === 'Revendedor') || (isset($client['RolID']) && $client['RolID'] == 4)) {
             $porcentaje = $client['PorcentajeComision'] ?? 0;
             if ($porcentaje > 0) {
@@ -185,6 +189,7 @@ class TransactionService
             }
         }
 
+        $data['comisionRevendedor'] = $ganancia;
         $data['beneficiarioNombre'] = trim(implode(' ', array_filter([
             $beneficiario['TitularPrimerNombre'],
             $beneficiario['TitularSegundoNombre'],
@@ -286,10 +291,14 @@ class TransactionService
         return false;
     }
 
-    public function handleUserReceiptUpload(int $txId, int $userId, array $fileData): bool
+    public function handleUserReceiptUpload(int $txId, int $userId, array $fileData, string $rutTitular, string $nombreTitular): bool
     {
         if (empty($fileData) || $fileData['error'] === UPLOAD_ERR_NO_FILE) {
             throw new Exception("No se recibió ningún archivo.", 400);
+        }
+
+        if (empty($rutTitular) || empty($nombreTitular)) {
+            throw new Exception("El RUT y Nombre del titular de la cuenta origen son obligatorios.", 400);
         }
 
         $fileHash = hash_file('sha256', $fileData['tmp_name']);
@@ -307,14 +316,14 @@ class TransactionService
         $estadoEnVerificacionID = $this->getEstadoId(self::ESTADO_EN_VERIFICACION);
         $estadoPendienteID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
 
-        $affectedRows = $this->txRepository->uploadUserReceipt($txId, $userId, $relativePath, $fileHash, $estadoEnVerificacionID, $estadoPendienteID);
+        $affectedRows = $this->txRepository->uploadUserReceipt($txId, $userId, $relativePath, $fileHash, $estadoEnVerificacionID, $estadoPendienteID, $rutTitular, $nombreTitular);
 
         if ($affectedRows === 0) {
             @unlink($this->fileHandler->getAbsolutePath($relativePath));
             throw new Exception("No se pudo actualizar la transacción. Verifique que sea suya y esté en estado pendiente.", 409);
         }
 
-        $this->notificationService->logAdminAction($userId, 'Subida de Comprobante', "TX ID: $txId. Archivo: $relativePath.");
+        $this->notificationService->logAdminAction($userId, 'Subida de Comprobante', "TX ID: $txId. Archivo: $relativePath. Titular Origen: $nombreTitular ($rutTitular)");
         return true;
     }
 
@@ -514,5 +523,10 @@ class TransactionService
             return true;
         }
         return false;
+    }
+
+    public function getResellerStats(int $userId, string $fechaInicio, string $fechaFin): array
+    {
+        return $this->txRepository->getResellerStats($userId, $fechaInicio, $fechaFin);
     }
 }

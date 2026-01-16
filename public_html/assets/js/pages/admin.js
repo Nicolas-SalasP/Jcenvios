@@ -797,7 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================================
-    // 5.8 VISOR DE COMPROBANTES (ACTUALIZADO: PESTAÑAS)
+    // 5.8 VISOR DE COMPROBANTES
     // =========================================================
     const viewComprobanteModalEl = document.getElementById('viewComprobanteModal');
     if (viewComprobanteModalEl) {
@@ -809,13 +809,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const userUrl = button.getAttribute('data-comprobante-url');
             const adminUrl = button.getAttribute('data-envio-url');
             const startType = button.getAttribute('data-start-type');
+            const nombreTitular = button.getAttribute('data-nombre-titular') || 'No especificado';
+            const rutTitular = button.getAttribute('data-rut-titular') || 'No especificado';
             const modalTitle = viewComprobanteModalEl.querySelector('.modal-title');
             const imgElement = document.getElementById('comprobante-img-full');
             const downloadBtn = document.getElementById('download-comprobante-btn');
             const btnTabUser = document.getElementById('tab-btn-user');
             const btnTabAdmin = document.getElementById('tab-btn-admin');
-
+            const elNombreTitular = document.getElementById('visor-nombre-titular');
+            const elRutTitular = document.getElementById('visor-rut-titular');
             if (modalTitle) modalTitle.textContent = `Comprobante Orden #${txId}`;
+            if (elNombreTitular) elNombreTitular.textContent = nombreTitular;
+            if (elRutTitular) elRutTitular.textContent = rutTitular;
 
             const setView = (url) => {
                 const img = document.getElementById('comprobante-img-full');
@@ -839,15 +844,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 let finalUrl = url;
-                if (!finalUrl.includes('view_secure_file.php')) {
-                    let path = finalUrl.replace(/https?:\/\/jcenvios\.cl\//, '').replace(/^\/+/, '');
-                    finalUrl = 'view_secure_file.php?file=' + encodeURIComponent(path);
+                if (!finalUrl.includes('view_secure_file.php') && !finalUrl.startsWith('http')) {
                 }
-                if (!finalUrl.includes('view_secure_file.php')) {
-                    spinner.classList.add('d-none');
-                    console.error('URL de comprobante inválida o insegura:', finalUrl);
-                    return;
-                }
+
                 const isPdf = finalUrl.toLowerCase().includes('.pdf');
 
                 if (isPdf) {
@@ -856,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     pdf.onload = () => spinner.classList.add('d-none');
                     pdf.onerror = () => {
                         spinner.classList.add('d-none');
-                        alert('No se pudo cargar el comprobante PDF.');
+                        /alert('No se pudo cargar el comprobante PDF.'); / / Opcional
                     };
                 } else {
                     img.src = finalUrl;
@@ -864,7 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     img.onload = () => spinner.classList.add('d-none');
                     img.onerror = () => {
                         spinner.classList.add('d-none');
-                        alert('No se pudo cargar la imagen del comprobante.');
+                        alert('No se pudo cargar la imagen del comprobante.'); // Opcional
                     };
                 }
 

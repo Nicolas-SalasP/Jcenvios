@@ -281,6 +281,43 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
+<div class="modal fade" id="modalTasaNoDisponible" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Ruta No Disponible</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <p class="lead mb-2">Lo sentimos, no hay tasa de cambio activa para esta ruta.</p>
+                <p class="text-muted small">Por el momento no podemos procesar envíos entre los países seleccionados. Por favor intenta con otra combinación o vuelve más tarde.</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Entendido</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const nextBtn = document.getElementById('next-btn');
+    const tasaInput = document.getElementById('selected-tasa-id');
+    const modalTasa = new bootstrap.Modal(document.getElementById('modalTasaNoDisponible'));
+    nextBtn.addEventListener('click', (e) => {
+        const pasoActual = document.querySelector('.form-step.active');
+        if (pasoActual && pasoActual.id === 'step-1') {
+            const tasaId = tasaInput.value;
+            if (!tasaId || tasaId == '0' || tasaId === '') {
+                e.preventDefault();
+                e.stopPropagation();
+                modalTasa.show();
+            }
+        }
+    }, true);
+});
+</script>
+
 <?php
 require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';
 ?>

@@ -228,6 +228,8 @@ class ClientController extends BaseController
         $userId = $this->ensureLoggedIn();
         $transactionId = (int) ($_POST['transactionId'] ?? 0);
         $fileData = $_FILES['receiptFile'] ?? null;
+        $rutTitular = trim($_POST['rutTitularOrigen'] ?? '');
+        $nombreTitular = trim($_POST['nombreTitularOrigen'] ?? '');
 
         if ($transactionId <= 0 || $fileData === null) {
             $this->sendJsonResponse(['success' => false, 'error' => 'ID de transacción inválido o archivo no recibido.'], 400);
@@ -235,7 +237,7 @@ class ClientController extends BaseController
         }
 
         try {
-            $this->txService->handleUserReceiptUpload($transactionId, $userId, $fileData);
+            $this->txService->handleUserReceiptUpload($transactionId, $userId, $fileData, $rutTitular, $nombreTitular);
             $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
@@ -426,7 +428,7 @@ class ClientController extends BaseController
         try {
             $db = \App\Database\Database::getInstance()->getConnection();
             $sql = "SELECT u.VerificacionEstadoID, ev.NombreEstado as EstadoVerificacion, 
-                           u.RolID, r.NombreRol 
+                        u.RolID, r.NombreRol 
                     FROM usuarios u
                     JOIN estados_verificacion ev ON u.VerificacionEstadoID = ev.EstadoID
                     JOIN roles r ON u.RolID = r.RolID
@@ -472,6 +474,44 @@ class ClientController extends BaseController
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    public function getResellerDashboard(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        $fechaInicio = $_GET['inicio'] ?? date('Y-m-01 00:00:00');
+        $fechaFin = $_GET['fin'] ?? date('Y-m-t 23:59:59');
+        $stats = $this->txService->getResellerStats($userId, $fechaInicio, $fechaFin);
+
+        $this->sendJsonResponse(['success' => true, 'stats' => $stats]);
+    }
+
+    public function calculateConversion(): void
+    {
+        $userId = $this->ensureLoggedIn();
+
+        $montoGanancia = (float) ($_GET['monto'] ?? 0);
+        $paisOrigenID = (int) $_GET['paisOrigenID'];
+        $paisDestinoID = (int) $_GET['paisDestinoID'];
+        try {
+            $tasaInfo = $this->pricingService->getCurrentRate($paisOrigenID, $paisDestinoID, 1000); // Monto referencial
+            $valorTasa = (float) $tasaInfo['tasa'];
+
+            if ($valorTasa <= 0)
+                throw new Exception("Tasa no válida");
+            $montoConvertido = $montoGanancia / $valorTasa;
+
+            $this->sendJsonResponse([
+                'success' => true,
+                'montoOriginal' => $montoGanancia,
+                'tasaUsada' => $valorTasa,
+                'montoConvertido' => round($montoConvertido, 2),
+                'monedaDestino' => 'CLP'
+            ]);
+
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()]);
         }
     }
 }

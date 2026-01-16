@@ -16,18 +16,19 @@ class TransactionRepository
     public function create(array $data): int
     {
         $sql = "INSERT INTO transacciones (
-                    UserID, CuentaBeneficiariaID, TasaID_Al_Momento, 
-                    MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino, 
-                    EstadoID, FormaPagoID,
-                    BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco, BeneficiarioNumeroCuenta, BeneficiarioTelefono
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                UserID, CuentaBeneficiariaID, TasaID_Al_Momento, 
+                MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino, 
+                EstadoID, FormaPagoID, ComisionRevendedor,
+                BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco, BeneficiarioNumeroCuenta, BeneficiarioTelefono
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
 
         $estadoInicialID = $data['estadoID'] ?? 1;
+        $comisionRevendedor = $data['comisionRevendedor'] ?? 0.0;
 
         $stmt->bind_param(
-            "iiidsdsiisssss",
+            "iiidsdsiidsssss",
             $data['userID'],
             $data['cuentaID'],
             $data['tasaID'],
@@ -37,6 +38,7 @@ class TransactionRepository
             $data['monedaDestino'],
             $estadoInicialID,
             $data['formaPagoID'],
+            $comisionRevendedor,
             $data['beneficiarioNombre'],
             $data['beneficiarioDocumento'],
             $data['beneficiarioBanco'],
@@ -45,7 +47,7 @@ class TransactionRepository
         );
 
         if (!$stmt->execute()) {
-            error_log("Error al crear la transacción: " . $stmt->error . " - Data: " . print_r($data, true));
+            error_log("Error al crear la transacción: " . $stmt->error);
             throw new Exception("No se pudo registrar la orden. Inténtalo de nuevo.");
         }
         $newId = $stmt->insert_id;
@@ -94,6 +96,8 @@ class TransactionRepository
             T.TransaccionID, T.UserID, T.CuentaBeneficiariaID, T.TasaID_Al_Momento,
             T.MontoOrigen, T.MonedaOrigen, T.MontoDestino, T.ComisionDestino, T.MonedaDestino,
             T.FechaTransaccion, T.ComprobanteURL, T.ComprobanteEnvioURL,
+            T.RutTitularOrigen, 
+            T.NombreTitularOrigen,
             U.PrimerNombre, U.PrimerApellido, U.Email, U.NumeroDocumento, U.Telefono, U.FotoPerfilURL,
             TD_U.NombreDocumento AS UsuarioTipoDocumentoNombre,
             R.NombreRol AS UsuarioRolNombre,
@@ -164,18 +168,20 @@ class TransactionRepository
         return $success;
     }
 
-    public function uploadUserReceipt(int $transactionId, int $userId, string $dbPath, string $fileHash, int $estadoEnVerificacionID, int $estadoPendienteID): int
+    public function uploadUserReceipt(int $transactionId, int $userId, string $dbPath, string $fileHash, int $estadoEnVerificacionID, int $estadoPendienteID, string $rutTitular, string $nombreTitular): int
     {
-        $sql = "UPDATE transacciones SET ComprobanteURL = ?, ComprobanteHash = ?, EstadoID = ?, FechaSubidaComprobante = NOW()
-                WHERE TransaccionID = ? AND UserID = ? AND EstadoID IN (?, ?)";
+        $sql = "UPDATE transacciones SET ComprobanteURL = ?, ComprobanteHash = ?, EstadoID = ?, FechaSubidaComprobante = NOW(), RutTitularOrigen = ?, NombreTitularOrigen = ?
+            WHERE TransaccionID = ? AND UserID = ? AND EstadoID IN (?, ?)";
 
         $stmt = $this->db->prepare($sql);
 
         $stmt->bind_param(
-            "ssiiiii",
+            "ssissiiii",
             $dbPath,
             $fileHash,
             $estadoEnVerificacionID,
+            $rutTitular,
+            $nombreTitular,
             $transactionId,
             $userId,
             $estadoPendienteID,
@@ -548,5 +554,29 @@ class TransactionRepository
         $stmt->bind_param("i", $cuentaBeneficiariaId);
         $stmt->execute();
         return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function getResellerStats(int $userId, string $fechaInicio, string $fechaFin): array
+    {
+        $sql = "SELECT 
+                T.MonedaOrigen, 
+                P.NombrePais as PaisDestino,
+                SUM(T.ComisionRevendedor) as TotalGanado,
+                COUNT(T.TransaccionID) as CantidadEnvios
+            FROM transacciones T
+            JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
+            JOIN paises P ON CB.PaisID = P.PaisID
+            WHERE T.UserID = ? 
+            AND T.EstadoID IN (4, 5)
+            AND T.FechaTransaccion BETWEEN ? AND ?
+            GROUP BY T.MonedaOrigen, P.NombrePais";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iss", $userId, $fechaInicio, $fechaFin);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        return $result;
     }
 }

@@ -180,15 +180,67 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 <div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content" style="height: 90vh;">
-            <div class="modal-header py-2 bg-light">
-                <h5 class="modal-title fs-6">Visor de Comprobantes</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header py-2 bg-dark text-white">
+                <h5 class="modal-title fs-6"><i class="bi bi-eye"></i> Revisión de Pago</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center">
-                <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-                <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center">
-                    <img id="comprobante-img-full" class="img-fluid d-none" alt="Comprobante">
-                    <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
+
+            <div class="modal-body p-0 d-flex flex-column flex-lg-row" style="overflow: hidden;">
+
+                <div class="bg-light p-3 border-end overflow-auto" style="flex: 0 0 auto; width: 100%;"
+                    id="panel-datos-container">
+
+                    <style>
+                        #panel-datos-container {
+                            max-height: 35vh;
+                            border-bottom: 4px solid #e9ecef;
+                        }
+
+                        @media (min-width: 992px) {
+                            #panel-datos-container {
+                                width: 320px !important;
+                                max-height: 100% !important;
+                                height: 100%;
+                                border-bottom: none !important;
+                            }
+                        }
+                    </style>
+
+                    <h6 class="text-primary mb-3 sticky-top bg-light pt-1 border-bottom pb-2">
+                        <i class="bi bi-person-vcard me-1"></i> Datos de Origen
+                    </h6>
+
+                    <div class="row g-2">
+                        <div class="col-6 col-lg-12 mb-2">
+                            <label class="small text-muted fw-bold d-block">Nombre Titular</label>
+                            <span class="fs-6 text-dark text-break fw-bold" id="visor-nombre-titular">Cargando...</span>
+                        </div>
+
+                        <div class="col-6 col-lg-12 mb-2">
+                            <label class="small text-muted fw-bold d-block">RUT / Documento</label>
+                            <span class="fs-6 text-dark fw-bold" id="visor-rut-titular">Cargando...</span>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning small mt-2 mb-0 d-flex align-items-start p-2">
+                        <i class="bi bi-exclamation-circle-fill me-2 mt-1"></i>
+                        <div style="line-height: 1.2;">Confirma que coincidan con el comprobante.</div>
+                    </div>
+                </div>
+
+                <div class="flex-grow-1 bg-dark d-flex align-items-center justify-content-center position-relative overflow-hidden"
+                    style="background-color: #2c2c2c; min-height: 0;">
+
+                    <div id="comprobante-placeholder" class="spinner-border text-light"></div>
+
+                    <div id="comprobante-content"
+                        class="w-100 h-100 d-flex align-items-center justify-content-center p-2">
+                        <img id="comprobante-img-full" class="d-none"
+                            style="max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 0 15px rgba(0,0,0,0.5);"
+                            alt="Comprobante">
+
+                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
+                    </div>
                 </div>
             </div>
         </div>
@@ -244,6 +296,8 @@ function renderTableRows($transacciones)
                 <?php elseif (!empty($tx['ComprobanteURL'])): ?>
                     <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
                         data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        data-nombre-titular="<?php echo htmlspecialchars($tx['NombreTitularOrigen'] ?? 'No especificado'); ?>"
+                        data-rut-titular="<?php echo htmlspecialchars($tx['RutTitularOrigen'] ?? 'No especificado'); ?>"
                         data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
                         data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>">
                         <i class="bi bi-eye"></i> Ver
@@ -286,7 +340,7 @@ function renderTableRows($transacciones)
                 <?php endif; ?>
             </td>
         </tr>
-    <?php
+        <?php
     }
 }
 ?>

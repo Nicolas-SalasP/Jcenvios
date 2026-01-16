@@ -114,6 +114,25 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 </div>
 
                 <form id="upload-receipt-form" enctype="multipart/form-data">
+                    
+                    <div class="mb-3 p-3 bg-light border rounded">
+                        <label class="form-label fw-bold text-primary small">DATOS DEL TITULAR DE LA CUENTA CON LA QUE SE TRANSFERIRA</label>
+                        
+                        <div class="alert alert-info py-2 px-3 mb-3" style="font-size: 0.85rem;">
+                            <i class="bi bi-info-circle me-1"></i> 
+                            <strong>Nota:</strong> Si usted es el titular ponga su rut y su nombre, si es otra persona ponga el rut y nombre de dicha persona.
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="rutTitularOrigen" class="form-label small fw-bold">RUT del Titular (Origen)</label>
+                            <input type="text" class="form-control" id="rutTitularOrigen" name="rutTitularOrigen" placeholder="Ej: 12.345.678-9" required>
+                        </div>
+
+                        <div class="mb-0">
+                            <label for="nombreTitularOrigen" class="form-label small fw-bold">Nombre Completo del Titular (Origen)</label>
+                            <input type="text" class="form-control" id="nombreTitularOrigen" name="nombreTitularOrigen" placeholder="Nombre y Apellido" required>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label for="receiptFile" class="form-label">Selecciona el archivo</label>
                         <div class="d-grid gap-2 mb-3" id="camera-toggle-container">

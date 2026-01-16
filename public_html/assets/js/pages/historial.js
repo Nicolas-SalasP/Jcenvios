@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (!data.success) throw new Error(data.error || 'Error desconocido');
             allTransactions = data.transacciones || [];
-            filterData(); 
+            filterData();
 
         } catch (error) {
             console.error(error);
@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody.addEventListener('click', (e) => {
             const btn = e.target.closest('button');
             if (!btn) return;
-            
+
             if (btn.classList.contains('view-reason-btn')) {
                 const reasonText = document.getElementById('reason-content-text');
                 const reasonModalEl = document.getElementById('viewReasonModal');
@@ -267,8 +267,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 resolve(file);
                 return;
             }
-            const maxWidth = 1280; 
-            const quality = 0.8;   
+            const maxWidth = 1280;
+            const quality = 0.8;
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = (event) => {
@@ -369,10 +369,20 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const submitBtn = uploadForm.querySelector('button[type="submit"]');
             const originalText = submitBtn.textContent;
-            
-            if (fileInput.files.length === 0) { alert("Selecciona archivo."); return; }
-            
-            submitBtn.disabled = true; submitBtn.textContent = 'Procesando...'; 
+            const rutOrigen = document.getElementById('rutTitularOrigen').value.trim();
+            const nombreOrigen = document.getElementById('nombreTitularOrigen').value.trim();
+            if (!rutOrigen || !nombreOrigen) {
+                window.showInfoModal('Faltan Datos', 'Debes completar los Datos del Titular de la cuenta origen.', false);
+                return;
+            }
+
+            if (fileInput.files.length === 0) {
+                alert("Selecciona el archivo del comprobante.");
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Procesando...';
 
             try {
                 const originalFile = fileInput.files[0];
@@ -385,15 +395,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.set('receiptFile', fileToUpload, fileToUpload.name);
 
                 const response = await fetch('../api/?accion=uploadReceipt', {
-                    method: 'POST', body: formData
+                    method: 'POST',
+                    body: formData
                 });
                 const result = await response.json();
-                
+
                 if (response.ok && result.success) {
-                    if (uploadModalInstance) uploadModalInstance.hide();
-                    window.showInfoModal('¡Éxito!', 'Comprobante subido.', true, () => {
-                        loadHistorial();
-                    });
+                    const activeModal = bootstrap.Modal.getInstance(uploadModalElement);
+                    if (activeModal) {
+                        activeModal.hide();
+                    } else {
+                        new bootstrap.Modal(uploadModalElement).hide();
+                    }
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style = '';
+
+                    setTimeout(() => {
+                        window.showInfoModal('¡Éxito!', 'Comprobante subido correctamente.', true, () => {
+                            loadHistorial();
+                        });
+                    }, 300);
+
                 } else {
                     throw new Error(result.error || 'Error al subir.');
                 }
@@ -417,7 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const originalText = submitBtn.textContent;
             const txId = document.getElementById('resume-tx-id').value;
             const mensaje = document.getElementById('resume-message').value.trim();
-            
+
             const beneficiaryData = {
                 nombre: document.getElementById('edit-benef-name').value.trim(),
                 documento: document.getElementById('edit-benef-doc').value.trim(),
@@ -432,30 +456,30 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             submitBtn.disabled = true; submitBtn.textContent = 'Enviando...';
-            
+
             try {
                 const res = await fetch('../api/?accion=resumeOrder', {
-                    method: 'POST', 
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        txId, 
+                    body: JSON.stringify({
+                        txId,
                         mensaje,
                         beneficiaryData
                     })
                 });
                 const data = await res.json();
-                
+
                 if (data.success) {
                     bootstrap.Modal.getInstance(resumeModalEl).hide();
                     window.showInfoModal('Corrección Enviada', 'La orden ha sido actualizada y enviada a revisión.', true, loadHistorial);
-                } else { 
-                    throw new Error(data.error); 
+                } else {
+                    throw new Error(data.error);
                 }
-            } catch (err) { 
-                alert(err.message || "Error conexión."); 
-            } finally { 
-                submitBtn.disabled = false; 
-                submitBtn.textContent = originalText; 
+            } catch (err) {
+                alert(err.message || "Error conexión.");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
             }
         });
     }
@@ -511,7 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 downloadButton.href = finalUrl;
                 downloadButton.download = `comprobante_${currentTxId}`;
             }
-            
+
             const isPdf = current.url.includes('type=admin') || current.ext === 'pdf';
 
             let mediaEl;
@@ -524,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mediaEl = document.createElement('img');
                 mediaEl.style.maxWidth = '100%';
                 mediaEl.style.maxHeight = '75vh';
-                mediaEl.style.objectFit = 'contain'; 
+                mediaEl.style.objectFit = 'contain';
                 mediaEl.style.display = 'block';
                 mediaEl.style.margin = '0 auto';
             }
@@ -536,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             mediaEl.src = finalUrl;
             modalContent.appendChild(mediaEl);
-            
+
             if (isPdf) setTimeout(() => modalPlaceholder.classList.add('d-none'), 2000);
 
             if (comprobantes.length > 1) {
