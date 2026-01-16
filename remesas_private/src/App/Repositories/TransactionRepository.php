@@ -15,22 +15,28 @@ class TransactionRepository
 
     public function create(array $data): int
     {
+        $sqlTasa = "SELECT EsRiesgoso FROM tasas WHERE TasaID = ?";
+        $stmtTasa = $this->db->prepare($sqlTasa);
+        $stmtTasa->bind_param("i", $data['tasaID']);
+        $stmtTasa->execute();
+        $resTasa = $stmtTasa->get_result()->fetch_assoc();
+        $esRiesgoso = $resTasa['EsRiesgoso'] ?? 0;
+        $stmtTasa->close();
+        $estadoInicialID = ($esRiesgoso == 1) ? 7 : 1;
         $sql = "INSERT INTO transacciones (
                 UserID, CuentaBeneficiariaID, TasaID_Al_Momento, 
                 MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino, 
-                EstadoID, FormaPagoID, ComisionRevendedor,
+                EstadoID, FormaPagoID, 
                 BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco, 
                 BeneficiarioNumeroCuenta, BeneficiarioCCI, BeneficiarioTelefono
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
 
-        $estadoInicialID = $data['estadoID'] ?? 1;
-        $comisionRevendedor = $data['comisionRevendedor'] ?? 0.0;
         $beneficiarioCCI = $data['beneficiarioCCI'] ?? null;
 
         $stmt->bind_param(
-            "iiidsdsiidssssss",
+            "iiidsdsiissssss",
             $data['userID'],
             $data['cuentaID'],
             $data['tasaID'],
@@ -40,7 +46,6 @@ class TransactionRepository
             $data['monedaDestino'],
             $estadoInicialID,
             $data['formaPagoID'],
-            $comisionRevendedor,
             $data['beneficiarioNombre'],
             $data['beneficiarioDocumento'],
             $data['beneficiarioBanco'],
@@ -51,11 +56,22 @@ class TransactionRepository
 
         if (!$stmt->execute()) {
             error_log("Error al crear la transacción: " . $stmt->error);
-            throw new Exception("No se pudo registrar la orden. Inténtalo de nuevo.");
+            throw new Exception("No se pudo registrar la orden.");
         }
+
         $newId = $stmt->insert_id;
         $stmt->close();
+
         return $newId;
+    }
+
+    public function getStatus($txId)
+    {
+        $stmt = $this->db->prepare("SELECT EstadoID FROM transacciones WHERE TransaccionID = ?");
+        $stmt->bind_param("i", $txId);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        return $res['EstadoID'] ?? 1;
     }
 
     public function getAllByUser(int $userId): array

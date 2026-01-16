@@ -23,7 +23,7 @@ $cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
 
 $sql = "
     SELECT T.*,
-        U.PrimerNombre, U.PrimerApellido, U.UserID as UsuarioID,
+        U.PrimerNombre, U.PrimerApellido, U.UserID as UsuarioID, U.NumeroDocumento AS UsuarioDocumento,
         T.BeneficiarioNombre AS BeneficiarioNombreCompleto,
         ET.NombreEstado AS EstadoNombre,
         ET.EstadoID,
@@ -48,10 +48,15 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
 <div class="container mt-4">
-    <h1 class="mb-4">Transacciones Pendientes</h1>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Transacciones Pendientes</h1>
+        <button class="btn btn-outline-secondary btn-sm" onclick="location.reload();">
+            <i class="bi bi-arrow-clockwise"></i> Actualizar
+        </button>
+    </div>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover align-middle">
+        <table class="table table-bordered table-hover align-middle shadow-sm">
             <thead class="table-light">
                 <tr>
                     <th>ID</th>
@@ -219,6 +224,41 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="confirmModalTitle">Confirmación</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="confirmModalBody">
+                ¿Estás seguro de realizar esta acción?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancelBtn">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirmModalYesBtn">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="infoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" id="infoModalHeader">
+                <h5 class="modal-title" id="infoModalTitle">Información</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="infoModalBody">
+                Operación realizada.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="infoModalCloseBtn">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
 </script>
@@ -268,8 +308,8 @@ function renderTableRows($transacciones)
                 <?php elseif (!empty($tx['ComprobanteURL'])): ?>
                     <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
                         data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                        data-nombre-titular="<?php echo htmlspecialchars($tx['NombreTitularOrigen'] ?? 'No especificado'); ?>"
-                        data-rut-titular="<?php echo htmlspecialchars($tx['RutTitularOrigen'] ?? 'No especificado'); ?>"
+                        data-nombre-titular="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>"
+                        data-rut-titular="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? 'No registrado'); ?>"
                         data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
                         data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>">
                         <i class="bi bi-eye"></i> Ver
@@ -285,6 +325,9 @@ function renderTableRows($transacciones)
                 <?php if ($estadoId === 7): ?>
                     <button class="btn btn-sm btn-success authorize-risk-btn w-100"
                         data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-shield-check"></i> Autorizar</button>
+                        
+                    <button class="btn btn-sm btn-danger reject-btn w-100" 
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-x-circle"></i> Rechazar</button>
 
                 <?php elseif ($estadoId === 6): ?>
                     <button class="btn btn-sm btn-outline-primary resume-btn-modal" data-bs-toggle="modal"
@@ -312,7 +355,7 @@ function renderTableRows($transacciones)
                 <?php endif; ?>
             </td>
         </tr>
-        <?php
+    <?php
     }
 }
 ?>

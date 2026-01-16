@@ -931,6 +931,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 10000);
     }
 
+    // =========================================================
+    // AUTORIZAR ORDEN DE RIESGO (Estado 7 -> 1)
+    // =========================================================
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.authorize-risk-btn');
+        if (btn) {
+            const txId = btn.getAttribute('data-tx-id');
+            
+            const confirmado = await window.showConfirmModal(
+                'Autorizar Riesgo', 
+                `¿Autorizar la orden #${txId}?\n\nAl hacerlo, el usuario podrá ver la orden como "Pendiente de Pago" y subir su comprobante.`
+            );
+
+            if (confirmado) {
+                try {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                    const formData = new FormData();
+                    formData.append('accion', 'updateTransactionState');
+                    formData.append('txId', txId);
+                    formData.append('nuevoEstado', 1);
+                    formData.append('nota', 'Autorizado por Admin (Riesgo Verificado)');
+                    const res = await fetch('../api/admin_api.php', { 
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await res.json();
+
+                    if (data.success) {
+                        window.showInfoModal('Éxito', 'Orden autorizada correctamente.', true, () => {
+                            location.reload();
+                        });
+                    } else {
+                        window.showInfoModal('Error', data.error || 'No se pudo autorizar.', false);
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-shield-check"></i> Autorizar';
+                    }
+                } catch (error) {
+                    console.error(error);
+                    window.showInfoModal('Error', 'Error de conexión.', false);
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-shield-check"></i> Autorizar';
+                }
+            }
+        }
+    });
+
     startAutoRefresh();
 
 });
