@@ -28,7 +28,7 @@ class CuentasBeneficiariasRepository
                 JOIN paises p ON cb.PaisID = p.PaisID
                 LEFT JOIN tipos_beneficiario tb ON cb.TipoBeneficiarioID = tb.TipoBeneficiarioID
                 LEFT JOIN tipos_documento td ON cb.TitularTipoDocumentoID = td.TipoDocumentoID
-                WHERE cb.UserID = ? AND cb.Activo = 1"; 
+                WHERE cb.UserID = ? AND cb.Activo = 1";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $userId);
@@ -54,10 +54,10 @@ class CuentasBeneficiariasRepository
         $sql = "SELECT cb.*, 
                         td.NombreDocumento AS TitularTipoDocumentoNombre, 
                         tb.Nombre AS TipoBeneficiarioNombre
-                  FROM cuentas_beneficiarias cb 
-                  LEFT JOIN tipos_documento td ON cb.TitularTipoDocumentoID = td.TipoDocumentoID
-                  LEFT JOIN tipos_beneficiario tb ON cb.TipoBeneficiarioID = tb.TipoBeneficiarioID
-                  WHERE cb.CuentaID = ? AND cb.UserID = ? AND cb.Activo = 1";
+                FROM cuentas_beneficiarias cb 
+                LEFT JOIN tipos_documento td ON cb.TitularTipoDocumentoID = td.TipoDocumentoID
+                LEFT JOIN tipos_beneficiario tb ON cb.TipoBeneficiarioID = tb.TipoBeneficiarioID
+                WHERE cb.CuentaID = ? AND cb.UserID = ? AND cb.Activo = 1";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("ii", $cuentaId, $userId);
         $stmt->execute();
@@ -66,39 +66,44 @@ class CuentasBeneficiariasRepository
         return $result;
     }
 
-    public function create(array $data): int
+    public function create(int $userId, int $paisId, string $alias, string $nombre, ?string $segundoNombre, string $apellido, ?string $segundoApellido, int $tipoDocId, string $numDoc, string $banco, ?string $numCuenta, ?string $cci, ?string $telefono, int $tipoBeneficiarioId): int
     {
-        $sql = "INSERT INTO cuentas_beneficiarias 
-                (UserID, PaisID, Alias, TipoBeneficiarioID, TitularPrimerNombre, TitularSegundoNombre, 
-                 TitularPrimerApellido, TitularSegundoApellido, TitularTipoDocumentoID, TitularNumeroDocumento, 
-                 NombreBanco, NumeroCuenta, NumeroTelefono, Activo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
+        $sql = "INSERT INTO cuentas_beneficiarias (
+                UserID, PaisID, Alias, 
+                TitularPrimerNombre, TitularSegundoNombre, TitularPrimerApellido, TitularSegundoApellido, 
+                TitularTipoDocumentoID, TitularNumeroDocumento, 
+                NombreBanco, NumeroCuenta, CCI, NumeroTelefono, 
+                TipoBeneficiarioID, FechaCreacion
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
 
         $stmt = $this->db->prepare($sql);
+
         $stmt->bind_param(
-            "iissssssissss",
-            $data['UserID'],
-            $data['paisID'],
-            $data['alias'],
-            $data['tipoBeneficiarioID'],
-            $data['primerNombre'],
-            $data['segundoNombre'],
-            $data['primerApellido'],
-            $data['segundoApellido'],
-            $data['titularTipoDocumentoID'],
-            $data['numeroDocumento'],
-            $data['nombreBanco'],
-            $data['numeroCuenta'],
-            $data['numeroTelefono']
+            "iisssssisssssi",
+            $userId,
+            $paisId,
+            $alias,
+            $nombre,
+            $segundoNombre,
+            $apellido,
+            $segundoApellido,
+            $tipoDocId,
+            $numDoc,
+            $banco,
+            $numCuenta,
+            $cci,
+            $telefono,
+            $tipoBeneficiarioId
         );
 
         if (!$stmt->execute()) {
-            error_log("Error crear cuenta: " . $stmt->error);
-            throw new Exception("Error al registrar cuenta.");
+            error_log("Error crear cuenta beneficiaria: " . $stmt->error);
+            throw new Exception("No se pudo guardar el beneficiario.");
         }
-        $newId = $stmt->insert_id;
+
+        $id = $stmt->insert_id;
         $stmt->close();
-        return $newId;
+        return $id;
     }
 
     public function update(int $cuentaId, array $data): bool

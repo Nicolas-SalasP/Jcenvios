@@ -19,16 +19,18 @@ class TransactionRepository
                 UserID, CuentaBeneficiariaID, TasaID_Al_Momento, 
                 MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino, 
                 EstadoID, FormaPagoID, ComisionRevendedor,
-                BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco, BeneficiarioNumeroCuenta, BeneficiarioTelefono
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco, 
+                BeneficiarioNumeroCuenta, BeneficiarioCCI, BeneficiarioTelefono
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
 
         $estadoInicialID = $data['estadoID'] ?? 1;
         $comisionRevendedor = $data['comisionRevendedor'] ?? 0.0;
+        $beneficiarioCCI = $data['beneficiarioCCI'] ?? null;
 
         $stmt->bind_param(
-            "iiidsdsiidsssss",
+            "iiidsdsiidssssss",
             $data['userID'],
             $data['cuentaID'],
             $data['tasaID'],
@@ -43,6 +45,7 @@ class TransactionRepository
             $data['beneficiarioDocumento'],
             $data['beneficiarioBanco'],
             $data['beneficiarioNumeroCuenta'],
+            $beneficiarioCCI,
             $data['beneficiarioTelefono']
         );
 

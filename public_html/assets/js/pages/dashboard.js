@@ -1,50 +1,48 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // =========================================================
+    // 1. CONFIGURACIÓN E IDs
+    // =========================================================
+    const C_COLOMBIA = 2;
+    const C_VENEZUELA = 3;
+    const C_PERU = 4;
+
+    // =========================================================
+    // 2. REFERENCIAS DOM GENERALES
+    // =========================================================
     const formSteps = document.querySelectorAll('.form-step');
     const nextBtn = document.getElementById('next-btn');
     const prevBtn = document.getElementById('prev-btn');
     const submitBtn = document.getElementById('submit-order-btn');
+
+    // Selectores
     const paisOrigenSelect = document.getElementById('pais-origen');
     const paisDestinoSelect = document.getElementById('pais-destino');
+    const formaDePagoSelect = document.getElementById('forma-pago');
     const beneficiaryListDiv = document.getElementById('beneficiary-list');
+
+    // Inputs y Display
     const montoOrigenInput = document.getElementById('monto-origen');
     const montoDestinoInput = document.getElementById('monto-destino');
     const montoUsdInput = document.getElementById('monto-usd');
     const tasaComercialDisplay = document.getElementById('tasa-comercial-display');
     const bcvRateDisplay = document.getElementById('bcv-rate-display');
-    const formaDePagoSelect = document.getElementById('forma-pago');
+    const containerMontoUsd = document.getElementById('container-monto-usd');
+    const tasaPas1Container = document.getElementById('tasa-referencial-container');
+    const tasaPas1Text = document.getElementById('tasa-referencial-paso1');
     const summaryContainer = document.getElementById('summary-container');
     const transaccionIdFinal = document.getElementById('transaccion-id-final');
+
+    // Hidden
     const userIdInput = document.getElementById('user-id');
     const selectedTasaIdInput = document.getElementById('selected-tasa-id');
     const selectedCuentaIdInput = document.getElementById('selected-cuenta-id');
+    const LOGGED_IN_USER_ID = userIdInput ? userIdInput.value : null;
+
+    // Stepper
     const stepperWrapper = document.querySelector('.stepper-wrapper');
     const stepperItems = document.querySelectorAll('.stepper-item');
-    
-    const containerMontoUsd = document.getElementById('container-monto-usd'); 
-    
-    const addAccountBtn = document.getElementById('add-account-btn');
-    const addAccountModalElement = document.getElementById('addAccountModal');
-    const addBeneficiaryForm = document.getElementById('add-beneficiary-form');
-    const benefPaisIdInput = document.getElementById('benef-pais-id');
-    const phoneCodeSelect = document.getElementById('benef-phone-code');
-    const phoneNumberInput = document.getElementById('benef-phone-number');
-    
-    const inputBanco = document.getElementById('benef-bank'); 
 
-    const benefDocTypeSelect = document.getElementById('benef-doc-type');
-    const benefDocNumberInput = document.getElementById('benef-doc-number');
-    const benefDocPrefix = document.getElementById('benef-doc-prefix');
-    
-    const checkBank = document.getElementById('check-include-bank');
-    const checkMobile = document.getElementById('check-include-mobile');
-    const containerBank = document.getElementById('container-bank-input');
-    const containerMobile = document.getElementById('container-mobile-input');
-    const inputAccount = document.getElementById('benef-account-num');
-    const inputPhone = document.getElementById('benef-phone-number');
-
-    const tasaPas1Container = document.getElementById('tasa-referencial-container');
-    const tasaPas1Text = document.getElementById('tasa-referencial-paso1');
-
+    // Variables de Estado
     let currentStep = 1;
     let commercialRate = 0;
     let bcvRate = 0;
@@ -52,26 +50,22 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
     let calculationMode = 'multiply';
-    const LOGGED_IN_USER_ID = userIdInput ? userIdInput.value : null;
+
+    // =========================================================
+    // 3. FUNCIONES DE CÁLCULO Y UTILIDADES (DEFINIDAS PRIMERO)
+    // =========================================================
 
     const parseInput = (val, isUsd = false) => {
         if (!val) return 0;
         let s = val.toString().trim();
-        if (isUsd) {
-            s = s.replace(',', '.');
-        } else {
-            s = s.replace(/\./g, '');
-            s = s.replace(',', '.');
-        }
+        if (isUsd) s = s.replace(',', '.');
+        else { s = s.replace(/\./g, ''); s = s.replace(',', '.'); }
         return parseFloat(s) || 0;
     };
 
     const formatDisplay = (num, decimals = 2) => {
         if (isNaN(num) || num === 0) return '';
-        return new Intl.NumberFormat('de-DE', {
-            minimumFractionDigits: decimals,
-            maximumFractionDigits: decimals
-        }).format(num);
+        return new Intl.NumberFormat('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(num);
     };
 
     const applyLiveFormat = (input) => {
@@ -80,56 +74,61 @@ document.addEventListener('DOMContentLoaded', () => {
         const isUsdField = input.id.includes('usd');
         if (isUsdField) {
             input.value = input.value.replace(/[^0-9.,]/g, '');
-            let parts = input.value.split(/[.,]/);
-            if (parts.length > 2) {
-                let firstSeparator = input.value.match(/[.,]/)[0];
-                input.value = parts[0] + firstSeparator + parts.slice(1).join('').replace(/[.,]/g, '');
-            }
         } else {
             let value = input.value.replace(/[^0-9,]/g, '');
             let parts = value.split(',');
-            if (parts[0].length > 0) {
-                parts[0] = new Intl.NumberFormat('de-DE').format(parseInt(parts[0].replace(/\./g, '')));
-            }
+            if (parts[0].length > 0) parts[0] = new Intl.NumberFormat('de-DE').format(parseInt(parts[0].replace(/\./g, '')));
             input.value = parts.join(parts.length > 1 ? ',' : '');
         }
         let newLength = input.value.length;
         input.setSelectionRange(cursorPosition + (newLength - originalLength), cursorPosition + (newLength - originalLength));
     };
 
-    const countryPhoneCodes = [
-        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
-        { code: '+54', name: 'Argentina', flag: '🇦🇷' },
-        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
-        { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
-        { code: '+55', name: 'Brasil', flag: '🇧🇷' },
-        { code: '+56', name: 'Chile', flag: '🇨🇱' },
-        { code: '+57', name: 'Colombia', flag: '🇨🇴' },
-        { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
-        { code: '+53', name: 'Cuba', flag: '🇨🇺' },
-        { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
-        { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
-        { code: '+503', name: 'El Salvador', flag: '🇸🇻' },
-        { code: '+34', name: 'España', flag: '🇪🇸' },
-        { code: '+33', name: 'Francia', flag: '🇫🇷' },
-        { code: '+502', name: 'Guatemala', flag: '🇬🇹' },
-        { code: '+504', name: 'Honduras', flag: '🇭🇳' },
-        { code: '+39', name: 'Italia', flag: '🇮🇹' },
-        { code: '+52', name: 'México', flag: '🇲🇽' },
-        { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
-        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' },
-        { code: '+507', name: 'Panamá', flag: '🇵🇦' },
-        { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
-        { code: '+51', name: 'Perú', flag: '🇵🇪' },
-        { code: '+351', name: 'Portugal', flag: '🇵🇹' },
-        { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
-        { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
-        { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
-        { code: '+41', name: 'Suiza', flag: '🇨🇭' },
-        { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪' }
-    ];
-    countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
+    const createSummary = () => {
+        const origenTxt = paisOrigenSelect.options[paisOrigenSelect.selectedIndex]?.text || '';
+        const d = paisDestinoSelect.options[paisDestinoSelect.selectedIndex];
+        const formaPagoTxt = formaDePagoSelect.value;
+        const usdVal = montoUsdInput.value || '0.00';
+        let benefAlias = "Seleccionado";
+        let nombreBanco = "";
+
+        const isVenezuela = (parseInt(paisDestinoSelect.value) === C_VENEZUELA);
+
+        const selectedRadio = document.querySelector('input[name="beneficiary-radio"]:checked');
+        if (selectedRadio) {
+            const label = selectedRadio.closest('label');
+            const strong = label.querySelector('strong');
+            nombreBanco = selectedRadio.dataset.banco || "";
+            if (strong) benefAlias = strong.textContent;
+        }
+
+        let warningHtml = "";
+        if (isVenezuela && nombreBanco.toLowerCase().includes("venezuela")) {
+            warningHtml = `
+            <div class="alert alert-danger d-flex align-items-center mt-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2 fs-3"></i>
+                <div><strong>Advertencia:</strong> Transferencias al Banco de Venezuela pueden presentar retrasos.</div>
+            </div>`;
+        }
+        
+        let lineaDolarBCV = '';
+        if (isVenezuela) {
+             lineaDolarBCV = `<li class="list-group-item d-flex justify-content-between bg-light"><span>Ref. Dólar BCV:</span> <strong>${usdVal} USD</strong></li>`;
+        }
+
+        summaryContainer.innerHTML = `
+            <ul class="list-group list-group-flush mb-3">
+                <li class="list-group-item d-flex justify-content-between"><span>Origen:</span> <strong>${origenTxt}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span>Destino:</span> <strong>${d ? d.text : ''}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span>Beneficiario:</span> <strong>${benefAlias}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span>Forma de Pago:</span> <strong>${formaPagoTxt}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span>Monto a Enviar:</span> <strong class="text-primary fs-5">${montoOrigenInput.value} CLP</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span>Monto a Recibir:</span> <strong class="text-success fs-5">${montoDestinoInput.value} ${d ? d.dataset.currency : ''}</strong></li>
+                ${lineaDolarBCV}
+                <li class="list-group-item d-flex justify-content-between"><small>Tasa Aplicada:</small> <small>${commercialRate.toFixed(5)}</small></li>
+            </ul>
+            ${warningHtml}`;
+    };
 
     const toggleBcvFields = () => {
         const destinoID = parseInt(paisDestinoSelect.value || 0);
@@ -137,49 +136,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const monedaDestino = selectedOption ? (selectedOption.dataset.currency || '---') : '---';
         const currencyLabel = document.getElementById('currency-label-destino');
         if (currencyLabel) currencyLabel.textContent = monedaDestino;
-        const isVenezuela = (destinoID === 3);
 
         const usdContainer = document.getElementById('container-monto-usd');
         const destContainer = document.getElementById('container-col-destino');
         const bcvRateContainer = document.getElementById('container-bcv-rate');
 
         if (usdContainer && destContainer) {
-            if (isVenezuela) {
+            if (destinoID === C_VENEZUELA) {
                 usdContainer.classList.remove('d-none');
                 destContainer.classList.remove('col-md-12');
                 destContainer.classList.add('col-md-6');
                 if (bcvRateContainer) bcvRateContainer.classList.remove('d-none');
             } else {
                 usdContainer.classList.add('d-none');
-                if(montoUsdInput) montoUsdInput.value = ''; 
+                if (montoUsdInput) montoUsdInput.value = '';
                 destContainer.classList.remove('col-md-6');
-                destContainer.classList.add('col-md-12'); 
+                destContainer.classList.add('col-md-12');
                 if (bcvRateContainer) bcvRateContainer.classList.add('d-none');
             }
         }
     };
 
-    const updateView = () => {
-        formSteps.forEach((step, index) => {
-            step.classList.toggle('active', (index + 1) === currentStep);
-        });
-        prevBtn.classList.toggle('d-none', currentStep === 1 || currentStep === 5);
-        nextBtn.classList.toggle('d-none', currentStep >= 4);
-        if (submitBtn) submitBtn.classList.toggle('d-none', currentStep !== 4);
-        if (stepperWrapper) stepperWrapper.classList.toggle('d-none', currentStep === 5);
-
-        stepperItems.forEach((item, index) => {
-            const step = index + 1;
-            if (step < currentStep) {
-                item.classList.add('completed'); item.classList.remove('active');
-            } else if (step === currentStep) {
-                item.classList.add('active'); item.classList.remove('completed');
-            } else {
-                item.classList.remove('active', 'completed');
-            }
-        });
-    };
-
+    // --- AQUÍ ESTÁ LA FUNCIÓN QUE DABA ERROR (AHORA DEFINIDA ANTES DE SU USO) ---
     const updateReferentialRateStep1 = async () => {
         const origen = paisOrigenSelect.value;
         const destino = paisDestinoSelect.value;
@@ -194,50 +172,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const moneda = paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency || 'VES';
                     tasaPas1Text.innerHTML = `Tasa Referencial: 1 CLP = <strong>${valor} ${moneda}</strong>`;
                 } else {
-                    tasaPas1Text.textContent = "Tasa no disponible para esta ruta.";
+                    tasaPas1Text.textContent = "Tasa no disponible.";
                 }
             } catch (e) { tasaPas1Text.textContent = "Error al cargar tasa."; }
         } else {
             tasaPas1Container?.classList.add('d-none');
         }
-    };
-
-    const fetchRates = async () => {
-        const origenID = paisOrigenSelect.value;
-        const destinoID = paisDestinoSelect.value;
-        if (!origenID || !destinoID) return;
-
-        if (parseInt(destinoID) === 3) {
-            try {
-                const resBcv = await fetch('../api/?accion=getBcvRate');
-                const dataBcv = await resBcv.json();
-                if (dataBcv.success && dataBcv.rate > 0) {
-                    bcvRate = parseFloat(dataBcv.rate);
-                    bcvRateDisplay.textContent = `1 USD = ${formatDisplay(bcvRate)} VES`;
-                    bcvRateDisplay.classList.add('text-primary');
-                } else {
-                    bcvRate = 0;
-                    bcvRateDisplay.textContent = 'No disponible';
-                }
-            } catch (e) { console.error("Error BCV", e); }
-        } else {
-            bcvRate = 0;
-        }
-
-        let montoParaTasa = 0;
-        if (activeInputId === 'monto-origen') {
-            montoParaTasa = parseInput(montoOrigenInput.value, false);
-        } else if (activeInputId === 'monto-destino') {
-            let ves = parseInput(montoDestinoInput.value, false);
-            montoParaTasa = commercialRate > 0 ? ((calculationMode === 'divide') ? ves * commercialRate : ves / commercialRate) : 0;
-        } else if (activeInputId === 'monto-usd') {
-            let usd = parseInput(montoUsdInput.value, true);
-            montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? ((calculationMode === 'divide') ? (usd * bcvRate * commercialRate) : (usd * bcvRate / commercialRate)) : 0;
-        }
-
-        if (montoParaTasa > 0 && montoParaTasa < 10) montoParaTasa = 0;
-        await performRateFetch(origenID, destinoID, montoParaTasa);
-        recalculateAll();
     };
 
     const performRateFetch = async (origenID, destinoID, monto) => {
@@ -248,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (dataRate.success && dataRate.tasa) {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
                 selectedTasaIdInput.value = dataRate.tasa.TasaID;
-                calculationMode = dataRate.tasa.operation || 'multiply'; 
+                calculationMode = dataRate.tasa.operation || 'multiply';
                 const monD = paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency || 'VES';
                 tasaComercialDisplay.textContent = `Tasa Comercial: 1 CLP = ${commercialRate.toFixed(5)} ${monD}`;
                 tasaComercialDisplay.className = 'form-text text-end fw-bold text-primary';
@@ -267,24 +207,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const recalculateAll = () => {
         if (commercialRate <= 0) return;
         let clp = 0, ves = 0, usd = 0;
-        
         if (activeInputId === 'monto-origen') {
             clp = parseInput(montoOrigenInput.value, false);
             ves = (calculationMode === 'divide') ? (clp / commercialRate) : (clp * commercialRate);
-            
             if (bcvRate > 0) usd = ves / bcvRate;
             if (document.activeElement !== montoDestinoInput) montoDestinoInput.value = formatDisplay(ves);
             if (document.activeElement !== montoUsdInput) montoUsdInput.value = formatDisplay(usd);
-        }
-        else if (activeInputId === 'monto-destino') {
+        } else if (activeInputId === 'monto-destino') {
             ves = parseInput(montoDestinoInput.value, false);
             clp = (calculationMode === 'divide') ? (ves * commercialRate) : Math.ceil(ves / commercialRate);
-            
             if (bcvRate > 0) usd = ves / bcvRate;
             if (document.activeElement !== montoOrigenInput) montoOrigenInput.value = formatDisplay(clp);
             if (document.activeElement !== montoUsdInput) montoUsdInput.value = formatDisplay(usd);
-        }
-        else if (activeInputId === 'monto-usd') {
+        } else if (activeInputId === 'monto-usd') {
             usd = parseInput(montoUsdInput.value, true);
             if (bcvRate > 0) {
                 ves = usd * bcvRate;
@@ -295,6 +230,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const fetchRates = async () => {
+        const origenID = paisOrigenSelect.value;
+        const destinoID = paisDestinoSelect.value;
+        if (!origenID || !destinoID) return;
+
+        if (parseInt(destinoID) === C_VENEZUELA) {
+            try {
+                const resBcv = await fetch('../api/?accion=getBcvRate');
+                const dataBcv = await resBcv.json();
+                if (dataBcv.success && dataBcv.rate > 0) {
+                    bcvRate = parseFloat(dataBcv.rate);
+                    bcvRateDisplay.textContent = `1 USD = ${formatDisplay(bcvRate)} VES`;
+                } else { bcvRate = 0; bcvRateDisplay.textContent = 'No disponible'; }
+            } catch (e) { console.error("Error BCV", e); }
+        } else { bcvRate = 0; }
+
+        let montoParaTasa = 0;
+        if (activeInputId === 'monto-origen') montoParaTasa = parseInput(montoOrigenInput.value, false);
+        else if (activeInputId === 'monto-destino') {
+            let ves = parseInput(montoDestinoInput.value, false);
+            montoParaTasa = commercialRate > 0 ? ((calculationMode === 'divide') ? ves * commercialRate : ves / commercialRate) : 0;
+        } else if (activeInputId === 'monto-usd') {
+            let usd = parseInput(montoUsdInput.value, true);
+            montoParaTasa = (bcvRate > 0 && commercialRate > 0) ? ((calculationMode === 'divide') ? (usd * bcvRate * commercialRate) : (usd * bcvRate / commercialRate)) : 0;
+        }
+
+        if (montoParaTasa > 0 && montoParaTasa < 10) montoParaTasa = 0;
+        await performRateFetch(origenID, destinoID, montoParaTasa);
+        recalculateAll();
+    };
+
+    // Listeners Inputs
     const handleInput = (e) => {
         activeInputId = e.target.id;
         applyLiveFormat(e.target);
@@ -302,10 +269,31 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchRateTimer = setTimeout(fetchRates, 600);
         recalculateAll();
     };
-
     montoOrigenInput.addEventListener('input', handleInput);
     montoDestinoInput.addEventListener('input', handleInput);
     montoUsdInput.addEventListener('input', handleInput);
+
+    // =========================================================
+    // 4. CARGA DE LISTAS (PAÍSES, BANCOS, DOCS)
+    // =========================================================
+    const filterDestinations = () => {
+        const selectedOrigenValue = paisOrigenSelect.value;
+        Array.from(paisDestinoSelect.options).forEach(opt => {
+            if (opt.value === selectedOrigenValue) {
+                opt.style.display = 'none';
+                if (opt.selected) paisDestinoSelect.value = '';
+            } else { opt.style.display = 'block'; }
+        });
+    };
+
+    const loadFormasDePago = async (origenId) => {
+        try {
+            const respF = await fetch(`../api/?accion=getFormasDePago&origenId=${origenId}`);
+            const opts = await respF.json();
+            formaDePagoSelect.innerHTML = opts.length ? '<option value="">Selecciona...</option>' : '<option>Sin opciones</option>';
+            opts.forEach(op => formaDePagoSelect.innerHTML += `<option value="${op}">${op}</option>`);
+        } catch (e) { console.error(e); }
+    };
 
     const loadPaises = async (rol, selectElement) => {
         try {
@@ -323,33 +311,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const selectedOption = selectElement.options[selectElement.selectedIndex];
                     const monedaOrigen = selectedOption.dataset.currency || '---';
                     const spanOrigen = document.getElementById('currency-label-origen');
-                    if(spanOrigen) spanOrigen.textContent = monedaOrigen;
+                    if (spanOrigen) spanOrigen.textContent = monedaOrigen;
                     const labelOrigen = document.getElementById('label-monto-origen');
-                    if(labelOrigen) labelOrigen.textContent = `Tú envías (${monedaOrigen})`;
+                    if (labelOrigen) labelOrigen.textContent = `Tú envías (${monedaOrigen})`;
                 });
             }
         } catch (error) { console.error('Error loadPaises', error); }
-    };
-
-    const filterDestinations = () => {
-        const selectedOrigenValue = paisOrigenSelect.value;
-        Array.from(paisDestinoSelect.options).forEach(opt => {
-            if (opt.value === selectedOrigenValue) {
-                opt.style.display = 'none';
-                if (opt.selected) paisDestinoSelect.value = '';
-            } else {
-                opt.style.display = 'block';
-            }
-        });
-    };
-
-    const loadFormasDePago = async (origenId) => {
-        try {
-            const respF = await fetch(`../api/?accion=getFormasDePago&origenId=${origenId}`);
-            const opts = await respF.json();
-            formaDePagoSelect.innerHTML = opts.length ? '<option value="">Selecciona...</option>' : '<option>Sin opciones</option>';
-            opts.forEach(op => formaDePagoSelect.innerHTML += `<option value="${op}">${op}</option>`);
-        } catch (e) { console.error(e); }
     };
 
     const loadBeneficiaries = async (paisID) => {
@@ -361,12 +328,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cuentas.length > 0) {
                 cuentas.forEach(c => {
                     let num = c.NumeroCuenta === 'PAGO MOVIL' ? c.NumeroTelefono : '...' + c.NumeroCuenta.slice(-4);
+                    let bancoDisplay = c.NombreBanco;
+                    if (c.CCI) bancoDisplay += ' (CCI Registrado)';
                     beneficiaryListDiv.innerHTML += `
                         <label class="list-group-item list-group-item-action d-flex align-items-center" style="cursor:pointer;">
                             <input type="radio" name="beneficiary-radio" value="${c.CuentaID}" 
-                                   data-banco="${c.NombreBanco}" 
-                                   class="form-check-input me-3">
-                            <div><strong>${c.Alias}</strong> <small class="text-muted">(${c.NombreBanco} - ${num})</small></div>
+                                   data-banco="${c.NombreBanco}" class="form-check-input me-3">
+                            <div><strong>${c.Alias}</strong> <small class="text-muted">(${bancoDisplay} - ${num})</small></div>
                         </label>`;
                 });
                 document.querySelectorAll('input[name="beneficiary-radio"]').forEach(r => {
@@ -378,423 +346,413 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { beneficiaryListDiv.innerHTML = 'Error al cargar.'; }
     };
 
+    // DOCUMENTOS
+    const benefDocTypeSelect = document.getElementById('benef-doc-type');
+    const benefDocNumberInput = document.getElementById('benef-doc-number');
+    const benefDocPrefix = document.getElementById('benef-doc-prefix');
+
+    const updateDocumentValidation = () => {
+        if (!benefDocTypeSelect || !paisDestinoSelect) return;
+        const destId = parseInt(paisDestinoSelect.value);
+        const isVenezuela = (destId === C_VENEZUELA);
+        benefDocPrefix.classList.add('d-none');
+        benefDocNumberInput.oninput = null;
+        if (isVenezuela) {
+            benefDocPrefix.classList.remove('d-none');
+            benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
+        }
+    };
+
     const loadTiposDocumento = async () => {
         if (!benefDocTypeSelect) return;
         try {
-            const responseD = await fetch(`../api/?accion=getDocumentTypes`);
-            const tipos = await responseD.json();
-            allDocumentTypes = tipos;
-            
+            if (allDocumentTypes.length === 0) {
+                const responseD = await fetch(`../api/?accion=getDocumentTypes`);
+                allDocumentTypes = await responseD.json();
+            }
+            benefDocTypeSelect.innerHTML = '<option value="">Seleccione...</option>';
+            const destId = parseInt(paisDestinoSelect.value);
+            const isVenezuela = (destId === C_VENEZUELA);
+
             const sortOrder = ['RUT', 'Cédula', 'RIF', 'DNI (Perú)', 'Pasaporte', 'E-RUT (RIF)', 'Otros'];
-            
             allDocumentTypes.sort((a, b) => {
                 let nameA = (a.NombreDocumento || a.nombre || "").toUpperCase();
                 let nameB = (b.NombreDocumento || b.nombre || "").toUpperCase();
-                
-                if (nameA.includes("OTROS")) return 1;
-                if (nameB.includes("OTROS")) return -1;
-
+                if (nameA.includes("OTROS")) return 1; if (nameB.includes("OTROS")) return -1;
                 let idxA = -1, idxB = -1;
-                for(let i=0; i<sortOrder.length; i++) {
-                    if(nameA.includes(sortOrder[i].toUpperCase())) { idxA = i; break; }
-                }
-                for(let i=0; i<sortOrder.length; i++) {
-                    if(nameB.includes(sortOrder[i].toUpperCase())) { idxB = i; break; }
-                }
-
-                if (idxA === -1) idxA = 99;
-                if (idxB === -1) idxB = 99;
+                for(let i=0; i<sortOrder.length; i++) if(nameA.includes(sortOrder[i].toUpperCase())) { idxA = i; break; }
+                for(let i=0; i<sortOrder.length; i++) if(nameB.includes(sortOrder[i].toUpperCase())) { idxB = i; break; }
+                if (idxA === -1) idxA = 99; if (idxB === -1) idxB = 99;
                 return idxA - idxB;
             });
+
+            allDocumentTypes.forEach(doc => {
+                const nombreDoc = doc.NombreDocumento || doc.nombre || "";
+                if (!nombreDoc) return;
+                const nameUC = nombreDoc.toUpperCase();
+                let show = false;
+                if (isVenezuela) {
+                    if (nameUC.includes('CÉDULA') || nameUC.includes('CEDULA') || nameUC.includes('PASAPORTE') || nameUC.includes('RIF')) show = true;
+                } else {
+                    if (!nameUC.includes('RIF')) show = true;
+                }
+                if (show) benefDocTypeSelect.innerHTML += `<option value="${doc.TipoDocumentoID || doc.id}">${nombreDoc}</option>`;
+            });
+            updateDocumentValidation();
         } catch (e) { console.error(e); }
+    };
+    if(benefDocTypeSelect) benefDocTypeSelect.addEventListener('change', updateDocumentValidation);
+
+    // =========================================================
+    // 5. MODAL AGREGAR CUENTA
+    // =========================================================
+    const addAccountModalElement = document.getElementById('addAccountModal');
+    let addAccountModalInstance = null;
+
+    if (addAccountModalElement) {
+        addAccountModalInstance = new bootstrap.Modal(addAccountModalElement);
+        const addAccountBtn = document.getElementById('add-account-btn');
+        const addBeneficiaryForm = document.getElementById('add-beneficiary-form');
+        const benefPaisIdInput = document.getElementById('benef-pais-id');
+
+        // Referencias
+        const benefBankSelect = document.getElementById('benef-bank-select');
+        const containerBankSelect = benefBankSelect ? benefBankSelect.closest('.mb-3') : null;
+        const inputBankName = document.getElementById('benef-bank');
+        const containerBankInputText = inputBankName ? inputBankName.closest('.mb-3') : null;
+        const containerOtherBank = document.getElementById('other-bank-container');
+        const inputOtherBank = document.getElementById('benef-bank-other');
+        
+        // Switches
+        const cardOptions = document.getElementById('card-account-details') || document.querySelector('.card.bg-light');
+        const checkBank = document.getElementById('check-include-bank');
+        const wrapperCheckBank = checkBank ? checkBank.closest('.form-check') : null;
+        const checkMobile = document.getElementById('check-include-mobile');
+        const wrapperCheckMobile = checkMobile ? checkMobile.closest('.form-check') : null;
+        
+        // Inputs
+        const containerBankFields = document.getElementById('container-bank-input');
+        const containerMobileFields = document.getElementById('container-mobile-input');
+        const inputAccount = document.getElementById('benef-account-num');
+        const labelAccount = document.getElementById('label-account-num');
+        const containerCCI = document.getElementById('container-cci');
+        const inputCCI = document.getElementById('benef-cci');
+        const inputPhone = document.getElementById('benef-phone-number');
+        const labelWallet = document.getElementById('label-wallet-phone');
+        const walletPhonePrefix = document.getElementById('wallet-phone-prefix');
+        const phoneCodeSelect = document.getElementById('benef-phone-code');
+
+        const configureModalForCountry = (paisId) => {
+            // Reset Visual
+            if(containerBankSelect) containerBankSelect.classList.add('d-none');
+            if(containerBankInputText) containerBankInputText.classList.add('d-none');
+            if(containerOtherBank) containerOtherBank.classList.add('d-none');
+            if(containerCCI) containerCCI.classList.add('d-none');
+            if(cardOptions) cardOptions.classList.remove('d-none');
+
+            // Reset Valores
+            if(benefBankSelect) benefBankSelect.innerHTML = '<option value="">Seleccione...</option>';
+            if(inputBankName) inputBankName.value = '';
+            if(inputOtherBank) inputOtherBank.value = '';
+            if(inputCCI) inputCCI.value = '';
+            if(inputAccount) inputAccount.value = '';
+            if(inputPhone) inputPhone.value = '';
+
+            // Reset Switches
+            if(wrapperCheckBank) wrapperCheckBank.classList.remove('d-none');
+            if(checkBank) { checkBank.disabled = false; checkBank.checked = false; }
+            if(wrapperCheckMobile) wrapperCheckMobile.classList.remove('d-none');
+            if(checkMobile) { checkMobile.disabled = false; checkMobile.checked = false; }
+
+            // Reset Prefijo
+            if(walletPhonePrefix) walletPhonePrefix.classList.add('d-none');
+            if(phoneCodeSelect) phoneCodeSelect.style.display = 'block';
+
+            // PERÚ (ID 4)
+            if (paisId === C_PERU) {
+                if(containerBankSelect) containerBankSelect.classList.remove('d-none');
+                if(wrapperCheckBank) wrapperCheckBank.classList.add('d-none');
+                if(wrapperCheckMobile) wrapperCheckMobile.classList.add('d-none');
+                if(walletPhonePrefix) { walletPhonePrefix.textContent = '+51'; walletPhonePrefix.classList.remove('d-none'); }
+                if(phoneCodeSelect) phoneCodeSelect.style.display = 'none';
+                const ops = [
+                    { val: 'Interbank', text: 'Interbank (Mismo Banco)' },
+                    { val: 'Otro Banco', text: 'Otro Banco (BCP, BBVA...)' },
+                    { val: 'Yape', text: 'YAPE (Billetera)' },
+                    { val: 'Plin', text: 'PLIN (Billetera)' }
+                ];
+                ops.forEach(o => benefBankSelect.add(new Option(o.text, o.val)));
+            }
+            // COLOMBIA (ID 2)
+            else if (paisId === C_COLOMBIA) {
+                if(containerBankSelect) containerBankSelect.classList.remove('d-none');
+                if(wrapperCheckBank) wrapperCheckBank.classList.add('d-none');
+                if(wrapperCheckMobile) wrapperCheckMobile.classList.add('d-none');
+                if(walletPhonePrefix) { walletPhonePrefix.textContent = '+57'; walletPhonePrefix.classList.remove('d-none'); }
+                if(phoneCodeSelect) phoneCodeSelect.style.display = 'none';
+                const ops = [
+                    { val: 'Bancolombia', text: 'Bancolombia' },
+                    { val: 'Nequi', text: 'Nequi' }
+                ];
+                ops.forEach(o => benefBankSelect.add(new Option(o.text, o.val)));
+            }
+            // VENEZUELA (ID 3)
+            else if (paisId === C_VENEZUELA) {
+                if(containerBankInputText) containerBankInputText.classList.remove('d-none');
+                if(walletPhonePrefix) { walletPhonePrefix.textContent = '+58'; walletPhonePrefix.classList.remove('d-none'); }
+                if(phoneCodeSelect) phoneCodeSelect.style.display = 'none';
+                if(checkBank) checkBank.checked = true;
+                if(checkMobile) checkMobile.checked = false;
+                updateInputState();
+            }
+            // OTROS
+            else {
+                if(containerBankInputText) containerBankInputText.classList.remove('d-none');
+                if(wrapperCheckMobile) wrapperCheckMobile.classList.add('d-none');
+                if(checkMobile) checkMobile.checked = false;
+                if(checkBank) { checkBank.checked = true; checkBank.disabled = true; }
+                if(walletPhonePrefix) walletPhonePrefix.textContent = '+00';
+                updateInputState();
+            }
+        };
+
+        if(benefBankSelect) {
+            benefBankSelect.addEventListener('change', function() {
+                const val = this.value;
+                const paisId = parseInt(benefPaisIdInput.value);
+                if(containerOtherBank) containerOtherBank.classList.add('d-none');
+                if(containerCCI) containerCCI.classList.add('d-none');
+                if(containerBankFields) containerBankFields.classList.add('d-none');
+                if(containerMobileFields) containerMobileFields.classList.add('d-none');
+                if(checkBank) checkBank.checked = false;
+                if(checkMobile) checkMobile.checked = false;
+                if (!val) return;
+
+                if (paisId === C_PERU) {
+                    if (val === 'Yape' || val === 'Plin') {
+                        if(containerMobileFields) containerMobileFields.classList.remove('d-none');
+                        if(labelWallet) labelWallet.textContent = `Número de Celular (${val})`;
+                        if(inputPhone) inputPhone.required = true;
+                        if(inputAccount) inputAccount.required = false;
+                        if(checkMobile) checkMobile.checked = true;
+                    } else {
+                        if(containerBankFields) containerBankFields.classList.remove('d-none');
+                        if(inputAccount) inputAccount.required = true;
+                        if(inputPhone) inputPhone.required = false;
+                        if(checkBank) checkBank.checked = true;
+                        if (val === 'Interbank') { if(labelAccount) labelAccount.textContent = 'Número de Cuenta (Interbank)'; }
+                        else if (val === 'Otro Banco') {
+                            if(containerOtherBank) containerOtherBank.classList.remove('d-none');
+                            if(inputOtherBank) inputOtherBank.required = true;
+                            if(labelAccount) labelAccount.textContent = 'Número de Cuenta';
+                            if(containerCCI) containerCCI.classList.remove('d-none');
+                            if(inputCCI) inputCCI.required = true;
+                        }
+                    }
+                } else if (paisId === C_COLOMBIA) {
+                    if (val === 'Nequi' || val === 'DaviPlata') {
+                        if(containerMobileFields) containerMobileFields.classList.remove('d-none');
+                        if(labelWallet) labelWallet.textContent = `Celular (${val})`;
+                        if(inputPhone) inputPhone.required = true;
+                        if(inputAccount) inputAccount.required = false;
+                        if(checkMobile) checkMobile.checked = true;
+                    } else {
+                        if(containerBankFields) containerBankFields.classList.remove('d-none');
+                        if(labelAccount) labelAccount.textContent = 'Número de Cuenta / Ahorros';
+                        if(inputAccount) inputAccount.required = true;
+                        if(inputPhone) inputPhone.required = false;
+                        if(checkBank) checkBank.checked = true;
+                    }
+                }
+            });
+        }
+
+        const updateInputState = () => {
+            if(checkBank) {
+                if (checkBank.checked) {
+                    if(containerBankFields) containerBankFields.classList.remove('d-none');
+                    if(inputAccount) inputAccount.required = true;
+                    if(labelAccount) labelAccount.textContent = 'Número de Cuenta';
+                } else {
+                    if(containerBankFields) containerBankFields.classList.add('d-none');
+                    if(inputAccount) inputAccount.required = false;
+                }
+            }
+            if(checkMobile) {
+                if (checkMobile.checked) {
+                    if(containerMobileFields) containerMobileFields.classList.remove('d-none');
+                    if(inputPhone) inputPhone.required = true;
+                    if(labelWallet) labelWallet.textContent = 'Número de Celular';
+                } else {
+                    if(containerMobileFields) containerMobileFields.classList.add('d-none');
+                    if(inputPhone) inputPhone.required = false;
+                }
+            }
+        };
+        if(checkBank) checkBank.addEventListener('change', updateInputState);
+        if(checkMobile) checkMobile.addEventListener('change', updateInputState);
+
+        addAccountModalElement.addEventListener('show.bs.modal', (e) => {
+            const paisDestinoId = parseInt(paisDestinoSelect.value);
+            if (!paisDestinoId) {
+                setTimeout(() => {
+                    addAccountModalInstance.hide();
+                    window.showInfoModal('Atención', 'Selecciona un país de destino primero.', false);
+                }, 50);
+                return;
+            }
+            benefPaisIdInput.value = paisDestinoId;
+            addBeneficiaryForm.reset();
+            loadTiposDocumento();
+            configureModalForCountry(paisDestinoId);
+            ['toggle-benef-segundo-nombre', 'toggle-benef-segundo-apellido'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) { el.checked = false; el.dispatchEvent(new Event('change')); }
+            });
+        });
+
+        addBeneficiaryForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            let btn = addBeneficiaryForm.querySelector('button[type="submit"]');
+            if(!btn) btn = addAccountModalElement.querySelector('.modal-footer button[type="submit"]');
+            const originalText = btn ? btn.textContent : 'Guardando...';
+            if(btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+            const formData = new FormData(addBeneficiaryForm);
+            const paisId = parseInt(benefPaisIdInput.value);
+
+            if (paisId === C_PERU || paisId === C_COLOMBIA) {
+                if (benefBankSelect.value === 'Otro Banco' && inputOtherBank && inputOtherBank.value) {
+                    formData.set('nombreBanco', inputOtherBank.value.trim());
+                } else if(benefBankSelect.value) {
+                    formData.set('nombreBanco', benefBankSelect.value);
+                }
+            }
+
+            if (benefDocPrefix && !benefDocPrefix.classList.contains('d-none')) {
+                formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
+            }
+
+            if (checkMobile.checked) {
+                let prefix = '';
+                if (walletPhonePrefix && !walletPhonePrefix.classList.contains('d-none')) {
+                    prefix = walletPhonePrefix.textContent.replace('+', '');
+                } else if (phoneCodeSelect && phoneCodeSelect.style.display !== 'none') {
+                    prefix = phoneCodeSelect.value.replace('+', '');
+                }
+                if (prefix) formData.set('phoneCode', '+' + prefix);
+            } else {
+                formData.set('phoneNumber', '');
+                formData.set('numeroTelefono', '');
+            }
+
+            formData.set('incluirCuentaBancaria', (checkBank && checkBank.checked) ? '1' : '0');
+            formData.set('incluirPagoMovil', (checkMobile && checkMobile.checked) ? '1' : '0');
+
+            try {
+                const res = await fetch('../api/?accion=addCuenta', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.fromEntries(formData.entries())) });
+                const result = await res.json();
+                if (result.success) {
+                    addAccountModalInstance.hide();
+                    window.showInfoModal('Éxito', 'Beneficiario guardado.', true);
+                    loadBeneficiaries(paisDestinoSelect.value);
+                } else { window.showInfoModal('Error', result.error, false); }
+            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); } 
+            finally { if(btn) { btn.disabled = false; btn.textContent = originalText; } }
+        });
+
+        if(addAccountBtn) {
+            addAccountBtn.addEventListener('click', () => {
+                if (!parseInt(paisDestinoSelect.value)) {
+                    window.showInfoModal('Atención', 'Selecciona un país de destino primero.', false);
+                    return;
+                }
+                addAccountModalInstance.show();
+            });
+        }
+
+        const setupToggle = (toggleId, containerId, inputId) => {
+            const t = document.getElementById(toggleId), c = document.getElementById(containerId), i = document.getElementById(inputId);
+            if(t && c && i) {
+                t.addEventListener('change', async () => {
+                    if (t.checked) {
+                        if (await window.showConfirmModal('Confirmar', '¿Omitir este campo?')) { c.classList.add('d-none'); i.required = false; i.value = ''; } 
+                        else t.checked = false;
+                    } else { c.classList.remove('d-none'); i.required = true; }
+                });
+            }
+        };
+        setupToggle('toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname');
+        setupToggle('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname');
+    }
+
+    // =========================================================
+    // 7. STEPPER NAVEGACIÓN
+    // =========================================================
+    const updateView = () => {
+        formSteps.forEach((step, index) => { step.classList.toggle('active', (index + 1) === currentStep); });
+        prevBtn.classList.toggle('d-none', currentStep === 1 || currentStep === 5);
+        nextBtn.classList.toggle('d-none', currentStep >= 4);
+        if (submitBtn) submitBtn.classList.toggle('d-none', currentStep !== 4);
+        if (stepperWrapper) stepperWrapper.classList.toggle('d-none', currentStep === 5);
+        stepperItems.forEach((item, index) => {
+            const step = index + 1;
+            if (step < currentStep) { item.classList.add('completed'); item.classList.remove('active'); } 
+            else if (step === currentStep) { item.classList.add('active'); item.classList.remove('completed'); } 
+            else { item.classList.remove('active', 'completed'); }
+        });
     };
 
     nextBtn?.addEventListener('click', () => {
         if (currentStep === 1) {
             if (paisOrigenSelect.value && paisDestinoSelect.value && paisOrigenSelect.value !== paisDestinoSelect.value) {
-                loadBeneficiaries(paisDestinoSelect.value);
-                fetchRates();
-                currentStep++;
-            } else {
-                window.showInfoModal('Atención', 'Selecciona países de origen y destino válidos.', false);
-                return;
-            }
+                loadBeneficiaries(paisDestinoSelect.value); fetchRates(); updateReferentialRateStep1(); currentStep++;
+            } else window.showInfoModal('Atención', 'Selecciona países válidos.', false);
         } else if (currentStep === 2) {
             const checked = document.querySelector('input[name="beneficiary-radio"]:checked');
-            if (checked) {
-                selectedCuentaIdInput.value = checked.value;
-                fetchRates();
-                currentStep++;
-            } else {
-                window.showInfoModal('Atención', 'Debes seleccionar un beneficiario.', false);
-                return;
-            }
+            if (checked) { selectedCuentaIdInput.value = checked.value; fetchRates(); currentStep++; } 
+            else window.showInfoModal('Atención', 'Selecciona un beneficiario.', false);
         } else if (currentStep === 3) {
-            const monto = parseInput(montoOrigenInput.value);
-            if (monto > 0 && formaDePagoSelect.value && selectedTasaIdInput.value) {
-                createSummary();
-                currentStep++;
-            } else {
-                window.showInfoModal('Atención', 'Verifica el monto y la forma de pago.', false);
-                return;
-            }
+            if (parseInput(montoOrigenInput.value) > 0 && formaDePagoSelect.value) { createSummary(); currentStep++; } 
+            else window.showInfoModal('Atención', 'Verifica el monto.', false);
         }
         updateView();
     });
 
     prevBtn?.addEventListener('click', () => { if (currentStep > 1) { currentStep--; updateView(); } });
-
+    
     paisDestinoSelect?.addEventListener('change', () => {
-        updateReferentialRateStep1();
-        toggleBcvFields();
-        fetchRates();
-        loadBeneficiaries(paisDestinoSelect.value);
+        updateReferentialRateStep1(); toggleBcvFields(); fetchRates(); loadBeneficiaries(paisDestinoSelect.value);
     });
 
-    const createSummary = () => {
-        const origenTxt = paisOrigenSelect.options[paisOrigenSelect.selectedIndex].text;
-        const d = paisDestinoSelect.options[paisDestinoSelect.selectedIndex];
-        const formaPagoTxt = formaDePagoSelect.value;
-        const usdVal = montoUsdInput.value || '0.00';
-        let benefAlias = "Seleccionado";
-        let nombreBanco = "";
-
-        const isVenezuela = (parseInt(paisDestinoSelect.value) === 3);
-
-        const selectedRadio = document.querySelector('input[name="beneficiary-radio"]:checked');
-        if (selectedRadio) {
-            const label = selectedRadio.closest('label');
-            const strong = label.querySelector('strong');
-            nombreBanco = selectedRadio.dataset.banco || "";
-            if (strong) benefAlias = strong.textContent;
-        }
-
-        let warningHtml = "";
-        if (isVenezuela && nombreBanco.toLowerCase().includes("venezuela")) {
-            warningHtml = `
-            <div class="alert alert-danger d-flex align-items-center mt-3" role="alert">
-                <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2 fs-3"></i>
-                <div>
-                    <strong>Advertencia:</strong> Las transferencias al <strong>Banco de Venezuela</strong> podrían presentar retrasos en su procesamiento.
-                    Pero no se preocupe, su envío se realizará y se le notificará sin problemas.
-                </div>
-            </div>`;
-        }
-        
-        let lineaDolarBCV = '';
-        if (isVenezuela) {
-             lineaDolarBCV = `<li class="list-group-item d-flex justify-content-between bg-light"><span>Ref. Dólar BCV:</span> <strong>${usdVal} USD</strong></li>`;
-        }
-
-        summaryContainer.innerHTML = `
-            <ul class="list-group list-group-flush mb-3">
-                <li class="list-group-item d-flex justify-content-between"><span>Origen:</span> <strong>${origenTxt}</strong></li>
-                <li class="list-group-item d-flex justify-content-between"><span>Destino:</span> <strong>${d.text}</strong></li>
-                <li class="list-group-item d-flex justify-content-between"><span>Beneficiario:</span> <strong>${benefAlias}</strong></li>
-                <li class="list-group-item d-flex justify-content-between"><span>Forma de Pago:</span> <strong>${formaPagoTxt}</strong></li>
-                <li class="list-group-item d-flex justify-content-between"><span>Monto a Enviar:</span> <strong class="text-primary fs-5">${montoOrigenInput.value} CLP</strong></li>
-                <li class="list-group-item d-flex justify-content-between"><span>Monto a Recibir:</span> <strong class="text-success fs-5">${montoDestinoInput.value} ${d.dataset.currency}</strong></li>
-                ${lineaDolarBCV}
-                <li class="list-group-item d-flex justify-content-between"><small>Tasa Aplicada:</small> <small>${commercialRate.toFixed(5)}</small></li>
-            </ul>
-            ${warningHtml}`;
-    };
-
-    const checkBusinessHours = () => {
-        const now = new Date();
-        const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
-        const day = chileTime.getDay();
-        const hour = chileTime.getHours();
-        const minutes = chileTime.getMinutes();
-        const totalMinutes = hour * 60 + minutes;
-        const startWeekday = 10 * 60 + 30;
-        const endWeekday = 20 * 60;
-        const startSat = 10 * 60 + 30;
-        const endSat = 16 * 60;
-        if (day >= 1 && day <= 5) return (totalMinutes >= startWeekday && totalMinutes < endWeekday);
-        if (day === 6) return (totalMinutes >= startSat && totalMinutes < endSat);
-        return false;
-    };
-
     submitBtn?.addEventListener('click', async () => {
+        const checkBusinessHours = () => {
+            const now = new Date(); const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
+            const day = chileTime.getDay(); const mins = chileTime.getHours() * 60 + chileTime.getMinutes();
+            if (day >= 1 && day <= 5) return (mins >= 630 && mins < 1200); 
+            if (day === 6) return (mins >= 630 && mins < 960); 
+            return false;
+        };
         if (!checkBusinessHours()) {
-            const proceed = await window.showConfirmModal(
-                'Aviso de Horario',
-                'Estás operando fuera de nuestro horario laboral (Lun-Vie 10:30-20:00, Sáb 10:30-16:00). Tu orden será procesada el próximo día hábil. ¿Deseas continuar?'
-            );
-            if (!proceed) return;
+            if (!await window.showConfirmModal('Aviso de Horario', 'Estás fuera de horario laboral. ¿Continuar?')) return;
         }
         submitBtn.disabled = true; submitBtn.textContent = 'Procesando...';
         const data = {
-            userID: LOGGED_IN_USER_ID,
-            cuentaID: selectedCuentaIdInput.value,
-            tasaID: selectedTasaIdInput.value,
-            montoOrigen: parseInput(montoOrigenInput.value),
-            monedaOrigen: 'CLP',
-            montoDestino: parseInput(montoDestinoInput.value),
-            monedaDestino: paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency,
+            userID: LOGGED_IN_USER_ID, cuentaID: selectedCuentaIdInput.value, tasaID: selectedTasaIdInput.value,
+            montoOrigen: parseInput(montoOrigenInput.value), monedaOrigen: 'CLP',
+            montoDestino: parseInput(montoDestinoInput.value), monedaDestino: paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency,
             formaDePago: formaDePagoSelect.value
         };
         try {
-            const respTx = await fetch('../api/?accion=createTransaccion', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-            });
-            const resultTx = await respTx.json();
-            if (resultTx.success) {
-                transaccionIdFinal.textContent = resultTx.transaccionID; currentStep++; updateView();
-            } else {
-                window.showInfoModal('Error', resultTx.error, false); submitBtn.disabled = false; submitBtn.textContent = 'Confirmar';
-            }
-        } catch (e) { window.showInfoModal('Error', 'Error de conexión.', false); submitBtn.disabled = false; }
+            const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            const res = await resp.json();
+            if (res.success) { transaccionIdFinal.textContent = res.transaccionID; currentStep++; updateView(); } 
+            else { window.showInfoModal('Error', res.error, false); submitBtn.disabled = false; submitBtn.textContent = 'Confirmar'; }
+        } catch (e) { window.showInfoModal('Error', 'Conexión fallida.', false); submitBtn.disabled = false; }
     });
 
-    let addAccountModalInstance = null;
-    if (addAccountModalElement) {
-        addAccountModalInstance = new bootstrap.Modal(addAccountModalElement);
-
-        const updateInputState = () => {
-            if (checkBank && checkBank.checked) {
-                containerBank.classList.remove('d-none');
-                inputAccount.required = true;
-            } else {
-                containerBank.classList.add('d-none');
-                inputAccount.required = false;
-                inputAccount.value = ''; 
-            }
-
-            if (checkMobile && checkMobile.checked) {
-                containerMobile.classList.remove('d-none');
-                inputPhone.required = true;
-            } else {
-                containerMobile.classList.add('d-none');
-                inputPhone.required = false;
-                inputPhone.value = '';
-            }
-        };
-
-        checkBank?.addEventListener('change', updateInputState);
-        checkMobile?.addEventListener('change', updateInputState);
-
-        const updateDocumentTypesList = () => {
-            if (!benefDocTypeSelect || !paisDestinoSelect) return;
-            
-            const destId = parseInt(paisDestinoSelect.value);
-            const destText = paisDestinoSelect.options[paisDestinoSelect.selectedIndex]?.text.toLowerCase() || '';
-            
-            const isVenezuela = (destId === 3);
-            const isChile = destText.includes('chile');
-
-            benefDocTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
-
-            allDocumentTypes.forEach(doc => {
-                const nombreDoc = doc.NombreDocumento || doc.nombre || "";
-                if (!nombreDoc) return;
-
-                const nameUC = nombreDoc.toUpperCase();
-                let show = false;
-
-                if (isVenezuela) {
-                    if (nameUC.includes('CÉDULA') || nameUC.includes('CEDULA') || 
-                        nameUC.includes('PASAPORTE') || 
-                        nameUC.includes('RIF') || 
-                        nameUC.includes('OTROS')) {
-                        show = true;
-                    }
-                    if (nameUC.includes('RUT') || nameUC.includes('DNI')) show = false;
-                } else {
-                    if (nameUC.includes('RIF')) {
-                        show = false; 
-                    } 
-                    else if (!isChile && (nameUC.includes('RUT') || nameUC.includes('E-RUT'))) {
-                        show = false; 
-                    }
-                    else {
-                        show = true;
-                    }
-                }
-
-                if (show) {
-                    benefDocTypeSelect.innerHTML += `<option value="${doc.TipoDocumentoID || doc.id}">${nombreDoc}</option>`;
-                }
-            });
-            updateDocumentValidation();
-        };
-
-        const updateDocumentValidation = () => {
-            if (!benefDocTypeSelect || !paisDestinoSelect) return;
-            const isVenezuela = (parseInt(paisDestinoSelect.value) === 3);
-            const docName = benefDocTypeSelect.options[benefDocTypeSelect.selectedIndex]?.text.toLowerCase() || '';
-            benefDocPrefix.classList.add('d-none');
-            benefDocNumberInput.oninput = null;
-            if (isVenezuela) {
-                benefDocPrefix.classList.remove('d-none');
-                // Agregado 'J' y 'G' al prefijo para RIF y opciones estándar
-                let options = '<option value="V">V</option><option value="E">E</option><option value="J">J</option><option value="G">G</option>';
-                if (docName.includes('pasaporte')) {
-                    options = '<option value="P">P</option><option value="V">V</option><option value="E">E</option>';
-                }
-                benefDocPrefix.innerHTML = options;
-                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
-            }
-        };
-        benefDocTypeSelect?.addEventListener('change', updateDocumentValidation);
-
-        const toggleInputVisibility = (toggleId, containerId, inputId, fieldName) => {
-            const toggle = document.getElementById(toggleId), container = document.getElementById(containerId), input = document.getElementById(inputId);
-            if (toggle && container && input) {
-                toggle.checked = false; container.classList.remove('d-none'); input.required = true;
-                toggle.addEventListener('change', async () => {
-                    if (toggle.checked) {
-                        if (await window.showConfirmModal('Confirmar', `¿Sin ${fieldName}?`)) {
-                            container.classList.add('d-none'); input.required = false; input.value = '';
-                        } else toggle.checked = false;
-                    } else { container.classList.remove('d-none'); input.required = true; }
-                });
-            }
-        };
-        toggleInputVisibility('toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname', 'segundo nombre');
-        toggleInputVisibility('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname', 'segundo apellido');
-
-        addAccountBtn?.addEventListener('click', () => {
-            const paisDestinoID = paisDestinoSelect.value;
-            if (!paisDestinoID) { window.showInfoModal('Atención', 'Selecciona un país de destino primero.', false); return; }
-
-            benefPaisIdInput.value = paisDestinoID;
-            addBeneficiaryForm.reset();
-
-            phoneCodeSelect.innerHTML = countryPhoneCodes.map(c => `<option value="${c.code}">${c.flag} ${c.code}</option>`).join('');
-
-            const selectedOrigenOption = paisOrigenSelect.options[paisOrigenSelect.selectedIndex];
-            const isOrigenColombia = selectedOrigenOption && selectedOrigenOption.text.toLowerCase().includes('colombia');
-            const isDestinoVenezuela = parseInt(paisDestinoID) === 3;
-
-            if (isOrigenColombia) {
-                if (inputBanco) {
-                    inputBanco.value = 'Bancolombia';
-                    inputBanco.readOnly = true;
-                }
-                
-                if (checkMobile) {
-                    checkMobile.checked = false;
-                    checkMobile.disabled = true;
-                    const checkWrapper = checkMobile.closest('.form-check'); 
-                    if(checkWrapper) checkWrapper.style.display = 'none'; 
-                }
-                if (checkBank) {
-                    checkBank.checked = true;
-                }
-                updateInputState();
-            } else {
-                if (inputBanco) {
-                    inputBanco.value = '';
-                    inputBanco.readOnly = false;
-                }
-                if (checkMobile) {
-                    checkMobile.disabled = false;
-                    const checkWrapper = checkMobile.closest('.form-check');
-                    if(checkWrapper) checkWrapper.style.display = 'block'; 
-                }
-            }
-
-            let staticPrefix = document.getElementById('static-phone-prefix');
-            
-            if (isDestinoVenezuela) {
-                if (phoneCodeSelect) {
-                    phoneCodeSelect.value = '+58'; 
-                    phoneCodeSelect.style.display = 'none'; 
-                    
-                    if (!staticPrefix) {
-                        staticPrefix = document.createElement('span');
-                        staticPrefix.id = 'static-phone-prefix';
-                        staticPrefix.className = 'input-group-text bg-light text-muted';
-                        staticPrefix.innerText = '🇻🇪 +58';
-                        phoneCodeSelect.parentNode.insertBefore(staticPrefix, phoneCodeSelect);
-                    } else {
-                        staticPrefix.style.display = 'block'; 
-                    }
-                }
-            } else {
-                if (phoneCodeSelect) phoneCodeSelect.style.display = 'block';
-                if (staticPrefix) staticPrefix.style.display = 'none';
-            }
-
-            if (!isOrigenColombia) {
-                checkBank.checked = true;
-                checkMobile.checked = false;
-                updateInputState();
-            }
-            
-            document.getElementById('toggle-benef-segundo-nombre').checked = false;
-            document.getElementById('container-benef-segundo-nombre').classList.remove('d-none');
-            document.getElementById('benef-secondname').required = true;
-            
-            document.getElementById('toggle-benef-segundo-apellido').checked = false;
-            document.getElementById('container-benef-segundo-apellido').classList.remove('d-none');
-            document.getElementById('benef-secondlastname').required = true;
-
-            updateDocumentTypesList();
-            addAccountModalInstance.show();
-        });
-
-        addBeneficiaryForm?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!checkBank.checked && !checkMobile.checked) {
-                window.showInfoModal('Error', 'Debes seleccionar al menos una opción: Cuenta Bancaria o Pago Móvil.', false);
-                return;
-            }
-
-            const btn = addBeneficiaryForm.closest('.modal-content').querySelector('button[type="submit"]');
-            btn.disabled = true; btn.textContent = 'Guardando...';
-
-            const formData = new FormData(addBeneficiaryForm);
-
-            if (!benefDocPrefix.classList.contains('d-none')) {
-                formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
-            }
-            if (checkMobile.checked) {
-                formData.set('numeroTelefono', (formData.get('phoneCode') || '') + (formData.get('phoneNumber') || ''));
-            } else {
-                formData.set('numeroTelefono', null);
-            }
-            const data = Object.fromEntries(formData.entries());
-            data.paisID = paisDestinoSelect.value;
-            data.incluirCuentaBancaria = checkBank.checked;
-            data.incluirPagoMovil = checkMobile.checked;
-
-            try {
-                const resAdd = await fetch('../api/?accion=addCuenta', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                const resJ = await resAdd.json();
-
-                if (resJ.success) {
-                    addAccountModalInstance.hide();
-                    let msg = 'Beneficiario guardado correctamente.';
-                    if (checkBank.checked && checkMobile.checked) {
-                        msg = 'Se han creado exitosamente la Cuenta Bancaria y el Pago Móvil.';
-                    }
-                    window.showInfoModal('Éxito', msg, true);
-                    loadBeneficiaries(paisDestinoSelect.value);
-                } else {
-                    window.showInfoModal('Error', resJ.error || 'Error desconocido', false);
-                }
-            } catch (err) {
-                console.error(err);
-                window.showInfoModal('Error', 'Error de conexión con el servidor.', false);
-            } finally {
-                btn.disabled = false; btn.textContent = 'Guardar Todo';
-            }
-        });
-    }
-
     if (LOGGED_IN_USER_ID) {
-        loadPaises('Origen', paisOrigenSelect);
-        loadPaises('Destino', paisDestinoSelect);
-        loadTiposDocumento();
-        updateView();
-        montoOrigenInput.readOnly = false; montoDestinoInput.readOnly = false; montoUsdInput.readOnly = false;
-        toggleBcvFields();
+        loadPaises('Origen', paisOrigenSelect); loadPaises('Destino', paisDestinoSelect);
+        loadTiposDocumento(); updateView(); toggleBcvFields();
     }
 });

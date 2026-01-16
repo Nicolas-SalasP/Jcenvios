@@ -177,7 +177,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
 
                     <h6 class="text-primary mt-3"><i class="bi bi-person-vcard me-2"></i>Datos del Titular</h6>
-
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Primer Nombre</label>
@@ -193,7 +192,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="form-check-label small text-muted" for="toggle-benef-segundo-nombre">No tiene
                             segundo nombre</label>
                     </div>
-
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Primer Apellido</label>
@@ -210,7 +208,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="form-check-label small text-muted" for="toggle-benef-segundo-apellido">No tiene
                             segundo apellido</label>
                     </div>
-
                     <div class="row">
                         <div class="col-md-5 mb-3">
                             <label for="benef-doc-type" class="form-label">Tipo Documento</label>
@@ -225,7 +222,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                     <option value="V">V</option>
                                     <option value="E">E</option>
                                     <option value="J">J</option>
-                                    <option value="P">P</option>
                                     <option value="G">G</option>
                                 </select>
                                 <input type="text" class="form-control" id="benef-doc-number" name="numeroDocumento"
@@ -233,41 +229,65 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                             </div>
                         </div>
                     </div>
+                    <hr>
+                    <h6 class="text-primary"><i class="bi bi-bank me-2"></i>Datos Bancarios</h6>
 
-                    <div class="mb-3">
+                    <div class="mb-3 d-none" id="container-bank-select">
+                        <label for="benef-bank-select" class="form-label">Banco / Billetera</label>
+                        <select class="form-select" id="benef-bank-select" name="nombreBancoSelect">
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" id="container-bank-input-text">
                         <label for="benef-bank" class="form-label">Nombre del Banco</label>
-                        <input type="text" class="form-control" id="benef-bank" name="nombreBanco" required
+                        <input type="text" class="form-control" id="benef-bank" name="nombreBanco"
                             placeholder="Ej: Banesco, Mercantil...">
                     </div>
 
-                    <hr>
-                    <h6 class="text-primary"><i class="bi bi-wallet2 me-2"></i>Datos de Cuenta y Pago Móvil</h6>
-                    <p class="small text-muted">Seleccione qué datos desea registrar (Puede marcar ambos).</p>
+                    <div class="mb-3 d-none" id="other-bank-container">
+                        <label class="form-label small text-muted">Escribe el nombre del Banco</label>
+                        <input type="text" class="form-control" id="benef-bank-other" maxlength="20"
+                            placeholder="Ej: Pichincha">
+                    </div>
 
-                    <div class="card bg-light border-0 p-3 mb-3">
-                        <div class="form-check form-switch mb-2">
+                    <div class="card bg-light border-0 p-3 mb-3" id="card-account-details">
+
+                        <div class="form-check form-switch mb-2" id="wrapper-check-bank">
                             <input class="form-check-input" type="checkbox" id="check-include-bank"
                                 name="incluirCuentaBancaria" checked>
                             <label class="form-check-label fw-bold" for="check-include-bank">Registrar Cuenta
                                 Bancaria</label>
                         </div>
+
                         <div id="container-bank-input" class="mb-3 ps-4">
+                            <label class="form-label small" id="label-account-num">Número de Cuenta</label>
                             <input type="text" class="form-control" id="benef-account-num" name="numeroCuenta"
-                                maxlength="20" placeholder="Número de cuenta (20 dígitos)">
+                                maxlength="20" placeholder="Número de cuenta">
+
+                            <div class="mt-2 d-none" id="container-cci">
+                                <label class="form-label fw-bold text-primary small">Número de Cuenta Interbancaria
+                                    (CCI)</label>
+                                <input type="text" class="form-control" id="benef-cci" name="cci" maxlength="20"
+                                    placeholder="20 dígitos">
+                            </div>
                         </div>
 
-                        <div class="form-check form-switch mb-2">
+                        <div class="form-check form-switch mb-2" id="wrapper-check-mobile">
                             <input class="form-check-input" type="checkbox" id="check-include-mobile"
                                 name="incluirPagoMovil">
-                            <label class="form-check-label fw-bold" for="check-include-mobile">Registrar Pago
-                                Móvil</label>
+                            <label class="form-check-label fw-bold" for="check-include-mobile">Registrar Pago Móvil /
+                                Billetera</label>
                         </div>
+
                         <div id="container-mobile-input" class="mb-3 ps-4 d-none">
+                            <label class="form-label small" id="label-wallet-phone">Número de Celular</label>
                             <div class="input-group">
                                 <select class="input-group-text" id="benef-phone-code" name="phoneCode"
                                     style="max-width: 130px;"></select>
+                                <span class="input-group-text d-none" id="wallet-phone-prefix"></span>
                                 <input type="tel" class="form-control" id="benef-phone-number" name="phoneNumber"
-                                    placeholder="Ej: 4141234567">
+                                    placeholder="Ej: 987654321">
                             </div>
                         </div>
                     </div>
@@ -286,11 +306,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         <div class="modal-content border-danger">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Ruta No Disponible</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body text-center p-4">
                 <p class="lead mb-2">Lo sentimos, no hay tasa de cambio activa para esta ruta.</p>
-                <p class="text-muted small">Por el momento no podemos procesar envíos entre los países seleccionados. Por favor intenta con otra combinación o vuelve más tarde.</p>
+                <p class="text-muted small">Por el momento no podemos procesar envíos entre los países seleccionados.
+                    Por favor intenta con otra combinación o vuelve más tarde.</p>
             </div>
             <div class="modal-footer justify-content-center">
                 <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Entendido</button>
@@ -300,22 +322,22 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const nextBtn = document.getElementById('next-btn');
-    const tasaInput = document.getElementById('selected-tasa-id');
-    const modalTasa = new bootstrap.Modal(document.getElementById('modalTasaNoDisponible'));
-    nextBtn.addEventListener('click', (e) => {
-        const pasoActual = document.querySelector('.form-step.active');
-        if (pasoActual && pasoActual.id === 'step-1') {
-            const tasaId = tasaInput.value;
-            if (!tasaId || tasaId == '0' || tasaId === '') {
-                e.preventDefault();
-                e.stopPropagation();
-                modalTasa.show();
+    document.addEventListener('DOMContentLoaded', () => {
+        const nextBtn = document.getElementById('next-btn');
+        const tasaInput = document.getElementById('selected-tasa-id');
+        const modalTasa = new bootstrap.Modal(document.getElementById('modalTasaNoDisponible'));
+        nextBtn.addEventListener('click', (e) => {
+            const pasoActual = document.querySelector('.form-step.active');
+            if (pasoActual && pasoActual.id === 'step-1') {
+                const tasaId = tasaInput.value;
+                if (!tasaId || tasaId == '0' || tasaId === '') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    modalTasa.show();
+                }
             }
-        }
-    }, true);
-});
+        }, true);
+    });
 </script>
 
 <?php
