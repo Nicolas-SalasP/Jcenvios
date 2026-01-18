@@ -74,6 +74,17 @@ class TransactionRepository
         return $res['EstadoID'] ?? 1;
     }
 
+    public function getById(int $txId): ?array
+    {
+        $sql = "SELECT * FROM transacciones WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $txId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result;
+    }
+
     public function getAllByUser(int $userId): array
     {
         $sql = "SELECT

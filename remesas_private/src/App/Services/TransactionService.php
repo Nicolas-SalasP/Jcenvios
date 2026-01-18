@@ -255,26 +255,19 @@ class TransactionService
 
     public function authorizeRiskyTransaction(int $txId, int $adminId): bool
     {
-        $estadoPendienteAprobacion = 7;
-        $estadoPendientePago = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
-
-        $affectedRows = $this->txRepository->updateStatus($txId, $estadoPendientePago, $estadoPendienteAprobacion);
+        $estadoRiesgo = 7; 
+        $estadoPendientePago = 1;
+        $affectedRows = $this->txRepository->updateStatus($txId, $estadoPendientePago, $estadoRiesgo);
 
         if ($affectedRows > 0) {
             $txData = $this->txRepository->getFullTransactionDetails($txId);
-
             if ($txData) {
                 $client = $this->userRepository->findUserById($txData['UserID']);
                 $txData['TelefonoCliente'] = $client['Telefono'];
 
-                if (isset($txData['FormaPagoID']) && isset($txData['PaisOrigenID'])) {
-                    $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais(
-                        (int) $txData['FormaPagoID'],
-                        (int) $txData['PaisOrigenID']
-                    );
-                    if ($cuentaAdmin) {
-                        $txData['CuentaAdmin'] = $cuentaAdmin;
-                    }
+                if (isset($txData['FormaPagoID'], $txData['PaisOrigenID'])) {
+                    $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais((int) $txData['FormaPagoID'], (int) $txData['PaisOrigenID']);
+                    if ($cuentaAdmin) $txData['CuentaAdmin'] = $cuentaAdmin;
                 }
 
                 $pdfContent = $this->pdfService->generateOrder($txData);
@@ -283,11 +276,11 @@ class TransactionService
                 $this->notificationService->sendOrderToClientWhatsApp($txData, $pdfUrl);
                 $this->notificationService->sendNewOrderEmail($txData, $pdfContent);
             }
-
-            $this->notificationService->logAdminAction($adminId, 'Autorización Riesgo', "TX ID: $txId autorizada por admin.");
+            
+            $this->notificationService->logAdminAction($adminId, 'Autorización Riesgo', "TX ID: $txId autorizada. Ahora puede pagar.");
             return true;
         }
-
+        
         return false;
     }
 
@@ -358,23 +351,25 @@ class TransactionService
 
     public function adminRejectPayment(int $adminId, int $txId, string $reason = '', bool $isSoftReject = false): bool
     {
-        $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
-        $estadoPendienteID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
+        $estadoCanceladoID = 5; // ID 5 = Cancelado Definitivo
+        $estadoPendienteID = 1; // ID 1 = Pendiente de Pago 
         $estadosPermitidos = [
-            $this->getEstadoId(self::ESTADO_EN_VERIFICACION),
-            $this->getEstadoId(self::ESTADO_EN_PROCESO),
-            $this->getEstadoId(self::ESTADO_PAUSADO)
+            2, // Verificación
+            3, // En Proceso
+            6, // Pausado
+            7, // Riesgo (NUEVO)
+            1  // Pendiente Pago (NUEVO)
         ];
 
         $nuevoEstadoID = $isSoftReject ? $estadoPendienteID : $estadoCanceladoID;
 
         $txData = $this->txRepository->getFullTransactionDetails($txId);
-        if (!$txData)
-            throw new Exception("Transacción no encontrada.", 404);
+        if (!$txData) throw new Exception("Transacción no encontrada.", 404);
+            
         $affectedRows = $this->txRepository->updateStatus($txId, $nuevoEstadoID, $estadosPermitidos);
 
         if ($affectedRows === 0) {
-            throw new Exception("No se pudo rechazar/cancelar. El estado actual de la orden no permite esta acción.", 409);
+            throw new Exception("No se pudo rechazar. El estado actual no permite esta acción.", 409);
         }
 
         if ($isSoftReject) {
@@ -528,5 +523,26 @@ class TransactionService
     public function getResellerStats(int $userId, string $fechaInicio, string $fechaFin): array
     {
         return $this->txRepository->getResellerStats($userId, $fechaInicio, $fechaFin);
+    }
+
+    public function forceUpdateState(int $txId, int $newState, string $note = ''): bool
+    {
+        $tx = $this->txRepository->getById($txId);
+        if (!$tx) {
+            throw new Exception("Transacción no encontrada.");
+        }
+        if ($tx['EstadoID'] == 7 && $newState == 1) {
+            $adminId = $_SESSION['user_id'] ?? 0; 
+            return $this->authorizeRiskyTransaction($txId, $adminId);
+        }
+        $estadoActual = (int)$tx['EstadoID'];
+        $affected = $this->txRepository->updateStatus($txId, $newState, $estadoActual);
+
+        if ($affected > 0) {
+            // $this->notificationService->logAdminAction(...)
+            return true;
+        }
+
+        return false;
     }
 }

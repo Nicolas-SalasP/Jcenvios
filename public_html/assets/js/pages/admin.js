@@ -948,14 +948,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     btn.disabled = true;
                     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-                    const formData = new FormData();
-                    formData.append('accion', 'updateTransactionState');
-                    formData.append('txId', txId);
-                    formData.append('nuevoEstado', 1);
-                    formData.append('nota', 'Autorizado por Admin (Riesgo Verificado)');
-                    const res = await fetch('../api/admin_api.php', { 
+                    const res = await fetch('../api/?accion=authorizeTransaction', { 
                         method: 'POST',
-                        body: formData
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            transactionId: txId 
+                        })
                     });
 
                     const data = await res.json();
