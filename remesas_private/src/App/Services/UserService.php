@@ -268,10 +268,18 @@ class UserService
         }
     }
 
-    public function uploadVerificationDocs(int $userId, array $files): void
+    // --- FUNCIÓN ACTUALIZADA: REEMPLAZA A uploadVerificationDocs ---
+    // Maneja la selfie obligatoria y los documentos
+    public function processVerificationRequest(int $userId, array $data, array $files): void
     {
+        // 1. Validar documentos básicos (Frente y Reverso)
         if (!isset($files['docFrente']) || !isset($files['docReverso'])) {
             throw new Exception("Debes subir ambos lados del documento.", 400);
+        }
+
+        // 2. VALIDAR SELFIE OBLIGATORIA
+        if (!isset($files['selfie']) || $files['selfie']['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception("La selfie en vivo es obligatoria para la verificación.", 400);
         }
 
         $estadoPendienteID = $this->estadoVerificacionRepo->findIdByName('Pendiente');
@@ -279,14 +287,27 @@ class UserService
             throw new Exception("Estado 'Pendiente' no encontrado en la base de datos.", 500);
 
         try {
+            // 3. Procesar Selfie: Guardar y actualizar foto de perfil
+            $pathSelfie = $this->fileHandler->saveProfilePicture($files['selfie'], $userId);
+            
+            // Obtenemos el teléfono actual para no perderlo al actualizar el perfil
+            $currentUser = $this->userRepository->findUserById($userId);
+            $currentPhone = $currentUser['Telefono'] ?? '';
+            
+            // Actualizamos la foto de perfil en la BD
+            $this->userRepository->updateProfileInfo($userId, $currentPhone, $pathSelfie);
+
+            // 4. Procesar Documentos de Identidad
             $pathFrente = $this->fileHandler->saveVerificationFile($files['docFrente'], $userId, 'frente');
             $pathReverso = $this->fileHandler->saveVerificationFile($files['docReverso'], $userId, 'reverso');
+
         } catch (Exception $e) {
             throw new Exception("Error al guardar archivos: " . $e->getMessage(), $e->getCode() ?: 500);
         }
 
+        // 5. Actualizar estado de verificación en BD
         if ($this->userRepository->updateVerificationDocuments($userId, $pathFrente, $pathReverso, $estadoPendienteID)) {
-            $this->notificationService->logAdminAction($userId, 'Subida Documentos Verificación', "Usuario ID: $userId. Estado cambiado a Pendiente.");
+            $this->notificationService->logAdminAction($userId, 'Subida Documentos Verificación', "Usuario ID: $userId. Selfie actualizada y docs subidos.");
         } else {
             @unlink($this->fileHandler->getAbsolutePath($pathFrente));
             @unlink($this->fileHandler->getAbsolutePath($pathReverso));
@@ -419,31 +440,31 @@ class UserService
         return $codes;
     }
 
-    // --- MÉTODOS 2FA DINÁMICOS (NUEVOS) ---
+    // --- MÉTODOS 2FA DINÁMICOS ---
 
-public function generateAndSend2FACode(int $userId, ?string $overrideMethod = null): bool
-{
-    $config = $this->userRepository->get2FAConfig($userId);
-    if (!$config) return false;
+    public function generateAndSend2FACode(int $userId, ?string $overrideMethod = null): bool
+    {
+        $config = $this->userRepository->get2FAConfig($userId);
+        if (!$config) return false;
 
-    $code = (string)random_int(100000, 999999);
-    $expiresAt = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+        $code = (string)random_int(100000, 999999);
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+10 minutes'));
 
-    if ($this->userRepository->saveTemp2FACode($userId, $code, $expiresAt)) {
-        $method = $overrideMethod ?? ($config['twofa_method'] ?? 'email');
-        
-        switch ($method) {
-            case 'sms':
-                return $this->notificationService->send2FACodeTwilio($config['Telefono'], $code, 'sms');
-            case 'whatsapp':
-                return $this->notificationService->send2FACodeTwilio($config['Telefono'], $code, 'whatsapp');
-            case 'email':
-            default:
-                return $this->notificationService->send2FACodeEmail($config['Email'], $config['PrimerNombre'], $code);
+        if ($this->userRepository->saveTemp2FACode($userId, $code, $expiresAt)) {
+            $method = $overrideMethod ?? ($config['twofa_method'] ?? 'email');
+            
+            switch ($method) {
+                case 'sms':
+                    return $this->notificationService->send2FACodeTwilio($config['Telefono'], $code, 'sms');
+                case 'whatsapp':
+                    return $this->notificationService->send2FACodeTwilio($config['Telefono'], $code, 'whatsapp');
+                case 'email':
+                default:
+                    return $this->notificationService->send2FACodeEmail($config['Email'], $config['PrimerNombre'], $code);
+            }
         }
+        return false;
     }
-    return false;
-}
 
     public function verifyTemp2FACode(int $userId, string $code): bool
     {

@@ -271,8 +271,32 @@ class ClientController extends BaseController
     public function uploadVerificationDocs(): void
     {
         $userId = $this->ensureLoggedIn();
-        $this->userService->uploadVerificationDocs($userId, $_FILES);
-        $this->sendJsonResponse(['success' => true, 'message' => 'Documentos subidos correctamente. Serán revisados.']);
+        
+        $data = $_POST;
+        $files = $_FILES;
+
+        if (empty($files)) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'No se recibieron archivos.'], 400);
+            return;
+        }
+
+        try {
+            $this->userService->processVerificationRequest($userId, $data, $files);
+            $updatedUser = $this->userService->getUserProfile($userId);
+            if (!empty($updatedUser['FotoPerfilURL'])) {
+                $_SESSION['user_photo_url'] = $updatedUser['FotoPerfilURL'];
+            }
+            $_SESSION['verification_status'] = 'Pendiente'; 
+            
+            $this->sendJsonResponse([
+                'success' => true, 
+                'message' => 'Documentos recibidos. Tu perfil ha sido actualizado.',
+                'newPhotoUrl' => $updatedUser['FotoPerfilURL'] ?? null
+            ]);
+
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
     }
 
     public function generate2FASecret(): void

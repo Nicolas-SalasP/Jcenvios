@@ -66,20 +66,37 @@ class FileHandlerService
     public function saveVerificationFile(array $fileData, int $userId, string $prefix): string
     {
         $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'verifications';
-        $allowedTypes = ['image/jpeg', 'image/png'];
-        $maxSize = 5 * 1024 * 1024;
-        $savedFilename = $this->handleUpload($fileData, $targetDir, $prefix . '_' . $userId, $allowedTypes, $maxSize);
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        $maxSize = 10 * 1024 * 1024;
+        
+        $savedFilename = $this->handleUpload($fileData, $targetDir, $prefix . '_' . $userId, $allowedTypes, $maxSize, 70);
 
         return 'verifications' . DIRECTORY_SEPARATOR . $savedFilename;
+    }
+
+    public function saveUserProfileImage(array $fileData, int $userId): string
+    {
+        return $this->saveProfilePicture($fileData, $userId);
+    }
+
+    public function saveProfilePicture(array $fileData, int $userId): string
+    {
+        $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'profile_pics';
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        $maxSize = 10 * 1024 * 1024; 
+        $filenamePrefix = 'user_profile_' . $userId;
+        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize, 70);
+
+        return 'profile_pics' . DIRECTORY_SEPARATOR . $savedFilename;
     }
 
     public function saveReceiptFile(array $fileData, int $transactionId): string
     {
         $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'receipts';
-        $allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-        $maxSize = 5 * 1024 * 1024;
+        $allowedTypes = ['image/jpeg', 'image/png', 'application/pdf', 'image/webp'];
+        $maxSize = 10 * 1024 * 1024;
         $filenamePrefix = 'tx_recibo_' . $transactionId;
-        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize);
+        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize, 70);
 
         return 'receipts' . DIRECTORY_SEPARATOR . $savedFilename;
     }
@@ -88,28 +105,20 @@ class FileHandlerService
     {
         $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'proof_of_sending';
         $allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-        $maxSize = 5 * 1024 * 1024;
+        $maxSize = 10 * 1024 * 1024;
         $filenamePrefix = 'tx_envio_' . $transactionId;
-        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize);
+        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize, 75);
 
         return 'proof_of_sending' . DIRECTORY_SEPARATOR . $savedFilename;
     }
-
-    public function saveProfilePicture(array $fileData, int $userId): string
+    public function saveVerificationDoc(array $fileData, int $userId, string $side): string
     {
-        $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'profile_pics';
-        $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-        $maxSize = 2 * 1024 * 1024;
-        $filenamePrefix = 'user_profile_' . $userId;
-        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize);
-
-        return 'profile_pics' . DIRECTORY_SEPARATOR . $savedFilename;
+        return $this->saveVerificationFile($fileData, $userId, 'doc_' . $side);
     }
 
     public function getAbsolutePath(string $relativePath): string
     {
         $cleanPath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath), DIRECTORY_SEPARATOR);
-
         $prefixToRemove = 'uploads' . DIRECTORY_SEPARATOR;
 
         if (strpos($cleanPath, $prefixToRemove) === 0) {
@@ -119,7 +128,7 @@ class FileHandlerService
         return $this->baseUploadPath . DIRECTORY_SEPARATOR . $cleanPath;
     }
 
-    private function handleUpload(array $fileData, string $targetDirectory, string $filenamePrefix, array $allowedMimeTypes, int $maxFileSize): string
+    private function handleUpload(array $fileData, string $targetDirectory, string $filenamePrefix, array $allowedMimeTypes, int $maxFileSize, ?int $quality = null): string
     {
         if ($fileData['error'] !== UPLOAD_ERR_OK) {
             throw new Exception($this->getUploadErrorMessage($fileData['error']), 400);
@@ -136,20 +145,60 @@ class FileHandlerService
         finfo_close($finfo);
 
         if (!in_array($fileType, $allowedMimeTypes)) {
-            throw new Exception("Formato de archivo no permitido. Solo se aceptan: " . implode(', ', $allowedMimeTypes), 400);
+            throw new Exception("Formato no permitido. Aceptados: " . implode(', ', $allowedMimeTypes), 400);
         }
 
-        $extensionMap = [
-            'image/jpeg' => 'jpg',
-            'image/png' => 'png',
-            'application/pdf' => 'pdf',
-            'image/webp' => 'webp'
-        ];
-        $extension = $extensionMap[$fileType] ?? 'tmp';
+        $isImage = in_array($fileType, ['image/jpeg', 'image/png', 'image/webp']);
+        if ($isImage && $quality !== null) {
+            $extension = 'jpg';
+        } else {
+            $extensionMap = [
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'application/pdf' => 'pdf',
+                'image/webp' => 'webp'
+            ];
+            $extension = $extensionMap[$fileType] ?? 'tmp';
+        }
 
         $safeFilename = preg_replace('/[^a-zA-Z0-9_-]/', '_', $filenamePrefix);
         $newFilename = $safeFilename . '_' . bin2hex(random_bytes(8)) . '.' . $extension;
         $destination = $targetDirectory . DIRECTORY_SEPARATOR . $newFilename;
+
+        // --- BLOQUE DE COMPRESIÓN ---
+        if ($isImage && $quality !== null) {
+            try {
+                $sourceImage = null;
+                switch ($fileType) {
+                    case 'image/jpeg': $sourceImage = imagecreatefromjpeg($fileData['tmp_name']); break;
+                    case 'image/png':  $sourceImage = imagecreatefrompng($fileData['tmp_name']); break;
+                    case 'image/webp': $sourceImage = imagecreatefromwebp($fileData['tmp_name']); break;
+                }
+
+                if ($sourceImage) {
+                    $width = imagesx($sourceImage);
+                    $height = imagesy($sourceImage);
+                    $maxWidth = 2000;
+                    
+                    if ($width > $maxWidth) {
+                        $newWidth = $maxWidth;
+                        $newHeight = floor($height * ($maxWidth / $width));
+                        $tmpImage = imagecreatetruecolor($newWidth, $newHeight);
+                        imagecopyresampled($tmpImage, $sourceImage, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+                        imagedestroy($sourceImage);
+                        $sourceImage = $tmpImage;
+                    }
+                    imageinterlace($sourceImage, true);
+                    if (imagejpeg($sourceImage, $destination, $quality)) {
+                        imagedestroy($sourceImage);
+                        return $newFilename;
+                    }
+                    imagedestroy($sourceImage);
+                }
+            } catch (Exception $e) {
+                error_log("Error al comprimir imagen, intentando guardado normal: " . $e->getMessage());
+            }
+        }
 
         if (!move_uploaded_file($fileData['tmp_name'], $destination)) {
             error_log("Error al mover archivo subido: {$fileData['tmp_name']} a {$destination}");

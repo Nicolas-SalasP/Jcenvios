@@ -15,7 +15,8 @@ if (isset($_SESSION['user_rol_name']) && $_SESSION['user_rol_name'] === 'Operado
     exit();
 }
 
-$estadosBloqueados = ['No Verificado', 'Rechazado'];
+$estadosBloqueados = ['No Verificado', 'Rechazado', 'Pendiente'];
+
 if (!isset($_SESSION['verification_status']) || in_array($_SESSION['verification_status'], $estadosBloqueados)) {
     header('Location: ' . BASE_URL . '/dashboard/verificar.php');
     exit();
