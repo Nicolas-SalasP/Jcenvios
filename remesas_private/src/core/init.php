@@ -2,18 +2,21 @@
 require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/../../config.php';
 
+// --- CONFIGURACIÓN DE SESIONES (24 HORAS) ---
 $session_path = __DIR__ . '/../../sessions';
 if (!is_dir($session_path)) {
     mkdir($session_path, 0700, true);
 }
 ini_set('session.save_path', $session_path);
 
-$cookie_lifetime = 60 * 60 * 24 * 30;
-$max_server_session_lifetime = 4 * 60 * 60;
-ini_set('session.gc_maxlifetime', $max_server_session_lifetime);
+// Duración de la sesión: 24 horas = 86400 segundos
+$session_lifetime = 86400; 
+
+// Garbage Collection (Limpieza del servidor) también a 24 horas
+ini_set('session.gc_maxlifetime', $session_lifetime);
 
 session_set_cookie_params([
-    'lifetime' => $cookie_lifetime,
+    'lifetime' => $session_lifetime, // Cookie del navegador dura 24 horas
     'path' => '/',
     'domain' => defined('SESSION_DOMAIN') ? SESSION_DOMAIN : $_SERVER['HTTP_HOST'],
     'secure' => defined('IS_HTTPS') ? IS_HTTPS : isset($_SERVER['HTTPS']),
@@ -23,6 +26,7 @@ session_set_cookie_params([
 
 header('X-Content-Type-Options: nosniff');
 
+// --- CSP (Content Security Policy) ---
 $cspHost = '';
 if (defined('BASE_URL')) {
     $parsedUrl = parse_url(BASE_URL);
@@ -57,17 +61,24 @@ session_start();
 require_once __DIR__ . '/ErrorHandler.php';
 set_exception_handler('App\\Core\\exception_handler');
 
-$tiempo_limite = 15 * 60;
+$tiempo_limite = 86400; 
 
-if (isset($_SESSION['user_rol_name']) && in_array($_SESSION['user_rol_name'], ['Admin', 'Operador'])) {
-    $tiempo_limite = 4 * 60 * 60;
+// Opcional: Si quieres que Admins tengan menos o más tiempo, ajusta aquí.
+/* if (isset($_SESSION['user_rol_name']) && in_array($_SESSION['user_rol_name'], ['Admin', 'Operador'])) {
+    $tiempo_limite = 86400; 
 }
+*/
 
 if (isset($_SESSION['user_id'])) {
     if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad'] > $tiempo_limite)) {
         session_unset();
         session_destroy();
-        header('Location: ' . BASE_URL . '/login.php?session_expired=1');
+        if (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Sesión expirada', 'redirect' => BASE_URL . '/login.php?expired=1']);
+            exit();
+        }
+        header('Location: ' . BASE_URL . '/login.php?expired=1');
         exit();
     }
     $_SESSION['ultima_actividad'] = time();
@@ -76,12 +87,10 @@ if (isset($_SESSION['user_id'])) {
     $two_fa_enabled = (isset($_SESSION['twofa_enabled']) && $_SESSION['twofa_enabled'] == 1);
 
     if ($is_admin_or_operador && $two_fa_enabled) {
-        $two_fa_grace_period = $tiempo_limite;
         $current_page = basename($_SERVER['SCRIPT_NAME']);
         $is_on_auth_page = in_array($current_page, ['verify-2fa.php', 'logout.php']);
         $is_api_call = (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false);
-
-        if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad'] >= $two_fa_grace_period)) {
+        if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad'] >= $tiempo_limite)) {
             $_SESSION['2fa_user_id'] = $_SESSION['user_id'];
             unset($_SESSION['user_id']);
 
@@ -92,7 +101,6 @@ if (isset($_SESSION['user_id'])) {
         }
     }
 }
-
 try {
     $conexion = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     if ($conexion->connect_error) {
