@@ -50,11 +50,55 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
     let calculationMode = 'multiply';
-    let isRiskyRoute = false;
+    
+    // --- VARIABLES DE CONTROL ---
+    let isRiskyRoute = false; 
+    let isSubmitting = false; // Evita doble orden
 
     // =========================================================
     // 3. FUNCIONES DE CÁLCULO Y UTILIDADES
     // =========================================================
+
+    // HELPER: Modal de Confirmación (Blindado)
+    const confirmActionWithModal = (title, message) => {
+        return new Promise((resolve) => {
+            const modalEl = document.getElementById('confirmModal');
+            
+            // Fallback nativo si no existe el modal
+            if (!modalEl) return resolve(confirm(message));
+
+            const modal = new bootstrap.Modal(modalEl);
+            const titleEl = document.getElementById('confirmModalTitle');
+            const bodyEl = document.getElementById('confirmModalBody');
+            
+            if (titleEl) titleEl.textContent = title;
+            if (bodyEl) bodyEl.innerText = message;
+
+            // Buscar botones (soporte para ambos IDs por si acaso)
+            const btnYes = document.getElementById('confirmModalYesBtn') || document.getElementById('confirmModalConfirmBtn');
+            const btnCancel = document.getElementById('confirmModalCancelBtn');
+
+            if (!btnYes) {
+                console.error('Error: Botón confirmar no encontrado');
+                return resolve(confirm(message));
+            }
+
+            const onYes = () => { cleanup(); modal.hide(); resolve(true); };
+            const onCancel = () => { cleanup(); modal.hide(); resolve(false); };
+
+            const cleanup = () => {
+                btnYes.removeEventListener('click', onYes);
+                if (btnCancel) btnCancel.removeEventListener('click', onCancel);
+                modalEl.removeEventListener('hidden.bs.modal', onCancel);
+            };
+
+            btnYes.addEventListener('click', onYes);
+            if (btnCancel) btnCancel.addEventListener('click', onCancel);
+            modalEl.addEventListener('hidden.bs.modal', onCancel, { once: true });
+
+            modal.show();
+        });
+    };
 
     const parseInput = (val, isUsd = false) => {
         if (!val) return 0;
@@ -190,7 +234,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
                 selectedTasaIdInput.value = dataRate.tasa.TasaID;
                 calculationMode = dataRate.tasa.operation || 'multiply';
+                
+                // DETECCIÓN DE RIESGO
                 isRiskyRoute = (parseInt(dataRate.tasa.EsRiesgoso) === 1);
+
                 const monD = paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency || 'VES';
                 tasaComercialDisplay.textContent = `Tasa Comercial: 1 CLP = ${commercialRate.toFixed(5)} ${monD}`;
                 tasaComercialDisplay.className = 'form-text text-end fw-bold text-primary';
@@ -277,6 +324,89 @@ document.addEventListener('DOMContentLoaded', () => {
     montoUsdInput.addEventListener('input', handleInput);
 
     // =========================================================
+    // LÓGICA DE ENVÍO DE ORDEN (CON CONFIRMACIÓN RIESGOSA)
+    // =========================================================
+    submitBtn?.addEventListener('click', async (e) => {
+        e.preventDefault(); // 1. Evitar submit nativo
+
+        // 2. Bloqueo de seguridad para evitar dobles clicks
+        if (isSubmitting) return;
+
+        // 3. Validar Horario
+        if (!checkBusinessHours()) {
+            const proceed = await confirmActionWithModal(
+                'Aviso de Horario',
+                'Estás operando fuera de nuestro horario laboral (Lun-Vie 10:30-20:00, Sáb 10:30-16:00). Tu orden será procesada el próximo día hábil. ¿Deseas continuar?'
+            );
+            if (!proceed) return;
+        }
+
+        // 4. Validar Ruta Riesgosa (ANTES de enviar)
+        if (isRiskyRoute) {
+            const msgRiesgo = "Su orden requiere aprobación.\nCuando su orden sea aprobada podrá subir su comprobante y continuar el envío.\n\n¿Desea generar la orden bajo estas condiciones?";
+            const aceptaRiesgo = await confirmActionWithModal('Atención: Ruta en Verificación', msgRiesgo);
+            
+            if (!aceptaRiesgo) return; // Si cancela, se detiene
+        }
+
+        // 5. Proceder al Envío (Bloquear UI)
+        isSubmitting = true;
+        submitBtn.disabled = true; 
+        submitBtn.textContent = 'Procesando...';
+        
+        const monedaOrigen = paisOrigenSelect.options[paisOrigenSelect.selectedIndex]?.dataset.currency || 'CLP';
+
+        const data = {
+            userID: LOGGED_IN_USER_ID,
+            cuentaID: selectedCuentaIdInput.value,
+            tasaID: selectedTasaIdInput.value,
+            montoOrigen: parseInput(montoOrigenInput.value),
+            monedaOrigen: monedaOrigen,
+            montoDestino: parseInput(montoDestinoInput.value),
+            monedaDestino: paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency,
+            formaDePago: formaDePagoSelect.value
+        };
+
+        try {
+            const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            const res = await resp.json();
+            
+            if (res.success) { 
+                let finalId = res.transaccionID;
+                if (typeof finalId === 'object' && finalId !== null) {
+                    finalId = finalId.TransaccionID || finalId.id || JSON.stringify(finalId);
+                }
+                transaccionIdFinal.textContent = finalId; 
+                
+                const divNormal = document.getElementById('msg-exito-normal');
+                const divRiesgo = document.getElementById('msg-exito-riesgo');
+
+                if (isRiskyRoute) {
+                    if(divNormal) divNormal.classList.add('d-none');
+                    if(divRiesgo) divRiesgo.classList.remove('d-none');
+                } else {
+                    if(divNormal) divNormal.classList.remove('d-none');
+                    if(divRiesgo) divRiesgo.classList.add('d-none');
+                }
+
+                currentStep++; 
+                updateView(); 
+            }
+            else { 
+                window.showInfoModal('Error', res.error, false); 
+                submitBtn.disabled = false; 
+                submitBtn.textContent = 'Confirmar y Generar Orden'; 
+                isSubmitting = false; // Liberar bloqueo
+            }
+        } catch (e) { 
+            window.showInfoModal('Error', 'Conexión fallida.', false); 
+            submitBtn.disabled = false; 
+            submitBtn.textContent = 'Confirmar y Generar Orden';
+            isSubmitting = false; // Liberar bloqueo
+        }
+    });
+
+    // =========================================================
     // 4. CARGA DE LISTAS (PAÍSES, BANCOS, DOCS)
     // =========================================================
     const filterDestinations = () => {
@@ -353,6 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const benefDocTypeSelect = document.getElementById('benef-doc-type');
     const benefDocNumberInput = document.getElementById('benef-doc-number');
     const benefDocPrefix = document.getElementById('benef-doc-prefix');
+    const docTypeContainer = benefDocTypeSelect ? benefDocTypeSelect.closest('.row') : null;
 
     const updateDocumentValidation = () => {
         if (!benefDocTypeSelect || !paisDestinoSelect) return;
@@ -376,8 +507,12 @@ document.addEventListener('DOMContentLoaded', () => {
             benefDocTypeSelect.innerHTML = '<option value="">Seleccione...</option>';
             const destId = parseInt(paisDestinoSelect.value);
             const isVenezuela = (destId === C_VENEZUELA);
+            const isColombia = (destId === C_COLOMBIA);
+            const isPeru = (destId === C_PERU);
 
-            const sortOrder = ['RUT', 'Cédula', 'RIF', 'DNI (Perú)', 'Pasaporte', 'E-RUT (RIF)', 'Otros'];
+            // Orden Prioritario
+            const sortOrder = ['RUT', 'Cédula', 'PPT', 'Pasaporte', 'RIF', 'DNI (Perú)', 'DNI', 'Carnet de Extranjería', 'E-RUT (RIF)', 'Otros'];
+            
             allDocumentTypes.sort((a, b) => {
                 let nameA = (a.NombreDocumento || a.nombre || "").toUpperCase();
                 let nameB = (b.NombreDocumento || b.nombre || "").toUpperCase();
@@ -394,11 +529,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!nombreDoc) return;
                 const nameUC = nombreDoc.toUpperCase();
                 let show = false;
+
                 if (isVenezuela) {
                     if (nameUC.includes('CÉDULA') || nameUC.includes('CEDULA') || nameUC.includes('PASAPORTE') || nameUC.includes('RIF')) show = true;
-                } else {
+                } 
+                else if (isColombia) {
+                    // Cédula, Pasaporte, PPT, Otros
+                    if (nameUC.includes('CÉDULA') || nameUC.includes('CEDULA') || nameUC.includes('PASAPORTE') || nameUC.includes('PPT') || nameUC.includes('OTROS')) show = true;
+                }
+                else if (isPeru) {
+                    // DNI, Pasaporte, Carnet Ext., Otros
+                    if (nameUC.includes('DNI') || nameUC.includes('PASAPORTE') || nameUC.includes('CARNET') || nameUC.includes('OTROS')) show = true;
+                }
+                else {
+                    // Otros Países (Default) - MOSTRAR TODO, NO OCULTAR NADA
                     if (!nameUC.includes('RIF')) show = true;
                 }
+
                 if (show) benefDocTypeSelect.innerHTML += `<option value="${doc.TipoDocumentoID || doc.id}">${nombreDoc}</option>`;
             });
             updateDocumentValidation();
@@ -445,6 +592,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const walletPhonePrefix = document.getElementById('wallet-phone-prefix');
         const phoneCodeSelect = document.getElementById('benef-phone-code');
 
+        // --- SOLUCIÓN BOTÓN GUARDAR ---
+        const footerSaveBtn = addAccountModalElement.querySelector('.modal-footer .btn-primary');
+        if (footerSaveBtn) {
+            footerSaveBtn.addEventListener('click', (e) => {
+                if (footerSaveBtn.type === 'submit') return; 
+                e.preventDefault();
+                if (addBeneficiaryForm.checkValidity()) {
+                    addBeneficiaryForm.dispatchEvent(new Event('submit', { cancelable: true }));
+                } else {
+                    addBeneficiaryForm.reportValidity();
+                }
+            });
+        }
+
         const configureModalForCountry = (paisId) => {
             // Reset Visual
             if (containerBankSelect) containerBankSelect.classList.add('d-none');
@@ -452,6 +613,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (containerOtherBank) containerOtherBank.classList.add('d-none');
             if (containerCCI) containerCCI.classList.add('d-none');
             if (cardOptions) cardOptions.classList.remove('d-none');
+            
+            // Mostrar documentos por defecto (REQUERIMIENTO: OTROS PAISES SE MUESTRA)
+            if (docTypeContainer) docTypeContainer.classList.remove('d-none');
+            if (benefDocTypeSelect) benefDocTypeSelect.required = true;
+            if (benefDocNumberInput) benefDocNumberInput.required = true;
 
             // Reset Valores
             if (benefBankSelect) benefBankSelect.innerHTML = '<option value="">Seleccione...</option>';
@@ -460,6 +626,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (inputCCI) inputCCI.value = '';
             if (inputAccount) inputAccount.value = '';
             if (inputPhone) inputPhone.value = '';
+
+            // Reset Validaciones
+            inputAccount.maxLength = 50; 
+            inputAccount.placeholder = "Número de cuenta";
 
             // Reset Switches
             if (wrapperCheckBank) wrapperCheckBank.classList.remove('d-none');
@@ -478,11 +648,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (wrapperCheckMobile) wrapperCheckMobile.classList.add('d-none');
                 if (walletPhonePrefix) { walletPhonePrefix.textContent = '+51'; walletPhonePrefix.classList.remove('d-none'); }
                 if (phoneCodeSelect) phoneCodeSelect.style.display = 'none';
+                
+                // Config Peru: 14 dígitos
+                inputAccount.maxLength = 14; 
+                inputAccount.placeholder = "14 dígitos";
+
                 const ops = [
                     { val: 'Interbank', text: 'Interbank (Mismo Banco)' },
                     { val: 'Otro Banco', text: 'Otro Banco (BCP, BBVA...)' },
-                    { val: 'Yape', text: 'YAPE (Billetera)' },
-                    { val: 'Plin', text: 'PLIN (Billetera)' }
+                    { val: 'Yape', text: 'YAPE' },
+                    { val: 'Plin', text: 'PLIN' }
                 ];
                 ops.forEach(o => benefBankSelect.add(new Option(o.text, o.val)));
             }
@@ -493,6 +668,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (wrapperCheckMobile) wrapperCheckMobile.classList.add('d-none');
                 if (walletPhonePrefix) { walletPhonePrefix.textContent = '+57'; walletPhonePrefix.classList.remove('d-none'); }
                 if (phoneCodeSelect) phoneCodeSelect.style.display = 'none';
+                
+                // Config Colombia: 11 dígitos
+                inputAccount.maxLength = 11;
+                inputAccount.placeholder = "11 dígitos (Ahorros/Corriente)";
+
                 const ops = [
                     { val: 'Bancolombia', text: 'Bancolombia' },
                     { val: 'Nequi', text: 'Nequi' }
@@ -504,17 +684,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (containerBankInputText) containerBankInputText.classList.remove('d-none');
                 if (walletPhonePrefix) { walletPhonePrefix.textContent = '+58'; walletPhonePrefix.classList.remove('d-none'); }
                 if (phoneCodeSelect) phoneCodeSelect.style.display = 'none';
+                if (wrapperCheckMobile) {
+                    wrapperCheckMobile.classList.remove('d-none');
+                    const labelMobile = wrapperCheckMobile.querySelector('label');
+                    if(labelMobile) labelMobile.textContent = 'Registrar Pago Móvil';
+                }
                 if (checkBank) checkBank.checked = true;
                 if (checkMobile) checkMobile.checked = false;
+                inputAccount.maxLength = 20;
+                inputAccount.placeholder = "20 dígitos exactos";
+
                 updateInputState();
             }
-            // OTROS
             else {
                 if (containerBankInputText) containerBankInputText.classList.remove('d-none');
                 if (wrapperCheckMobile) wrapperCheckMobile.classList.add('d-none');
                 if (checkMobile) checkMobile.checked = false;
                 if (checkBank) { checkBank.checked = true; checkBank.disabled = true; }
                 if (walletPhonePrefix) walletPhonePrefix.textContent = '+00';
+                if (docTypeContainer) docTypeContainer.classList.remove('d-none'); 
+                if (benefDocTypeSelect) benefDocTypeSelect.required = true;
+                if (benefDocNumberInput) benefDocNumberInput.required = true;
+
                 updateInputState();
             }
         };
@@ -528,7 +719,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (containerBankFields) containerBankFields.classList.add('d-none');
                 if (containerMobileFields) containerMobileFields.classList.add('d-none');
                 if (checkBank) checkBank.checked = false;
-                if (checkMobile) checkMobile.checked = false;
+                if (checkMobile) checkMobile.checked = false;               
+                inputAccount.maxLength = 50; 
                 if (!val) return;
 
                 if (paisId === C_PERU) {
@@ -543,6 +735,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (inputAccount) inputAccount.required = true;
                         if (inputPhone) inputPhone.required = false;
                         if (checkBank) checkBank.checked = true;
+                        inputAccount.maxLength = 14;
+                        inputAccount.placeholder = "14 dígitos";
                         if (val === 'Interbank') { if (labelAccount) labelAccount.textContent = 'Número de Cuenta (Interbank)'; }
                         else if (val === 'Otro Banco') {
                             if (containerOtherBank) containerOtherBank.classList.remove('d-none');
@@ -564,7 +758,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (labelAccount) labelAccount.textContent = 'Número de Cuenta / Ahorros';
                         if (inputAccount) inputAccount.required = true;
                         if (inputPhone) inputPhone.required = false;
-                        if (checkBank) checkBank.checked = true;
+                        if (checkBank) checkBank.checked = true; 
+                        inputAccount.maxLength = 11;
+                        inputAccount.placeholder = "11 dígitos";
                     }
                 }
             });
@@ -616,13 +812,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addBeneficiaryForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            let btn = addBeneficiaryForm.querySelector('button[type="submit"]');
-            if (!btn) btn = addAccountModalElement.querySelector('.modal-footer button[type="submit"]');
+            let btn = addAccountModalElement.querySelector('.modal-footer .btn-primary') || addBeneficiaryForm.querySelector('button[type="submit"]');
             const originalText = btn ? btn.textContent : 'Guardando...';
             if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
             const formData = new FormData(addBeneficiaryForm);
             const paisId = parseInt(benefPaisIdInput.value);
+            const accNum = formData.get('numeroCuenta') || '';
+            const isBank = (checkBank && checkBank.checked);
+
+            if (isBank) {
+                if (paisId === C_VENEZUELA) {
+                    if (accNum.length !== 20) {
+                        window.showInfoModal('Error', 'Para Venezuela, el número de cuenta debe tener exactamente 20 dígitos.', false);
+                        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                        return;
+                    }
+                } else if (paisId === C_COLOMBIA) {
+                    if (accNum.length !== 11) {
+                        window.showInfoModal('Error', 'Para cuentas en Colombia, debe tener 11 dígitos.', false);
+                        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                        return;
+                    }
+                } else if (paisId === C_PERU) {
+                    if (accNum.length !== 14) {
+                        window.showInfoModal('Error', 'El número de cuenta en Perú debe tener 14 dígitos.', false);
+                        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                        return;
+                    }
+                }
+            }
 
             if (paisId === C_PERU || paisId === C_COLOMBIA) {
                 if (benefBankSelect.value === 'Otro Banco' && inputOtherBank && inputOtherBank.value) {
@@ -679,7 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (t && c && i) {
                 t.addEventListener('change', async () => {
                     if (t.checked) {
-                        if (await window.showConfirmModal('Confirmar', '¿Omitir este campo?')) { c.classList.add('d-none'); i.required = false; i.value = ''; }
+                        if (await confirmActionWithModal('Confirmar', '¿Omitir este campo?')) { c.classList.add('d-none'); i.required = false; i.value = ''; }
                         else t.checked = false;
                     } else { c.classList.remove('d-none'); i.required = true; }
                 });
@@ -748,115 +967,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     paisDestinoSelect?.addEventListener('change', () => {
         updateReferentialRateStep1(); toggleBcvFields(); fetchRates(); loadBeneficiaries(paisDestinoSelect.value);
-    });
-
-    const confirmActionWithModal = (title, message) => {
-        return new Promise((resolve) => {
-            const modalEl = document.getElementById('confirmModal');
-            if (!modalEl) {
-                return resolve(confirm(message));
-            }
-
-            const modal = new bootstrap.Modal(modalEl);
-            const titleEl = document.getElementById('confirmModalTitle');
-            const bodyEl = document.getElementById('confirmModalBody');
-            if (titleEl) titleEl.textContent = title;
-            if (bodyEl) bodyEl.innerText = message;
-            const btnYes = document.getElementById('confirmModalYesBtn') || document.getElementById('confirmModalConfirmBtn');
-            const btnCancel = document.getElementById('confirmModalCancelBtn');
-            if (!btnYes) {
-                console.error('Error: Botón de confirmación no encontrado en el HTML (IDs buscados: confirmModalYesBtn o confirmModalConfirmBtn)');
-                return resolve(confirm(message));
-            }
-            const onYes = () => {
-                cleanup();
-                modal.hide();
-                resolve(true);
-            };
-
-            const onCancel = () => {
-                cleanup();
-                modal.hide();
-                resolve(false);
-            };
-
-            const cleanup = () => {
-                btnYes.removeEventListener('click', onYes);
-                if (btnCancel) btnCancel.removeEventListener('click', onCancel);
-                modalEl.removeEventListener('hidden.bs.modal', onCancel);
-            };
-            btnYes.addEventListener('click', onYes);
-            if (btnCancel) btnCancel.addEventListener('click', onCancel);
-            modalEl.addEventListener('hidden.bs.modal', onCancel, { once: true });
-
-            modal.show();
-        });
-    };
-
-    submitBtn?.addEventListener('click', async () => {
-        if (!checkBusinessHours()) {
-            const proceed = await confirmActionWithModal(
-                'Aviso de Horario',
-                'Estás operando fuera de nuestro horario laboral (Lun-Vie 10:30-20:00, Sáb 10:30-16:00). Tu orden será procesada el próximo día hábil. ¿Deseas continuar?'
-            );
-            if (!proceed) return;
-        }
-
-        if (isRiskyRoute) {
-            const msgRiesgo = "Su orden requiere aprobación.\nCuando su orden sea aprobada podrá subir su comprobante y continuar el envío.\n\n¿Desea generar la orden bajo estas condiciones?";
-            const aceptaRiesgo = await confirmActionWithModal('Atención: Ruta en Verificación', msgRiesgo);
-
-            if (!aceptaRiesgo) return;
-        }
-
-        submitBtn.disabled = true; submitBtn.textContent = 'Procesando...';
-        const monedaOrigen = paisOrigenSelect.options[paisOrigenSelect.selectedIndex]?.dataset.currency || 'CLP';
-
-        const data = {
-            userID: LOGGED_IN_USER_ID,
-            cuentaID: selectedCuentaIdInput.value,
-            tasaID: selectedTasaIdInput.value,
-            montoOrigen: parseInput(montoOrigenInput.value),
-            monedaOrigen: monedaOrigen,
-            montoDestino: parseInput(montoDestinoInput.value),
-            monedaDestino: paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency,
-            formaDePago: formaDePagoSelect.value
-        };
-
-        try {
-            const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            const res = await resp.json();
-
-            if (res.success) {
-                let finalId = res.transaccionID;
-                if (typeof finalId === 'object' && finalId !== null) {
-                    finalId = finalId.TransaccionID || finalId.id || JSON.stringify(finalId);
-                }
-                transaccionIdFinal.textContent = finalId;
-                const divNormal = document.getElementById('msg-exito-normal');
-                const divRiesgo = document.getElementById('msg-exito-riesgo');
-
-                if (isRiskyRoute) {
-                    if (divNormal) divNormal.classList.add('d-none');
-                    if (divRiesgo) divRiesgo.classList.remove('d-none');
-                } else {
-                    if (divNormal) divNormal.classList.remove('d-none');
-                    if (divRiesgo) divRiesgo.classList.add('d-none');
-                }
-
-                currentStep++;
-                updateView();
-            }
-            else {
-                window.showInfoModal('Error', res.error, false);
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Confirmar y Generar Orden';
-            }
-        } catch (e) {
-            window.showInfoModal('Error', 'Conexión fallida.', false);
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Confirmar y Generar Orden';
-        }
     });
 
     if (LOGGED_IN_USER_ID) {
