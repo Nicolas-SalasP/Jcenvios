@@ -81,7 +81,10 @@ if (isset($_SESSION['user_id'])) {
         header('Location: ' . BASE_URL . '/login.php?expired=1');
         exit();
     }
-    $_SESSION['ultima_actividad'] = time();
+    $accionActual = $_GET['accion'] ?? '';
+    if ($accionActual !== 'checkSessionStatus') {
+        $_SESSION['ultima_actividad'] = time();
+    }
 
     $is_admin_or_operador = (isset($_SESSION['user_rol_name']) && ($_SESSION['user_rol_name'] === 'Admin' || $_SESSION['user_rol_name'] === 'Operador'));
     $two_fa_enabled = (isset($_SESSION['twofa_enabled']) && $_SESSION['twofa_enabled'] == 1);

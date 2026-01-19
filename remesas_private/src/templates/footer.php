@@ -1,7 +1,7 @@
 <?php ?>
 </main> <?php ?>
 
-<footer class="main-footer bg-dark text-white pt-3 pb-1 mt-auto">
+<footer class="main-footer bg-dark text-white pt-3 pb-1 mt-auto mt-5">
   <div class="container text-center text-md-start">
     <div class="row">
       <div class="col-md-3 col-lg-4 col-xl-3 mx-auto mb-4">
@@ -284,6 +284,21 @@ if (!empty($baseUrlPhp)) {
       }
     }
   });
+
+  // --- VIGILANTE DE SESIÓN (AUTO-LOGOUT) ---
+  setInterval(async () => {
+    if (window.location.pathname.includes('login.php')) return;
+
+    try {
+      const response = await fetch('<?php echo BASE_URL; ?>/api/?accion=checkSessionStatus');
+      const data = await response.json();
+
+      if (!data.logged_in) {
+        window.location.href = '<?php echo BASE_URL; ?>/login.php?session_expired=1';
+      }
+    } catch (error) {
+    }
+  }, 60000);
 </script>
 </body>
 
