@@ -44,7 +44,7 @@ class PricingService
         if ($ultimaEjecucion === $hoy) {
             return false;
         }
-        return $this->applyGlobalAdjustment(0, $settings['percent']) > 0;
+        return $this->applyGlobalAdjustment(1, $settings['percent']) > 0;
     }
 
     public function applyGlobalAdjustment(int $adminId, float $percentage): int
@@ -58,38 +58,43 @@ class PricingService
         $count = 0;
 
         foreach ($tasasRef as $t) {
-            $valorOriginal = (float) $t['ValorTasa'];
+            try {
+                $valorOriginal = (float) $t['ValorTasa'];
+                $nuevoValor = $valorOriginal * (1 + ($percentage / 100));
 
-            $nuevoValor = $valorOriginal * (1 + ($percentage / 100));
+                $this->rateRepository->updateRateValue(
+                    (int) $t['TasaID'],
+                    $nuevoValor,
+                    (float) $t['MontoMinimo'],
+                    (float) $t['MontoMaximo'],
+                    1,
+                    (int) ($t['EsRiesgoso'] ?? 0),
+                    0
+                );
 
-            $this->rateRepository->updateRateValue(
-                (int) $t['TasaID'],
-                $nuevoValor,
-                (float) $t['MontoMinimo'],
-                (float) $t['MontoMaximo'],
-                1,
-                (int) ($t['EsRiesgoso'] ?? 0),
-                0
-            );
+                $this->recalculateRouteRates((int) $t['PaisOrigenID'], (int) $t['PaisDestinoID'], $nuevoValor);
 
-            $this->recalculateRouteRates((int) $t['PaisOrigenID'], (int) $t['PaisDestinoID'], $nuevoValor);
+                $origen = $t['PaisOrigenID'];
+                $destino = $t['PaisDestinoID'];
+                $detalleLog = "Ajuste Global ({$percentage}%): Tasa Ref ID {$t['TasaID']} (Ruta {$origen}->{$destino}) cambió de " .
+                    number_format($valorOriginal, 4, ',', '.') . " a " . number_format($nuevoValor, 4, ',', '.');
 
-            $origen = $t['PaisOrigenID'];
-            $destino = $t['PaisDestinoID'];
-            $detalleLog = "Ajuste Global ({$percentage}%): Tasa Ref ID {$t['TasaID']} (Ruta {$origen}->{$destino}) cambió de " .
-                number_format($valorOriginal, 4, ',', '.') . " a " . number_format($nuevoValor, 4, ',', '.');
+                $this->notificationService->logAdminAction($adminId, 'Ajuste Automático de Tasa', $detalleLog);
 
-            $this->notificationService->logAdminAction($adminId, 'Ajuste Automático de Tasa', $detalleLog);
+                $this->rateRepository->logRateChange(
+                    (int) $t['TasaID'],
+                    (int) $t['PaisOrigenID'],
+                    (int) $t['PaisDestinoID'],
+                    $nuevoValor,
+                    (float) $t['MontoMinimo'],
+                    (float) $t['MontoMaximo']
+                );
+                $count++;
 
-            $this->rateRepository->logRateChange(
-                (int) $t['TasaID'],
-                (int) $t['PaisOrigenID'],
-                (int) $t['PaisDestinoID'],
-                $nuevoValor,
-                (float) $t['MontoMinimo'],
-                (float) $t['MontoMaximo']
-            );
-            $count++;
+            } catch (Exception $e) {
+                error_log("Error en Cron Ajuste Global (Tasa ID {$t['TasaID']}): " . $e->getMessage());
+                continue; 
+            }
         }
 
         $this->settingsRepository->updateValue('global_adjustment_last_run', date('Y-m-d H:i:s'));
