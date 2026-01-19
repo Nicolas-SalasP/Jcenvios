@@ -728,21 +728,50 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // =========================================================
     // 5.6 CONFIRMAR PAGO (EN VERIFICACIÓN)
-    document.querySelectorAll('.process-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const txId = e.currentTarget.dataset.txId;
-            if (await window.showConfirmModal('Confirmar Pago', '¿Confirmas la recepción del dinero?')) {
+    // =========================================================
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.process-btn');
+
+        if (btn) {
+            e.preventDefault();
+
+            const txId = btn.dataset.txId;
+            const confirmado = await window.showConfirmModal(
+                'Confirmar Pago',
+                '¿Confirmas la recepción del dinero? La orden pasará a "En Proceso".'
+            );
+
+            if (confirmado) {
+                const originalContent = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
                 try {
                     const res = await fetch('../api/?accion=processTransaction', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ transactionId: txId })
                     });
-                    if ((await res.json()).success) window.location.reload();
-                } catch (err) { window.showInfoModal('Error', 'Error de conexión', false); }
+
+                    const data = await res.json();
+
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        window.showInfoModal('Error', data.error || 'No se pudo procesar.', false);
+                        btn.disabled = false;
+                        btn.innerHTML = originalContent;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    window.showInfoModal('Error', 'Error de conexión', false);
+                    btn.disabled = false;
+                    btn.innerHTML = originalContent;
+                }
             }
-        });
+        }
     });
 
     // 5.7 RECHAZAR PAGO (MODAL) - CORREGIDO PARA FUNCIONAR SIEMPRE
@@ -938,9 +967,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('.authorize-risk-btn');
         if (btn) {
             const txId = btn.getAttribute('data-tx-id');
-            
+
             const confirmado = await window.showConfirmModal(
-                'Autorizar Riesgo', 
+                'Autorizar Riesgo',
                 `¿Autorizar la orden #${txId}?\n\nAl hacerlo, el usuario podrá ver la orden como "Pendiente de Pago" y subir su comprobante.`
             );
 
@@ -948,13 +977,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     btn.disabled = true;
                     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-                    const res = await fetch('../api/?accion=authorizeTransaction', { 
+                    const res = await fetch('../api/?accion=authorizeTransaction', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify({ 
-                            transactionId: txId 
+                        body: JSON.stringify({
+                            transactionId: txId
                         })
                     });
 
