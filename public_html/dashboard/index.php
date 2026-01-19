@@ -27,27 +27,27 @@ $pageScript = 'dashboard.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
-<div class="container">
+<div class="container mt-5 pt-5 mb-5">
     <div class="row">
         <div class="col-lg-10 offset-lg-1 col-xl-8 offset-xl-2">
-            <div class="card p-4 p-md-5 shadow-sm">
+            <div class="card p-4 p-md-5 shadow-sm border-0">
                 <form id="remittance-form" novalidate>
                     <input type="hidden" id="user-id" value="<?php echo htmlspecialchars($_SESSION['user_id']); ?>">
                     <input type="hidden" id="selected-tasa-id">
                     <input type="hidden" id="selected-cuenta-id">
 
                     <div class="form-step active" id="step-1">
-                        <h3 class="text-center mb-4">Paso 1: Selecciona la Ruta del Envío</h3>
+                        <h3 class="text-center mb-4 fw-bold text-primary">Paso 1: Selecciona la Ruta</h3>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="pais-origen" class="form-label">País de Origen</label>
-                                <select id="pais-origen" class="form-select" required>
+                                <label for="pais-origen" class="form-label fw-bold">País de Origen</label>
+                                <select id="pais-origen" class="form-select form-select-lg" required>
                                     <option value="">Cargando...</option>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="pais-destino" class="form-label">País de Destino</label>
-                                <select id="pais-destino" class="form-select" required>
+                                <label for="pais-destino" class="form-label fw-bold">País de Destino</label>
+                                <select id="pais-destino" class="form-select form-select-lg" required>
                                     <option value="">Selecciona un origen</option>
                                 </select>
                             </div>
@@ -60,26 +60,29 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
 
                     <div class="form-step" id="step-2">
-                        <h3 class="text-center mb-4">Paso 2: Selecciona el Beneficiario</h3>
+                        <h3 class="text-center mb-4 fw-bold text-primary">Paso 2: Beneficiario</h3>
                         <div class="form-group">
                             <label class="form-label">Cuentas Guardadas</label>
-                            <div id="beneficiary-list" class="list-group"></div>
+                            <div id="beneficiary-list" class="list-group shadow-sm"></div>
                         </div>
-                        <button type="button" id="add-account-btn" class="btn btn-success mt-3">+ Registrar Nueva
-                            Cuenta</button>
+                        <button type="button" id="add-account-btn"
+                            class="btn btn-outline-success w-100 mt-3 border-2 dashed">
+                            <i class="bi bi-plus-circle me-2"></i> Registrar Nueva Cuenta
+                        </button>
                     </div>
 
                     <div class="form-step" id="step-3">
-                        <h3 class="text-center mb-4">Paso 3: Ingresa el Monto</h3>
+                        <h3 class="text-center mb-4 fw-bold text-primary">Paso 3: Ingresa el Monto</h3>
 
-                        <div class="alert alert-light border border-info d-flex align-items-center mb-4" role="alert">
-                            <i class="bi bi-info-circle-fill text-info me-2 fs-4"></i>
+                        <div class="alert alert-light border border-info d-flex align-items-center mb-4 bg-light"
+                            role="alert">
+                            <i class="bi bi-calculator text-info me-3 fs-3"></i>
                             <div>
                                 <span id="container-bcv-rate" class="d-none">
-                                    <strong>Referencia BCV:</strong> <span id="bcv-rate-display">Cargando...</span><br>
+                                    <strong>Ref. BCV:</strong> <span id="bcv-rate-display">...</span><br>
                                 </span>
-                                <div class="small text-muted">Puedes ingresar el monto en cualquiera de los campos
-                                    disponibles.</div>
+                                <div class="small text-muted">Ingresa el monto en cualquier campo, calcularemos el
+                                    resto.</div>
                             </div>
                         </div>
 
@@ -89,65 +92,112 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                     Tú envías (CLP)
                                 </label>
                                 <div class="input-group input-group-lg">
-                                    <input type="text" inputmode="decimal" id="monto-origen" class="form-control"
-                                        placeholder="0" required>
-                                    <span class="input-group-text bg-light text-muted"
+                                    <input type="text" inputmode="decimal" id="monto-origen"
+                                        class="form-control fw-bold" placeholder="0" required>
+                                    <span class="input-group-text bg-light text-muted fw-bold"
                                         id="currency-label-origen">CLP</span>
                                 </div>
-                                <div class="form-text text-end" id="tasa-comercial-display">Tasa: ...</div>
+                                <div class="form-text text-end mt-1" id="tasa-comercial-display">Tasa: ...</div>
                             </div>
 
                             <div class="col-md-6" id="container-col-destino">
                                 <label for="monto-destino" class="form-label fw-bold text-success">
                                     Beneficiario recibe
                                 </label>
-                                <div class="input-group">
+                                <div class="input-group input-group-lg">
                                     <input type="text" inputmode="decimal" id="monto-destino"
-                                        class="form-control border-success" placeholder="0,00">
-                                    <span class="input-group-text bg-success text-white"
+                                        class="form-control border-success text-success fw-bold" placeholder="0,00">
+                                    <span class="input-group-text bg-success text-white fw-bold"
                                         id="currency-label-destino">...</span>
                                 </div>
                             </div>
 
                             <div class="col-md-6 d-none" id="container-monto-usd">
-                                <label for="monto-usd" class="form-label fw-bold text-primary">Equivalente en Dólares
-                                    (BCV)</label>
-                                <div class="input-group">
+                                <label for="monto-usd" class="form-label fw-bold text-primary">Equivalente (USD)</label>
+                                <div class="input-group input-group-lg">
                                     <input type="text" inputmode="decimal" id="monto-usd"
-                                        class="form-control border-primary" placeholder="0,00">
-                                    <span class="input-group-text bg-primary text-white">USD</span>
+                                        class="form-control border-primary text-primary fw-bold" placeholder="0,00">
+                                    <span class="input-group-text bg-primary text-white fw-bold">USD</span>
                                 </div>
                             </div>
                         </div>
 
                         <div class="mt-4">
-                            <label for="forma-pago" class="form-label">¿Cómo nos transferirás?</label>
-                            <select id="forma-pago" class="form-select" required>
+                            <label for="forma-pago" class="form-label fw-bold">Método de Pago</label>
+                            <select id="forma-pago" class="form-select form-select-lg" required>
                                 <option value="">Cargando opciones...</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="form-step" id="step-4">
-                        <h3 class="text-center mb-4">Paso 4: Resumen de la Orden</h3>
+                        <h3 class="text-center mb-4 fw-bold text-primary">Paso 4: Resumen</h3>
                         <div id="summary-container" class="mb-4"></div>
-                        <div class="alert alert-info">Por favor, revisa que todos los datos sean correctos antes de
-                            continuar.</div>
+                        <div class="alert alert-warning border-warning">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Por favor revisa los datos antes de confirmar.
+                        </div>
                     </div>
 
                     <div class="form-step" id="step-5">
-                        <h3 class="text-center text-success">¡Orden Registrada!</h3>
-                        <p class="text-center">Tu orden ha sido registrada con éxito con el ID: <strong
-                                id="transaccion-id-final"></strong>. <br>Por favor, ve a tu <a
-                                href="historial.php">historial de transacciones</a> para subir el comprobante de pago.
-                        </p>
+                        <div class="text-center py-4">
+                            <i class="bi bi-check-circle-fill text-success" style="font-size: 5rem;"></i>
+                            <h2 class="mt-3 fw-bold text-success">¡Orden Registrada!</h2>
+
+                            <p class="text-muted fs-5 mt-2">
+                                ID de Transacción:
+                                <strong id="transaccion-id-final"
+                                    class="text-dark bg-light px-2 py-1 rounded border">...</strong>
+                            </p>
+
+                            <hr class="my-4">
+
+                            <div id="msg-exito-normal">
+                                <div class="alert alert-light border border-2 border-warning shadow-sm p-4 mb-4">
+                                    <h4 class="alert-heading fw-bold text-warning"><i
+                                            class="bi bi-upload me-2"></i>Falta un paso importante</h4>
+                                    <p class="mb-0 fs-5">
+                                        Para procesar tu envío, es <strong>obligatorio</strong> que subas el comprobante
+                                        de transferencia.
+                                    </p>
+                                </div>
+                                <a href="historial.php"
+                                    class="btn btn-success btn-lg w-100 py-3 fs-5 shadow hover-scale">
+                                    <i class="bi bi-file-earmark-arrow-up-fill me-2"></i> Subir Comprobante Ahora
+                                </a>
+                            </div>
+
+                            <div id="msg-exito-riesgo" class="d-none">
+                                <div class="alert alert-light border border-2 border-info shadow-sm p-4 mb-4">
+                                    <h4 class="alert-heading fw-bold text-info"><i
+                                            class="bi bi-shield-lock-fill me-2"></i>Orden en Revisión</h4>
+                                    <p class="mb-0 fs-5">
+                                        Tu orden requiere aprobación de seguridad. Te notificaremos cuando esté aprobada
+                                        para que puedas realizar el pago y subir el comprobante.
+                                    </p>
+                                </div>
+                                <a href="historial.php" class="btn btn-primary btn-lg w-100 py-3 fs-5 shadow">
+                                    <i class="bi bi-clock-history me-2"></i> Ir al Historial
+                                </a>
+                            </div>
+
+                            <div class="mt-3">
+                                <a href="index.php" class="text-decoration-none text-muted small">Realizar otro
+                                    envío</a>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="navigation-buttons mt-4 pt-4 border-top">
-                        <button type="button" id="prev-btn" class="btn btn-secondary d-none">Anterior</button>
-                        <button type="button" id="next-btn" class="btn btn-primary ms-auto">Siguiente</button>
-                        <button type="button" id="submit-order-btn" class="btn btn-primary ms-auto d-none">Confirmar y
-                            Generar Orden</button>
+                    <div class="navigation-buttons mt-4 pt-4 border-top d-flex justify-content-between">
+                        <button type="button" id="prev-btn" class="btn btn-outline-secondary px-4 d-none">
+                            <i class="bi bi-arrow-left me-2"></i>Anterior
+                        </button>
+                        <button type="button" id="next-btn" class="btn btn-primary px-5 ms-auto shadow-sm">
+                            Siguiente <i class="bi bi-arrow-right ms-2"></i>
+                        </button>
+                        <button type="button" id="submit-order-btn" class="btn btn-success px-5 ms-auto d-none shadow">
+                            Confirmar Orden <i class="bi bi-check-lg ms-2"></i>
+                        </button>
                     </div>
                 </form>
             </div>
@@ -157,7 +207,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
 <div class="modal fade" id="addAccountModal" tabindex="-1" aria-labelledby="addAccountModalLabel" aria-hidden="true"
     data-bs-backdrop="static">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title" id="addAccountModalLabel"><i class="bi bi-person-plus-fill me-2"></i>Registrar
@@ -168,7 +218,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <div class="modal-body">
                 <form id="add-beneficiary-form">
                     <input type="hidden" id="benef-pais-id" name="paisID">
-
                     <div class="row">
                         <div class="col-md-12 mb-3">
                             <label for="benef-alias" class="form-label">Alias (Nombre corto)</label>
@@ -176,7 +225,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                 placeholder="Ej: Mamá Banesco">
                         </div>
                     </div>
-
                     <h6 class="text-primary mt-3"><i class="bi bi-person-vcard me-2"></i>Datos del Titular</h6>
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -232,40 +280,33 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
                     <hr>
                     <h6 class="text-primary"><i class="bi bi-bank me-2"></i>Datos Bancarios</h6>
-
                     <div class="mb-3 d-none" id="container-bank-select">
                         <label for="benef-bank-select" class="form-label">Banco / Billetera</label>
                         <select class="form-select" id="benef-bank-select" name="nombreBancoSelect">
                             <option value="">Seleccione...</option>
                         </select>
                     </div>
-
                     <div class="mb-3" id="container-bank-input-text">
                         <label for="benef-bank" class="form-label">Nombre del Banco</label>
                         <input type="text" class="form-control" id="benef-bank" name="nombreBanco"
                             placeholder="Ej: Banesco, Mercantil...">
                     </div>
-
                     <div class="mb-3 d-none" id="other-bank-container">
                         <label class="form-label small text-muted">Escribe el nombre del Banco</label>
                         <input type="text" class="form-control" id="benef-bank-other" maxlength="20"
                             placeholder="Ej: Pichincha">
                     </div>
-
                     <div class="card bg-light border-0 p-3 mb-3" id="card-account-details">
-
                         <div class="form-check form-switch mb-2" id="wrapper-check-bank">
                             <input class="form-check-input" type="checkbox" id="check-include-bank"
                                 name="incluirCuentaBancaria" checked>
                             <label class="form-check-label fw-bold" for="check-include-bank">Registrar Cuenta
                                 Bancaria</label>
                         </div>
-
                         <div id="container-bank-input" class="mb-3 ps-4">
                             <label class="form-label small" id="label-account-num">Número de Cuenta</label>
                             <input type="text" class="form-control" id="benef-account-num" name="numeroCuenta"
                                 maxlength="20" placeholder="Número de cuenta">
-
                             <div class="mt-2 d-none" id="container-cci">
                                 <label class="form-label fw-bold text-primary small">Número de Cuenta Interbancaria
                                     (CCI)</label>
@@ -273,14 +314,12 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                     placeholder="20 dígitos">
                             </div>
                         </div>
-
                         <div class="form-check form-switch mb-2" id="wrapper-check-mobile">
                             <input class="form-check-input" type="checkbox" id="check-include-mobile"
                                 name="incluirPagoMovil">
                             <label class="form-check-label fw-bold" for="check-include-mobile">Registrar Pago Móvil /
                                 Billetera</label>
                         </div>
-
                         <div id="container-mobile-input" class="mb-3 ps-4 d-none">
                             <label class="form-label small" id="label-wallet-phone">Número de Celular</label>
                             <div class="input-group">
@@ -296,7 +335,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="submit" class="btn btn-primary px-4" form="add-beneficiary-form">Guardar Todo</button>
+                <button type="button" class="btn btn-primary px-4" form="add-beneficiary-form">Guardar Todo</button>
             </div>
         </div>
     </div>

@@ -50,9 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
     let calculationMode = 'multiply';
+    let isRiskyRoute = false;
 
     // =========================================================
-    // 3. FUNCIONES DE CÁLCULO Y UTILIDADES (DEFINIDAS PRIMERO)
+    // 3. FUNCIONES DE CÁLCULO Y UTILIDADES
     // =========================================================
 
     const parseInput = (val, isUsd = false) => {
@@ -189,17 +190,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
                 selectedTasaIdInput.value = dataRate.tasa.TasaID;
                 calculationMode = dataRate.tasa.operation || 'multiply';
+                isRiskyRoute = (parseInt(dataRate.tasa.EsRiesgoso) === 1);
                 const monD = paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency || 'VES';
                 tasaComercialDisplay.textContent = `Tasa Comercial: 1 CLP = ${commercialRate.toFixed(5)} ${monD}`;
                 tasaComercialDisplay.className = 'form-text text-end fw-bold text-primary';
             } else {
                 commercialRate = 0;
+                isRiskyRoute = false;
                 selectedTasaIdInput.value = '';
                 tasaComercialDisplay.textContent = dataRate.error || 'Tasa no disponible.';
                 tasaComercialDisplay.className = 'form-text text-end fw-bold text-danger';
             }
         } catch (e) {
             commercialRate = 0;
+            isRiskyRoute = false;
             tasaComercialDisplay.textContent = 'Error de conexión.';
         }
     };
@@ -261,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
         recalculateAll();
     };
 
-    // Listeners Inputs
     const handleInput = (e) => {
         activeInputId = e.target.id;
         applyLiveFormat(e.target);
@@ -747,13 +750,63 @@ document.addEventListener('DOMContentLoaded', () => {
         updateReferentialRateStep1(); toggleBcvFields(); fetchRates(); loadBeneficiaries(paisDestinoSelect.value);
     });
 
+    const confirmActionWithModal = (title, message) => {
+        return new Promise((resolve) => {
+            const modalEl = document.getElementById('confirmModal');
+            if (!modalEl) {
+                return resolve(confirm(message));
+            }
+
+            const modal = new bootstrap.Modal(modalEl);
+            const titleEl = document.getElementById('confirmModalTitle');
+            const bodyEl = document.getElementById('confirmModalBody');
+            if (titleEl) titleEl.textContent = title;
+            if (bodyEl) bodyEl.innerText = message;
+            const btnYes = document.getElementById('confirmModalYesBtn') || document.getElementById('confirmModalConfirmBtn');
+            const btnCancel = document.getElementById('confirmModalCancelBtn');
+            if (!btnYes) {
+                console.error('Error: Botón de confirmación no encontrado en el HTML (IDs buscados: confirmModalYesBtn o confirmModalConfirmBtn)');
+                return resolve(confirm(message));
+            }
+            const onYes = () => {
+                cleanup();
+                modal.hide();
+                resolve(true);
+            };
+
+            const onCancel = () => {
+                cleanup();
+                modal.hide();
+                resolve(false);
+            };
+
+            const cleanup = () => {
+                btnYes.removeEventListener('click', onYes);
+                if (btnCancel) btnCancel.removeEventListener('click', onCancel);
+                modalEl.removeEventListener('hidden.bs.modal', onCancel);
+            };
+            btnYes.addEventListener('click', onYes);
+            if (btnCancel) btnCancel.addEventListener('click', onCancel);
+            modalEl.addEventListener('hidden.bs.modal', onCancel, { once: true });
+
+            modal.show();
+        });
+    };
+
     submitBtn?.addEventListener('click', async () => {
         if (!checkBusinessHours()) {
-            const proceed = await window.showConfirmModal(
+            const proceed = await confirmActionWithModal(
                 'Aviso de Horario',
                 'Estás operando fuera de nuestro horario laboral (Lun-Vie 10:30-20:00, Sáb 10:30-16:00). Tu orden será procesada el próximo día hábil. ¿Deseas continuar?'
             );
             if (!proceed) return;
+        }
+
+        if (isRiskyRoute) {
+            const msgRiesgo = "Su orden requiere aprobación.\nCuando su orden sea aprobada podrá subir su comprobante y continuar el envío.\n\n¿Desea generar la orden bajo estas condiciones?";
+            const aceptaRiesgo = await confirmActionWithModal('Atención: Ruta en Verificación', msgRiesgo);
+
+            if (!aceptaRiesgo) return;
         }
 
         submitBtn.disabled = true; submitBtn.textContent = 'Procesando...';
@@ -769,12 +822,41 @@ document.addEventListener('DOMContentLoaded', () => {
             monedaDestino: paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency,
             formaDePago: formaDePagoSelect.value
         };
+
         try {
             const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             const res = await resp.json();
-            if (res.success) { transaccionIdFinal.textContent = res.transaccionID; currentStep++; updateView(); }
-            else { window.showInfoModal('Error', res.error, false); submitBtn.disabled = false; submitBtn.textContent = 'Confirmar'; }
-        } catch (e) { window.showInfoModal('Error', 'Conexión fallida.', false); submitBtn.disabled = false; }
+
+            if (res.success) {
+                let finalId = res.transaccionID;
+                if (typeof finalId === 'object' && finalId !== null) {
+                    finalId = finalId.TransaccionID || finalId.id || JSON.stringify(finalId);
+                }
+                transaccionIdFinal.textContent = finalId;
+                const divNormal = document.getElementById('msg-exito-normal');
+                const divRiesgo = document.getElementById('msg-exito-riesgo');
+
+                if (isRiskyRoute) {
+                    if (divNormal) divNormal.classList.add('d-none');
+                    if (divRiesgo) divRiesgo.classList.remove('d-none');
+                } else {
+                    if (divNormal) divNormal.classList.remove('d-none');
+                    if (divRiesgo) divRiesgo.classList.add('d-none');
+                }
+
+                currentStep++;
+                updateView();
+            }
+            else {
+                window.showInfoModal('Error', res.error, false);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirmar y Generar Orden';
+            }
+        } catch (e) {
+            window.showInfoModal('Error', 'Conexión fallida.', false);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirmar y Generar Orden';
+        }
     });
 
     if (LOGGED_IN_USER_ID) {
