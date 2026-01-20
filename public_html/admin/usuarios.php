@@ -249,6 +249,8 @@ if (!$isAjax) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <input type="hidden" id="viewDocsUserId">
+
                 <div class="row g-4">
                     <div class="col-lg-4 text-center border-end">
                         <h6 class="text-muted mb-3">Foto de Perfil</h6>
@@ -256,6 +258,7 @@ if (!$isAjax) {
                             <img id="docsProfilePic" src="" class="rounded-circle shadow-sm border" style="width: 180px; height: 180px; object-fit: cover;">
                             <div class="mt-2">
                                 <a id="btnProfileView" href="#" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver en grande"><i class="bi bi-search"></i></a>
+                                <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="perfil" title="Editar / Recortar"><i class="bi bi-pencil"></i></button>
                                 <a id="btnProfileDown" href="#" download class="btn btn-sm btn-outline-dark" title="Descargar"><i class="bi bi-download"></i></a>
                             </div>
                         </div>
@@ -271,6 +274,7 @@ if (!$isAjax) {
                                 </div>
                                 <div class="mt-2 btn-group">
                                     <a id="btnFrenteView" href="#" target="_blank" class="btn btn-sm btn-outline-primary" title="Abrir en nueva pestaña"><i class="bi bi-search"></i> Zoom</a>
+                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="frente"><i class="bi bi-pencil"></i> Editar</button>
                                     <a id="btnFrenteDown" href="#" download class="btn btn-sm btn-outline-dark" title="Descargar"><i class="bi bi-download"></i></a>
                                 </div>
                             </div>
@@ -283,6 +287,7 @@ if (!$isAjax) {
                                 </div>
                                 <div class="mt-2 btn-group">
                                     <a id="btnReversoView" href="#" target="_blank" class="btn btn-sm btn-outline-primary" title="Abrir en nueva pestaña"><i class="bi bi-search"></i> Zoom</a>
+                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="reverso"><i class="bi bi-pencil"></i> Editar</button>
                                     <a id="btnReversoDown" href="#" download class="btn btn-sm btn-outline-dark" title="Descargar"><i class="bi bi-download"></i></a>
                                 </div>
                             </div>
@@ -294,7 +299,7 @@ if (!$isAjax) {
     </div>
 </div>
 
-<<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
@@ -343,6 +348,41 @@ if (!$isAjax) {
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="adminCropModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-crop"></i> Editar Documento de Usuario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" style="background-color: #333; max-height: 70vh; overflow: hidden;">
+                <div class="img-container" style="height: 500px; width: 100%;">
+                    <img id="admin-image-to-crop" src="" style="display: block; max-width: 100%;">
+                </div>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary" id="admin-rotate-left" title="Girar Izquierda">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="admin-rotate-right" title="Girar Derecha">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary px-4" id="admin-crop-confirm">
+                        <i class="bi bi-save"></i> Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <?php
 require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';

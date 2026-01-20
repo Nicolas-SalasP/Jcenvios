@@ -176,6 +176,26 @@ class FileHandlerService
                 }
 
                 if ($sourceImage) {
+                    if ($fileType === 'image/jpeg') {
+                        try {
+                            $exif = @exif_read_data($fileData['tmp_name']);
+                            if (!empty($exif['Orientation'])) {
+                                switch ($exif['Orientation']) {
+                                    case 3:
+                                        $sourceImage = imagerotate($sourceImage, 180, 0);
+                                        break;
+                                    case 6:
+                                        $sourceImage = imagerotate($sourceImage, -90, 0);
+                                        break;
+                                    case 8:
+                                        $sourceImage = imagerotate($sourceImage, 90, 0);
+                                        break;
+                                }
+                            }
+                        } catch (Exception $e) {
+                        }
+                    }
+
                     $width = imagesx($sourceImage);
                     $height = imagesy($sourceImage);
                     $maxWidth = 2000;

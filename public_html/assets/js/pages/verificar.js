@@ -2,46 +2,132 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('verification-form');
     const alertDiv = document.getElementById('verification-alert');
 
-    // Elementos de Cámara (Modal o Sección en Pagina)
+    // --- VARIABLES GLOBALES PARA CROPPER ---
+    let cropper;
+    const cropModalEl = document.getElementById('cropModal');
+    if (!cropModalEl) {
+        console.error("Falta el modal #cropModal en el HTML. Verifica verificar.php");
+        return;
+    }
+    const cropModal = new bootstrap.Modal(cropModalEl);
+    const imageToCrop = document.getElementById('image-to-crop');
+    let currentInputId = null;
     const cameraSection = document.getElementById('camera-section');
     const videoEl = document.getElementById('camera-video');
     const canvasEl = document.getElementById('camera-canvas');
     const btnCapture = document.getElementById('btn-capture');
     const btnCancelCamera = document.getElementById('btn-cancel-camera');
     const cameraTitle = document.getElementById('camera-title');
-
     let stream = null;
-    let currentTargetInputId = null;
 
-    // --- LÓGICA DE PREVISUALIZACIÓN (Archivos seleccionados) ---
-    const setupPreview = (inputId, imgId) => {
-        const input = document.getElementById(inputId);
-        const img = document.getElementById(imgId);
-        const container = document.getElementById('container-' + imgId);
+    // --- LÓGICA DE EDITOR (CROPPER) ---
 
-        if (input && img) {
-            input.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                        img.src = evt.target.result;
-                        if (container) container.classList.remove('d-none');
-                        if (inputId === 'doc-selfie') {
-                            document.getElementById('error-selfie')?.classList.add('d-none');
-                        }
-                    };
-                    reader.readAsDataURL(file);
+    const handleFileSelect = (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (!file.type.startsWith('image/')) {
+                alert('Por favor selecciona un archivo de imagen válido.');
+                return;
+            }
+
+            currentInputId = e.target.id;
+            
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                if (cropper) {
+                    cropper.destroy();
+                    cropper = null;
                 }
-            });
+                imageToCrop.src = evt.target.result;
+                cropModal.show();
+            };
+            reader.readAsDataURL(file);
         }
     };
 
-    setupPreview('docFrente', 'preview-frente');
-    setupPreview('docReverso', 'preview-reverso');
-    setupPreview('doc-selfie', 'preview-selfie');
+    ['docFrente', 'docReverso', 'doc-selfie'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('click', () => { input.value = null; });
+            input.addEventListener('change', handleFileSelect);
+        }
+    });
+    cropModalEl.addEventListener('shown.bs.modal', () => {
+        cropper = new Cropper(imageToCrop, {
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.9,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+        });
+    });
 
-    // --- LÓGICA DE CÁMARA ---
+    // Destruir cropper al cerrar modal para liberar memoria
+    cropModalEl.addEventListener('hidden.bs.modal', () => {
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+        imageToCrop.src = '';
+    });
+
+    // Botones de Rotación dentro del Modal
+    document.getElementById('btn-rotate-left').addEventListener('click', () => {
+        if(cropper) cropper.rotate(-90);
+    });
+    document.getElementById('btn-rotate-right').addEventListener('click', () => {
+        if(cropper) cropper.rotate(90);
+    });
+
+    // --- ACCIÓN PRINCIPAL: CONFIRMAR RECORTE ---
+    document.getElementById('btn-crop-confirm').addEventListener('click', () => {
+        if (!cropper || !currentInputId) return;
+        const canvas = cropper.getCroppedCanvas({
+            width: 1280,
+            height: 1280, 
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high',
+        });
+
+        if (!canvas) return;
+
+        canvas.toBlob((blob) => {
+            const timestamp = new Date().getTime();
+            const suffix = currentInputId.replace('doc', '').replace('Frente', '_frente').replace('Reverso', '_reverso').replace('-selfie', '_selfie');
+            const fileName = `editado${suffix}_${timestamp}.jpg`;
+            
+            const newFile = new File([blob], fileName, { type: 'image/jpeg' });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(newFile);
+            const input = document.getElementById(currentInputId);
+            input.files = dataTransfer.files;
+            let imgPreviewId = '';
+            if (currentInputId === 'docFrente') imgPreviewId = 'preview-frente';
+            else if (currentInputId === 'docReverso') imgPreviewId = 'preview-reverso';
+            else if (currentInputId === 'doc-selfie') imgPreviewId = 'preview-selfie';
+
+            const imgPreview = document.getElementById(imgPreviewId);
+            const container = document.getElementById('container-' + imgPreviewId);
+
+            if (imgPreview) {
+                imgPreview.src = URL.createObjectURL(blob);
+                if (container) container.classList.remove('d-none');
+                if (currentInputId === 'doc-selfie') {
+                    document.getElementById('error-selfie')?.classList.add('d-none');
+                }
+            }
+            input.classList.add('is-valid');
+            setTimeout(() => input.classList.remove('is-valid'), 2000);
+            cropModal.hide();
+        }, 'image/jpeg', 0.85);
+    });
+
 
     const stopCamera = () => {
         if (stream) {
@@ -50,14 +136,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (videoEl) videoEl.srcObject = null;
         if (cameraSection) cameraSection.classList.add('d-none');
-        currentTargetInputId = null;
     };
 
     const startCamera = async (targetId) => {
         try {
-            currentTargetInputId = targetId;
-
-            // Título dinámico
+            currentInputId = targetId;
+            
             let titleText = 'Tomando Foto';
             if (targetId === 'docFrente') titleText = 'Lado Frontal';
             else if (targetId === 'docReverso') titleText = 'Lado Reverso';
@@ -65,7 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (cameraTitle) cameraTitle.textContent = titleText;
 
-            // Configuración de cámara (Frontal para selfie, trasera para docs)
             const constraints = {
                 video: {
                     facingMode: (targetId === 'doc-selfie') ? 'user' : { ideal: 'environment' }
@@ -81,58 +164,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (err) {
             console.error("Error cámara:", err);
-            alert("No se pudo iniciar la cámara. Por favor usa el botón 'Seleccionar archivo' o verifica los permisos.");
+            alert("No se pudo iniciar la cámara. Verifica permisos o usa 'Seleccionar archivo'.");
         }
     };
 
     const takePhoto = () => {
-        if (!stream || !currentTargetInputId) return;
+        if (!stream) return;
 
-        const targetInput = document.getElementById(currentTargetInputId);
-        if (!targetInput) return;
-
-        // Configuración de calidad
         const width = videoEl.videoWidth;
         const height = videoEl.videoHeight;
         canvasEl.width = width;
         canvasEl.height = height;
-
         const ctx = canvasEl.getContext('2d');
 
-        // Espejo para selfie (opcional, para que se sienta natural)
-        if (currentTargetInputId === 'doc-selfie') {
+        if (currentInputId === 'doc-selfie') {
             ctx.translate(width, 0);
             ctx.scale(-1, 1);
         }
 
         ctx.drawImage(videoEl, 0, 0, width, height);
-
-        // Convertir a archivo JPG
-        canvasEl.toBlob((blob) => {
-            const timestamp = new Date().getTime();
-            const suffix = currentTargetInputId.replace('doc', '').toLowerCase(); // frente, reverso, selfie
-            const fileName = `foto_${suffix}_${timestamp}.jpg`;
-
-            const file = new File([blob], fileName, { type: 'image/jpeg' });
-
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            targetInput.files = dataTransfer.files;
-
-            // Disparar evento change para actualizar la previsualización
-            targetInput.dispatchEvent(new Event('change'));
-
-            targetInput.classList.add('is-valid');
-            setTimeout(() => targetInput.classList.remove('is-valid'), 2000);
-
-            stopCamera();
-
-        }, 'image/jpeg', 0.85); // Calidad 85%
+        const dataUrl = canvasEl.toDataURL('image/jpeg');
+        stopCamera();
+        imageToCrop.src = dataUrl;
+        cropModal.show();
     };
 
     document.querySelectorAll('.btn-camera').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            // Evitar submit si está dentro de form
             e.preventDefault();
             const target = e.currentTarget.getAttribute('data-target');
             startCamera(target);
@@ -142,30 +200,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnCapture) btnCapture.addEventListener('click', (e) => { e.preventDefault(); takePhoto(); });
     if (btnCancelCamera) btnCancelCamera.addEventListener('click', (e) => { e.preventDefault(); stopCamera(); });
 
-    // --- LÓGICA DE ENVÍO ---
 
+    // --- LÓGICA DE ENVÍO DEL FORMULARIO (Se mantiene casi igual) ---
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            // Validación Manual de Selfie (Extra seguridad visual)
+            // Validación: La selfie es obligatoria
             const selfieInput = document.getElementById('doc-selfie');
-            if (selfieInput && selfieInput.files.length === 0) {
+            if (selfieInput && (!selfieInput.files || selfieInput.files.length === 0)) {
                 const errDiv = document.getElementById('error-selfie');
                 if (errDiv) errDiv.classList.remove('d-none');
-
                 selfieInput.closest('.card').scrollIntoView({ behavior: 'smooth' });
-                if (window.showInfoModal) {
-                    window.showInfoModal('Falta Información', 'La selfie es obligatoria.', false);
-                } else {
-                    alert('La selfie es obligatoria.');
-                }
+                alert('La selfie es obligatoria.');
                 return;
             }
 
             const submitButton = form.querySelector('button[type="submit"]');
             const originalText = submitButton.textContent;
-
             submitButton.disabled = true;
             submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
 
@@ -186,11 +238,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.success) {
                     if (alertDiv) {
                         alertDiv.className = 'alert alert-success';
-                        alertDiv.textContent = '¡Documentos enviados! Tu perfil se ha actualizado con tu selfie. Revisaremos tu cuenta pronto.';
+                        alertDiv.textContent = '¡Documentos enviados! Redirigiendo...';
                     }
-                    form.reset();
-                    // Recargar para que se vea la nueva foto de perfil en el header si es posible
-                    setTimeout(() => window.location.href = 'index.php', 3000);
+                    setTimeout(() => window.location.href = 'index.php', 2000);
                 } else {
                     if (alertDiv) {
                         alertDiv.className = 'alert alert-danger';
@@ -200,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     submitButton.textContent = originalText;
                 }
             } catch (error) {
+                console.error(error);
                 if (alertDiv) {
                     alertDiv.className = 'alert alert-danger';
                     alertDiv.textContent = 'Error de conexión. Inténtalo de nuevo.';

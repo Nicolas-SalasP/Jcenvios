@@ -8,6 +8,7 @@ use App\Services\DashboardService;
 use App\Services\SystemSettingsService; 
 use App\Repositories\RolRepository;
 use App\Repositories\CuentasAdminRepository;
+use App\Services\FileHandlerService;
 use Exception;
 
 class AdminController extends BaseController
@@ -19,6 +20,7 @@ class AdminController extends BaseController
     private RolRepository $rolRepo;
     private CuentasAdminRepository $cuentasAdminRepo;
     private SystemSettingsService $settingsService;
+    private FileHandlerService $fileHandler;
 
     public function __construct(
         TransactionService $txService,
@@ -27,7 +29,8 @@ class AdminController extends BaseController
         DashboardService $dashboardService,
         RolRepository $rolRepo,
         CuentasAdminRepository $cuentasAdminRepo,
-        SystemSettingsService $settingsService
+        SystemSettingsService $settingsService,
+        FileHandlerService $fileHandler
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -36,6 +39,7 @@ class AdminController extends BaseController
         $this->rolRepo = $rolRepo;
         $this->cuentasAdminRepo = $cuentasAdminRepo;
         $this->settingsService = $settingsService;
+        $this->fileHandler = $fileHandler;
     }
 
     // --- GESTIÓN DE VACACIONES ---
@@ -429,6 +433,48 @@ class AdminController extends BaseController
 
         $this->userService->toggleUserBlock($adminId, $targetUserId, $newStatus);
         $this->sendJsonResponse(['success' => true]);
+    }
+
+    public function adminUpdateUserDoc(): void
+    {
+        $this->ensureLoggedIn();
+        $this->ensureAdmin();
+
+        if (!isset($_FILES['newDocFile']) || $_FILES['newDocFile']['error'] !== UPLOAD_ERR_OK) {
+            $msg = isset($_FILES['newDocFile']) ? 'Error subida PHP: ' . $_FILES['newDocFile']['error'] : 'No llegó el archivo (newDocFile)';
+            $this->sendJsonResponse(['success' => false, 'error' => $msg], 400);
+            return;
+        }
+        if (empty($_POST['userId'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Falta el ID del usuario (userId está vacío).'], 400);
+            return;
+        }
+        if (empty($_POST['docType'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Falta el tipo de documento (docType).'], 400);
+            return;
+        }
+
+        $userId = (int) $_POST['userId'];
+        $docType = $_POST['docType'];
+        $fileData = $_FILES['newDocFile'];
+
+        try {
+            $newPath = '';
+
+            if ($docType === 'perfil') {
+                $newPath = $this->fileHandler->saveUserProfileImage($fileData, $userId);
+                $this->userService->updateProfilePicPath($userId, $newPath);
+            } elseif ($docType === 'frente' || $docType === 'reverso') {
+                $newPath = $this->fileHandler->saveVerificationDoc($fileData, $userId, $docType);
+                $this->userService->updateVerificationDocPath($userId, $docType, $newPath);
+            } else {
+                throw new Exception("Tipo de documento no válido.");
+            }
+
+            $this->sendJsonResponse(['success' => true, 'newPath' => $newPath]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
     }
 
     // --- GESTIÓN DE CUENTAS ADMIN ---

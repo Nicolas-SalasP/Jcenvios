@@ -289,11 +289,11 @@ class UserService
         try {
             // 3. Procesar Selfie: Guardar y actualizar foto de perfil
             $pathSelfie = $this->fileHandler->saveProfilePicture($files['selfie'], $userId);
-            
+
             // Obtenemos el teléfono actual para no perderlo al actualizar el perfil
             $currentUser = $this->userRepository->findUserById($userId);
             $currentPhone = $currentUser['Telefono'] ?? '';
-            
+
             // Actualizamos la foto de perfil en la BD
             $this->userRepository->updateProfileInfo($userId, $currentPhone, $pathSelfie);
 
@@ -445,14 +445,15 @@ class UserService
     public function generateAndSend2FACode(int $userId, ?string $overrideMethod = null): bool
     {
         $config = $this->userRepository->get2FAConfig($userId);
-        if (!$config) return false;
+        if (!$config)
+            return false;
 
-        $code = (string)random_int(100000, 999999);
+        $code = (string) random_int(100000, 999999);
         $expiresAt = date('Y-m-d H:i:s', strtotime('+10 minutes'));
 
         if ($this->userRepository->saveTemp2FACode($userId, $code, $expiresAt)) {
             $method = $overrideMethod ?? ($config['twofa_method'] ?? 'email');
-            
+
             switch ($method) {
                 case 'sms':
                     return $this->notificationService->send2FACodeTwilio($config['Telefono'], $code, 'sms');
@@ -553,12 +554,51 @@ class UserService
     public function getApprovedUsers(int $limit, int $offset): array
     {
         $idVerificado = $this->estadoVerificacionRepo->findIdByName('Verificado');
-        
-        if (!$idVerificado) return ['total' => 0, 'usuarios' => []];
+
+        if (!$idVerificado)
+            return ['total' => 0, 'usuarios' => []];
 
         return [
             'total' => $this->userRepository->countByVerificationStatus($idVerificado),
             'usuarios' => $this->userRepository->findByVerificationStatus($idVerificado, $limit, $offset)
         ];
+    }
+
+    // --- MÉTODOS PARA EDICIÓN POR ADMIN ---
+
+    public function updateProfilePicPath(int $userId, string $newPath): void
+    {
+        $user = $this->userRepository->findUserById($userId);
+        if (!$user) {
+            throw new Exception("Usuario no encontrado.", 404);
+        }
+        $currentPhone = $user['Telefono'] ?? '';
+        if (!$this->userRepository->updateProfileInfo($userId, $currentPhone, $newPath)) {
+            throw new Exception("Error al actualizar la ruta de la foto en la base de datos.", 500);
+        }
+    }
+
+    public function updateVerificationDocPath(int $userId, string $docType, string $newPath): void
+    {
+        $user = $this->userRepository->findUserById($userId);
+        if (!$user) {
+            throw new Exception("Usuario no encontrado.", 404);
+        }
+
+        $pathFrente = $user['DocumentoImagenURL_Frente'] ?? '';
+        $pathReverso = $user['DocumentoImagenURL_Reverso'] ?? '';
+        $statusId = $user['VerificacionEstadoID'];
+
+        if ($docType === 'frente') {
+            $pathFrente = $newPath;
+        } elseif ($docType === 'reverso') {
+            $pathReverso = $newPath;
+        } else {
+            throw new Exception("Tipo de documento desconocido: $docType", 400);
+        }
+
+        if (!$this->userRepository->updateVerificationDocuments($userId, $pathFrente, $pathReverso, $statusId)) {
+            throw new Exception("Error al actualizar la ruta del documento en la base de datos.", 500);
+        }
     }
 }

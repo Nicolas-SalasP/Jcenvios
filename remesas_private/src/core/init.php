@@ -44,9 +44,9 @@ if (defined('BASE_URL')) {
 $cspDirectives = [
     "default-src 'self'",
     "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'",
-    "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'",
+    "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' https://cdn.jsdelivr.net",
-    "img-src 'self' data:",
+    "img-src 'self' data: blob:",
     "frame-src 'self' http://googleusercontent.com/maps.google.com/ https://www.google.com/",
     "connect-src 'self' " . $cspHost . " https://cdn.jsdelivr.net",
     "object-src 'none'",

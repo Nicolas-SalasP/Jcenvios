@@ -179,7 +179,8 @@ class Container
                 $this->get(DashboardService::class),
                 $this->get(RolRepository::class),
                 $this->get(CuentasAdminRepository::class),
-                $this->get(SystemSettingsService::class)
+                $this->get(SystemSettingsService::class),
+                $this->get(FileHandlerService::class) 
             ),
 
             DashboardController::class => new DashboardController(
@@ -274,6 +275,7 @@ try {
         'updateUserRole' => [AdminController::class, 'updateUserRole', 'POST'],
         'deleteUser' => [AdminController::class, 'deleteUser', 'POST'],
         'adminUpdateUser' => [AdminController::class, 'adminUpdateUser', 'POST'],
+        'adminUpdateUserDoc' => [AdminController::class, 'adminUpdateUserDoc', 'POST'], 
 
         // Admin - Transacciones
         'processTransaction' => [AdminController::class, 'processTransaction', 'POST'],

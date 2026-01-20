@@ -424,49 +424,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const docsBtn = target.closest('.view-user-docs-btn');
         if (docsBtn) {
             const d = docsBtn.dataset;
-            const def = '../assets/img/SoloLogoNegroSinFondo.png';
+            const userId = d.userId;
+            const hiddenInput = document.getElementById('viewDocsUserId');
+            if (hiddenInput) {
+                hiddenInput.value = userId;
+            }
             document.getElementById('docsUserName').textContent = d.userName;
-            const urlP = d.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.fotoPerfil)}` : def;
-            const urlF = d.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgFrente)}` : '';
-            const urlR = d.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(d.imgReverso)}` : '';
-            const imgP = document.getElementById('docsProfilePic');
-            imgP.src = urlP;
-            document.getElementById('btnProfileView').href = urlP;
-            document.getElementById('btnProfileDown').href = urlP;
-            const imgF = document.getElementById('docsImgFrente');
-            const btnFView = document.getElementById('btnFrenteView');
-            const btnFDown = document.getElementById('btnFrenteDown');
 
-            if (urlF) {
-                imgF.src = urlF;
-                imgF.classList.remove('d-none');
-                btnFView.href = urlF;
-                btnFDown.href = urlF;
-                btnFView.classList.remove('disabled');
-                btnFDown.classList.remove('disabled');
-            } else {
-                imgF.src = '';
-                imgF.classList.add('d-none');
-                btnFView.classList.add('disabled');
-                btnFDown.classList.add('disabled');
-            }
-            const imgR = document.getElementById('docsImgReverso');
-            const btnRView = document.getElementById('btnReversoView');
-            const btnRDown = document.getElementById('btnReversoDown');
+            const updateImg = (imgId, linkId, downloadId, path, editBtnType) => {
+                const imgEl = document.getElementById(imgId);
+                const linkEl = document.getElementById(linkId);
+                const downEl = document.getElementById(downloadId);
+                const container = document.getElementById('noDoc' + imgId.replace('docsImg', ''));
+                const editBtn = document.querySelector(`.btn-edit-admin-doc[data-doc-type="${editBtnType}"]`);
+                if (editBtn) {
+                    editBtn.dataset.userId = userId;
+                }
 
-            if (urlR) {
-                imgR.src = urlR;
-                imgR.classList.remove('d-none');
-                btnRView.href = urlR;
-                btnRDown.href = urlR;
-                btnRView.classList.remove('disabled');
-                btnRDown.classList.remove('disabled');
-            } else {
-                imgR.src = '';
-                imgR.classList.add('d-none');
-                btnRView.classList.add('disabled');
-                btnRDown.classList.add('disabled');
-            }
+                if (path && path.trim() !== '') {
+                    const fullPath = `../admin/view_secure_file.php?file=${encodeURIComponent(path)}&t=${new Date().getTime()}`;
+                    imgEl.src = fullPath;
+                    linkEl.href = fullPath;
+                    linkEl.classList.remove('disabled');
+                    downEl.href = fullPath;
+                    downEl.classList.remove('disabled');
+                    imgEl.classList.remove('d-none');
+                    if(container) container.classList.add('d-none');
+                    if(editBtn) editBtn.disabled = false;
+                } else {
+                    imgEl.src = '../assets/img/SoloLogoNegroSinFondo.png';
+                    linkEl.href = '#';
+                    linkEl.classList.add('disabled');
+                    downEl.href = '#';
+                    downEl.classList.add('disabled');
+                    if(container) container.classList.remove('d-none');
+                    if(editBtn) editBtn.disabled = true;
+                }
+            };
+            updateImg('docsProfilePic', 'btnProfileView', 'btnProfileDown', d.fotoPerfil, 'perfil');
+            updateImg('docsImgFrente', 'btnFrenteView', 'btnFrenteDown', d.imgFrente, 'frente');
+            updateImg('docsImgReverso', 'btnReversoView', 'btnReversoDown', d.imgReverso, 'reverso');
 
             new bootstrap.Modal(document.getElementById('userDocsModal')).show();
         }
@@ -961,7 +958,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================================
-    // AUTORIZAR ORDEN DE RIESGO (Estado 7 -> 1)
+    // 7. AUTORIZAR ORDEN DE RIESGO (Estado 7 -> 1)
     // =========================================================
     document.addEventListener('click', async (e) => {
         const btn = e.target.closest('.authorize-risk-btn');
@@ -1007,6 +1004,150 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // =========================================================
+    // 8. EDICIÓN DE DOCS (ADMIN CROPPER)
+    // =========================================================
+    
+    let adminCropper = null;
+    const adminCropModalEl = document.getElementById('adminCropModal');
+    const adminImageToCrop = document.getElementById('admin-image-to-crop');
+    let currentEditDocType = null; 
+    let currentEditingUserId = null; 
+
+    if (adminCropModalEl) {
+        const adminCropModal = new bootstrap.Modal(adminCropModalEl);
+        document.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.btn-edit-admin-doc');
+            if (editBtn) {
+                currentEditDocType = editBtn.dataset.docType;
+                const hiddenInput = document.getElementById('viewDocsUserId');
+                
+                if (hiddenInput && hiddenInput.value) {
+                    currentEditingUserId = hiddenInput.value;
+                } else if (editBtn.dataset.userId) {
+                    currentEditingUserId = editBtn.dataset.userId;
+                } else {
+                    alert("Error: No se pudo identificar el ID del usuario. Por favor cierra y abre el modal de nuevo.");
+                    return;
+                }
+                let imgSourceId = '';
+                if (currentEditDocType === 'perfil') imgSourceId = 'docsProfilePic';
+                else if (currentEditDocType === 'frente') imgSourceId = 'docsImgFrente';
+                else if (currentEditDocType === 'reverso') imgSourceId = 'docsImgReverso';
+
+                const imgEl = document.getElementById(imgSourceId);
+                if (imgEl && imgEl.src && !imgEl.src.includes('SoloLogo') && imgEl.src !== window.location.href) {
+                    adminImageToCrop.src = imgEl.src;
+                    bootstrap.Modal.getInstance(document.getElementById('userDocsModal')).hide();
+                    adminCropModal.show();
+                } else {
+                    alert('No hay una imagen válida cargada para editar.');
+                }
+            }
+        });
+
+        adminCropModalEl.addEventListener('shown.bs.modal', () => {
+            if (adminCropper) adminCropper.destroy();
+            
+            adminCropper = new Cropper(adminImageToCrop, {
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+                checkOrientation: true,
+            });
+            window.adminCropper = adminCropper;
+        });
+
+        adminCropModalEl.addEventListener('hidden.bs.modal', () => {
+            if (adminCropper) {
+                adminCropper.destroy();
+                adminCropper = null;
+            }
+            adminImageToCrop.src = '';
+            const userDocsModal = new bootstrap.Modal(document.getElementById('userDocsModal'));
+            userDocsModal.show();
+        });
+
+        const rotateLeft = document.getElementById('admin-rotate-left');
+        const rotateRight = document.getElementById('admin-rotate-right');
+        if(rotateLeft) rotateLeft.addEventListener('click', () => adminCropper && adminCropper.rotate(-90));
+        if(rotateRight) rotateRight.addEventListener('click', () => adminCropper && adminCropper.rotate(90));
+        const saveBtn = document.getElementById('admin-crop-confirm');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                if (!adminCropper) return;
+                if (!currentEditingUserId) {
+                    alert("Error crítico: Se perdió el ID del usuario.");
+                    return;
+                }
+
+                const originalText = saveBtn.innerHTML;
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+                adminCropper.getCroppedCanvas({
+                    width: 1280, 
+                    height: 1280,
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high',
+                }).toBlob(async (blob) => {
+                    
+                    const formData = new FormData();
+                    formData.append('userId', currentEditingUserId);
+                    formData.append('docType', currentEditDocType);
+                    formData.append('newDocFile', blob, 'edited_by_admin.jpg');
+
+                    try {
+                        const res = await fetch('../api/?accion=adminUpdateUserDoc', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const result = await res.json();
+
+                        if (result.success) {
+                            const newUrl = `../admin/view_secure_file.php?file=${encodeURIComponent(result.newPath)}&t=${new Date().getTime()}`;
+                            
+                            if (currentEditDocType === 'perfil') {
+                                const img = document.getElementById('docsProfilePic');
+                                const link = document.getElementById('btnProfileView');
+                                if(img) img.src = newUrl;
+                                if(link) link.href = newUrl;
+                            } else if (currentEditDocType === 'frente') {
+                                const img = document.getElementById('docsImgFrente');
+                                const link = document.getElementById('btnFrenteView');
+                                if(img) img.src = newUrl;
+                                if(link) link.href = newUrl;
+                            } else if (currentEditDocType === 'reverso') {
+                                const img = document.getElementById('docsImgReverso');
+                                const link = document.getElementById('btnReversoView');
+                                if(img) img.src = newUrl;
+                                if(link) link.href = newUrl;
+                            }
+                            adminCropModal.hide();
+
+                        } else {
+                            alert('Error al guardar: ' + (result.error || 'Desconocido'));
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        alert('Error de conexión al guardar.');
+                    } finally {
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = originalText;
+                    }
+
+                }, 'image/jpeg', 0.85);
+            });
+        }
+    }
 
     startAutoRefresh();
 
