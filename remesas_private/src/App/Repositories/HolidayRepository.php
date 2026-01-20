@@ -12,9 +12,9 @@ class HolidayRepository
         $this->db = $db;
     }
 
-    public function create(string $inicio, string $fin, string $motivo, int $adminId): bool
+    public function create(string $inicio, string $fin, string $motivo, int $adminId, int $bloqueo = 1): bool
     {
-        $sql = "INSERT INTO system_holidays (FechaInicio, FechaFin, Motivo, CreatedBy) VALUES (?, ?, ?, ?)";
+        $sql = "INSERT INTO system_holidays (FechaInicio, FechaFin, Motivo, CreatedBy, BloqueoSistema) VALUES (?, ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
         if (!$stmt) {
@@ -22,7 +22,7 @@ class HolidayRepository
             return false;
         }
 
-        $stmt->bind_param("sssi", $inicio, $fin, $motivo, $adminId);
+        $stmt->bind_param("sssii", $inicio, $fin, $motivo, $adminId, $bloqueo);
         $res = $stmt->execute();
         $stmt->close();
         return $res;

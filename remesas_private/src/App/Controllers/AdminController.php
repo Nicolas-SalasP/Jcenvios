@@ -53,21 +53,31 @@ class AdminController extends BaseController
 
     public function addHoliday(): void
     {
-        $adminId = $this->ensureLoggedIn();
+        $this->ensureLoggedIn();
         $this->ensureAdmin();
-        
-        $data = $this->getJsonInput();
-        
+
+        $data = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($data['fechaInicio']) || empty($data['fechaFin']) || empty($data['motivo'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
+            return;
+        }
+
+        $bloqueo = isset($data['bloqueo']) ? (int)$data['bloqueo'] : 1;
+        $adminId = $_SESSION['user_id'];
+
         try {
             $this->settingsService->addHoliday(
-                $adminId, 
-                $data['inicio'] ?? '', 
-                $data['fin'] ?? '', 
-                $data['motivo'] ?? ''
+                $adminId,
+                $data['fechaInicio'], 
+                $data['fechaFin'], 
+                $data['motivo'], 
+                $bloqueo
             );
-            $this->sendJsonResponse(['success' => true, 'message' => 'Feriado programado correctamente.']);
+            
+            $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 

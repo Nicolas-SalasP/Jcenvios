@@ -54,8 +54,34 @@ class ClientController extends BaseController
 
     public function checkSystemStatus(): void
     {
-        $status = $this->settingsService->checkSystemAvailability();
-        $this->sendJsonResponse(['success' => true, 'status' => $status]);
+        try {
+            $feriado = $this->settingsService->getActiveHoliday(); 
+
+            if ($feriado) {
+                if ($feriado['BloqueoSistema'] == 1) {
+                    $this->sendJsonResponse([
+                        'active' => false,
+                        'reason' => 'holiday',
+                        'message' => '⛔ Feriado: ' . $feriado['Motivo'] . '. No estamos operando.'
+                    ]);
+                    return;
+                }
+                else {
+                    $this->sendJsonResponse([
+                        'active' => true,
+                        'holiday_warning' => [
+                            'title' => 'AVISO INFORMATIVO', 
+                            'message' => $feriado['Motivo'] . '. Puedes operar con normalidad.'
+                        ]
+                    ]);
+                    return;
+                }
+            }
+            $this->sendJsonResponse(['active' => true]);
+
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['active' => false, 'error' => $e->getMessage()]);
+        }
     }
 
     // --- MÉTODOS EXISTENTES ---

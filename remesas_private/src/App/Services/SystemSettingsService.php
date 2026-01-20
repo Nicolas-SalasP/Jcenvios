@@ -23,8 +23,7 @@ class SystemSettingsService
     }
 
     // --- GESTIÓN DE VACACIONES (ADMIN) ---
-
-    public function addHoliday(int $adminId, string $inicio, string $fin, string $motivo): void
+    public function addHoliday(int $adminId, string $inicio, string $fin, string $motivo, int $bloqueo = 1): void
     {
         if (empty($inicio) || empty($fin) || empty($motivo)) {
             throw new Exception("Todos los campos son obligatorios.");
@@ -48,15 +47,15 @@ class SystemSettingsService
         $sqlInicio = date('Y-m-d H:i:s', $startTs);
         $sqlFin = date('Y-m-d H:i:s', $endTs);
 
-        if (!$this->holidayRepo->create($sqlInicio, $sqlFin, $motivo, $adminId)) {
+        if (!$this->holidayRepo->create($sqlInicio, $sqlFin, $motivo, $adminId, $bloqueo)) {
             throw new Exception("Error al guardar el feriado en la base de datos.");
         }
 
-        // --- LOG DE AUDITORÍA ---
+        $tipoBloqueo = $bloqueo ? "BLOQUEANTE" : "INFORMATIVO";
         $this->logService->logAction(
             $adminId,
             "Programó Feriado",
-            "Motivo: $motivo | Inicio: $sqlInicio | Fin: $sqlFin"
+            "Motivo: $motivo ($tipoBloqueo) | Inicio: $sqlInicio | Fin: $sqlFin"
         );
     }
 
@@ -68,39 +67,34 @@ class SystemSettingsService
     public function deleteHoliday(int $id, int $adminId): void
     {
         $info = "ID #$id";
-        if (method_exists($this->holidayRepo, 'findById')) {
-            $holiday = $this->holidayRepo->findById($id);
-            if ($holiday) {
-                $info = $holiday['Motivo'] . " (ID: $id)";
-            }
-        }
-
         if (!$this->holidayRepo->delete($id)) {
             throw new Exception("Error al eliminar el feriado.");
         }
 
-        // --- LOG DE AUDITORÍA ---
         $this->logService->logAction(
             $adminId,
             "Eliminó Feriado",
             "Se eliminó el bloqueo: $info"
         );
     }
-
-    // --- VALIDACIÓN GLOBAL (CLIENTE) ---
-
+    public function getActiveHoliday(): ?array
+    {
+        return $this->holidayRepo->getActiveHoliday();
+    }
     public function checkSystemAvailability(): array
     {
         try {
             $activeHoliday = $this->holidayRepo->getActiveHoliday();
 
             if ($activeHoliday) {
-                return [
-                    'available' => false,
-                    'reason' => 'holiday',
-                    'message' => $activeHoliday['Motivo'],
-                    'ends_at' => $activeHoliday['FechaFin']
-                ];
+                if ($activeHoliday['BloqueoSistema'] == 1) {
+                    return [
+                        'available' => false,
+                        'reason' => 'holiday',
+                        'message' => $activeHoliday['Motivo'],
+                        'ends_at' => $activeHoliday['FechaFin']
+                    ];
+                }
             }
         } catch (Exception $e) {
             error_log("Error checkSystemAvailability: " . $e->getMessage());
