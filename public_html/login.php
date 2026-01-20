@@ -83,6 +83,8 @@ require_once __DIR__ . '/../remesas_private/src/templates/header.php';
                                         <h1 class="h4 text-gray-900 mb-4">¡Crea una Cuenta!</h1>
                                     </div>
                                     <form id="register-form" novalidate>
+                                        <input type="hidden" name="tipoPersona" value="Persona Natural">
+
                                         <div class="row">
                                             <div class="form-group col-sm-12 mb-3">
                                                 <label for="register-nombre" class="form-label">Primer Nombre <span
@@ -159,14 +161,7 @@ require_once __DIR__ . '/../remesas_private/src/templates/header.php';
                                         </div>
 
                                         <div class="row">
-                                            <div class="form-group col-sm-6 mb-3">
-                                                <label for="register-role" class="form-label">Tipo de Cuenta</label>
-                                                <input type="text" class="form-control" id="register-role"
-                                                    name="tipoPersona" value="Persona Natural" readonly required
-                                                    style="background-color: #e9ecef;">
-                                            </div>
-
-                                            <div class="form-group col-sm-6 mb-3">
+                                            <div class="form-group col-sm-12 mb-3">
                                                 <label for="register-telefono" class="form-label">Teléfono <span
                                                         class="text-danger">*</span></label>
                                                 <div class="input-group">

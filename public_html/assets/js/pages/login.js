@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const registerPhoneCode = document.getElementById('register-phone-code');
     const registerTelefono = document.getElementById('register-telefono');
-    const registerRoleInput = document.getElementById('register-role');
 
     const setupFieldVisibility = (toggleId, containerId, inputId) => {
         const toggle = document.getElementById(toggleId);
@@ -116,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
     enforceNameFormat('register-segundo-apellido');
 
     docTypeSelect?.addEventListener('change', () => {
-        docNumInput.removeAttribute('pattern');
         docNumInput.classList.remove('is-invalid', 'is-valid');
         docNumInput.value = '';
         const val = docTypeSelect.value;
@@ -127,37 +125,40 @@ document.addEventListener('DOMContentLoaded', () => {
             docNumInput.placeholder = '12.345.678-9';
         } else {
             docNumInput.dataset.validateRut = 'false';
-            docNumInput.maxLength = 20;
+            docNumInput.maxLength = 15;
             docNumInput.placeholder = 'Nro. Documento';
         }
-
-        if (registerRoleInput) {
-            if (val === 'RIF' || val === 'E-RUT (RIF)') {
-                registerRoleInput.value = 'Empresa';
-            } else {
-                registerRoleInput.value = 'Persona Natural';
-            }
-        }
     });
+    const formatNumberWithDots = (num) => {
+        return num.replace(/\D/g, '')
+            .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    };
 
     docNumInput?.addEventListener('input', (e) => {
-        if (docNumInput.dataset.validateRut !== 'true' || typeof cleanRut !== 'function' || typeof validateRut !== 'function' || typeof formatRut !== 'function') {
-            return;
-        }
+        const isRut = docNumInput.dataset.validateRut === 'true';
+        let rawVal = e.target.value.replace(/[^0-9kK\-\.]/g, '');
 
-        let rutLimpio = cleanRut(e.target.value);
+        if (isRut) {
+            if (typeof cleanRut === 'function' && typeof formatRut === 'function') {
+                let rutLimpio = cleanRut(rawVal);
+                if (rutLimpio.length > 9) rutLimpio = rutLimpio.slice(0, 9);
+                e.target.value = formatRut(rutLimpio);
 
-        if (rutLimpio.length > 9) {
-            rutLimpio = rutLimpio.slice(0, 9);
-        }
+                docNumInput.classList.remove('is-valid', 'is-invalid');
+                if (rutLimpio.length > 1) {
+                    if (validateRut(rutLimpio)) docNumInput.classList.add('is-valid');
+                    else if (rutLimpio.length === 9) docNumInput.classList.add('is-invalid');
+                }
+            }
+        } else {
+            let cleanNum = rawVal.replace(/\D/g, '');
+            if (cleanNum.length > 15) cleanNum = cleanNum.slice(0, 15);
+            e.target.value = formatNumberWithDots(cleanNum);
 
-        e.target.value = formatRut(rutLimpio);
-
-        docNumInput.classList.remove('is-valid', 'is-invalid');
-        if (rutLimpio.length > 1) {
-            if (validateRut(rutLimpio)) {
+            docNumInput.classList.remove('is-valid', 'is-invalid');
+            if (cleanNum.length >= 8) {
                 docNumInput.classList.add('is-valid');
-            } else if (rutLimpio.length === 9) {
+            } else if (cleanNum.length > 0) {
                 docNumInput.classList.add('is-invalid');
             }
         }
@@ -204,25 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const submitButton = registerForm.querySelector('button[type="submit"]');
         const secNameInput = document.getElementById('register-segundo-nombre');
         const secLastInput = document.getElementById('register-segundo-apellido');
-        let missingFields = [];
-
-        if (!secNameInput.value.trim()) missingFields.push("Segundo Nombre");
-        if (!secLastInput.value.trim()) missingFields.push("Segundo Apellido");
-
-        if (missingFields.length > 0) {
-            const camposFaltantes = missingFields.join(' ni ');
-            const msg = `El beneficiario o cliente no tiene ${camposFaltantes}, ¿está seguro?`;
-            let confirmed = false;
-            if (window.showInfoModal && window.showConfirmModal) {
-                confirmed = await window.showConfirmModal('Confirmar Acción', msg);
-            } else {
-                confirmed = confirm(msg);
-            }
-
-            if (!confirmed) {
-                return;
-            }
-        }
 
         submitButton.disabled = true;
         submitButton.textContent = 'Registrando...';
@@ -251,19 +233,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const wasReadOnly = registerRoleInput.readOnly;
-        if (wasReadOnly) {
-            registerRoleInput.readOnly = false;
+        if (docNumInput.dataset.validateRut !== 'true') {
+            const cleanDoc = docNumInput.value.replace(/\D/g, '');
+            if (cleanDoc.length < 8) {
+                registerFeedback.textContent = 'El número de documento debe tener al menos 8 dígitos.';
+                submitButton.disabled = false;
+                submitButton.textContent = 'Registrar Cuenta';
+                return;
+            }
         }
 
         const formData = new FormData(registerForm);
 
-        if (wasReadOnly) {
-            registerRoleInput.readOnly = true;
-        }
-
         if (docNumInput.dataset.validateRut === 'true' && typeof cleanRut === 'function') {
             formData.set('numeroDocumento', cleanRut(docNumInput.value));
+        } else {
+            formData.set('numeroDocumento', docNumInput.value.replace(/\D/g, ''));
         }
 
         const phoneInput = formData.get('phoneNumber');
