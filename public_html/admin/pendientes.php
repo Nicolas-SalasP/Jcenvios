@@ -43,7 +43,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 }
 
 $pageTitle = 'Transacciones Pendientes';
-$pageScript = 'admin.js';
+$pageScript = 'admin.js'; // Referencia correcta
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
@@ -84,7 +84,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <div class="modal-body">
                 <form id="admin-upload-form" enctype="multipart/form-data">
                     <input type="hidden" id="adminTransactionIdField" name="transactionId">
-
                     <div class="mb-3">
                         <label class="form-label fw-bold">Cuenta de Salida (Desde dónde pagas)</label>
                         <select class="form-select" name="cuentaSalidaID" id="cuentaSalidaSelect" required>
@@ -93,13 +92,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Comprobante de Pago</label>
-                        <input class="form-control" type="file" name="receiptFile" required
-                            accept="image/*, application/pdf">
+                        <input class="form-control" type="file" name="receiptFile" required accept="image/*, application/pdf">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Comisión (0.3% Sugerido)</label>
-                        <input type="number" step="0.01" class="form-control" id="adminComisionDestino"
-                            name="comisionDestino" value="0">
+                        <input type="number" step="0.01" class="form-control" id="adminComisionDestino" name="comisionDestino" value="0">
                     </div>
                     <button type="submit" class="btn btn-success w-100">Confirmar y Finalizar</button>
                 </form>
@@ -120,8 +117,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <form id="pause-form">
                     <input type="hidden" id="pause-tx-id" name="txId">
                     <div class="mb-3">
-                        <textarea class="form-control" name="motivo" rows="3" required
-                            placeholder="Ej: Cuenta destino inactiva..."></textarea>
+                        <textarea class="form-control" name="motivo" rows="3" required placeholder="Ej: Cuenta destino inactiva..."></textarea>
                     </div>
                     <div class="text-end">
                         <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
@@ -169,13 +165,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <input type="hidden" id="reject-tx-id">
                 <div class="mb-3">
                     <label class="form-label">Motivo del rechazo:</label>
-                    <textarea class="form-control" id="reject-reason" rows="3"
-                        placeholder="Ej: Comprobante ilegible..."></textarea>
+                    <textarea class="form-control" id="reject-reason" rows="3" placeholder="Ej: Comprobante ilegible..."></textarea>
                 </div>
                 <div class="d-grid gap-2">
                     <button class="btn btn-warning confirm-reject-btn" data-type="retry">Solicitar Corrección</button>
-                    <button class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar
-                        Definitivamente</button>
+                    <button class="btn btn-danger confirm-reject-btn" data-type="cancel">Cancelar Definitivamente</button>
                 </div>
             </div>
         </div>
@@ -201,39 +195,34 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 </div>
 
 <div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content d-flex flex-column" style="height: 90vh;">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" id="modal-content-visor">
             <div class="modal-header py-2 bg-dark text-white">
                 <h5 class="modal-title fs-6"><i class="bi bi-eye"></i> Revisión de Pago</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-0 d-flex flex-column flex-lg-row h-100 flex-grow-1 overflow-hidden">
-
-                <div class="bg-light p-3 border-end overflow-auto" style="min-width: 300px; max-width: 350px;">
+            
+            <div class="modal-body p-0 d-flex flex-column flex-lg-row">
+                <div class="bg-light p-3 border-bottom border-lg-bottom-0 border-lg-end overflow-auto sidebar-datos">
                     <h6 class="text-primary border-bottom pb-2 mb-3">Datos del Titular (Origen)</h6>
-
                     <div class="mb-3">
                         <label class="small text-muted fw-bold">Nombre Titular</label>
-                        <div class="fs-6 text-dark" id="visor-nombre-titular">Cargando...</div>
+                        <div class="fs-6 text-dark text-break" id="visor-nombre-titular">Cargando...</div>
                     </div>
-
                     <div class="mb-3">
                         <label class="small text-muted fw-bold">RUT / Documento</label>
                         <div class="fs-6 text-dark" id="visor-rut-titular">Cargando...</div>
                     </div>
-
-                    <div class="alert alert-info small mt-4">
-                        <i class="bi bi-info-circle-fill"></i>
-                        Verifique que estos datos coincidan con la imagen del comprobante.
+                    <div class="alert alert-info small mt-3 mb-0">
+                        <i class="bi bi-info-circle-fill"></i> Verifique que estos datos coincidan con la imagen del comprobante.
                     </div>
                 </div>
 
-                <div class="flex-grow-1 bg-dark d-flex align-items-center justify-content-center position-relative h-100" style="background-color: #333;">
+                <div class="flex-grow-1 bg-dark d-flex align-items-center justify-content-center position-relative visor-container">
                     <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-                    
-                    <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center">
-                        <img id="comprobante-img-full" class="d-none" style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
-                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
+                    <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center p-2">
+                        <img id="comprobante-img-full" class="d-none shadow rounded" style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
+                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none rounded border-0"></iframe>
                     </div>
                 </div>
             </div>
@@ -244,13 +233,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="confirmModalTitle">Confirmación</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="confirmModalBody">
-                ¿Estás seguro de realizar esta acción?
-            </div>
+            <div class="modal-header bg-primary text-white"><h5 class="modal-title">Confirmación</h5></div>
+            <div class="modal-body" id="confirmModalBody">¿Estás seguro?</div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancelBtn">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="confirmModalYesBtn">Confirmar</button>
@@ -262,93 +246,27 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 <div class="modal fade" id="infoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header" id="infoModalHeader">
-                <h5 class="modal-title" id="infoModalTitle">Información</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="infoModalBody">
-                Operación realizada.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="infoModalCloseBtn">Cerrar</button>
-            </div>
+            <div class="modal-header"><h5 class="modal-title">Información</h5></div>
+            <div class="modal-body" id="infoModalBody"></div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div>
         </div>
     </div>
 </div>
 
+<style>
+    #modal-content-visor { height: auto; min-height: 80vh; }
+    .sidebar-datos { width: 100%; max-height: 300px; }
+    .visor-container { min-height: 50vh; background-color: #333; }
+    @media (min-width: 992px) {
+        #modal-content-visor { height: 90vh; }
+        .modal-body { height: 100%; overflow: hidden; }
+        .sidebar-datos { width: 320px; min-width: 320px; height: 100%; max-height: none; }
+        .visor-container { height: 100%; }
+    }
+</style>
+
 <script>
     window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
-
-    document.addEventListener('DOMContentLoaded', () => {
-        
-        // --- LOGICA MODAL MOTIVO PAUSA (MANUAL) ---
-        document.body.addEventListener('click', function(e) {
-            const btn = e.target.closest('.view-pause-reason-btn');
-            if (btn) {
-                e.preventDefault();
-                
-                const reason = btn.getAttribute('data-reason');
-                const modalBodyText = document.getElementById('pause-reason-text');
-                if (modalBodyText) modalBodyText.textContent = reason;
-
-                const modalEl = document.getElementById('viewPauseReasonModal');
-                if (modalEl) {
-                    const modalInstance = new bootstrap.Modal(modalEl);
-                    modalInstance.show();
-                }
-            }
-        });
-
-        // --- VISOR DE COMPROBANTES ---
-        document.body.addEventListener('click', function(e) {
-            const btn = e.target.closest('.view-comprobante-btn-admin');
-            if (btn) {
-                e.preventDefault();
-                
-                document.getElementById('visor-nombre-titular').textContent = btn.dataset.nombreTitular || 'No registrado';
-                document.getElementById('visor-rut-titular').textContent = btn.dataset.rutTitular || 'No registrado';
-
-                const url = btn.dataset.comprobanteUrl;
-                const imgEl = document.getElementById('comprobante-img-full');
-                const pdfEl = document.getElementById('comprobante-pdf-full');
-                const placeholder = document.getElementById('comprobante-placeholder');
-                
-                // Reset
-                imgEl.classList.add('d-none');
-                pdfEl.classList.add('d-none');
-                placeholder.classList.remove('d-none');
-                imgEl.src = '';
-                pdfEl.src = '';
-                
-                // Detectar extensión
-                let extension = '';
-                if (url.includes('?')) {
-                    const urlParams = new URLSearchParams(url.split('?')[1]);
-                    const fileParam = urlParams.get('file');
-                    if (fileParam) {
-                        extension = fileParam.split('.').pop().toLowerCase();
-                    }
-                } else {
-                    extension = url.split('.').pop().toLowerCase();
-                }
-
-                // Mostrar
-                setTimeout(() => {
-                    placeholder.classList.add('d-none');
-                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
-                        imgEl.src = url;
-                        imgEl.classList.remove('d-none');
-                    } else if (extension === 'pdf') {
-                        pdfEl.src = url;
-                        pdfEl.classList.remove('d-none');
-                    } else {
-                        imgEl.src = url;
-                        imgEl.classList.remove('d-none');
-                    }
-                }, 500);
-            }
-        });
-    });
 </script>
 
 <?php
@@ -365,10 +283,8 @@ function renderTableRows($transacciones)
         $rowClass = '';
         $estadoId = (int) $tx['EstadoID'];
 
-        if ($estadoId === 7)
-            $rowClass = 'table-danger border-danger';
-        elseif ($estadoId === 6)
-            $rowClass = 'table-warning';
+        if ($estadoId === 7) $rowClass = 'table-danger border-danger';
+        elseif ($estadoId === 6) $rowClass = 'table-warning';
         ?>
         <tr class="<?php echo $rowClass; ?>">
             <td><strong>#<?php echo $tx['TransaccionID']; ?></strong></td>
@@ -411,43 +327,30 @@ function renderTableRows($transacciones)
                     class="btn btn-sm btn-outline-dark" title="Ver Orden"><i class="bi bi-file-earmark-pdf"></i></a>
 
                 <?php if ($estadoId === 7): ?>
-                    <button class="btn btn-sm btn-success authorize-risk-btn w-100"
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-shield-check"></i> Autorizar</button>
-                    <button class="btn btn-sm btn-danger reject-btn w-100" 
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-x-circle"></i> Rechazar</button>
+                    <button class="btn btn-sm btn-success authorize-risk-btn w-100" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-shield-check"></i> Autorizar</button>
+                    <button class="btn btn-sm btn-danger reject-btn w-100" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-x-circle"></i> Rechazar</button>
 
                 <?php elseif ($estadoId === 6): ?>
                     <?php if (!empty($tx['MotivoPausa'])): ?>
-                        <button type="button" 
-                            class="btn btn-sm btn-warning view-pause-reason-btn" 
-                            data-reason="<?php echo htmlspecialchars($tx['MotivoPausa']); ?>"
-                            title="Ver Motivo de Pausa">
+                        <button type="button" class="btn btn-sm btn-warning view-pause-reason-btn" 
+                            data-reason="<?php echo htmlspecialchars($tx['MotivoPausa']); ?>" title="Ver Motivo de Pausa">
                             <i class="bi bi-info-circle-fill"></i>
                         </button>
                     <?php endif; ?>
-
-                    <button class="btn btn-sm btn-outline-primary resume-btn-modal" data-bs-toggle="modal"
-                        data-bs-target="#resumeModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i
-                            class="bi bi-play-fill"></i> Reanudar</button>
-                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                        title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
+                    <button class="btn btn-sm btn-outline-primary resume-btn-modal" data-bs-toggle="modal" data-bs-target="#resumeModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-play-fill"></i> Reanudar</button>
+                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
 
                 <?php elseif ($estadoId === 2): ?>
-                    <button class="btn btn-sm btn-success process-btn"
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>">Confirmar</button>
-                    <button class="btn btn-sm btn-danger reject-btn"
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>">Rechazar</button>
+                    <button class="btn btn-sm btn-success process-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>">Confirmar</button>
+                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>">Rechazar</button>
 
                 <?php elseif ($estadoId === 3): ?>
-                    <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal"
-                        data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                    <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal" data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                         data-monto-destino="<?php echo $tx['MontoDestino']; ?>" data-pais-id="<?php echo $tx['PaisDestinoID']; ?>">
                         Pagar
                     </button>
-                    <button class="btn btn-sm btn-warning pause-btn-modal" data-bs-toggle="modal" data-bs-target="#pauseModal"
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-pause-circle-fill"></i></button>
-                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                        title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
+                    <button class="btn btn-sm btn-warning pause-btn-modal" data-bs-toggle="modal" data-bs-target="#pauseModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"><i class="bi bi-pause-circle-fill"></i></button>
+                    <button class="btn btn-sm btn-danger reject-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
                 <?php endif; ?>
             </td>
         </tr>

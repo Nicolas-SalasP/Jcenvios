@@ -449,16 +449,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     downEl.href = fullPath;
                     downEl.classList.remove('disabled');
                     imgEl.classList.remove('d-none');
-                    if(container) container.classList.add('d-none');
-                    if(editBtn) editBtn.disabled = false;
+                    if (container) container.classList.add('d-none');
+                    if (editBtn) editBtn.disabled = false;
                 } else {
                     imgEl.src = '../assets/img/SoloLogoNegroSinFondo.png';
                     linkEl.href = '#';
                     linkEl.classList.add('disabled');
                     downEl.href = '#';
                     downEl.classList.add('disabled');
-                    if(container) container.classList.remove('d-none');
-                    if(editBtn) editBtn.disabled = true;
+                    if (container) container.classList.remove('d-none');
+                    if (editBtn) editBtn.disabled = true;
                 }
             };
             updateImg('docsProfilePic', 'btnProfileView', 'btnProfileDown', d.fotoPerfil, 'perfil');
@@ -822,112 +822,123 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // =========================================================
-    // 5.8 VISOR DE COMPROBANTES
+// =========================================================
+    // 5.8 VISOR DE COMPROBANTES (CORREGIDO: MÓVIL & SIN ALERTS)
     // =========================================================
     const viewComprobanteModalEl = document.getElementById('viewComprobanteModal');
     if (viewComprobanteModalEl) {
         viewComprobanteModalEl.addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            if (!button) return;
+            const btn = event.relatedTarget;
+            if (!btn) return;
 
-            const txId = button.getAttribute('data-tx-id');
-            const userUrl = button.getAttribute('data-comprobante-url');
-            const adminUrl = button.getAttribute('data-envio-url');
-            const startType = button.getAttribute('data-start-type');
-            const nombreTitular = button.getAttribute('data-nombre-titular') || 'No especificado';
-            const rutTitular = button.getAttribute('data-rut-titular') || 'No especificado';
-            const modalTitle = viewComprobanteModalEl.querySelector('.modal-title');
-            const imgElement = document.getElementById('comprobante-img-full');
+            // 1. Referencias a elementos estáticos (del HTML nuevo)
+            const imgEl = document.getElementById('comprobante-img-full');
+            const pdfEl = document.getElementById('comprobante-pdf-full');
+            const placeholder = document.getElementById('comprobante-placeholder');
             const downloadBtn = document.getElementById('download-comprobante-btn');
-            const btnTabUser = document.getElementById('tab-btn-user');
-            const btnTabAdmin = document.getElementById('tab-btn-admin');
-            const elNombreTitular = document.getElementById('visor-nombre-titular');
-            const elRutTitular = document.getElementById('visor-rut-titular');
+            const modalTitle = viewComprobanteModalEl.querySelector('.modal-title');
+            
+            // 2. Datos del botón
+            const txId = btn.getAttribute('data-tx-id');
+            const urlUser = btn.getAttribute('data-comprobante-url');
+            const urlAdmin = btn.getAttribute('data-envio-url');
+            const startType = btn.getAttribute('data-start-type') || 'user'; 
+            
+            // 3. Llenar Textos y Sidebar
             if (modalTitle) modalTitle.textContent = `Comprobante Orden #${txId}`;
-            if (elNombreTitular) elNombreTitular.textContent = nombreTitular;
-            if (elRutTitular) elRutTitular.textContent = rutTitular;
+            
+            const elNombre = document.getElementById('visor-nombre-titular');
+            const elRut = document.getElementById('visor-rut-titular');
+            if (elNombre) elNombre.textContent = btn.getAttribute('data-nombre-titular') || 'No registrado';
+            if (elRut) elRut.textContent = btn.getAttribute('data-rut-titular') || 'No registrado';
 
-            const setView = (url) => {
-                const img = document.getElementById('comprobante-img-full');
-                const pdf = document.getElementById('comprobante-pdf-full');
-                const spinner = document.getElementById('comprobante-placeholder');
-                const downloadBtn = document.getElementById('download-comprobante-btn');
+            // 4. Función de carga controlada
+            const loadFile = (fileUrl) => {
+                // Reset visual completo
+                imgEl.classList.add('d-none');
+                pdfEl.classList.add('d-none');
+                placeholder.classList.remove('d-none');
+                
+                // Limpiar fuentes anteriores para evitar parpadeos
+                imgEl.removeAttribute('src'); 
+                pdfEl.removeAttribute('src');
+                
+                // Quitar listeners viejos
+                imgEl.onload = imgEl.onerror = null; 
 
-                if (!img || !pdf || !spinner) {
-                    console.warn('Visor de comprobantes: elementos requeridos no existen');
+                if (!fileUrl) {
+                    placeholder.innerHTML = '<div class="text-white">Sin archivo disponible.</div>';
                     return;
                 }
 
-                spinner.classList.remove('d-none');
-                img.classList.add('d-none');
-                pdf.classList.add('d-none');
-
-                img.onload = img.onerror = pdf.onload = pdf.onerror = null;
-
-                if (!url) {
-                    spinner.classList.add('d-none');
-                    return;
-                }
-                let finalUrl = url;
-                if (!finalUrl.includes('view_secure_file.php') && !finalUrl.startsWith('http')) {
-                }
-
-                const isPdf = finalUrl.toLowerCase().includes('.pdf');
-
-                if (isPdf) {
-                    pdf.src = finalUrl;
-                    pdf.classList.remove('d-none');
-                    pdf.onload = () => spinner.classList.add('d-none');
-                    pdf.onerror = () => {
-                        spinner.classList.add('d-none');
-                        /alert('No se pudo cargar el comprobante PDF.'); / / Opcional
-                    };
+                // Detectar extensión
+                let ext = 'jpg';
+                if (fileUrl.includes('?')) {
+                    const match = fileUrl.match(/file=([^&]+)/);
+                    if (match) ext = match[1].split('.').pop().toLowerCase();
                 } else {
-                    img.src = finalUrl;
-                    img.classList.remove('d-none');
-                    img.onload = () => spinner.classList.add('d-none');
-                    img.onerror = () => {
-                        spinner.classList.add('d-none');
-                        alert('No se pudo cargar la imagen del comprobante.'); // Opcional
-                    };
+                    ext = fileUrl.split('.').pop().toLowerCase();
                 }
 
+                // Configurar Botón Descarga
                 if (downloadBtn) {
-                    downloadBtn.href = finalUrl;
+                    downloadBtn.href = fileUrl;
                     downloadBtn.classList.remove('disabled');
                 }
+
+                // Cargar con pequeño delay para que el modal esté listo
+                setTimeout(() => {
+                    if (['pdf'].includes(ext)) {
+                        // MODO PDF
+                        pdfEl.src = fileUrl;
+                        pdfEl.classList.remove('d-none');
+                        // En PDF forzamos ocultar spinner porque el iframe carga interno
+                        placeholder.classList.add('d-none'); 
+                    } else {
+                        // MODO IMAGEN
+                        imgEl.onerror = () => {
+                            console.warn("Error cargando imagen:", fileUrl); // Sin Alert
+                            placeholder.innerHTML = '<div class="text-danger">No se pudo cargar la imagen.</div>';
+                        };
+                        imgEl.onload = () => {
+                            placeholder.classList.add('d-none');
+                            imgEl.classList.remove('d-none');
+                        };
+                        imgEl.src = fileUrl;
+                    }
+                }, 100);
             };
 
-            const activateUserTab = () => {
-                setView(userUrl);
-                if (btnTabUser) {
-                    btnTabUser.classList.add('btn-primary');
-                    btnTabUser.classList.remove('btn-outline-primary');
-                }
-                if (btnTabAdmin) {
-                    btnTabAdmin.classList.remove('btn-primary');
-                    btnTabAdmin.classList.add('btn-outline-primary');
+            // 5. Gestión de Tabs (Cliente vs Admin)
+            const btnUser = document.getElementById('tab-btn-user');
+            const btnAdmin = document.getElementById('tab-btn-admin');
+
+            const setTab = (type) => {
+                if (type === 'admin') {
+                    loadFile(urlAdmin);
+                    if (btnAdmin) { btnAdmin.classList.add('btn-primary'); btnAdmin.classList.remove('btn-outline-primary', 'btn-outline-secondary'); }
+                    if (btnUser) { btnUser.classList.remove('btn-primary'); btnUser.classList.add('btn-outline-primary'); }
+                } else {
+                    loadFile(urlUser);
+                    if (btnUser) { btnUser.classList.add('btn-primary'); btnUser.classList.remove('btn-outline-primary', 'btn-outline-secondary'); }
+                    if (btnAdmin) { btnAdmin.classList.remove('btn-primary'); btnAdmin.classList.add('btn-outline-primary'); }
                 }
             };
 
-            const activateAdminTab = () => {
-                setView(adminUrl);
-                if (btnTabAdmin) {
-                    btnTabAdmin.classList.add('btn-primary');
-                    btnTabAdmin.classList.remove('btn-outline-primary');
-                }
-                if (btnTabUser) {
-                    btnTabUser.classList.remove('btn-primary');
-                    btnTabUser.classList.add('btn-outline-primary');
-                }
-            };
+            // Asignar eventos a los botones (Clonamos para limpiar listeners previos)
+            if (btnUser) {
+                const newBtn = btnUser.cloneNode(true);
+                btnUser.parentNode.replaceChild(newBtn, btnUser);
+                newBtn.addEventListener('click', () => setTab('user'));
+            }
+            if (btnAdmin) {
+                const newBtn = btnAdmin.cloneNode(true);
+                btnAdmin.parentNode.replaceChild(newBtn, btnAdmin);
+                newBtn.addEventListener('click', () => setTab('admin'));
+            }
 
-            if (startType === 'admin') activateAdminTab();
-            else activateUserTab();
-
-            if (btnTabUser) btnTabUser.onclick = activateUserTab;
-            if (btnTabAdmin) btnTabAdmin.onclick = activateAdminTab;
+            // Iniciar vista por defecto
+            setTab(startType);
         });
     }
 
@@ -1008,12 +1019,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================
     // 8. EDICIÓN DE DOCS (ADMIN CROPPER)
     // =========================================================
-    
+
     let adminCropper = null;
     const adminCropModalEl = document.getElementById('adminCropModal');
     const adminImageToCrop = document.getElementById('admin-image-to-crop');
-    let currentEditDocType = null; 
-    let currentEditingUserId = null; 
+    let currentEditDocType = null;
+    let currentEditingUserId = null;
 
     if (adminCropModalEl) {
         const adminCropModal = new bootstrap.Modal(adminCropModalEl);
@@ -1022,7 +1033,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (editBtn) {
                 currentEditDocType = editBtn.dataset.docType;
                 const hiddenInput = document.getElementById('viewDocsUserId');
-                
+
                 if (hiddenInput && hiddenInput.value) {
                     currentEditingUserId = hiddenInput.value;
                 } else if (editBtn.dataset.userId) {
@@ -1049,7 +1060,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         adminCropModalEl.addEventListener('shown.bs.modal', () => {
             if (adminCropper) adminCropper.destroy();
-            
+
             adminCropper = new Cropper(adminImageToCrop, {
                 viewMode: 1,
                 dragMode: 'move',
@@ -1078,8 +1089,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const rotateLeft = document.getElementById('admin-rotate-left');
         const rotateRight = document.getElementById('admin-rotate-right');
-        if(rotateLeft) rotateLeft.addEventListener('click', () => adminCropper && adminCropper.rotate(-90));
-        if(rotateRight) rotateRight.addEventListener('click', () => adminCropper && adminCropper.rotate(90));
+        if (rotateLeft) rotateLeft.addEventListener('click', () => adminCropper && adminCropper.rotate(-90));
+        if (rotateRight) rotateRight.addEventListener('click', () => adminCropper && adminCropper.rotate(90));
         const saveBtn = document.getElementById('admin-crop-confirm');
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
@@ -1094,12 +1105,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
 
                 adminCropper.getCroppedCanvas({
-                    width: 1280, 
+                    width: 1280,
                     height: 1280,
                     imageSmoothingEnabled: true,
                     imageSmoothingQuality: 'high',
                 }).toBlob(async (blob) => {
-                    
+
                     const formData = new FormData();
                     formData.append('userId', currentEditingUserId);
                     formData.append('docType', currentEditDocType);
@@ -1114,22 +1125,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (result.success) {
                             const newUrl = `../admin/view_secure_file.php?file=${encodeURIComponent(result.newPath)}&t=${new Date().getTime()}`;
-                            
+
                             if (currentEditDocType === 'perfil') {
                                 const img = document.getElementById('docsProfilePic');
                                 const link = document.getElementById('btnProfileView');
-                                if(img) img.src = newUrl;
-                                if(link) link.href = newUrl;
+                                if (img) img.src = newUrl;
+                                if (link) link.href = newUrl;
                             } else if (currentEditDocType === 'frente') {
                                 const img = document.getElementById('docsImgFrente');
                                 const link = document.getElementById('btnFrenteView');
-                                if(img) img.src = newUrl;
-                                if(link) link.href = newUrl;
+                                if (img) img.src = newUrl;
+                                if (link) link.href = newUrl;
                             } else if (currentEditDocType === 'reverso') {
                                 const img = document.getElementById('docsImgReverso');
                                 const link = document.getElementById('btnReversoView');
-                                if(img) img.src = newUrl;
-                                if(link) link.href = newUrl;
+                                if (img) img.src = newUrl;
+                                if (link) link.href = newUrl;
                             }
                             adminCropModal.hide();
 

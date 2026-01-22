@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraModal = new bootstrap.Modal(cameraModalEl);
     }
 
-    // --- REFERENCIAS BENEFICIARIOS (Tu código original) ---
+    // --- REFERENCIAS BENEFICIARIOS ---
     const beneficiariosLoading = document.getElementById('beneficiarios-loading');
     const beneficiaryListContainer = document.getElementById('beneficiary-list-container');
     const addAccountModalElement = document.getElementById('addAccountModal');
@@ -57,8 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let isSubmittingBeneficiary = false;
 
     // =========================================================
-    // 1. LÓGICA DE CÁMARA Y DE PERFIL
+    // 1. LOGICA DE INTERFAZ Y VALIDACIONES
     // =========================================================
+    
     const updateSwitchUI = () => {
         if (containerBankInput) {
             containerBankInput.classList.toggle('d-none', !checkIncludeBank.checked);
@@ -76,8 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     addBeneficiaryForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
         if (!checkIncludeBank.checked && !checkIncludeMobile.checked) {
-            window.showInfoModal('Error', 'Debes seleccionar al menos una opción (Cuenta o Pago Móvil).', false);
+            window.showInfoModal('Error', 'Debes seleccionar al menos una opción (Cuenta Bancaria o Pago Móvil).', false);
             return;
         }
 
@@ -85,8 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
         isSubmittingBeneficiary = true;
 
         const formData = new FormData(addBeneficiaryForm);
+        
         if (!benefDocPrefix.classList.contains('d-none')) {
-            formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
+            const rawDoc = formData.get('numeroDocumento').replace(/\D/g, ''); 
+            formData.set('numeroDocumento', benefDocPrefix.value + rawDoc);
         }
 
         const data = Object.fromEntries(formData.entries());
@@ -99,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (checkIncludeMobile.checked) {
+            // Unir prefijo + número
             data.numeroTelefono = (data.phoneCode || '') + (data.phoneNumber || '');
         } else {
             data.numeroTelefono = null;
@@ -125,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-
+    // --- Lógica Cámara ---
     const startCamera = async () => {
         try {
             stream = await navigator.mediaDevices.getUserMedia({
@@ -188,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Guardar Perfil
     if (profileForm) {
         profileForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -233,50 +237,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================================
-    // 2. UTILIDADES Y CARGA DE DATOS (Tu código original)
+    // 2. UTILIDADES Y CARGA DE DATOS
     // =========================================================
 
     const countryPhoneCodes = [
-        { code: '+49', name: 'Alemania', flag: '🇩🇪' },
-        { code: '+54', name: 'Argentina', flag: '🇦🇷' },
-        { code: '+32', name: 'Bélgica', flag: '🇧🇪' },
-        { code: '+591', name: 'Bolivia', flag: '🇧🇴' },
-        { code: '+55', name: 'Brasil', flag: '🇧🇷' },
+        { code: '+58', name: 'Venezuela', flag: '🇻🇪' },
         { code: '+56', name: 'Chile', flag: '🇨🇱' },
         { code: '+57', name: 'Colombia', flag: '🇨🇴' },
-        { code: '+506', name: 'Costa Rica', flag: '🇨🇷' },
-        { code: '+53', name: 'Cuba', flag: '🇨🇺' },
+        { code: '+51', name: 'Perú', flag: '🇵🇪' },
+        { code: '+54', name: 'Argentina', flag: '🇦🇷' },
+        { code: '+55', name: 'Brasil', flag: '🇧🇷' },
         { code: '+593', name: 'Ecuador', flag: '🇪🇨' },
         { code: '+1', name: 'EE.UU.', flag: '🇺🇸' },
-        { code: '+503', name: 'El Salvador', flag: '🇸🇻' },
         { code: '+34', name: 'España', flag: '🇪🇸' },
-        { code: '+33', name: 'Francia', flag: '🇫🇷' },
-        { code: '+502', name: 'Guatemala', flag: '🇬🇹' },
-        { code: '+504', name: 'Honduras', flag: '🇭🇳' },
-        { code: '+39', name: 'Italia', flag: '🇮🇹' },
         { code: '+52', name: 'México', flag: '🇲🇽' },
-        { code: '+505', name: 'Nicaragua', flag: '🇳🇮' },
-        { code: '+31', name: 'Países Bajos', flag: '🇳🇱' },
-        { code: '+507', name: 'Panamá', flag: '🇵🇦' },
-        { code: '+595', name: 'Paraguay', flag: '🇵🇾' },
-        { code: '+51', name: 'Perú', flag: '🇵🇪' },
-        { code: '+351', name: 'Portugal', flag: '🇵🇹' },
-        { code: '+1', name: 'Puerto Rico', flag: '🇵🇷' },
-        { code: '+44', name: 'Reino Unido', flag: '🇬🇧' },
-        { code: '+1', name: 'Rep. Dominicana', flag: '🇩🇴' },
-        { code: '+41', name: 'Suiza', flag: '🇨🇭' },
-        { code: '+598', name: 'Uruguay', flag: '🇺🇾' },
-        { code: '+58', name: 'Venezuela', flag: '🇻🇪' }
+        { code: '+507', name: 'Panamá', flag: '🇵🇦' }
     ];
+
+    // Prefijos Específicos para Venezuela (Pago Móvil)
+    const venezuelaPrefixes = ['0412', '0414', '0424', '0416', '0426'];
 
     const loadPhoneCodes = (selectElement) => {
         if (!selectElement) return;
-        countryPhoneCodes.sort((a, b) => a.name.localeCompare(b.name));
         selectElement.innerHTML = '<option value="">Código...</option>';
         countryPhoneCodes.forEach(country => {
-            if (country.code) {
-                selectElement.innerHTML += `<option value="${country.code}">${country.flag} ${country.code}</option>`;
-            }
+            selectElement.innerHTML += `<option value="${country.code}">${country.flag} ${country.code}</option>`;
         });
     };
 
@@ -314,10 +299,29 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleInputVisibility('toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname', 'segundo nombre');
     toggleInputVisibility('toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname', 'segundo apellido');
 
+    // MODIFICADO: Ahora maneja lógica especial para Venezuela (Prefijos vs Códigos País)
     const setPhoneCodeByPais = (paisId, selectElement) => {
         if (!selectElement) return;
-        const map = { "1": "+56", "3": "+58", "2": "+57", "5": "+51" };
-        selectElement.value = map[paisId.toString()] || "";
+        
+        selectElement.innerHTML = '';
+        
+        // Si es Venezuela (ID 3), cargamos prefijos de operadoras
+        if (paisId == 3) {
+            venezuelaPrefixes.forEach(prefix => {
+                selectElement.innerHTML += `<option value="${prefix}">${prefix}</option>`;
+            });
+        } else {
+            // Para otros países, cargamos códigos internacionales normales
+            countryPhoneCodes.forEach(country => {
+                selectElement.innerHTML += `<option value="${country.code}">${country.flag} ${country.code}</option>`;
+            });
+            
+            // Pre-seleccionar por defecto si existe match
+            const map = { "1": "+56", "2": "+57", "5": "+51" }; // Ajusta según IDs
+            if (map[paisId]) {
+                selectElement.value = map[paisId];
+            }
+        }
     };
 
     const updateDocumentValidation = () => {
@@ -327,80 +331,59 @@ document.addEventListener('DOMContentLoaded', () => {
         const isVenezuela = (paisId === 3);
 
         benefDocPrefix.classList.add('d-none');
-        benefDocNumberInput.value = benefDocNumberInput.value.replace(/[^0-9a-zA-Z]/g, '');
         benefDocNumberInput.maxLength = 20;
-        benefDocNumberInput.oninput = null;
+        benefDocNumberInput.placeholder = 'Número Documento';
+        
+        benefDocNumberInput.oninput = function () { 
+            this.value = this.value.replace(/[^0-9]/g, ''); 
+        };
 
         if (isVenezuela) {
-            if (docName.includes('cédula') || docName.includes('cedula')) {
-                benefDocPrefix.classList.remove('d-none');
-                benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option>';
-                benefDocNumberInput.maxLength = 8;
-                benefDocNumberInput.placeholder = '12345678';
-                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
-            } else if (docName.includes('rif') || docName.includes('e-rut')) {
+            if (docName.includes('cédula') || docName.includes('cedula') || docName.includes('v') || docName.includes('e')) {
                 benefDocPrefix.classList.remove('d-none');
                 benefDocPrefix.innerHTML = '<option value="V">V</option><option value="E">E</option>';
                 benefDocNumberInput.maxLength = 9;
+                benefDocNumberInput.placeholder = '12345678';
+                
+            } else if (docName.includes('rif') || docName.includes('jurídico')) {
+                benefDocPrefix.classList.remove('d-none');
+                benefDocPrefix.innerHTML = '<option value="J">J</option><option value="G">G</option><option value="V">V</option><option value="E">E</option>';
+                benefDocNumberInput.maxLength = 10;
                 benefDocNumberInput.placeholder = '123456789';
-                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
+            
             } else if (docName.includes('pasaporte')) {
                 benefDocPrefix.classList.remove('d-none');
-                benefDocPrefix.innerHTML = '<option value="P">P</option><option value="V">V</option><option value="E">E</option>';
+                benefDocPrefix.innerHTML = '<option value="P">P</option>';
                 benefDocNumberInput.maxLength = 15;
                 benefDocNumberInput.placeholder = 'Número Pasaporte';
-                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^a-zA-Z0-9]/g, ''); };
             }
         } else {
             if (docName.includes('rut')) {
                 benefDocNumberInput.maxLength = 12;
-                benefDocNumberInput.placeholder = '12.345.678-9';
+                benefDocNumberInput.placeholder = '12345678-9';
+                benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9kK-]/g, ''); };
             } else {
-                benefDocNumberInput.maxLength = 15;
-                benefDocNumberInput.placeholder = 'Número Documento';
                 benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^a-zA-Z0-9]/g, ''); };
             }
         }
     };
 
-    const enforceNameFormat = (inputId) => {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        input.maxLength = 12;
-        input.addEventListener('input', function () {
-            this.value = this.value.replace(/\s/g, '');
-        });
-    };
-
-    enforceNameFormat('benef-firstname');
-    enforceNameFormat('benef-secondname');
-    enforceNameFormat('benef-lastname');
-    enforceNameFormat('benef-secondlastname');
-
     const updateDocumentTypesList = () => {
         const paisId = parseInt(benefPaisIdInput.value);
-        const isVenezuela = (paisId === 3);
         benefDocTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
         allDocumentTypes.forEach(doc => {
             const nombreDoc = doc.nombre || doc.NombreDocumento || "";
-            const name = nombreDoc.toUpperCase();
-            let show = true;
-            if (isVenezuela) {
-                if (name === 'RUT' || name === 'DNI') show = false;
-            } else {
-                if (name === 'RIF' || name === 'E-RUT (RIF)') show = false;
-            }
-            if (show) {
-                benefDocTypeSelect.innerHTML += `<option value="${doc.id || doc.TipoDocumentoID}">${nombreDoc}</option>`;
-            }
+            benefDocTypeSelect.innerHTML += `<option value="${doc.id || doc.TipoDocumentoID}">${nombreDoc}</option>`;
         });
-        updateDocumentValidation();
     };
 
     benefDocTypeSelect.addEventListener('change', updateDocumentValidation);
+    
+    // Al cambiar país, actualizamos prefijos de teléfono y validaciones
     benefPaisIdInput.addEventListener('change', () => {
-        setPhoneCodeByPais(benefPaisIdInput.value, selectPhoneCode);
-        updateDocumentTypesList();
+        const paisId = benefPaisIdInput.value;
+        setPhoneCodeByPais(paisId, selectPhoneCode);
+        updateDocumentValidation();
     });
 
     if (inputAccountNum) {
@@ -493,13 +476,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cuentas.length > 0) {
                 cuentas.forEach(c => {
                     let detalle = '';
-                    if (c.NumeroCuenta) {
-                        detalle = c.NumeroCuenta;
+                    if (c.NumeroCuenta && c.NumeroTelefono) {
+                        detalle = `Cta: ...${c.NumeroCuenta.slice(-4)} | Móvil: ${c.NumeroTelefono}`;
+                    } else if (c.NumeroCuenta) {
+                        detalle = `Cta: ${c.NumeroCuenta}`;
                     } else if (c.NumeroTelefono) {
-                        detalle = c.NumeroTelefono;
+                        detalle = `Pago Móvil: ${c.NumeroTelefono}`;
                     } else {
                         detalle = 'Sin datos de pago';
                     }
+                    
                     beneficiaryListContainer.innerHTML += `
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
@@ -524,15 +510,24 @@ document.addEventListener('DOMContentLoaded', () => {
         addAccountModalLabel.textContent = 'Registrar Nuevo Beneficiario';
         benefCuentaIdInput.value = '';
         benefPaisIdInput.disabled = false;
+        
         const containerSecName = document.getElementById('container-benef-segundo-nombre');
         const containerSecLast = document.getElementById('container-benef-segundo-apellido');
+        const secNameInput = document.getElementById('benef-secondname');
+        const secLastInput = document.getElementById('benef-secondlastname');
+
         if (containerSecName) containerSecName.classList.remove('d-none');
         if (containerSecLast) containerSecLast.classList.remove('d-none');
+        if (secNameInput) secNameInput.required = true;
+        if (secLastInput) secLastInput.required = true;
+        
+        updateDocumentValidation();
     });
 
     beneficiaryListContainer.addEventListener('click', async (e) => {
         const editBtn = e.target.closest('.edit-benef-btn');
         const delBtn = e.target.closest('.del-benef-btn');
+        
         if (editBtn) {
             const id = editBtn.dataset.id;
             try {
@@ -545,72 +540,93 @@ document.addEventListener('DOMContentLoaded', () => {
                     benefCuentaIdInput.value = d.CuentaID;
                     benefPaisIdInput.value = d.PaisID;
                     benefPaisIdInput.disabled = true;
+                    
+                    // CARGAR CÓDIGOS DE TELÉFONO CORRECTOS SEGÚN PAIS
                     setPhoneCodeByPais(d.PaisID, selectPhoneCode);
-                    updateDocumentTypesList();
+                    
                     document.getElementById('benef-alias').value = d.Alias;
                     document.getElementById('benef-firstname').value = d.TitularPrimerNombre;
                     document.getElementById('benef-lastname').value = d.TitularPrimerApellido;
 
                     const secNameInput = document.getElementById('benef-secondname');
-                    const secNameContainer = document.getElementById('container-benef-segundo-nombre');
                     const secNameToggle = document.getElementById('toggle-benef-segundo-nombre');
+                    const secNameContainer = document.getElementById('container-benef-segundo-nombre');
                     
                     if (d.TitularSegundoNombre) {
                         secNameInput.value = d.TitularSegundoNombre;
                         secNameContainer.classList.remove('d-none');
-                        secNameInput.required = true;
                         secNameToggle.checked = false;
+                        secNameInput.required = true;
                     } else {
                         secNameInput.value = '';
                         secNameContainer.classList.add('d-none');
-                        secNameInput.required = false;
                         secNameToggle.checked = true;
+                        secNameInput.required = false;
                     }
 
                     const secLastInput = document.getElementById('benef-secondlastname');
-                    const secLastContainer = document.getElementById('container-benef-segundo-apellido');
                     const secLastToggle = document.getElementById('toggle-benef-segundo-apellido');
+                    const secLastContainer = document.getElementById('container-benef-segundo-apellido');
+                    
                     if (d.TitularSegundoApellido) {
                         secLastInput.value = d.TitularSegundoApellido;
                         secLastContainer.classList.remove('d-none');
-                        secLastInput.required = true;
                         secLastToggle.checked = false;
+                        secLastInput.required = true;
                     } else {
                         secLastInput.value = '';
                         secLastContainer.classList.add('d-none');
-                        secLastInput.required = false;
                         secLastToggle.checked = true;
+                        secLastInput.required = false;
                     }
-                    const bankInput = document.getElementById('benef-bank');
-                    if (bankInput) {
-                        bankInput.value = d.NombreBanco || '';
-                    }
-                    const accInput = document.getElementById('benef-account-num');
-                    if (accInput) accInput.value = d.NumeroCuenta || '';
-                    let docNum = d.TitularNumeroDocumento;
-                    const firstChar = (docNum || "").charAt(0).toUpperCase();
-                    if (['V', 'E', 'J', 'G', 'P'].includes(firstChar) && !benefDocPrefix.classList.contains('d-none')) {
-                        benefDocPrefix.value = firstChar;
-                        docNum = docNum.substring(1);
-                    }
-                    const docInput = document.getElementById('benef-doc-number');
-                    if (docInput) docInput.value = docNum || '';
-                    if (d.NumeroTelefono) {
-                        const codeMatch = countryPhoneCodes.find(c => d.NumeroTelefono.startsWith(c.code));
-                        if (codeMatch) {
-                            selectPhoneCode.value = codeMatch.code;
-                            inputPhoneNum.value = d.NumeroTelefono.substring(codeMatch.code.length);
-                        } else {
-                            inputPhoneNum.value = d.NumeroTelefono;
+
+                    benefDocTypeSelect.value = d.TitularTipoDocumentoID;
+                    updateDocumentValidation(); 
+
+                    let docNum = d.TitularNumeroDocumento || "";
+                    const firstChar = docNum.charAt(0).toUpperCase();
+                    if (d.PaisID == 3 && ['V', 'E', 'J', 'G', 'P'].includes(firstChar)) {
+                        if (!benefDocPrefix.classList.contains('d-none')) {
+                            benefDocPrefix.value = firstChar;
+                            docNum = docNum.substring(1);
                         }
                     }
+                    document.getElementById('benef-doc-number').value = docNum;
+
+                    document.getElementById('benef-bank').value = d.NombreBanco || '';
+                    document.getElementById('benef-account-num').value = d.NumeroCuenta || '';
+                    
+                    if (d.NumeroTelefono) {
+                        // Buscar match con prefijos o códigos
+                        if (d.PaisID == 3) {
+                            // Para Venezuela buscamos en los prefijos 0412, etc.
+                            const prefix = venezuelaPrefixes.find(p => d.NumeroTelefono.startsWith(p));
+                            if (prefix) {
+                                selectPhoneCode.value = prefix;
+                                inputPhoneNum.value = d.NumeroTelefono.substring(prefix.length);
+                            } else {
+                                inputPhoneNum.value = d.NumeroTelefono;
+                            }
+                        } else {
+                            const codeMatch = countryPhoneCodes.find(c => d.NumeroTelefono.startsWith(c.code));
+                            if (codeMatch) {
+                                selectPhoneCode.value = codeMatch.code;
+                                inputPhoneNum.value = d.NumeroTelefono.substring(codeMatch.code.length);
+                            } else {
+                                inputPhoneNum.value = d.NumeroTelefono;
+                            }
+                        }
+                    }
+
                     checkIncludeBank.checked = !!d.NumeroCuenta;
                     checkIncludeMobile.checked = !!d.NumeroTelefono;
                     updateSwitchUI();
+
                     addAccountModal.show();
                 }
             } catch (e) { console.error(e); }
         }
+        
         if (delBtn) {
             if (await window.showConfirmModal('Eliminar', '¿Estás seguro de eliminar este beneficiario?')) {
                 const id = delBtn.dataset.id;
