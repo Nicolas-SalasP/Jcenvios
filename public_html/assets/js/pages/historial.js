@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- REANUDAR/CORREGIR ORDEN (LÓGICA ACTUALIZADA) ---
+    // --- REANUDAR/CORREGIR ORDEN ---
     const resumeForm = document.getElementById('resume-order-form');
     const resumeModalEl = document.getElementById('resumeOrderModal');
     if (resumeForm) {
@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const filenameSpan = document.getElementById('comprobante-filename');
         const navigationDiv = document.getElementById('comprobante-navigation');
         const indicatorSpan = document.getElementById('comprobante-indicator');
-        const modalLabel = document.getElementById('viewComprobanteModalLabel');
+        const modalLabel = document.querySelector('#viewComprobanteModal .modal-title');
         const prevButton = document.getElementById('prev-comprobante');
         const nextButton = document.getElementById('next-comprobante');
 
@@ -519,10 +519,54 @@ document.addEventListener('DOMContentLoaded', () => {
         let currentIndex = 0;
         let currentTxId = '';
 
+        const handleShare = async () => {
+            if (!comprobantes[currentIndex]) return;
+            const current = comprobantes[currentIndex];
+            const url = current.url;
+            const btnShare = document.getElementById('share-comprobante');
+            if (!btnShare) return;
+
+            const originalText = btnShare.innerHTML;
+            btnShare.disabled = true;
+            btnShare.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                
+                const mimeType = current.ext === 'pdf' ? 'application/pdf' : blob.type;
+                const fileName = `comprobante_${currentTxId}.${current.ext}`;
+                const file = new File([blob], fileName, { type: mimeType });
+
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `Comprobante Orden #${currentTxId}`,
+                        text: `Adjunto comprobante de la orden #${currentTxId}.`
+                    });
+                } else {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = fileName;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                    alert("Tu dispositivo no soporta la función de compartir directo. El archivo se ha descargado.");
+                }
+            } catch (error) {
+                console.error("Error al compartir:", error);
+                if (error.name !== 'AbortError') {
+                    alert("No se pudo compartir el archivo.");
+                }
+            } finally {
+                btnShare.disabled = false;
+                btnShare.innerHTML = originalText;
+            }
+        };
+
         const renderVisor = () => {
             if (!comprobantes[currentIndex]) return;
             const current = comprobantes[currentIndex];
-            const typeText = current.type === 'user' ? 'Pago' : 'Envío';
+            const typeText = current.type === 'user' ? 'Pago Cliente' : 'Comprobante Envío';
 
             modalContent.innerHTML = '';
             modalPlaceholder.classList.remove('d-none');
@@ -533,7 +577,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (downloadButton) {
                 downloadButton.href = finalUrl;
-                downloadButton.download = `comprobante_${currentTxId}`;
+                downloadButton.download = `comprobante_${currentTxId}.${current.ext}`;
+            }
+            const currentShareBtn = document.getElementById('share-comprobante');
+            if (currentShareBtn) {
+                const newBtn = currentShareBtn.cloneNode(true);
+                currentShareBtn.parentNode.replaceChild(newBtn, currentShareBtn);
+                newBtn.addEventListener('click', handleShare);
             }
 
             const isPdf = current.url.includes('type=admin') || current.ext === 'pdf';
@@ -555,13 +605,13 @@ document.addEventListener('DOMContentLoaded', () => {
             mediaEl.onload = () => modalPlaceholder.classList.add('d-none');
             mediaEl.onerror = () => {
                 modalPlaceholder.classList.add('d-none');
-                console.error("Error al cargar el archivo:", finalUrl);
+                modalContent.innerHTML = '<div class="text-white">No se pudo cargar la vista previa.</div>';
             };
 
             mediaEl.src = finalUrl;
             modalContent.appendChild(mediaEl);
 
-            if (isPdf) setTimeout(() => modalPlaceholder.classList.add('d-none'), 2000);
+            if (isPdf) setTimeout(() => modalPlaceholder.classList.add('d-none'), 1500);
 
             if (comprobantes.length > 1) {
                 if (navigationDiv) navigationDiv.classList.remove('d-none');
@@ -579,11 +629,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             currentTxId = btn.dataset.txId || '';
             comprobantes = [];
+            
             if (btn.dataset.comprobanteUrl) {
                 comprobantes.push({
                     type: 'user',
                     url: btn.dataset.comprobanteUrl,
-                    ext: btn.dataset.fileExt,
+                    ext: btn.dataset.fileExt || 'jpg',
                     name: btn.dataset.fileName
                 });
             }
@@ -591,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 comprobantes.push({
                     type: 'admin',
                     url: btn.dataset.envioUrl,
-                    ext: btn.dataset.fileExt,
+                    ext: btn.dataset.fileExt || 'pdf',
                     name: btn.dataset.fileName
                 });
             }
@@ -614,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- CARGA INICIAL, INYECCIÓN DE MODAL Y AUTO-REFRESH ---
+    // --- CARGA INICIAL ---
     injectResumeForm();
     loadHistorial();
     setInterval(loadHistorial, 10000);

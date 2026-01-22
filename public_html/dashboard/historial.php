@@ -190,9 +190,26 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <div id="comprobante-placeholder" class="text-white">Cargando...</div>
                 <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center"></div>
             </div>
-            <div class="modal-footer py-1 bg-light justify-content-between">
-                <span id="comprobante-filename" class="text-muted small"></span>
-                <a href="#" id="download-comprobante" class="btn btn-sm btn-primary">Descargar</a>
+            
+            <div class="modal-footer py-2 bg-light justify-content-between align-items-center">
+                
+                <div id="comprobante-navigation" class="d-none">
+                    <button id="prev-comprobante" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></button>
+                    <span id="comprobante-indicator" class="mx-2 small fw-bold"></span>
+                    <button id="next-comprobante" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></button>
+                </div>
+
+                <div class="d-flex gap-2 ms-auto align-items-center">
+                    <span id="comprobante-filename" class="text-muted small me-2 d-none d-md-inline"></span>
+                    
+                    <button type="button" id="share-comprobante" class="btn btn-sm btn-success text-white">
+                        <i class="bi bi-share-fill me-1"></i> Compartir
+                    </button>
+                    
+                    <a href="#" id="download-comprobante" class="btn btn-sm btn-primary">
+                        <i class="bi bi-download me-1"></i> Descargar
+                    </a>
+                </div>
             </div>
         </div>
     </div>
