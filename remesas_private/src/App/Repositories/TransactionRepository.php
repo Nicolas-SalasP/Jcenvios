@@ -465,33 +465,46 @@ class TransactionRepository
         return $result;
     }
 
-    public function getExportData(): array
+    public function getExportData(?string $startDate = null, ?string $endDate = null): array
     {
         $sql = "SELECT
                     T.TransaccionID,
+                    T.FechaTransaccion,
                     CONCAT(U.PrimerNombre, ' ', U.PrimerApellido) AS ClienteNombre,
+                    U.NumeroDocumento AS ClienteDocumento,
                     T.MontoOrigen,
                     TS.ValorTasa,
                     T.MontoDestino,
                     T.ComisionDestino,
-                    
                     (SELECT Timestamp FROM logs 
                     WHERE Detalles LIKE CONCAT('%TX ID: ', T.TransaccionID, '%') 
                     AND Accion LIKE 'Admin complet%' 
                     ORDER BY LogID DESC LIMIT 1) as FechaCompletado,
-                    
-                    COALESCE(CBA.Banco, FP.Nombre) AS BancoOrigenReal,
-                    
+                    COALESCE(CBA_IN.Banco, FP.Nombre) AS BancoOrigenCliente,
+                    CBA_OUT.Banco AS BancoSalidaAdmin,
+                    T.BeneficiarioNombre,
                     T.BeneficiarioBanco,
                     T.BeneficiarioNumeroCuenta
                 FROM transacciones T
                 JOIN usuarios U ON T.UserID = U.UserID
                 JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID
                 LEFT JOIN formas_pago FP ON T.FormaPagoID = FP.FormaPagoID
-                LEFT JOIN cuentas_bancarias_admin CBA ON T.FormaPagoID = CBA.FormaPagoID AND TS.PaisOrigenID = CBA.PaisID AND CBA.Activo = 1
-                ORDER BY T.FechaTransaccion DESC";
+                LEFT JOIN cuentas_bancarias_admin CBA_IN ON T.FormaPagoID = CBA_IN.FormaPagoID AND TS.PaisOrigenID = CBA_IN.PaisID AND CBA_IN.Activo = 1
+                LEFT JOIN cuentas_bancarias_admin CBA_OUT ON T.CuentaAdminSalidaID = CBA_OUT.CuentaAdminID
+                
+                WHERE T.EstadoID IN (4, 5)";
+        if ($startDate && $endDate) {
+            $sql .= " AND DATE(T.FechaTransaccion) BETWEEN ? AND ?";
+        }
+
+        $sql .= " ORDER BY T.FechaTransaccion DESC";
 
         $stmt = $this->db->prepare($sql);
+
+        if ($startDate && $endDate) {
+            $stmt->bind_param("ss", $startDate, $endDate);
+        }
+
         $stmt->execute();
         $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
