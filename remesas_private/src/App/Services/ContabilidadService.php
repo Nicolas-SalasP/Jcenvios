@@ -378,19 +378,36 @@ class ContabilidadService
     {
         $mesStr = str_pad((string) $mes, 2, '0', STR_PAD_LEFT);
         $anioStr = (string) $anio;
+        $movimientos = [];
+        $entidadNombre = '';
+        $moneda = '';
 
-        $cuenta = $this->cuentasAdminRepo->getById($id);
-        if (!$cuenta) {
-            throw new Exception("Cuenta bancaria no encontrada.");
+        if ($tipo === 'banco') {
+            $cuenta = $this->cuentasAdminRepo->getById($id);
+            if (!$cuenta)
+                throw new Exception("Cuenta bancaria no encontrada.");
+
+            $entidadNombre = $cuenta['Banco'] . ' - ' . $cuenta['Titular'];
+            $moneda = $this->countryRepo->findMonedaById($cuenta['PaisID']) ?? '???';
+            $movimientos = $this->contabilidadRepo->getMovimientosBancoDelMes($id, $mesStr, $anioStr);
+        } else {
+            $saldo = $this->contabilidadRepo->getSaldoPorPais($id);
+            $movimientos = $this->contabilidadRepo->getMovimientosDelMes($id, $mesStr, $anioStr);
+            $entidadNombre = "Caja País/Destino"; 
+            $moneda = "N/A";
         }
 
-        $movimientos = $this->contabilidadRepo->getMovimientosBancoDelMes($id, $mesStr, $anioStr);
-        $moneda = $this->countryRepo->findMonedaById($cuenta['PaisID']) ?? '???';
+        $totalGastado = 0.0;
+        foreach ($movimientos as $mov) {
+            if (in_array($mov['TipoMovimiento'], ['GASTO_VARIO', 'GASTO_TX', 'GASTO_COMISION', 'RETIRO_DIVISAS'])) {
+                $totalGastado += (float) $mov['Monto'];
+            }
+        }
 
         return [
-            'Entidad' => $cuenta['Banco'] . ' - ' . $cuenta['Titular'],
+            'Entidad' => $entidadNombre,
             'Moneda' => $moneda,
-            'TotalGastado' => 0,
+            'TotalGastado' => $totalGastado,
             'Movimientos' => $movimientos
         ];
     }
