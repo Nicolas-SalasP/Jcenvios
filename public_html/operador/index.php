@@ -15,8 +15,8 @@ if ($paginaActual < 1)
     $paginaActual = 1;
 $offset = ($paginaActual - 1) * $registrosPorPagina;
 
-// Filtro Historial: Pagados, Cancelados y En Proceso (por si acaso quedó alguna)
-$estadosVisibles = "3, 4, 5";
+// Incluir estado 6 (Pausado)
+$estadosVisibles = "3, 4, 5, 6";
 
 $sqlCount = "SELECT COUNT(*) as total FROM transacciones WHERE EstadoID IN ($estadosVisibles)";
 $totalRegistros = $conexion->query($sqlCount)->fetch_assoc()['total'];
@@ -46,6 +46,7 @@ function getStatusBadgeClass($statusName)
         'Pagado' => 'bg-success',
         'En Proceso' => 'bg-primary',
         'Cancelado' => 'bg-danger',
+        'Pausado' => 'bg-warning text-dark',
         default => 'bg-secondary'
     };
 }
@@ -79,7 +80,7 @@ function getStatusBadgeClass($statusName)
                     <tbody>
                         <?php if (empty($transacciones)): ?>
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No hay historial disponible.</td>
+                                <td colspan="9" class="text-center text-muted py-4">No hay historial disponible.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($transacciones as $tx): ?>
@@ -91,9 +92,22 @@ function getStatusBadgeClass($statusName)
                                     <td><?php echo number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $tx['MonedaDestino']; ?>
                                     </td>
                                     <td>
-                                        <span class="badge <?php echo getStatusBadgeClass($tx['EstadoNombre']); ?>">
-                                            <?php echo $tx['EstadoNombre']; ?>
-                                        </span>
+                                        <div class="d-flex flex-column align-items-start">
+                                            <span class="badge <?php echo getStatusBadgeClass($tx['EstadoNombre']); ?>">
+                                                <?php echo $tx['EstadoNombre']; ?>
+                                            </span>
+
+                                            <?php if ($tx['EstadoNombre'] === 'Pausado' && !empty($tx['MotivoPausa'])): ?>
+                                                <button type="button" 
+                                                    class="btn btn-sm btn-outline-warning text-dark py-0 px-2 mt-1 rounded-pill" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#viewPauseReasonModal"
+                                                    data-reason="<?php echo htmlspecialchars($tx['MotivoPausa']); ?>"
+                                                    style="font-size: 0.75rem; border: 1px solid #ffc107; background-color: #fff3cd;">
+                                                    <i class="bi bi-eye-fill me-1"></i> Ver Motivo
+                                                </button>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
 
                                     <td>
@@ -118,10 +132,10 @@ function getStatusBadgeClass($statusName)
 
                                     <td>
                                         <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
-                                            <button class="btn btn-sm btn-success view-comprobante-btn" data-bs-toggle="modal"
+                                            <button class="btn btn-sm btn-success view-comprobante-btn-admin" data-bs-toggle="modal"
                                                 data-bs-target="#viewComprobanteModal"
                                                 data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                                data-comprobante-url="/admin/view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
+                                                data-comprobante-url="<?php echo BASE_URL . '/admin/view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']); ?>"
                                                 title="Ver Comprobante">
                                                 <i class="bi bi-eye"></i> Ver
                                             </button>
@@ -186,26 +200,115 @@ function getStatusBadgeClass($statusName)
     </div>
 </div>
 
-<div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content" style="height: 90vh;">
-            <div class="modal-header py-2 bg-light">
-                <h5 class="modal-title fs-6" id="viewComprobanteModalLabel">Visor</h5>
+<div class="modal fade" id="viewPauseReasonModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-warning py-2">
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-pause-circle-fill me-2"></i>Motivo de Pausa</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center">
-                <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-                <img id="comprobante-img-full" class="img-fluid d-none" alt="Comprobante">
-                <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
-                <a id="download-comprobante-btn" class="btn btn-light position-absolute top-0 end-0 m-3 d-none"
-                    download>
-                    <i class="bi bi-download"></i>
-                </a>
-
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-info-circle text-warning display-4 mb-3 d-block"></i>
+                <p class="mb-0 fw-medium" id="pause-reason-text" style="font-size: 1.1rem;"></p>
+            </div>
+            <div class="modal-footer justify-content-center py-2 bg-light border-0">
+                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
 </div>
 
+<div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content d-flex flex-column" style="height: 90vh;">
+            <div class="modal-header py-2 bg-light">
+                <h5 class="modal-title fs-6" id="viewComprobanteModalLabel">Visor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center position-relative flex-grow-1 h-100 overflow-hidden">
+                
+                <div id="comprobante-placeholder" class="spinner-border text-light"></div>
+                
+                <img id="comprobante-img-full" class="d-none" style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
+                
+                <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
+                
+                <a id="download-comprobante-btn" class="btn btn-light position-absolute top-0 end-0 m-3 d-none" download>
+                    <i class="bi bi-download"></i> Descargar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // --- LÓGICA MODAL MOTIVO PAUSA ---
+    const pauseModal = document.getElementById('viewPauseReasonModal');
+    if (pauseModal) {
+        pauseModal.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget;
+            const reason = button.getAttribute('data-reason');
+            const modalBodyText = pauseModal.querySelector('#pause-reason-text');
+            modalBodyText.textContent = reason;
+        });
+    }
+
+    // --- LÓGICA MEJORADA VISOR COMPROBANTE ---
+    document.body.addEventListener('click', function(e) {
+        const btn = e.target.closest('.view-comprobante-btn-admin');
+        if (btn) {
+            e.preventDefault();
+            
+            const url = btn.dataset.comprobanteUrl;
+            const imgEl = document.getElementById('comprobante-img-full');
+            const pdfEl = document.getElementById('comprobante-pdf-full');
+            const placeholder = document.getElementById('comprobante-placeholder');
+            const downloadBtn = document.getElementById('download-comprobante-btn');
+            
+            // Reset
+            imgEl.classList.add('d-none');
+            pdfEl.classList.add('d-none');
+            placeholder.classList.remove('d-none');
+            imgEl.src = '';
+            pdfEl.src = '';
+            
+            // Detectar extensión real
+            let extension = '';
+            if (url.includes('?')) {
+                const urlParams = new URLSearchParams(url.split('?')[1]);
+                const fileParam = urlParams.get('file');
+                if (fileParam) {
+                    extension = fileParam.split('.').pop().toLowerCase();
+                }
+            } else {
+                extension = url.split('.').pop().toLowerCase();
+            }
+
+            // Mostrar
+            setTimeout(() => {
+                placeholder.classList.add('d-none');
+                
+                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
+                    imgEl.src = url;
+                    imgEl.classList.remove('d-none');
+                } else if (extension === 'pdf') {
+                    pdfEl.src = url;
+                    pdfEl.classList.remove('d-none');
+                } else {
+                    imgEl.src = url;
+                    imgEl.classList.remove('d-none');
+                }
+                
+                if(downloadBtn) {
+                    downloadBtn.href = url;
+                    downloadBtn.classList.remove('d-none');
+                }
+            }, 500);
+        }
+    });
+});
+</script>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

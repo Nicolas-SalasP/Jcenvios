@@ -108,19 +108,38 @@ class PDFService
             $pdf->Cell(65, 6, $this->cleanText($valueBen), $currentBorder, 1, 'L', $fill);
         };
 
-        // Lógica inteligente: Si es Pago Móvil, mostramos Teléfono en vez de Cuenta
-        $labelCuenta = 'Cuenta:';
-        $valorCuenta = $tx['BeneficiarioNumeroCuenta'];
-
-        if ($valorCuenta === 'PAGO MOVIL' || empty($valorCuenta) || $valorCuenta == '00000000000000000000') {
-            $labelCuenta = 'Teléfono:';
-            $valorCuenta = $tx['BeneficiarioTelefono'];
-        }
-
+        // Filas estándar
         $printDataRow('Nombre:', $tx['PrimerNombre'] . ' ' . $tx['PrimerApellido'], 'Nombre:', $tx['BeneficiarioNombre']);
         $printDataRow('Documento:', $tx['NumeroDocumento'], 'Documento:', $tx['BeneficiarioDocumento']);
         $printDataRow('Email:', $tx['Email'], 'Banco:', $tx['BeneficiarioBanco']);
-        $printDataRow('', '', $labelCuenta, $valorCuenta, true); // Última fila
+        
+        // Validar si existe una cuenta bancaria real (que no sea un placeholder de pago móvil)
+        $tieneCuenta = !empty($tx['BeneficiarioNumeroCuenta']) 
+                    && $tx['BeneficiarioNumeroCuenta'] !== 'PAGO MOVIL' 
+                    && $tx['BeneficiarioNumeroCuenta'] != '00000000000000000000';
+
+        // Validar si existe un teléfono
+        $tieneTelefono = !empty($tx['BeneficiarioTelefono']);
+
+        // CASO A: Tiene AMBOS (Ej: Venezuela con Cuenta y Pago Móvil)
+        if ($tieneCuenta && $tieneTelefono) {
+            // Imprimimos la cuenta sin borde inferior (no es la última)
+            $printDataRow('', '', 'Cuenta:', $tx['BeneficiarioNumeroCuenta'], false);
+            // Imprimimos el teléfono como última fila (con borde inferior)
+            $printDataRow('', '', 'Teléfono:', $tx['BeneficiarioTelefono'], true);
+        }
+        // CASO B: Solo tiene Cuenta (Bancos tradicionales, Interbank, etc.)
+        elseif ($tieneCuenta) {
+            $printDataRow('', '', 'Cuenta:', $tx['BeneficiarioNumeroCuenta'], true);
+        }
+        // CASO C: Solo tiene Teléfono o es Pago Móvil puro (Yape, Plin, o Pago Móvil sin cuenta)
+        elseif ($tieneTelefono) {
+            $printDataRow('', '', 'Teléfono:', $tx['BeneficiarioTelefono'], true);
+        }
+        // CASO D: Fallback
+        else {
+            $printDataRow('', '', 'Cuenta:', 'N/A', true);
+        }
 
         $pdf->Ln(8);
 

@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_rol_name']) ||
 }
 
 $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
-$estadosSQL = $isOperator ? "3" : "2, 3";
+$estadosSQL = $isOperator ? "3, 6" : "2, 3, 6";
 
 $sql = "
     SELECT T.*, 
@@ -41,6 +41,7 @@ foreach ($transacciones as $tx):
     $badgeClass = match ($tx['EstadoNombre']) {
         'En Verificación' => 'bg-info text-dark',
         'En Proceso' => 'bg-primary',
+        'Pausado' => 'bg-warning text-dark',
         default => 'bg-secondary'
     };
 
@@ -80,7 +81,12 @@ foreach ($transacciones as $tx):
         <td class="fw-bold text-success">
             <?php echo number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $tx['MonedaDestino']; ?>
         </td>
-        <td><span class="badge <?php echo $badgeClass; ?>"><?php echo $tx['EstadoNombre']; ?></span></td>
+        
+        <td>
+            <div class="d-flex flex-column align-items-center">
+                <span class="badge <?php echo $badgeClass; ?>"><?php echo $tx['EstadoNombre']; ?></span>
+            </div>
+        </td>
 
         <td class="text-center">
             <div class="d-flex justify-content-center gap-1">
@@ -104,11 +110,20 @@ foreach ($transacciones as $tx):
                     <i class="bi bi-file-earmark-pdf"></i>
                 </a>
 
+                <?php if ($tx['EstadoNombre'] === 'Pausado' && !empty($tx['MotivoPausa'])): ?>
+                    <button type="button" 
+                        class="btn btn-sm btn-warning view-pause-reason-btn" 
+                        data-reason="<?php echo htmlspecialchars($tx['MotivoPausa']); ?>"
+                        title="Ver Motivo de Pausa">
+                        <i class="bi bi-info-circle-fill"></i>
+                    </button>
+                <?php endif; ?>
+
                 <?php if (!empty($tx['ComprobanteURL'])): ?>
                     <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin"
                         data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
                         data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                        data-comprobante-url="<?php echo BASE_URL . htmlspecialchars($tx['ComprobanteURL']); ?>"
+                        data-comprobante-url="<?php echo BASE_URL . '/admin/view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']); ?>"
                         title="Ver Comprobante Cliente">
                         <i class="bi bi-eye"></i>
                     </button>
