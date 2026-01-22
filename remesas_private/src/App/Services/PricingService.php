@@ -60,7 +60,11 @@ class PricingService
         foreach ($tasasRef as $t) {
             try {
                 $valorOriginal = (float) $t['ValorTasa'];
-                $nuevoValor = $valorOriginal * (1 + ($percentage / 100));
+                $origen = (int) $t['PaisOrigenID'];
+                $destino = (int) $t['PaisDestinoID'];
+                $modo = $this->getCalculationMode($origen, $destino);
+                $porcentajeAplicar = ($modo === 'divide') ? ($percentage * -1) : $percentage;
+                $nuevoValor = $valorOriginal * (1 + ($porcentajeAplicar / 100));
 
                 $this->rateRepository->updateRateValue(
                     (int) $t['TasaID'],
@@ -72,10 +76,8 @@ class PricingService
                     0
                 );
 
-                $this->recalculateRouteRates((int) $t['PaisOrigenID'], (int) $t['PaisDestinoID'], $nuevoValor);
+                $this->recalculateRouteRates($origen, $destino, $nuevoValor);
 
-                $origen = $t['PaisOrigenID'];
-                $destino = $t['PaisDestinoID'];
                 $detalleLog = "Ajuste Global ({$percentage}%): Tasa Ref ID {$t['TasaID']} (Ruta {$origen}->{$destino}) cambió de " .
                     number_format($valorOriginal, 4, ',', '.') . " a " . number_format($nuevoValor, 4, ',', '.');
 
@@ -83,8 +85,8 @@ class PricingService
 
                 $this->rateRepository->logRateChange(
                     (int) $t['TasaID'],
-                    (int) $t['PaisOrigenID'],
-                    (int) $t['PaisDestinoID'],
+                    $origen,
+                    $destino,
                     $nuevoValor,
                     (float) $t['MontoMinimo'],
                     (float) $t['MontoMaximo']
