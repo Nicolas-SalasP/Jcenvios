@@ -137,6 +137,7 @@ class TransactionRepository
             T.BeneficiarioDocumento,
             T.BeneficiarioBanco,
             T.BeneficiarioNumeroCuenta,
+            T.BeneficiarioCCI,
             T.BeneficiarioTelefono,
 
             TS.ValorTasa,

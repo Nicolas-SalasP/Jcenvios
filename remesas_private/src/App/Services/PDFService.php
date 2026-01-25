@@ -113,32 +113,37 @@ class PDFService
         $printDataRow('Documento:', $tx['NumeroDocumento'], 'Documento:', $tx['BeneficiarioDocumento']);
         $printDataRow('Email:', $tx['Email'], 'Banco:', $tx['BeneficiarioBanco']);
         
-        // Validar si existe una cuenta bancaria real (que no sea un placeholder de pago móvil)
-        $tieneCuenta = !empty($tx['BeneficiarioNumeroCuenta']) 
-                    && $tx['BeneficiarioNumeroCuenta'] !== 'PAGO MOVIL' 
-                    && $tx['BeneficiarioNumeroCuenta'] != '00000000000000000000';
+        
+        $banco = strtoupper($tx['BeneficiarioBanco'] ?? '');
+        $rawCuenta = $tx['BeneficiarioNumeroCuenta'] ?? '';
+        $rawTelefono = $tx['BeneficiarioTelefono'] ?? '';
+        $rawCCI = $tx['BeneficiarioCCI'] ?? ''; 
+        $esYapePlin = ($banco === 'YAPE' || $banco === 'PLIN');
+        $esPeru = (isset($tx['MonedaDestino']) && $tx['MonedaDestino'] === 'PEN') || (isset($tx['PaisDestinoID']) && $tx['PaisDestinoID'] == 4);
+        $tieneCuenta = !empty($rawCuenta) 
+                    && $rawCuenta !== 'PAGO MOVIL' 
+                    && $rawCuenta != '00000000000000000000'
+                    && !$esYapePlin;
+        $tieneCCI = $esPeru && !empty($rawCCI) && !$esYapePlin;
+        $tieneTelefono = !empty($rawTelefono);
+        $rowsToPrint = [];
 
-        // Validar si existe un teléfono
-        $tieneTelefono = !empty($tx['BeneficiarioTelefono']);
+        if ($tieneCuenta) {
+            $rowsToPrint[] = ['label' => 'Cuenta:', 'val' => $rawCuenta];
+        }
+        if ($tieneCCI) {
+            $rowsToPrint[] = ['label' => 'CCI:', 'val' => $rawCCI];
+        }
+        if ($tieneTelefono) {
+            $rowsToPrint[] = ['label' => 'Teléfono:', 'val' => $rawTelefono];
+        }
+        if (empty($rowsToPrint)) {
+            $rowsToPrint[] = ['label' => 'Cuenta:', 'val' => 'N/A'];
+        }
 
-        // CASO A: Tiene AMBOS (Ej: Venezuela con Cuenta y Pago Móvil)
-        if ($tieneCuenta && $tieneTelefono) {
-            // Imprimimos la cuenta sin borde inferior (no es la última)
-            $printDataRow('', '', 'Cuenta:', $tx['BeneficiarioNumeroCuenta'], false);
-            // Imprimimos el teléfono como última fila (con borde inferior)
-            $printDataRow('', '', 'Teléfono:', $tx['BeneficiarioTelefono'], true);
-        }
-        // CASO B: Solo tiene Cuenta (Bancos tradicionales, Interbank, etc.)
-        elseif ($tieneCuenta) {
-            $printDataRow('', '', 'Cuenta:', $tx['BeneficiarioNumeroCuenta'], true);
-        }
-        // CASO C: Solo tiene Teléfono o es Pago Móvil puro (Yape, Plin, o Pago Móvil sin cuenta)
-        elseif ($tieneTelefono) {
-            $printDataRow('', '', 'Teléfono:', $tx['BeneficiarioTelefono'], true);
-        }
-        // CASO D: Fallback
-        else {
-            $printDataRow('', '', 'Cuenta:', 'N/A', true);
+        foreach ($rowsToPrint as $index => $row) {
+            $isLast = ($index === count($rowsToPrint) - 1);
+            $printDataRow('', '', $row['label'], $row['val'], $isLast);
         }
 
         $pdf->Ln(8);
@@ -156,10 +161,8 @@ class PDFService
 
         $pdf->SetFont('Arial', '', 11);
         $pdf->Cell($cellWidths[0], 10, number_format($tx['MontoOrigen'], 2, ',', '.') . ' ' . $this->cleanText($tx['MonedaOrigen']), 1, 0, 'C');
-        // Tasa con 5 decimales para precisión
-        $pdf->Cell($cellWidths[1], 10, number_format($tx['ValorTasa'], 5, ',', '.') . ' ' . $this->cleanText($tx['MonedaDestino']) . '/' . $this->cleanText($tx['MonedaOrigen']), 1, 0, 'C');
+        $pdf->Cell($cellWidths[1], 10, number_format($tx['ValorTasa'], 5, ',', '.'), 1, 0, 'C');
         
-        // Monto exacto (sin "aprox")
         $pdf->Cell($cellWidths[2], 10, number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $this->cleanText($tx['MonedaDestino']), 1, 1, 'C');
         $pdf->Ln(10);
 
