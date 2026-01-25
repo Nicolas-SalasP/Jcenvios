@@ -153,7 +153,8 @@ class Container
                 $this->get(RateRepository::class),
                 $this->get(EstadoTransaccionRepository::class),
                 $this->get(CountryRepository::class),
-                $this->get(TasasHistoricoRepository::class)
+                $this->get(TasasHistoricoRepository::class),
+                $this->get(FileHandlerService::class)
             ),
 
                 // Controladores
@@ -245,6 +246,7 @@ try {
 
         // Client - Transacciones
         'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
+        'subirComprobanteDetallado' => [DashboardController::class, 'subirComprobanteExpress', 'POST'],
         'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
         'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
         'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],

@@ -53,4 +53,43 @@ class DashboardController extends BaseController
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
         }
     }
+
+    public function subirComprobanteExpress(): void
+    {
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                throw new Exception("Sesión expirada o inválida.", 401);
+            }
+
+            $transactionId = $_POST['transaction_id'] ?? null;
+            $rut = $_POST['rut_titular'] ?? '';
+            $nombre = $_POST['nombre_titular'] ?? '';
+            $file = $_FILES['comprobante'] ?? null;
+
+            if (!$transactionId || !$rut || !$nombre || !$file) {
+                throw new Exception("Faltan datos obligatorios (ID, RUT, Nombre o Archivo).", 400);
+            }
+
+            $resultado = $this->dashboardService->procesarComprobanteExpress(
+                (int)$_SESSION['user_id'],
+                (int)$transactionId,
+                $rut,
+                $nombre,
+                $file
+            );
+
+            if ($resultado) {
+                $this->sendJsonResponse(['success' => true, 'message' => 'Comprobante subido correctamente.']);
+            } else {
+                throw new Exception("No se pudo actualizar la base de datos.", 500);
+            }
+
+        } catch (Exception $e) {
+            error_log("Error en subirComprobanteExpress: " . $e->getMessage());
+            $this->sendJsonResponse(
+                ['success' => false, 'error' => $e->getMessage()], 
+                $e->getCode() >= 400 ? $e->getCode() : 500
+            );
+        }
+    }
 }

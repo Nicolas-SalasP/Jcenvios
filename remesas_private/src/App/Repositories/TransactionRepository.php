@@ -622,4 +622,23 @@ class TransactionRepository
 
         return $result;
     }
+    public function updatePaymentDetails(int $id, string $imgName, string $rut, string $nombre): bool
+    {
+        $sql = "UPDATE transacciones 
+                SET ComprobanteURL = ?, 
+                    RutTitularOrigen = ?, 
+                    NombreTitularOrigen = ?,
+                    EstadoID = (SELECT EstadoID FROM estados_transaccion WHERE NombreEstado = 'En Proceso' LIMIT 1),
+                    FechaSubidaComprobante = NOW()
+                WHERE TransaccionID = ?";
+
+        $stmt = $this->db->prepare($sql);
+
+        $stmt->bind_param("sssi", $imgName, $rut, $nombre, $id);
+
+        $result = $stmt->execute();
+        $stmt->close();
+
+        return $result;
+    }
 }

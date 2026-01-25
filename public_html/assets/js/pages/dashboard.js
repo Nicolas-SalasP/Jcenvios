@@ -324,15 +324,14 @@ document.addEventListener('DOMContentLoaded', () => {
     montoUsdInput.addEventListener('input', handleInput);
 
     // =========================================================
-    // LÓGICA DE ENVÍO DE ORDEN (CON CONFIRMACIÓN RIESGOSA)
+    // LÓGICA DE ENVÍO DE ORDEN (CORREGIDA)
     // =========================================================
     submitBtn?.addEventListener('click', async (e) => {
-        e.preventDefault(); // 1. Evitar submit nativo
+        e.preventDefault();
 
-        // 2. Bloqueo de seguridad para evitar dobles clicks
         if (isSubmitting) return;
 
-        // 3. Validar Horario
+        // Validar Horario
         if (!checkBusinessHours()) {
             const proceed = await confirmActionWithModal(
                 'Aviso de Horario',
@@ -341,15 +340,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!proceed) return;
         }
 
-        // 4. Validar Ruta Riesgosa (ANTES de enviar)
+        // Validar Ruta Riesgosa
         if (isRiskyRoute) {
             const msgRiesgo = "Su orden requiere aprobación.\nCuando su orden sea aprobada podrá subir su comprobante y continuar el envío.\n\n¿Desea generar la orden bajo estas condiciones?";
             const aceptaRiesgo = await confirmActionWithModal('Atención: Ruta en Verificación', msgRiesgo);
-
-            if (!aceptaRiesgo) return; // Si cancela, se detiene
+            if (!aceptaRiesgo) return;
         }
 
-        // 5. Proceder al Envío (Bloquear UI)
         isSubmitting = true;
         submitBtn.disabled = true;
         submitBtn.textContent = 'Procesando...';
@@ -369,40 +366,128 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            const res = await resp.json();
+
+            // Verificación previa para evitar errores de sintaxis si el PHP devuelve warnings
+            const textResp = await resp.text();
+            let res;
+            try {
+                res = JSON.parse(textResp);
+            } catch (jsonErr) {
+                console.error("Error parseando respuesta del servidor:", textResp);
+                throw new Error("El servidor devolvió una respuesta inválida. Revisa la consola.");
+            }
 
             if (res.success) {
                 let finalId = res.transaccionID;
                 if (typeof finalId === 'object' && finalId !== null) {
                     finalId = finalId.TransaccionID || finalId.id || JSON.stringify(finalId);
                 }
-                transaccionIdFinal.textContent = finalId;
-
-                const divNormal = document.getElementById('msg-exito-normal');
-                const divRiesgo = document.getElementById('msg-exito-riesgo');
 
                 if (isRiskyRoute) {
+                    transaccionIdFinal.textContent = finalId;
+                    const divNormal = document.getElementById('msg-exito-normal');
+                    const divRiesgo = document.getElementById('msg-exito-riesgo');
                     if (divNormal) divNormal.classList.add('d-none');
                     if (divRiesgo) divRiesgo.classList.remove('d-none');
+                    currentStep++;
+                    updateView();
                 } else {
-                    if (divNormal) divNormal.classList.remove('d-none');
-                    if (divRiesgo) divRiesgo.classList.add('d-none');
-                }
+                    // CORRECCIÓN AQUÍ: Usar selector más seguro (.card)
+                    const wizardContainer = document.querySelector('.card') || document.getElementById('remittance-form').parentNode;
 
-                currentStep++;
-                updateView();
-            }
-            else {
+                    if (!wizardContainer) {
+                        throw new Error("No se encontró el contenedor para mostrar el formulario de carga.");
+                    }
+
+                    wizardContainer.innerHTML = `
+                        <div class="text-center animate__animated animate__fadeIn p-4">
+                            <div class="mb-4">
+                                <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                            </div>
+                            <h3 class="mb-3 text-success">¡Orden #${finalId} Creada!</h3>
+                            <p class="text-muted mb-4">Para procesar tu envío rápidamente, por favor sube el comprobante ahora.</p>
+                            
+                            <div class="card bg-light border-0 p-4 mx-auto shadow-sm" style="max-width: 500px;">
+                                <form id="form-comprobante-express">
+                                    <input type="hidden" name="transaction_id" value="${finalId}">
+                                    
+                                    <div class="form-floating mb-3 text-start">
+                                        <input type="text" class="form-control" id="rut_titular_pago" name="rut_titular" required placeholder="Ej: 12.345.678-9">
+                                        <label for="rut_titular_pago">RUT del Titular (Quien transfirió)</label>
+                                    </div>
+
+                                    <div class="form-floating mb-3 text-start">
+                                        <input type="text" class="form-control" id="nombre_titular_pago" name="nombre_titular" required placeholder="Nombre Completo">
+                                        <label for="nombre_titular_pago">Nombre del Titular</label>
+                                    </div>
+
+                                    <div class="mb-3 text-start">
+                                        <label class="form-label small fw-bold">Adjuntar Comprobante</label>
+                                        <input class="form-control" type="file" id="comprobante_file" name="comprobante" accept="image/*,.pdf" required>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary w-100 py-3 fw-bold fs-5" id="btn-subir-express">
+                                        <i class="bi bi-cloud-upload-fill me-2"></i> Subir y Finalizar
+                                    </button>
+                                    
+                                    <button type="button" class="btn btn-link text-muted mt-3 btn-sm" onclick="window.location.href='historial.php'">
+                                        Lo subiré más tarde
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    `;
+
+                    // Activar validador de RUT si existe, sino no pasa nada
+                    if (typeof RutValidator !== 'undefined') {
+                        new RutValidator(document.getElementById('rut_titular_pago'));
+                    } else {
+                        console.warn("RutValidator no está cargado, la validación de RUT será básica.");
+                    }
+
+                    // Manejar Envío del Comprobante
+                    document.getElementById('form-comprobante-express').addEventListener('submit', async function (ev) {
+                        ev.preventDefault();
+                        const btnUp = document.getElementById('btn-subir-express');
+                        const originalTxt = btnUp.innerHTML;
+                        btnUp.disabled = true;
+                        btnUp.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Subiendo...';
+
+                        const fd = new FormData(this);
+                        try {
+                            const upResp = await fetch('../api/?accion=subirComprobanteDetallado', { method: 'POST', body: fd });
+                            const upJson = await upResp.json();
+
+                            if (upJson.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: '¡Comprobante Recibido!',
+                                    text: 'Tu orden está siendo verificada.',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                }).then(() => { window.location.href = 'historial.php'; });
+                            } else {
+                                throw new Error(upJson.message || 'Error al subir');
+                            }
+                        } catch (errUp) {
+                            Swal.fire('Error', errUp.message, 'error');
+                            btnUp.disabled = false;
+                            btnUp.innerHTML = originalTxt;
+                        }
+                    });
+                }
+            } else {
                 window.showInfoModal('Error', res.error, false);
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Confirmar y Generar Orden';
-                isSubmitting = false; // Liberar bloqueo
+                submitBtn.textContent = 'Confirmar Orden';
+                isSubmitting = false;
             }
         } catch (e) {
-            window.showInfoModal('Error', 'Conexión fallida.', false);
+            console.error("Error CRÍTICO al crear orden:", e); // <--- MIRA AQUÍ EN CONSOLA SI FALLA
+            window.showInfoModal('Error', 'Hubo un problema procesando la respuesta. Revisa la consola.', false);
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Confirmar y Generar Orden';
-            isSubmitting = false; // Liberar bloqueo
+            submitBtn.textContent = 'Confirmar Orden';
+            isSubmitting = false;
         }
     });
 
@@ -453,9 +538,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // =========================================================
-    // CORRECCIÓN PARA DASHBOARD.JS - Función loadBeneficiaries
+    // loadBeneficiaries BLINDADA
     // =========================================================
-
     const loadBeneficiaries = async (paisID) => {
         beneficiaryListDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Cargando...';
         try {
@@ -465,20 +549,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (cuentas.length > 0) {
                 cuentas.forEach(c => {
-                    // CORRECCIÓN AQUÍ: Validación defensiva de NumeroCuenta
-                    let rawCuenta = c.NumeroCuenta || ''; // Si es null, usa cadena vacía
+                    let rawCuenta = c.NumeroCuenta || '';
                     let rawTelefono = c.NumeroTelefono || 'Sin N°';
-
                     let num;
-                    // Si dice explícitamente PAGO MOVIL o si no hay cuenta pero sí teléfono
                     if (rawCuenta === 'PAGO MOVIL' || (rawCuenta === '' && c.NumeroTelefono)) {
                         num = rawTelefono;
                     } else {
-                        // Solo hacemos slice si hay caracteres suficientes, sino mostramos lo que haya
                         num = rawCuenta.length > 4 ? '...' + rawCuenta.slice(-4) : rawCuenta;
                     }
 
-                    let bancoDisplay = c.NombreBanco || 'Banco'; // Evitar null
+                    let bancoDisplay = c.NombreBanco || 'Banco';
                     if (c.CCI) bancoDisplay += ' (CCI Registrado)';
 
                     beneficiaryListDiv.innerHTML += `
@@ -496,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 beneficiaryListDiv.innerHTML = '<div class="alert alert-warning">No tienes beneficiarios. Agrega uno.</div>';
             }
         } catch (e) {
-            console.error("Error renderizando beneficiarios:", e); // Agregado console.error para ver el fallo real si ocurre otro
+            console.error("Error renderizando beneficiarios:", e);
             beneficiaryListDiv.innerHTML = '<div class="alert alert-danger">Error al cargar listado. Por favor recarga la página.</div>';
         }
     };

@@ -63,7 +63,6 @@ set_exception_handler('App\\Core\\exception_handler');
 
 $tiempo_limite = 86400; 
 
-// Opcional: Si quieres que Admins tengan menos o más tiempo, ajusta aquí.
 /* if (isset($_SESSION['user_rol_name']) && in_array($_SESSION['user_rol_name'], ['Admin', 'Operador'])) {
     $tiempo_limite = 86400; 
 }
@@ -126,7 +125,19 @@ $container = new class($conexion) {
 
     public function get($class) {
         try {
-            $db = \App\Database\Database::getInstance($this->mysqli);
+            $db = \App\Database\Database::getInstance(); 
+            if ($class === \App\Services\DashboardService::class) {
+                $fileHandler = new \App\Services\FileHandlerService();
+                return new \App\Services\DashboardService(
+                    new \App\Repositories\TransactionRepository($db),
+                    new \App\Repositories\UserRepository($db),
+                    new \App\Repositories\RateRepository($db),
+                    new \App\Repositories\EstadoTransaccionRepository($db),
+                    new \App\Repositories\CountryRepository($db),
+                    new \App\Repositories\TasasHistoricoRepository($db),
+                    $fileHandler
+                );
+            }
 
             if ($class === \App\Services\PricingService::class) {
                 $rateRepo     = new \App\Repositories\RateRepository($db);

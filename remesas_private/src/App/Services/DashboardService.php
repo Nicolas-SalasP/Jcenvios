@@ -7,6 +7,7 @@ use App\Repositories\RateRepository;
 use App\Repositories\EstadoTransaccionRepository;
 use App\Repositories\CountryRepository;
 use App\Repositories\TasasHistoricoRepository;
+use App\Services\FileHandlerService;
 use Exception;
 
 class DashboardService
@@ -17,6 +18,7 @@ class DashboardService
     private EstadoTransaccionRepository $estadoTxRepo;
     private CountryRepository $countryRepository;
     private TasasHistoricoRepository $tasasHistoricoRepo;
+    private FileHandlerService $fileHandler;
 
     private const ESTADO_EN_VERIFICACION_ID = 3;
     private const ESTADO_EN_PROCESO = 'En Proceso';
@@ -29,7 +31,8 @@ class DashboardService
         RateRepository $rateRepository,
         EstadoTransaccionRepository $estadoTxRepo,
         CountryRepository $countryRepository,
-        TasasHistoricoRepository $tasasHistoricoRepo
+        TasasHistoricoRepository $tasasHistoricoRepo,
+        FileHandlerService $fileHandler
     ) {
         $this->transactionRepository = $transactionRepository;
         $this->userRepository = $userRepository;
@@ -37,6 +40,7 @@ class DashboardService
         $this->estadoTxRepo = $estadoTxRepo;
         $this->countryRepository = $countryRepository;
         $this->tasasHistoricoRepo = $tasasHistoricoRepo;
+        $this->fileHandler = $fileHandler;
     }
 
     private function getEstadoId(string $nombreEstado): int
@@ -135,5 +139,26 @@ class DashboardService
             'data' => $dataPoints,
             'lastUpdate' => date('Y-m-d H:i:s')
         ];
+    }
+
+    public function procesarComprobanteExpress(int $userId, int $transactionId, string $rut, string $nombre, array $file): bool
+    {
+        $tx = $this->transactionRepository->getById($transactionId);
+        
+        if (!$tx) {
+            throw new Exception("Transacción no encontrada.", 404);
+        }
+
+        if ($tx['UserID'] != $userId) {
+            throw new Exception("No tienes permiso para modificar esta transacción.", 403);
+        }
+
+        $fileName = $this->fileHandler->saveReceiptFile($file, $transactionId);
+
+        if (!$fileName) {
+            throw new Exception("Error al guardar la imagen.", 500);
+        }
+
+        return $this->transactionRepository->updatePaymentDetails($transactionId, $fileName, $rut, $nombre);
     }
 }
