@@ -50,9 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
     let calculationMode = 'multiply';
-    
+
     // --- VARIABLES DE CONTROL ---
-    let isRiskyRoute = false; 
+    let isRiskyRoute = false;
     let isSubmitting = false; // Evita doble orden
 
     // =========================================================
@@ -63,14 +63,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmActionWithModal = (title, message) => {
         return new Promise((resolve) => {
             const modalEl = document.getElementById('confirmModal');
-            
+
             // Fallback nativo si no existe el modal
             if (!modalEl) return resolve(confirm(message));
 
             const modal = new bootstrap.Modal(modalEl);
             const titleEl = document.getElementById('confirmModalTitle');
             const bodyEl = document.getElementById('confirmModalBody');
-            
+
             if (titleEl) titleEl.textContent = title;
             if (bodyEl) bodyEl.innerText = message;
 
@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
                 selectedTasaIdInput.value = dataRate.tasa.TasaID;
                 calculationMode = dataRate.tasa.operation || 'multiply';
-                
+
                 // DETECCIÓN DE RIESGO
                 isRiskyRoute = (parseInt(dataRate.tasa.EsRiesgoso) === 1);
 
@@ -345,15 +345,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isRiskyRoute) {
             const msgRiesgo = "Su orden requiere aprobación.\nCuando su orden sea aprobada podrá subir su comprobante y continuar el envío.\n\n¿Desea generar la orden bajo estas condiciones?";
             const aceptaRiesgo = await confirmActionWithModal('Atención: Ruta en Verificación', msgRiesgo);
-            
+
             if (!aceptaRiesgo) return; // Si cancela, se detiene
         }
 
         // 5. Proceder al Envío (Bloquear UI)
         isSubmitting = true;
-        submitBtn.disabled = true; 
+        submitBtn.disabled = true;
         submitBtn.textContent = 'Procesando...';
-        
+
         const monedaOrigen = paisOrigenSelect.options[paisOrigenSelect.selectedIndex]?.dataset.currency || 'CLP';
 
         const data = {
@@ -370,37 +370,37 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             const res = await resp.json();
-            
-            if (res.success) { 
+
+            if (res.success) {
                 let finalId = res.transaccionID;
                 if (typeof finalId === 'object' && finalId !== null) {
                     finalId = finalId.TransaccionID || finalId.id || JSON.stringify(finalId);
                 }
-                transaccionIdFinal.textContent = finalId; 
-                
+                transaccionIdFinal.textContent = finalId;
+
                 const divNormal = document.getElementById('msg-exito-normal');
                 const divRiesgo = document.getElementById('msg-exito-riesgo');
 
                 if (isRiskyRoute) {
-                    if(divNormal) divNormal.classList.add('d-none');
-                    if(divRiesgo) divRiesgo.classList.remove('d-none');
+                    if (divNormal) divNormal.classList.add('d-none');
+                    if (divRiesgo) divRiesgo.classList.remove('d-none');
                 } else {
-                    if(divNormal) divNormal.classList.remove('d-none');
-                    if(divRiesgo) divRiesgo.classList.add('d-none');
+                    if (divNormal) divNormal.classList.remove('d-none');
+                    if (divRiesgo) divRiesgo.classList.add('d-none');
                 }
 
-                currentStep++; 
-                updateView(); 
+                currentStep++;
+                updateView();
             }
-            else { 
-                window.showInfoModal('Error', res.error, false); 
-                submitBtn.disabled = false; 
-                submitBtn.textContent = 'Confirmar y Generar Orden'; 
+            else {
+                window.showInfoModal('Error', res.error, false);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirmar y Generar Orden';
                 isSubmitting = false; // Liberar bloqueo
             }
-        } catch (e) { 
-            window.showInfoModal('Error', 'Conexión fallida.', false); 
-            submitBtn.disabled = false; 
+        } catch (e) {
+            window.showInfoModal('Error', 'Conexión fallida.', false);
+            submitBtn.disabled = false;
             submitBtn.textContent = 'Confirmar y Generar Orden';
             isSubmitting = false; // Liberar bloqueo
         }
@@ -452,31 +452,53 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { console.error('Error loadPaises', error); }
     };
 
+    // =========================================================
+    // CORRECCIÓN PARA DASHBOARD.JS - Función loadBeneficiaries
+    // =========================================================
+
     const loadBeneficiaries = async (paisID) => {
         beneficiaryListDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Cargando...';
         try {
             const respC = await fetch(`../api/?accion=getCuentas&paisID=${paisID}`);
             const cuentas = await respC.json();
             beneficiaryListDiv.innerHTML = '';
+
             if (cuentas.length > 0) {
                 cuentas.forEach(c => {
-                    let num = c.NumeroCuenta === 'PAGO MOVIL' ? c.NumeroTelefono : '...' + c.NumeroCuenta.slice(-4);
-                    let bancoDisplay = c.NombreBanco;
+                    // CORRECCIÓN AQUÍ: Validación defensiva de NumeroCuenta
+                    let rawCuenta = c.NumeroCuenta || ''; // Si es null, usa cadena vacía
+                    let rawTelefono = c.NumeroTelefono || 'Sin N°';
+
+                    let num;
+                    // Si dice explícitamente PAGO MOVIL o si no hay cuenta pero sí teléfono
+                    if (rawCuenta === 'PAGO MOVIL' || (rawCuenta === '' && c.NumeroTelefono)) {
+                        num = rawTelefono;
+                    } else {
+                        // Solo hacemos slice si hay caracteres suficientes, sino mostramos lo que haya
+                        num = rawCuenta.length > 4 ? '...' + rawCuenta.slice(-4) : rawCuenta;
+                    }
+
+                    let bancoDisplay = c.NombreBanco || 'Banco'; // Evitar null
                     if (c.CCI) bancoDisplay += ' (CCI Registrado)';
+
                     beneficiaryListDiv.innerHTML += `
-                        <label class="list-group-item list-group-item-action d-flex align-items-center" style="cursor:pointer;">
-                            <input type="radio" name="beneficiary-radio" value="${c.CuentaID}" 
-                                   data-banco="${c.NombreBanco}" class="form-check-input me-3">
-                            <div><strong>${c.Alias}</strong> <small class="text-muted">(${bancoDisplay} - ${num})</small></div>
-                        </label>`;
+                    <label class="list-group-item list-group-item-action d-flex align-items-center" style="cursor:pointer;">
+                        <input type="radio" name="beneficiary-radio" value="${c.CuentaID}" 
+                               data-banco="${c.NombreBanco || ''}" class="form-check-input me-3">
+                        <div><strong>${c.Alias || 'Sin Alias'}</strong> <small class="text-muted">(${bancoDisplay} - ${num})</small></div>
+                    </label>`;
                 });
+
                 document.querySelectorAll('input[name="beneficiary-radio"]').forEach(r => {
                     r.closest('label').addEventListener('click', () => r.checked = true);
                 });
             } else {
                 beneficiaryListDiv.innerHTML = '<div class="alert alert-warning">No tienes beneficiarios. Agrega uno.</div>';
             }
-        } catch (e) { beneficiaryListDiv.innerHTML = 'Error al cargar.'; }
+        } catch (e) {
+            console.error("Error renderizando beneficiarios:", e); // Agregado console.error para ver el fallo real si ocurre otro
+            beneficiaryListDiv.innerHTML = '<div class="alert alert-danger">Error al cargar listado. Por favor recarga la página.</div>';
+        }
     };
 
     // DOCUMENTOS
@@ -512,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Orden Prioritario
             const sortOrder = ['RUT', 'Cédula', 'PPT', 'Pasaporte', 'RIF', 'DNI (Perú)', 'DNI', 'Carnet de Extranjería', 'E-RUT (RIF)', 'Otros'];
-            
+
             allDocumentTypes.sort((a, b) => {
                 let nameA = (a.NombreDocumento || a.nombre || "").toUpperCase();
                 let nameB = (b.NombreDocumento || b.nombre || "").toUpperCase();
@@ -532,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isVenezuela) {
                     if (nameUC.includes('CÉDULA') || nameUC.includes('CEDULA') || nameUC.includes('PASAPORTE') || nameUC.includes('RIF')) show = true;
-                } 
+                }
                 else if (isColombia) {
                     // Cédula, Pasaporte, PPT, Otros
                     if (nameUC.includes('CÉDULA') || nameUC.includes('CEDULA') || nameUC.includes('PASAPORTE') || nameUC.includes('PPT') || nameUC.includes('OTROS')) show = true;
@@ -596,7 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const footerSaveBtn = addAccountModalElement.querySelector('.modal-footer .btn-primary');
         if (footerSaveBtn) {
             footerSaveBtn.addEventListener('click', (e) => {
-                if (footerSaveBtn.type === 'submit') return; 
+                if (footerSaveBtn.type === 'submit') return;
                 e.preventDefault();
                 if (addBeneficiaryForm.checkValidity()) {
                     addBeneficiaryForm.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -613,7 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (containerOtherBank) containerOtherBank.classList.add('d-none');
             if (containerCCI) containerCCI.classList.add('d-none');
             if (cardOptions) cardOptions.classList.remove('d-none');
-            
+
             // Mostrar documentos por defecto (REQUERIMIENTO: OTROS PAISES SE MUESTRA)
             if (docTypeContainer) docTypeContainer.classList.remove('d-none');
             if (benefDocTypeSelect) benefDocTypeSelect.required = true;
@@ -628,7 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (inputPhone) inputPhone.value = '';
 
             // Reset Validaciones
-            inputAccount.maxLength = 50; 
+            inputAccount.maxLength = 50;
             inputAccount.placeholder = "Número de cuenta";
 
             // Reset Switches
@@ -648,9 +670,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (wrapperCheckMobile) wrapperCheckMobile.classList.add('d-none');
                 if (walletPhonePrefix) { walletPhonePrefix.textContent = '+51'; walletPhonePrefix.classList.remove('d-none'); }
                 if (phoneCodeSelect) phoneCodeSelect.style.display = 'none';
-                
+
                 // Config Peru: 14 dígitos
-                inputAccount.maxLength = 14; 
+                inputAccount.maxLength = 14;
                 inputAccount.placeholder = "14 dígitos";
 
                 const ops = [
@@ -668,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (wrapperCheckMobile) wrapperCheckMobile.classList.add('d-none');
                 if (walletPhonePrefix) { walletPhonePrefix.textContent = '+57'; walletPhonePrefix.classList.remove('d-none'); }
                 if (phoneCodeSelect) phoneCodeSelect.style.display = 'none';
-                
+
                 // Config Colombia: 11 dígitos
                 inputAccount.maxLength = 11;
                 inputAccount.placeholder = "11 dígitos (Ahorros/Corriente)";
@@ -687,7 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (wrapperCheckMobile) {
                     wrapperCheckMobile.classList.remove('d-none');
                     const labelMobile = wrapperCheckMobile.querySelector('label');
-                    if(labelMobile) labelMobile.textContent = 'Registrar Pago Móvil';
+                    if (labelMobile) labelMobile.textContent = 'Registrar Pago Móvil';
                 }
                 if (checkBank) checkBank.checked = true;
                 if (checkMobile) checkMobile.checked = false;
@@ -702,7 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (checkMobile) checkMobile.checked = false;
                 if (checkBank) { checkBank.checked = true; checkBank.disabled = true; }
                 if (walletPhonePrefix) walletPhonePrefix.textContent = '+00';
-                if (docTypeContainer) docTypeContainer.classList.remove('d-none'); 
+                if (docTypeContainer) docTypeContainer.classList.remove('d-none');
                 if (benefDocTypeSelect) benefDocTypeSelect.required = true;
                 if (benefDocNumberInput) benefDocNumberInput.required = true;
 
@@ -719,8 +741,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (containerBankFields) containerBankFields.classList.add('d-none');
                 if (containerMobileFields) containerMobileFields.classList.add('d-none');
                 if (checkBank) checkBank.checked = false;
-                if (checkMobile) checkMobile.checked = false;               
-                inputAccount.maxLength = 50; 
+                if (checkMobile) checkMobile.checked = false;
+                inputAccount.maxLength = 50;
                 if (!val) return;
 
                 if (paisId === C_PERU) {
@@ -758,7 +780,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (labelAccount) labelAccount.textContent = 'Número de Cuenta / Ahorros';
                         if (inputAccount) inputAccount.required = true;
                         if (inputPhone) inputPhone.required = false;
-                        if (checkBank) checkBank.checked = true; 
+                        if (checkBank) checkBank.checked = true;
                         inputAccount.maxLength = 11;
                         inputAccount.placeholder = "11 dígitos";
                     }
