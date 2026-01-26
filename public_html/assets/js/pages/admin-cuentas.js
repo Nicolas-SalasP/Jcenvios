@@ -12,6 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const rolSelect = document.getElementById('rol-cuenta-id');
     const formaPagoSelect = document.getElementById('forma-pago-id');
 
+    const qrInput = document.getElementById('account-qr');
+    const qrPreviewCont = document.getElementById('qr-preview-container');
+    const qrPreviewImg = document.getElementById('qr-preview-img');
+    const qrDeleteCheck = document.getElementById('delete-qr');
+
     const msgModalEl = document.getElementById('msgModal');
     const msgModalInstance = new bootstrap.Modal(msgModalEl);
     const msgTitle = document.getElementById('msgModalTitle');
@@ -111,6 +116,10 @@ document.addEventListener('DOMContentLoaded', () => {
         cuentasData.forEach(c => {
             const saldo = parseFloat(c.SaldoActual || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
             const rolId = parseInt(c.RolCuentaID); 
+            let qrBadge = '';
+            if (c.QrCodeURL) {
+                qrBadge = '<span class="badge bg-dark ms-1" title="Tiene QR"><i class="bi bi-qr-code"></i></span>';
+            }
 
             const acciones = `
                 <button class="btn btn-sm btn-primary btn-edit" data-id="${c.CuentaAdminID}"><i class="bi bi-pencil"></i></button>
@@ -122,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong>${c.NombrePais}</strong></td>
                     <td><span class="badge bg-info text-dark">${c.FormaPagoNombre || '-'}</span></td>
                     <td>
-                        <strong>${c.Banco}</strong><br>
+                        <strong>${c.Banco}</strong> ${qrBadge}<br>
                         <small>${c.Titular}</small>
                     </td>
                     <td>
@@ -182,6 +191,11 @@ document.addEventListener('DOMContentLoaded', () => {
             saldoInicialContainer.classList.remove('d-none');
             document.getElementById('saldo-inicial').value = '0.00';
         }
+        qrInput.value = '';
+        qrPreviewCont.classList.add('d-none');
+        qrPreviewImg.src = '';
+        if(qrDeleteCheck) qrDeleteCheck.checked = false;
+
         toggleCamposPorRol();
     });
 
@@ -206,6 +220,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('instrucciones').value = cuenta.Instrucciones;
                 document.getElementById('color-hex').value = cuenta.ColorHex;
                 document.getElementById('activo').value = cuenta.Activo;
+                qrInput.value = '';
+                if(qrDeleteCheck) qrDeleteCheck.checked = false;
+
+                if (cuenta.QrCodeURL) {
+                    qrPreviewCont.classList.remove('d-none');
+                    qrPreviewImg.src = `../assets/img/qr/${cuenta.QrCodeURL}`;
+                } else {
+                    qrPreviewCont.classList.add('d-none');
+                    qrPreviewImg.src = '';
+                }
 
                 document.getElementById('cuentaModalLabel').textContent = 'Editar Cuenta';
                 if (saldoInicialContainer) saldoInicialContainer.classList.add('d-none');
@@ -227,17 +251,14 @@ document.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(form);
-        const data = Object.fromEntries(formData.entries());
-
         if (saldoInicialContainer && saldoInicialContainer.classList.contains('d-none')) {
-            delete data.saldoInicial;
+            formData.delete('saldoInicial');
         }
 
         try {
             const response = await fetch('../api/?accion=saveCuentaAdmin', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: formData 
             });
             
             const result = await response.json();
@@ -249,6 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showMsg('Error', result.error || 'Ocurrió un error al guardar', 'error');
             }
         } catch(err) {
+            console.error(err);
             showMsg('Error', 'Error de conexión', 'error');
         }
     });

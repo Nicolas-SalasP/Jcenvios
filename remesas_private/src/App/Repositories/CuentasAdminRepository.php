@@ -52,7 +52,7 @@ class CuentasAdminRepository
                 AND Activo = 1 
                 AND RolCuentaID IN (2, 3)
                 ORDER BY Banco ASC";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $paisDestinoId);
         $stmt->execute();
@@ -75,9 +75,9 @@ class CuentasAdminRepository
     public function create(array $data): int
     {
         $sql = "INSERT INTO cuentas_bancarias_admin 
-                (FormaPagoID, PaisID, RolCuentaID, Banco, Titular, TipoCuenta, NumeroCuenta, RUT, Email, Instrucciones, ColorHex, SaldoActual, Activo) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        
+                (FormaPagoID, PaisID, RolCuentaID, Banco, Titular, TipoCuenta, NumeroCuenta, RUT, Email, Instrucciones, ColorHex, SaldoActual, Activo, QrCodeURL) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
         $stmt = $this->db->prepare($sql);
         $formaPagoId = $data['formaPagoId'] ?? 1;
         $paisId = $data['paisId'] ?? 0;
@@ -88,13 +88,14 @@ class CuentasAdminRepository
         $numeroCuenta = $data['numeroCuenta'] ?? '';
         $rut = $data['rut'] ?? '';
         $email = $data['email'] ?? '';
-        $instrucciones = $data['instrucciones'] ?? ''; 
+        $instrucciones = $data['instrucciones'] ?? '';
         $colorHex = $data['colorHex'] ?? '#000000';
-        $saldoInicial = isset($data['saldoInicial']) ? (float)$data['saldoInicial'] : 0.00;
-        $activo = isset($data['activo']) ? (int)$data['activo'] : 1;
+        $saldoInicial = isset($data['saldoInicial']) ? (float) $data['saldoInicial'] : 0.00;
+        $activo = isset($data['activo']) ? (int) $data['activo'] : 1;
+        $qrCode = isset($data['QrCodeURL']) && $data['QrCodeURL'] !== 'DELETE' ? $data['QrCodeURL'] : null;
 
         $stmt->bind_param(
-            "iiissssssssdi",
+            "iiissssssssdis",
             $formaPagoId,
             $paisId,
             $rolId,
@@ -107,7 +108,8 @@ class CuentasAdminRepository
             $instrucciones,
             $colorHex,
             $saldoInicial,
-            $activo
+            $activo,
+            $qrCode
         );
 
         if ($stmt->execute()) {
@@ -118,12 +120,25 @@ class CuentasAdminRepository
 
     public function update(int $id, array $data): bool
     {
-        $sql = "UPDATE cuentas_bancarias_admin 
-                SET FormaPagoID=?, PaisID=?, RolCuentaID=?, Banco=?, Titular=?, TipoCuenta=?, NumeroCuenta=?, RUT=?, Email=?, Instrucciones=?, ColorHex=?, Activo=? 
-                WHERE CuentaAdminID=?";
-        
+        $updateQr = array_key_exists('QrCodeURL', $data);
+
+        $qrCode = null;
+        if ($updateQr) {
+            $qrCode = ($data['QrCodeURL'] === 'DELETE') ? null : $data['QrCodeURL'];
+        }
+
+        if ($updateQr) {
+            $sql = "UPDATE cuentas_bancarias_admin 
+                    SET FormaPagoID=?, PaisID=?, RolCuentaID=?, Banco=?, Titular=?, TipoCuenta=?, NumeroCuenta=?, RUT=?, Email=?, Instrucciones=?, ColorHex=?, Activo=?, QrCodeURL=? 
+                    WHERE CuentaAdminID=?";
+        } else {
+            $sql = "UPDATE cuentas_bancarias_admin 
+                    SET FormaPagoID=?, PaisID=?, RolCuentaID=?, Banco=?, Titular=?, TipoCuenta=?, NumeroCuenta=?, RUT=?, Email=?, Instrucciones=?, ColorHex=?, Activo=? 
+                    WHERE CuentaAdminID=?";
+        }
+
         $stmt = $this->db->prepare($sql);
-        
+
         $formaPagoId = $data['formaPagoId'] ?? 1;
         $paisId = $data['paisId'] ?? 0;
         $rolId = $data['rolCuentaId'] ?? 1;
@@ -135,25 +150,45 @@ class CuentasAdminRepository
         $email = $data['email'] ?? '';
         $instrucciones = $data['instrucciones'] ?? '';
         $colorHex = $data['colorHex'] ?? '#000000';
-        $activo = isset($data['activo']) ? (int)$data['activo'] : 1;
+        $activo = isset($data['activo']) ? (int) $data['activo'] : 1;
 
-        $stmt->bind_param(
-            "iiissssssssii",
-            $formaPagoId,
-            $paisId,
-            $rolId,
-            $banco,
-            $titular,
-            $tipoCuenta,
-            $numeroCuenta,
-            $rut,
-            $email,
-            $instrucciones,
-            $colorHex,
-            $activo,
-            $id
-        );
-        
+        if ($updateQr) {
+            $stmt->bind_param(
+                "iiissssssssiis",
+                $formaPagoId,
+                $paisId,
+                $rolId,
+                $banco,
+                $titular,
+                $tipoCuenta,
+                $numeroCuenta,
+                $rut,
+                $email,
+                $instrucciones,
+                $colorHex,
+                $activo,
+                $qrCode,
+                $id
+            );
+        } else {
+            $stmt->bind_param(
+                "iiissssssssii",
+                $formaPagoId,
+                $paisId,
+                $rolId,
+                $banco,
+                $titular,
+                $tipoCuenta,
+                $numeroCuenta,
+                $rut,
+                $email,
+                $instrucciones,
+                $colorHex,
+                $activo,
+                $id
+            );
+        }
+
         $success = $stmt->execute();
         $stmt->close();
         return $success;

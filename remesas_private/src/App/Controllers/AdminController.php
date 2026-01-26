@@ -496,14 +496,62 @@ class AdminController extends BaseController
         $this->sendJsonResponse(['success' => true, 'cuentas' => $cuentas]);
     }
 
-    public function saveCuentaAdmin(): void
+    public function saveCuentaAdmin()
     {
         $this->ensureLoggedIn();
         $this->ensureAdmin();
-        $data = $this->getJsonInput();
+        $contentType = $_SERVER["CONTENT_TYPE"] ?? '';
+        
+        if (strpos($contentType, 'application/json') !== false) {
+            $data = json_decode(file_get_contents('php://input'), true);
+        } else {
+            $data = $_POST;
+        }
+
+        if (!$data) {
+            echo json_encode(['success' => false, 'error' => 'Sin datos']);
+            return;
+        }
+
         $id = $data['CuentaAdminID'] ?? $data['id'] ?? null;
         $rolId = isset($data['RolCuentaID']) ? (int)$data['RolCuentaID'] : (isset($data['rolCuentaId']) ? (int)$data['rolCuentaId'] : 1);
-        
+        $qrFilename = null;
+        if (isset($data['deleteQr']) && $data['deleteQr'] == '1') {
+            $qrFilename = 'DELETE';
+        }
+        if (isset($_FILES['qrFile']) && $_FILES['qrFile']['error'] === UPLOAD_ERR_OK) {
+            $fileTmpPath = $_FILES['qrFile']['tmp_name'];
+            $fileName = $_FILES['qrFile']['name'];
+            $fileSize = $_FILES['qrFile']['size'];
+            $fileType = $_FILES['qrFile']['type'];
+            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+            if (!in_array($fileType, $allowedMimeTypes)) {
+                echo json_encode(['success' => false, 'error' => 'Formato de imagen no válido (solo JPG, PNG, WEBP).']);
+                return;
+            }
+            
+            if ($fileSize > 2 * 1024 * 1024) {
+                echo json_encode(['success' => false, 'error' => 'La imagen es muy pesada (Máx 2MB).']);
+                return;
+            }
+            $extension = pathinfo($fileName, PATHINFO_EXTENSION);
+            $newFileName = 'qr_' . uniqid() . '.' . $extension;
+            $uploadFileDir = __DIR__ . '/../../../../public_html/assets/img/qr/';
+            
+            if (!is_dir($uploadFileDir)) {
+                mkdir($uploadFileDir, 0755, true);
+            }
+
+            $dest_path = $uploadFileDir . $newFileName;
+
+            if (move_uploaded_file($fileTmpPath, $dest_path)) {
+                $qrFilename = $newFileName;
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Error al mover el archivo al servidor.']);
+                return;
+            }
+        }
+
         $repoData = [
             'id' => $id,
             'rolCuentaId' => $rolId,
@@ -520,6 +568,9 @@ class AdminController extends BaseController
             'formaPagoId' => null,
             'instrucciones' => '' 
         ];
+        if ($qrFilename !== null) {
+            $repoData['QrCodeURL'] = $qrFilename;
+        }
 
         if (empty($repoData['banco']) || empty($repoData['titular']) || empty($repoData['numeroCuenta'])) {
             throw new Exception("Banco, Titular y Número de Cuenta son obligatorios.", 400);
@@ -535,13 +586,18 @@ class AdminController extends BaseController
             $repoData['formaPagoId'] = (int)$fpId;
             $repoData['instrucciones'] = $data['Instrucciones'] ?? $data['instrucciones'] ?? '';
         }
-        if ($id && $id > 0) {
-            $this->cuentasAdminRepo->update((int)$id, $repoData);
-        } else {
-            $this->cuentasAdminRepo->create($repoData);
+
+        try {
+            if ($id && $id > 0) {
+                $this->cuentasAdminRepo->update((int)$id, $repoData);
+            } else {
+                $this->cuentasAdminRepo->create($repoData);
+            }
+            
+            $this->sendJsonResponse(['success' => true]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
-        
-        $this->sendJsonResponse(['success' => true]);
     }
 
     public function deleteCuentaAdmin(): void

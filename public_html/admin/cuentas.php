@@ -80,7 +80,7 @@ $paises = $conexion->query("SELECT PaisID, NombrePais FROM paises WHERE Activo =
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="cuenta-form">
+                <form id="cuenta-form" enctype="multipart/form-data">
                     <input type="hidden" id="cuenta-id" name="CuentaAdminID">
 
                     <div class="row mb-3">
@@ -165,6 +165,26 @@ $paises = $conexion->query("SELECT PaisID, NombrePais FROM paises WHERE Activo =
                         </div>
                     </div>
 
+                    <div class="mb-3 p-3 bg-light border rounded">
+                        <label for="account-qr" class="form-label fw-bold"><i class="bi bi-qr-code-scan me-2"></i>Imagen Código QR (Opcional)</label>
+                        <input type="file" class="form-control" id="account-qr" name="qrFile" accept="image/*">
+                        <div class="form-text">Ideal para Nequi, Bancolombia QR o Zelle. Se mostrará en el PDF de instrucciones.</div>
+                        
+                        <div id="qr-preview-container" class="mt-3 d-none border-top pt-2">
+                            <div class="d-flex align-items-center">
+                                <img id="qr-preview-img" src="" alt="QR Actual" class="img-thumbnail me-3" style="max-height: 80px;">
+                                <div>
+                                    <span class="badge bg-success mb-2">QR Cargado Actualmente</span>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="delete-qr" name="deleteQr">
+                                        <label class="form-check-label text-danger fw-bold small" for="delete-qr">
+                                            Eliminar esta imagen QR
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="mb-3" id="container-instrucciones">
                         <label class="form-label">Instrucciones Adicionales (PDF)</label>
                         <textarea class="form-control" id="instrucciones" name="Instrucciones" rows="3" placeholder="Ej: Notas importantes, referencia de pago, etc."></textarea>

@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use Exception;
-require_once __DIR__ . '/../../lib/fpdf/fpdf.php'; 
+require_once __DIR__ . '/../../lib/fpdf/fpdf.php';
 
 class PDFService
 {
@@ -26,7 +26,8 @@ class PDFService
     // Función auxiliar para limpiar y codificar texto para FPDF
     private function cleanText($text)
     {
-        if ($text === null) return '';
+        if ($text === null)
+            return '';
         // Decodificamos entidades HTML por si acaso y luego convertimos a ISO-8859-1
         return mb_convert_encoding(html_entity_decode($text, ENT_QUOTES, 'UTF-8'), 'ISO-8859-1', 'UTF-8');
     }
@@ -34,7 +35,8 @@ class PDFService
     public function generateOrder(array $tx): string
     {
         // Limpieza de buffer para evitar errores de PDF corrupto
-        if (ob_get_length()) ob_clean();
+        if (ob_get_length())
+            ob_clean();
 
         $pdf = new \FPDF('P', 'mm', 'A4');
         $pdf->AddPage();
@@ -112,18 +114,18 @@ class PDFService
         $printDataRow('Nombre:', $tx['PrimerNombre'] . ' ' . $tx['PrimerApellido'], 'Nombre:', $tx['BeneficiarioNombre']);
         $printDataRow('Documento:', $tx['NumeroDocumento'], 'Documento:', $tx['BeneficiarioDocumento']);
         $printDataRow('Email:', $tx['Email'], 'Banco:', $tx['BeneficiarioBanco']);
-        
-        
+
+
         $banco = strtoupper($tx['BeneficiarioBanco'] ?? '');
         $rawCuenta = $tx['BeneficiarioNumeroCuenta'] ?? '';
         $rawTelefono = $tx['BeneficiarioTelefono'] ?? '';
-        $rawCCI = $tx['BeneficiarioCCI'] ?? ''; 
+        $rawCCI = $tx['BeneficiarioCCI'] ?? '';
         $esYapePlin = ($banco === 'YAPE' || $banco === 'PLIN');
         $esPeru = (isset($tx['MonedaDestino']) && $tx['MonedaDestino'] === 'PEN') || (isset($tx['PaisDestinoID']) && $tx['PaisDestinoID'] == 4);
-        $tieneCuenta = !empty($rawCuenta) 
-                    && $rawCuenta !== 'PAGO MOVIL' 
-                    && $rawCuenta != '00000000000000000000'
-                    && !$esYapePlin;
+        $tieneCuenta = !empty($rawCuenta)
+            && $rawCuenta !== 'PAGO MOVIL'
+            && $rawCuenta != '00000000000000000000'
+            && !$esYapePlin;
         $tieneCCI = $esPeru && !empty($rawCCI) && !$esYapePlin;
         $tieneTelefono = !empty($rawTelefono);
         $rowsToPrint = [];
@@ -162,13 +164,13 @@ class PDFService
         $pdf->SetFont('Arial', '', 11);
         $pdf->Cell($cellWidths[0], 10, number_format($tx['MontoOrigen'], 2, ',', '.') . ' ' . $this->cleanText($tx['MonedaOrigen']), 1, 0, 'C');
         $pdf->Cell($cellWidths[1], 10, number_format($tx['ValorTasa'], 5, ',', '.'), 1, 0, 'C');
-        
+
         $pdf->Cell($cellWidths[2], 10, number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $this->cleanText($tx['MonedaDestino']), 1, 1, 'C');
         $pdf->Ln(10);
 
         // --- INSTRUCCIONES DE PAGO (Desde la Cuenta Admin) ---
         if (isset($tx['CuentaAdmin']) && !empty($tx['CuentaAdmin'])) {
-            
+
             $cuentaAdmin = $tx['CuentaAdmin'];
 
             $pdf->SetFont('Arial', 'B', 12);
@@ -179,12 +181,17 @@ class PDFService
 
             $yStart = $pdf->GetY();
             $pdf->SetY($yStart + 5);
-
-            // Color del Banco
+            $hasQR = !empty($cuentaAdmin['QrCodeURL']);
             $colorRGB = $this->hex2rgb($cuentaAdmin['ColorHex'] ?? '#000000');
             $pdf->SetFont('Arial', 'B', 14);
             $pdf->SetTextColor($colorRGB[0], $colorRGB[1], $colorRGB[2]);
-            $pdf->Cell(0, 8, $this->cleanText($cuentaAdmin['Banco']), 0, 1, 'C');
+            if ($hasQR) {
+                $pdf->SetX(20);
+                $pdf->Cell(110, 8, $this->cleanText($cuentaAdmin['Banco']), 0, 1, 'L');
+            } else {
+                $pdf->Cell(0, 8, $this->cleanText($cuentaAdmin['Banco']), 0, 1, 'C');
+            }
+
             $pdf->SetTextColor(0, 0, 0);
             $pdf->Ln(3);
 
@@ -192,37 +199,53 @@ class PDFService
                 'Titular:' => $cuentaAdmin['Titular'],
                 'Tipo de Cuenta:' => $cuentaAdmin['TipoCuenta'],
                 'Nro. Cuenta:' => $cuentaAdmin['NumeroCuenta'],
-                'RUT:' => $cuentaAdmin['RUT'],
+                'RUT/ID:' => $cuentaAdmin['RUT'],
                 'Email:' => $cuentaAdmin['Email']
             ];
 
             foreach ($fields as $label => $value) {
                 if (!empty($value)) {
                     $pdf->SetFont('Arial', 'B', 11);
-                    $pdf->Cell(85, 6, $this->cleanText($label), 0, 0, 'R');
-                    // Resaltar número de cuenta
+                    $pdf->Cell(45, 6, $this->cleanText($label), 0, 0, 'R');
+
                     if ($label === 'Nro. Cuenta:') {
                         $pdf->SetFont('Arial', 'B', 14);
                     } else {
                         $pdf->SetFont('Arial', '', 11);
                     }
-
-                    $pdf->Cell(90, 6, ' ' . $this->cleanText($value), 0, 1, 'L');
+                    $pdf->Cell(80, 6, ' ' . $this->cleanText($value), 0, 1, 'L');
                 }
             }
-            $pdf->Ln(4);
+            if ($hasQR) {
+                $qrPath = __DIR__ . '/../../../../public_html/assets/img/qr/' . $cuentaAdmin['QrCodeURL'];
+
+                if (file_exists($qrPath)) {
+                    $pdf->Image($qrPath, 145, $yStart + 5, 35, 0);
+                    $pdf->SetXY(145, $yStart + 42);
+                    $pdf->SetFont('Arial', 'I', 8);
+                    $pdf->Cell(35, 4, 'Escanea para pagar', 0, 0, 'C');
+                    $pdf->SetY($yStart + 48);
+                }
+            } else {
+                $pdf->Ln(4);
+            }
+            $currentY = $pdf->GetY();
+            if ($hasQR && $currentY < ($yStart + 50)) {
+                $pdf->SetY($yStart + 50);
+            }
 
             if (!empty($cuentaAdmin['Instrucciones'])) {
+                $pdf->Ln(2);
                 $pdf->SetFont('Arial', 'B', 10);
-                $pdf->SetTextColor(200, 0, 0); // Rojo para "IMPORTANTE"
+                $pdf->SetTextColor(200, 0, 0); // Rojo
                 $pdf->Cell(25, 5, 'IMPORTANTE:', 0, 0, 'L');
                 $pdf->SetFont('Arial', '', 9);
                 $pdf->SetTextColor(0, 0, 0);
-                $instrucciones = str_replace(["\r\n", "\r", "\n"], "\n", $cuentaAdmin['Instrucciones']);
-                $pdf->MultiCell(0, 5, $this->cleanText($instrucciones));
-            }
 
-            // Dibujar recuadro alrededor
+                $instrucciones = str_replace(["\r\n", "\r", "\n"], "\n", $cuentaAdmin['Instrucciones']);
+                $pdf->SetX(15);
+                $pdf->MultiCell(180, 5, $this->cleanText($instrucciones));
+            }
             $height = $pdf->GetY() - $yStart;
             $pdf->SetDrawColor(200, 200, 200);
             $pdf->Rect(15, $yStart, 180, $height + 2);
@@ -235,6 +258,6 @@ class PDFService
         $pdf->SetTextColor(128);
         $pdf->Cell(0, 10, $this->cleanText('Gracias por preferir JC Envíos.'), 0, 0, 'C');
 
-        return $pdf->Output('S'); 
+        return $pdf->Output('S');
     }
 }
