@@ -187,13 +187,12 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
                     <div class="mb-3 d-none" id="container-bank-input-text">
                         <label for="benef-bank" class="form-label">Nombre del Banco</label>
-                        <input type="text" class="form-control" id="benef-bank" name="nombreBanco"
-                            placeholder="Ej: Banesco, Mercantil...">
+                        <input type="text" class="form-control" id="benef-bank" name="nombreBanco">
                     </div>
 
                     <div class="mb-3 d-none" id="other-bank-container">
                         <label class="form-label small text-muted">Especifique Nombre del Banco</label>
-                        <input type="text" class="form-control" id="benef-bank-other" placeholder="Ej: Pichincha">
+                        <input type="text" class="form-control" id="benef-bank-other" >
                     </div>
 
                     <div class="mb-3 d-none" id="wrapper-checks-type">

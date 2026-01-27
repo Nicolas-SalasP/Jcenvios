@@ -288,13 +288,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
                     <div class="mb-3" id="container-bank-input-text">
                         <label for="benef-bank" class="form-label">Nombre del Banco</label>
-                        <input type="text" class="form-control" id="benef-bank" name="nombreBanco"
-                            placeholder="Ej: Banesco, Mercantil...">
+                        <input type="text" class="form-control" id="benef-bank" name="nombreBanco">
                     </div>
                     <div class="mb-3 d-none" id="other-bank-container">
                         <label class="form-label small text-muted">Escribe el nombre del Banco</label>
-                        <input type="text" class="form-control" id="benef-bank-other" maxlength="20"
-                            placeholder="Ej: Pichincha">
+                        <input type="text" class="form-control" id="benef-bank-other" maxlength="20">
                     </div>
                     <div class="card bg-light border-0 p-3 mb-3" id="card-account-details">
                         <div class="form-check form-switch mb-2" id="wrapper-check-bank">
@@ -326,8 +324,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                 <select class="input-group-text" id="benef-phone-code" name="phoneCode"
                                     style="max-width: 130px;"></select>
                                 <span class="input-group-text d-none" id="wallet-phone-prefix"></span>
-                                <input type="tel" class="form-control" id="benef-phone-number" name="phoneNumber"
-                                    placeholder="Ej: 987654321">
+                                <input type="tel" class="form-control" id="benef-phone-number" name="phoneNumber">
                             </div>
                         </div>
                     </div>

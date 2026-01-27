@@ -893,6 +893,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (checkBank) checkBank.addEventListener('change', updateInputState);
         if (checkMobile) checkMobile.addEventListener('change', updateInputState);
 
+        // --- VALIDACIONES DE ENTRADA (SOLO NÚMEROS) ---
+        [inputAccount, inputPhone, inputCCI, benefDocNumberInput].forEach(input => {
+            if(input) {
+                input.addEventListener('input', function() {
+                    this.value = this.value.replace(/\D/g, '');
+                });
+            }
+        });
+
         addAccountModalElement.addEventListener('show.bs.modal', (e) => {
             const paisDestinoId = parseInt(paisDestinoSelect.value);
             if (!paisDestinoId) {
@@ -921,7 +930,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const formData = new FormData(addBeneficiaryForm);
             const paisId = parseInt(benefPaisIdInput.value);
             const accNum = formData.get('numeroCuenta') || '';
+            const phoneNum = formData.get('phoneNumber') || '';
             const isBank = (checkBank && checkBank.checked);
+            const isMobile = (checkMobile && checkMobile.checked);
 
             if (isBank) {
                 if (paisId === C_VENEZUELA) {
@@ -942,6 +953,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (btn) { btn.disabled = false; btn.textContent = originalText; }
                         return;
                     }
+                }
+            }
+
+            if (isMobile) {
+                if (paisId === C_VENEZUELA) {
+                    if (phoneNum.length !== 7) {
+                        window.showInfoModal('Error', 'El teléfono debe tener 7 dígitos (sin prefijo).', false);
+                        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                        return;
+                    }
+                } else if (paisId === C_COLOMBIA) {
+                    if (phoneNum.length !== 10) {
+                        window.showInfoModal('Error', 'El celular Nequi debe tener 10 dígitos.', false);
+                        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                        return;
+                    }
+                } else if (paisId === C_PERU) {
+                    if (phoneNum.length !== 9) {
+                        window.showInfoModal('Error', 'El celular Yape/Plin debe tener 9 dígitos.', false);
+                        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                        return;
+                    }
+                }
+            }
+            if (paisId === C_PERU && inputCCI && inputCCI.value) {
+                if (inputCCI.value.length !== 20) {
+                    window.showInfoModal('Error', 'El CCI debe tener exactamente 20 dígitos.', false);
+                    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                    return;
                 }
             }
 
