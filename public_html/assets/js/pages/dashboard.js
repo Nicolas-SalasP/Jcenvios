@@ -732,6 +732,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset Validaciones
             inputAccount.maxLength = 50;
             inputAccount.placeholder = "Número de cuenta";
+            if (inputPhone) {
+                inputPhone.maxLength = 20;
+                inputPhone.placeholder = "Número de celular";
+            }
 
             // Reset Switches
             if (wrapperCheckBank) wrapperCheckBank.classList.remove('d-none');
@@ -784,13 +788,24 @@ document.addEventListener('DOMContentLoaded', () => {
             // VENEZUELA (ID 3)
             else if (paisId === C_VENEZUELA) {
                 if (containerBankInputText) containerBankInputText.classList.remove('d-none');
-                if (walletPhonePrefix) { walletPhonePrefix.textContent = '+58'; walletPhonePrefix.classList.remove('d-none'); }
-                if (phoneCodeSelect) phoneCodeSelect.style.display = 'none';
+                if (walletPhonePrefix) { 
+                    walletPhonePrefix.classList.add('d-none'); 
+                    walletPhonePrefix.textContent = ''; 
+                } 
+                if (phoneCodeSelect) {
+                    phoneCodeSelect.style.display = 'block'; 
+                    phoneCodeSelect.innerHTML = '';
+                    ['0412', '0414', '0416', '0424', '0426'].forEach(p => phoneCodeSelect.add(new Option(p, p)));
+                }
                 if (wrapperCheckMobile) {
                     wrapperCheckMobile.classList.remove('d-none');
                     const labelMobile = wrapperCheckMobile.querySelector('label');
                     if (labelMobile) labelMobile.textContent = 'Registrar Pago Móvil';
                 }
+                if (inputPhone) {
+                    inputPhone.maxLength = 7;
+                }
+
                 if (checkBank) checkBank.checked = true;
                 if (checkMobile) checkMobile.checked = false;
                 inputAccount.maxLength = 20;
@@ -895,8 +910,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- VALIDACIONES DE ENTRADA (SOLO NÚMEROS) ---
         [inputAccount, inputPhone, inputCCI, benefDocNumberInput].forEach(input => {
-            if(input) {
-                input.addEventListener('input', function() {
+            if (input) {
+                input.addEventListener('input', function () {
                     this.value = this.value.replace(/\D/g, '');
                 });
             }
@@ -934,6 +949,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const isBank = (checkBank && checkBank.checked);
             const isMobile = (checkMobile && checkMobile.checked);
 
+            // --- VALIDACIONES DE LONGITUD ---
             if (isBank) {
                 if (paisId === C_VENEZUELA) {
                     if (accNum.length !== 20) {
@@ -959,7 +975,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isMobile) {
                 if (paisId === C_VENEZUELA) {
                     if (phoneNum.length !== 7) {
-                        window.showInfoModal('Error', 'El teléfono debe tener 7 dígitos (sin prefijo).', false);
+                        window.showInfoModal('Error', 'El teléfono debe tener los 7 dígitos restantes (sin el prefijo).', false);
                         if (btn) { btn.disabled = false; btn.textContent = originalText; }
                         return;
                     }
@@ -977,6 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+            // Validacion CCI Peru
             if (paisId === C_PERU && inputCCI && inputCCI.value) {
                 if (inputCCI.value.length !== 20) {
                     window.showInfoModal('Error', 'El CCI debe tener exactamente 20 dígitos.', false);
@@ -985,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Nombre de banco manual para otros casos
             if (paisId === C_PERU || paisId === C_COLOMBIA) {
                 if (benefBankSelect.value === 'Otro Banco' && inputOtherBank && inputOtherBank.value) {
                     formData.set('nombreBanco', inputOtherBank.value.trim());
@@ -993,21 +1011,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Prefijo de documento (V, E, J...)
             if (benefDocPrefix && !benefDocPrefix.classList.contains('d-none')) {
                 formData.set('numeroDocumento', benefDocPrefix.value + formData.get('numeroDocumento'));
             }
 
+            // --- LÓGICA CRÍTICA DE TELÉFONO ---
             if (checkMobile.checked) {
-                let prefix = '';
+                let finalCode = '';
                 if (walletPhonePrefix && !walletPhonePrefix.classList.contains('d-none')) {
-                    prefix = walletPhonePrefix.textContent.replace('+', '');
-                } else if (phoneCodeSelect && phoneCodeSelect.style.display !== 'none') {
-                    prefix = phoneCodeSelect.value.replace('+', '');
+                    finalCode = walletPhonePrefix.textContent;
                 }
-                if (prefix) formData.set('phoneCode', '+' + prefix);
+                else if (phoneCodeSelect && phoneCodeSelect.style.display !== 'none') {
+                    finalCode = phoneCodeSelect.value; 
+                }
+                if (finalCode) formData.set('phoneCode', finalCode);
+
             } else {
                 formData.set('phoneNumber', '');
                 formData.set('numeroTelefono', '');
+                formData.delete('phoneCode');
             }
 
             formData.set('incluirCuentaBancaria', (checkBank && checkBank.checked) ? '1' : '0');
