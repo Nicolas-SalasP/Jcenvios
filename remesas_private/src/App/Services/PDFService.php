@@ -31,6 +31,29 @@ class PDFService
         // Decodificamos entidades HTML por si acaso y luego convertimos a ISO-8859-1
         return mb_convert_encoding(html_entity_decode($text, ENT_QUOTES, 'UTF-8'), 'ISO-8859-1', 'UTF-8');
     }
+    
+    private function formatDocumentNumber($doc)
+    {
+        if (empty($doc)) return 'N/A';
+
+        $clean = trim($doc);
+        if (preg_match('/^([VEJGP])\s*[-]?\s*(\d+)$/i', $clean, $matches)) {
+            $prefix = strtoupper($matches[1]);
+            $number = $matches[2];
+            return $prefix . '- ' . number_format((float)$number, 0, '', '.');
+        }
+        if (preg_match('/^(\d+)-([\dkK])$/', $clean, $matches)) {
+            $body = number_format((float)$matches[1], 0, '', '.');
+            $dv = strtoupper($matches[2]);
+            return $body . '-' . $dv;
+        }
+        $onlyDigits = preg_replace('/\D/', '', $clean);
+        if (strlen($onlyDigits) > 4 && strlen($onlyDigits) == strlen(str_replace(['.', ','], '', $clean))) {
+            return number_format((float)$onlyDigits, 0, '', '.');
+        }
+
+        return $clean;
+    }
 
     public function generateOrder(array $tx): string
     {
@@ -94,7 +117,7 @@ class PDFService
         $fill = false;
         $border = 'LR'; // Bordes laterales
 
-        // Función interna para filas de datos (Usando cleanText)
+        // Función interna para filas de datos
         $printDataRow = function ($labelRem, $valueRem, $labelBen, $valueBen, $isLast = false) use ($pdf, $border, $fill) {
             $currentBorder = $border . ($isLast ? 'B' : '');
 
@@ -110,11 +133,22 @@ class PDFService
             $pdf->Cell(65, 6, $this->cleanText($valueBen), $currentBorder, 1, 'L', $fill);
         };
 
-        // Filas estándar
-        $printDataRow('Nombre:', $tx['PrimerNombre'] . ' ' . $tx['PrimerApellido'], 'Nombre:', $tx['BeneficiarioNombre']);
-        $printDataRow('Documento:', $tx['NumeroDocumento'], 'Documento:', $tx['BeneficiarioDocumento']);
-        $printDataRow('Email:', $tx['Email'], 'Banco:', $tx['BeneficiarioBanco']);
+        $lblDocRem = !empty($tx['UsuarioTipoDocumentoNombre']) 
+            ? $tx['UsuarioTipoDocumentoNombre'] . ':' 
+            : 'Documento:';
+            
+        $lblDocBen = !empty($tx['BeneficiarioTipoDocumentoNombre']) 
+            ? $tx['BeneficiarioTipoDocumentoNombre'] . ':' 
+            : 'Documento:';
 
+        // Valores formateados con miles y prefijos
+        $valDocRem = $this->formatDocumentNumber($tx['NumeroDocumento']);
+        $valDocBen = $this->formatDocumentNumber($tx['BeneficiarioDocumento']);
+
+        // --- IMPRESIÓN DE FILAS ---
+        $printDataRow('Nombre:', $tx['PrimerNombre'] . ' ' . $tx['PrimerApellido'], 'Nombre:', $tx['BeneficiarioNombre']);
+        $printDataRow($lblDocRem, $valDocRem, $lblDocBen, $valDocBen);
+        $printDataRow('Email:', $tx['Email'], 'Banco:', $tx['BeneficiarioBanco']);
 
         $banco = strtoupper($tx['BeneficiarioBanco'] ?? '');
         $rawCuenta = $tx['BeneficiarioNumeroCuenta'] ?? '';

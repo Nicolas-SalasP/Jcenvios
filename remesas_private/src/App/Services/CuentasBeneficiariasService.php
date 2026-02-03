@@ -59,23 +59,26 @@ class CuentasBeneficiariasService
     public function addAccount(int $userId, array $data): int
     {
         $this->validateCommonFields($data);
-        
-        $paisId = isset($data['paisID']) ? (int)$data['paisID'] : 0;
+        if (!empty($data['phoneCode']) && !empty($data['phoneNumber'])) {
+            $data['phoneNumber'] = trim($data['phoneCode']) . trim($data['phoneNumber']);
+        }
+
+        $paisId = isset($data['paisID']) ? (int) $data['paisID'] : 0;
         $nombreBanco = trim($data['nombreBanco'] ?? '');
         $data['cci'] = isset($data['cci']) ? trim($data['cci']) : null;
         $numeroCuenta = isset($data['numeroCuenta']) ? trim($data['numeroCuenta']) : null;
-        
         // 1. COLOMBIA (ID 2)
         if ($paisId === 2) {
             $bancoLower = strtolower($nombreBanco);
             if ($bancoLower === 'nequi' || $bancoLower === 'daviplata') {
-                if (empty($data['phoneNumber'])) throw new Exception("Para $nombreBanco se requiere el número de celular.", 400);
-                // En Nequi/Daviplata la cuenta ES el teléfono
-                $data['numeroCuenta'] = $data['phoneNumber']; 
-                $data['numeroTelefono'] = null; // No lo guardamos duplicado en la columna telefono
-                $data['tipoBeneficiario'] = 'Pago Móvil'; 
+                if (empty($data['phoneNumber']))
+                    throw new Exception("Para $nombreBanco se requiere el número de celular.", 400);
+                $data['numeroCuenta'] = $data['phoneNumber'];
+                $data['numeroTelefono'] = null;
+                $data['tipoBeneficiario'] = 'Pago Móvil';
             } else {
-                if (empty($numeroCuenta)) throw new Exception("El número de cuenta es obligatorio para $nombreBanco.", 400);
+                if (empty($numeroCuenta))
+                    throw new Exception("El número de cuenta es obligatorio para $nombreBanco.", 400);
                 $data['tipoBeneficiario'] = 'Cuenta Bancaria';
             }
         }
@@ -85,32 +88,39 @@ class CuentasBeneficiariasService
             $incluirMovil = !empty($data['incluirPagoMovil']) && filter_var($data['incluirPagoMovil'], FILTER_VALIDATE_BOOLEAN);
 
             if ($incluirMovil) {
-                if (empty($data['phoneNumber'])) throw new Exception("El teléfono es obligatorio para Pago Móvil.", 400);
-            } 
+                if (empty($data['phoneNumber']))
+                    throw new Exception("El teléfono es obligatorio para Pago Móvil.", 400);
+            }
             if ($incluirCuenta) {
-                if (empty($numeroCuenta)) throw new Exception("El número de cuenta es obligatorio.", 400);
+                if (empty($numeroCuenta))
+                    throw new Exception("El número de cuenta es obligatorio.", 400);
             }
             if (!$incluirCuenta && !$incluirMovil) {
                 throw new Exception("Debes registrar al menos una cuenta o pago móvil.", 400);
             }
 
             // Definir Tipo Visual
-            if ($incluirMovil && $incluirCuenta) $data['tipoBeneficiario'] = 'Cuenta Bancaria';
-            elseif ($incluirMovil) $data['tipoBeneficiario'] = 'Pago Móvil';
-            else $data['tipoBeneficiario'] = 'Cuenta Bancaria';
+            if ($incluirMovil && $incluirCuenta)
+                $data['tipoBeneficiario'] = 'Cuenta Bancaria';
+            elseif ($incluirMovil)
+                $data['tipoBeneficiario'] = 'Pago Móvil';
+            else
+                $data['tipoBeneficiario'] = 'Cuenta Bancaria';
         }
         // 3. PERÚ (ID 4)
         elseif ($paisId === 4) {
             $esBilletera = in_array($nombreBanco, ['Yape', 'Plin']);
             $esInterbank = ($nombreBanco === 'Interbank');
-            
+
             if ($esBilletera) {
-                if (empty($data['phoneNumber'])) throw new Exception("Para $nombreBanco se requiere el número de celular.", 400);
+                if (empty($data['phoneNumber']))
+                    throw new Exception("Para $nombreBanco se requiere el número de celular.", 400);
                 $data['numeroCuenta'] = $data['phoneNumber'];
                 $data['numeroTelefono'] = null;
                 $data['tipoBeneficiario'] = 'Pago Móvil';
             } else {
-                if (empty($numeroCuenta)) throw new Exception("El número de cuenta es obligatorio.", 400);
+                if (empty($numeroCuenta))
+                    throw new Exception("El número de cuenta es obligatorio.", 400);
                 if (!$esInterbank && empty($data['cci'])) {
                     throw new Exception("Para transferencias a '$nombreBanco' en Perú, el CCI es obligatorio.", 400);
                 }
@@ -119,17 +129,18 @@ class CuentasBeneficiariasService
         }
         // 4. RESTO
         else {
-            if (empty($numeroCuenta)) throw new Exception("El número de cuenta es obligatorio.", 400);
+            if (empty($numeroCuenta))
+                throw new Exception("El número de cuenta es obligatorio.", 400);
             $data['tipoBeneficiario'] = 'Cuenta Bancaria';
         }
 
         try {
             $data['UserID'] = $userId;
             $prepared = $this->prepareRecordData($data);
-            
+
             $newId = $this->cuentasRepo->create(
                 $prepared['UserID'],
-                (int)$prepared['paisID'],
+                (int) $prepared['paisID'],
                 $prepared['alias'],
                 $prepared['primerNombre'],
                 $prepared['segundoNombre'],
@@ -156,6 +167,10 @@ class CuentasBeneficiariasService
     public function updateAccount(int $userId, int $cuentaId, array $data): bool
     {
         $this->validateCommonFields($data);
+        if (!empty($data['phoneCode']) && !empty($data['phoneNumber'])) {
+            $data['phoneNumber'] = trim($data['phoneCode']) . trim($data['phoneNumber']);
+        }
+
         $cuenta = $this->cuentasRepo->findByIdAndUserId($cuentaId, $userId);
         if (!$cuenta)
             throw new Exception("Cuenta no encontrada.");
@@ -164,12 +179,14 @@ class CuentasBeneficiariasService
         if (empty($data['tipoBeneficiario'])) {
             $hasPhone = !empty($data['phoneNumber']);
             $hasAccount = !empty($data['numeroCuenta']);
-            if ($hasPhone && !$hasAccount) $data['tipoBeneficiario'] = 'Pago Móvil';
-            else $data['tipoBeneficiario'] = 'Cuenta Bancaria';
+            if ($hasPhone && !$hasAccount)
+                $data['tipoBeneficiario'] = 'Pago Móvil';
+            else
+                $data['tipoBeneficiario'] = 'Cuenta Bancaria';
         }
 
         $prepared = $this->prepareRecordData($data);
-        
+
         $hasHistory = $this->txRepo->isAccountUsedInCompletedOrders($cuentaId);
 
         try {
@@ -230,7 +247,8 @@ class CuentasBeneficiariasService
     {
         if (!empty($data['numeroCuenta'])) {
             $cleanAccount = preg_replace('/[^0-9]/', '', $data['numeroCuenta']);
-            if (strlen($cleanAccount) > 30) throw new Exception("El número de cuenta es demasiado largo.", 400);
+            if (strlen($cleanAccount) > 30)
+                throw new Exception("El número de cuenta es demasiado largo.", 400);
             $data['numeroCuenta'] = $cleanAccount;
         } else {
             $data['numeroCuenta'] = null;
