@@ -1,183 +1,154 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Ejecutar inmediatamente
     checkSystemStatus();
-    // Y revisar cada 30 segundos
     setInterval(checkSystemStatus, 30000);
 });
 
+let logoutTimer = null;
+let countdownInterval = null;
+
 async function checkSystemStatus() {
     try {
-        // Detectar ruta correcta para la API
-        const basePath = window.location.pathname.includes('/dashboard/') || 
-                         window.location.pathname.includes('/admin/') || 
-                         window.location.pathname.includes('/operador/')
-            ? '../api/' 
-            : 'api/';
-            
-        // Detectar si estamos dentro del sistema (Logueados)
-        const isInternalPage = window.location.pathname.includes('/dashboard/') || 
-                               window.location.pathname.includes('/admin/') || 
-                               window.location.pathname.includes('/operador/');
-
-        const apiUrl = basePath + '?accion=checkSystemStatus';
+        const isInSubfolder = window.location.pathname.includes('/dashboard/') || 
+                              window.location.pathname.includes('/admin/') || 
+                              window.location.pathname.includes('/operador/');
+        
+        const basePath = isInSubfolder ? '../api/' : 'api/';
+        const apiUrl = basePath + '?accion=checkSystemStatus&_=' + new Date().getTime();
         
         const response = await fetch(apiUrl);
         const data = await response.json();
 
-        // Limpiar estados previos antes de aplicar el nuevo
-        cleanupLockState();
+        if (!data.logged_in) {
+            cleanupLockState();
+            return;
+        }
 
-        // ---------------------------------------------------------
-        // CASO 1: BLOQUEO TOTAL (active = false)
-        // ---------------------------------------------------------
-        // ESTE APLICA SIEMPRE, INCLUSO EN LOGIN/INDEX
+        if (data.role === 'Admin' || data.role === 'Operador') {
+            cleanupLockState();
+            return;
+        }
+
         if (data.active === false) {
+            const logoutPath = isInSubfolder ? '../logout.php' : 'logout.php';
+
             showLockModal({
-                message: data.message || 'Sistema pausado temporalmente.',
-                reason: data.reason
+                message: data.message || 'Servicio Suspendido Temporalmente',
+                logoutUrl: logoutPath
             });
-            disableInterface(); 
-            return;
-        }
+            
+            disableInterface();
 
-        // ---------------------------------------------------------
-        // CASO 2: SISTEMA ACTIVO PERO CON ADVERTENCIA (Informativo)
-        // ---------------------------------------------------------
-        // ESTE SOLO APLICA SI ESTAMOS DENTRO DEL DASHBOARD
-        if (data.active === true && data.holiday_warning) {
-            if (isInternalPage) {
-                showWarningBanner(data.holiday_warning.title, data.holiday_warning.message);
-            }
-            // Si es página pública (Login/Index), NO hacemos nada (no mostramos barra)
-            return;
+        } else if (data.holiday_warning) {
+            cleanupLockState();
+        } else {
+            cleanupLockState();
         }
-
-        // CASO 3: TODO NORMAL (Ya se limpió al inicio de la función)
 
     } catch (error) {
-        console.error("Error verificando estado del sistema:", error);
+        console.error(error);
     }
 }
 
-function cleanupLockState() {
-    // Eliminar modal de bloqueo si existe
-    const lockModal = document.getElementById('systemLockModal');
-    if (lockModal) {
-        const bsModal = bootstrap.Modal.getInstance(lockModal);
-        if (bsModal) bsModal.hide();
-        lockModal.remove();
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = '';
-    }
+function showLockModal({ message, logoutUrl }) {
+    if (document.getElementById('system-lock-modal')) return;
 
-    // Eliminar barra de advertencia
-    const banner = document.getElementById('system-warning-banner');
-    if (banner) banner.remove();
+    const modalBackdrop = document.createElement('div');
+    modalBackdrop.id = 'system-lock-backdrop';
+    modalBackdrop.className = 'modal-backdrop show';
+    modalBackdrop.style.zIndex = '1050';
 
-    // Rehabilitar interfaz
-    enableInterface();
-}
+    const modal = document.createElement('div');
+    modal.id = 'system-lock-modal';
+    modal.className = 'modal fade show d-block';
+    modal.setAttribute('tabindex', '-1');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.style.zIndex = '1055';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
 
-// --- VISUALIZACIÓN: BLOQUEO TOTAL (ROJO) ---
-function showLockModal(status) {
-    if (document.getElementById('systemLockModal')) return; 
-
-    const modalHtml = `
-    <div class="modal fade" id="systemLockModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" style="z-index: 10000;">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-danger text-white justify-content-center border-0">
-                    <h4 class="modal-title fw-bold"><i class="bi bi-slash-circle"></i> Sistema Pausado</h4>
+    modal.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-exclamation-octagon-fill me-2"></i>Acceso Restringido
+                    </h5>
                 </div>
-                <div class="modal-body text-center p-5">
-                    <div class="mb-4">
-                        <div class="spinner-grow text-danger" role="status" style="width: 3rem; height: 3rem;">
-                            <span class="visually-hidden">Cerrado</span>
-                        </div>
-                    </div>
-                    <h3 class="mb-3 text-dark fw-bold">Atención</h3>
+                <div class="modal-body text-center p-4">
+                    <h4 class="mb-3 fw-bold text-dark">${message}</h4>
                     
-                    <div class="alert alert-light border border-danger text-danger mb-4">
-                        <i class="bi bi-info-circle-fill me-2"></i> ${status.message}
+                    <div class="alert alert-warning d-inline-block mt-3">
+                        Cerrando sesión en <strong id="lock-countdown" class="fs-5">10</strong> segundos...
                     </div>
-                    
-                    <p class="small text-muted mb-0">Por favor intente nuevamente más tarde.</p>
                 </div>
-                <div class="modal-footer justify-content-center bg-light border-0">
-                    <a href="../logout.php" class="btn btn-outline-secondary btn-sm">Cerrar Sesión</a>
+                <div class="modal-footer justify-content-center bg-light">
+                    <a href="${logoutUrl}" class="btn btn-danger w-100 fw-bold">
+                        <i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión Ahora
+                    </a>
                 </div>
             </div>
         </div>
-    </div>`;
-
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-    const modalEl = document.getElementById('systemLockModal');
-    const modal = new bootstrap.Modal(modalEl, {
-        backdrop: 'static',
-        keyboard: false
-    });
-    modal.show();
-}
-
-// --- VISUALIZACIÓN: BARRA INFORMATIVA (AMARILLA) ---
-function showWarningBanner(title, msg) {
-    if (document.getElementById('system-warning-banner')) return; 
-
-    const banner = document.createElement('div');
-    banner.id = 'system-warning-banner';
-    banner.className = 'alert alert-warning text-center mb-0 fw-bold border-0 rounded-0 shadow-sm position-relative animate__animated animate__fadeInDown';
-    banner.style.zIndex = '1030';
-    
-    banner.innerHTML = `
-        <div class="container">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <span class="text-uppercase me-2">${title}:</span>
-            <span class="fw-normal">${msg}</span>
-        </div>
     `;
 
-    const navbar = document.querySelector('nav') || document.querySelector('header');
-    if (navbar && navbar.parentNode) {
-        navbar.parentNode.insertBefore(banner, navbar.nextSibling);
-    } else {
-        document.body.prepend(banner);
-    }
+    document.body.appendChild(modalBackdrop);
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+    document.body.style.overflow = 'hidden';
+
+    startCountdown(10, logoutUrl);
+}
+
+function startCountdown(seconds, logoutUrl) {
+    let counter = seconds;
+    const countSpan = document.getElementById('lock-countdown');
+    
+    if (countdownInterval) clearInterval(countdownInterval);
+    if (logoutTimer) clearTimeout(logoutTimer);
+
+    countdownInterval = setInterval(() => {
+        counter--;
+        if (countSpan) countSpan.textContent = counter;
+        
+        if (counter <= 0) {
+            clearInterval(countdownInterval);
+            window.location.href = logoutUrl;
+        }
+    }, 1000);
+
+    logoutTimer = setTimeout(() => {
+        window.location.href = logoutUrl;
+    }, (seconds + 1) * 1000);
+}
+
+function cleanupLockState() {
+    const modal = document.getElementById('system-lock-modal');
+    const backdrop = document.getElementById('system-lock-backdrop');
+
+    if (modal) modal.remove();
+    if (backdrop) backdrop.remove();
+    
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+
+    if (countdownInterval) clearInterval(countdownInterval);
+    if (logoutTimer) clearTimeout(logoutTimer);
+    
+    enableInterface();
 }
 
 function disableInterface() {
-    const selectors = [
-        'button[type="submit"]', 
-        '.btn-primary', 
-        '.btn-success', 
-        'input[type="submit"]',
-        '#btn-calcular', 
-        'a[href*="crear"]' 
-    ];
-    
-    const elements = document.querySelectorAll(selectors.join(','));
+    const elements = document.querySelectorAll('button, input, select, textarea, a');
     elements.forEach(el => {
-        el.classList.add('disabled');
-        el.setAttribute('disabled', 'disabled');
+        if (el.closest('#system-lock-modal')) return;
         el.style.pointerEvents = 'none';
+        el.tabIndex = -1;
     });
 }
 
 function enableInterface() {
-    const selectors = [
-        'button[type="submit"]', 
-        '.btn-primary', 
-        '.btn-success', 
-        'input[type="submit"]',
-        '#btn-calcular', 
-        'a[href*="crear"]' 
-    ];
-    
-    const elements = document.querySelectorAll(selectors.join(','));
+    const elements = document.querySelectorAll('button, input, select, textarea, a');
     elements.forEach(el => {
-        el.classList.remove('disabled');
-        el.removeAttribute('disabled');
         el.style.pointerEvents = '';
+        el.removeAttribute('tabindex');
     });
 }
