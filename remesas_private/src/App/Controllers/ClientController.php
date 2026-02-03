@@ -55,29 +55,36 @@ class ClientController extends BaseController
     public function checkSystemStatus(): void
     {
         try {
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            $loggedIn = isset($_SESSION['user_id']);
+            $role = $_SESSION['user_rol_name'] ?? '';
+            $response = [
+                'active' => true,
+                'logged_in' => $loggedIn,
+                'role' => $role
+            ];
+
             $feriado = $this->settingsService->getActiveHoliday(); 
 
             if ($feriado) {
                 if ($feriado['BloqueoSistema'] == 1) {
-                    $this->sendJsonResponse([
-                        'active' => false,
-                        'reason' => 'holiday',
-                        'message' => '⛔ Feriado: ' . $feriado['Motivo'] . '. No estamos operando.'
-                    ]);
-                    return;
+                    $response['active'] = false;
+                    $response['reason'] = 'holiday';
+                    $response['message'] = $feriado['Motivo']; 
+                    $response['ends_at'] = $feriado['FechaFin'];
                 }
                 else {
-                    $this->sendJsonResponse([
-                        'active' => true,
-                        'holiday_warning' => [
-                            'title' => 'AVISO INFORMATIVO', 
-                            'message' => $feriado['Motivo'] . '. Puedes operar con normalidad.'
-                        ]
-                    ]);
-                    return;
+                    $response['holiday_warning'] = [
+                        'title' => 'AVISO INFORMATIVO', 
+                        'message' => $feriado['Motivo'],
+                        'ends_at' => $feriado['FechaFin']
+                    ];
                 }
             }
-            $this->sendJsonResponse(['active' => true]);
+            
+            $this->sendJsonResponse($response);
 
         } catch (Exception $e) {
             $this->sendJsonResponse(['active' => false, 'error' => $e->getMessage()]);
