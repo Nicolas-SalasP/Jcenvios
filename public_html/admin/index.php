@@ -10,9 +10,12 @@ if (!isset($_SESSION['twofa_enabled']) || $_SESSION['twofa_enabled'] === false) 
 }
 
 $listaEstados = [];
+$listaPaises = [];
 if (!isset($_GET['ajax'])) {
     $estadosDb = $conexion->query("SELECT EstadoID, NombreEstado FROM estados_transaccion ORDER BY NombreEstado ASC");
     $listaEstados = $estadosDb ? $estadosDb->fetch_all(MYSQLI_ASSOC) : [];
+    $paisesDb = $conexion->query("SELECT PaisID, NombrePais FROM paises WHERE Activo = 1 ORDER BY NombrePais ASC");
+    $listaPaises = $paisesDb ? $paisesDb->fetch_all(MYSQLI_ASSOC) : [];
 }
 
 $f_id = $_GET['f_id'] ?? '';
@@ -195,12 +198,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 <td class="text-center">
                     <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
                         <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal"
-                            data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                            title="Pagar">
+                            data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Pagar">
                             <i class="bi bi-currency-dollar"></i>
                         </button>
                     <?php endif; ?>
-                    
+
                     <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
                         <button class="btn btn-sm btn-success view-comprobante-btn-admin" data-bs-toggle="modal"
                             data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
@@ -240,7 +242,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <a href="exportar_transacciones.php?mode=dia" target="_blank" class="btn btn-success">
                     <i class="bi bi-file-earmark-excel"></i> Excel Hoy
                 </a>
-                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#exportModal">
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal"
+                    data-bs-target="#exportModal">
                     <i class="bi bi-calendar-range"></i> Histórico
                 </button>
                 <a href="<?php echo BASE_URL; ?>/admin/pendientes.php" class="btn btn-primary">
@@ -306,10 +309,10 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <td colspan="9" class="text-center py-4 text-muted">No se encontraron resultados.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($transacciones as $tx): 
+                    <?php foreach ($transacciones as $tx):
                         $nombreTitular = !empty($tx['NombreTitularOrigen']) ? $tx['NombreTitularOrigen'] : ($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']);
                         $rutTitular = !empty($tx['RutTitularOrigen']) ? $tx['RutTitularOrigen'] : ($tx['UsuarioDocumento'] ?? 'N/A');
-                    ?>
+                        ?>
                         <tr>
                             <td><?php echo $tx['TransaccionID']; ?></td>
                             <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
@@ -345,8 +348,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                 </div>
                             </td>
                             <td class="text-center">
-                                <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
-                                    class="btn btn-sm btn-info text-white" title="PDF">
+                                <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>"
+                                    target="_blank" class="btn btn-sm btn-info text-white" title="PDF">
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </a>
                             </td>
@@ -428,25 +431,86 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form action="exportar_transacciones.php" method="GET" target="_blank">
+                <form action="exportar_transacciones.php" method="GET" target="_blank" id="formExport">
                     <input type="hidden" name="mode" value="rango">
-                    <div class="mb-3">
+
+                    <div class="mb-2">
                         <label class="form-label small fw-bold">Desde:</label>
                         <input type="date" name="start" class="form-control form-control-sm" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-bold">Hasta:</label>
-                        <input type="date" name="end" class="form-control form-control-sm" value="<?php echo date('Y-m-d'); ?>" required>
+                        <input type="date" name="end" class="form-control form-control-sm"
+                            value="<?php echo date('Y-m-d'); ?>" required>
                     </div>
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-success btn-sm">Descargar Rango</button>
-                        <a href="exportar_transacciones.php?mode=historico" class="btn btn-outline-secondary btn-sm">Descargar Todo Histórico</a>
+
+                    <hr class="my-2">
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold text-muted">Origen (Opcional):</label>
+                        <select name="origin_id" id="exportOrigin" class="form-select form-select-sm">
+                            <option value="">Cualquiera</option>
+                            <?php foreach ($listaPaises as $pais): ?>
+                                <option value="<?php echo $pais['PaisID']; ?>">
+                                    <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Destino (Opcional):</label>
+                        <select name="dest_id" id="exportDest" class="form-select form-select-sm">
+                            <option value="">Cualquiera</option>
+                            <?php foreach ($listaPaises as $pais): ?>
+                                <option value="<?php echo $pais['PaisID']; ?>">
+                                    <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="bi bi-download me-1"></i> Descargar Reporte
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const selOrigin = document.getElementById('exportOrigin');
+        const selDest = document.getElementById('exportDest');
+
+        const updateOptions = () => {
+            const valOrigin = selOrigin.value;
+            const valDest = selDest.value;
+            Array.from(selDest.options).forEach(opt => {
+                if (opt.value !== "" && opt.value === valOrigin) {
+                    opt.disabled = true;
+                    if (opt.selected) selDest.value = "";
+                } else {
+                    opt.disabled = false;
+                }
+            });
+            Array.from(selOrigin.options).forEach(opt => {
+                if (opt.value !== "" && opt.value === valDest) {
+                    opt.disabled = true;
+                } else {
+                    opt.disabled = false;
+                }
+            });
+        };
+
+        if (selOrigin && selDest) {
+            selOrigin.addEventListener('change', updateOptions);
+            selDest.addEventListener('change', updateOptions);
+        }
+    });
+</script>
 
 <div class="modal fade" id="editCommissionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -482,7 +546,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         <div class="modal-content border-0" style="height: 85vh;">
             <div class="modal-header bg-dark text-white py-2">
                 <h5 class="modal-title fs-6">Comprobante</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body p-0 d-flex flex-column flex-lg-row h-100 flex-grow-1 overflow-hidden">
                 <div class="bg-light p-3 border-end overflow-auto" style="min-width: 250px; max-width: 300px;">
@@ -497,17 +562,23 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
                     <hr>
                     <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary active" id="tab-btn-user">Pago Cliente</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="tab-btn-admin">Envío Admin</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary active" id="tab-btn-user">Pago
+                            Cliente</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="tab-btn-admin">Envío
+                            Admin</button>
                     </div>
                 </div>
 
-                <div class="flex-grow-1 bg-dark position-relative d-flex align-items-center justify-content-center" style="background-color: #333;">
+                <div class="flex-grow-1 bg-dark position-relative d-flex align-items-center justify-content-center"
+                    style="background-color: #333;">
                     <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-                    
-                    <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center p-3">
-                        <img id="comprobante-img-full" src="" class="img-fluid d-none" style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
-                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none border-0" style="background:white;" loading="lazy"></iframe>
+
+                    <div id="comprobante-content"
+                        class="w-100 h-100 d-flex align-items-center justify-content-center p-3">
+                        <img id="comprobante-img-full" src="" class="img-fluid d-none"
+                            style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
+                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none border-0" style="background:white;"
+                            loading="lazy"></iframe>
                     </div>
                 </div>
             </div>
@@ -524,7 +595,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content shadow">
             <div class="modal-header bg-warning py-2">
-                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-pause-circle-fill me-2"></i>Motivo de Pausa</h6>
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-pause-circle-fill me-2"></i>Motivo de Pausa
+                </h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body text-center p-4">
@@ -556,11 +628,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Comprobante de Pago</label>
-                        <input class="form-control" type="file" name="receiptFile" required accept="image/*,application/pdf">
+                        <input class="form-control" type="file" name="receiptFile" required
+                            accept="image/*,application/pdf">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Comisión</label>
-                        <input type="number" step="0.01" class="form-control" id="adminComisionDestino" name="comisionDestino" value="0">
+                        <input type="number" step="0.01" class="form-control" id="adminComisionDestino"
+                            name="comisionDestino" value="0">
                     </div>
                     <button type="submit" class="btn btn-success w-100">Confirmar y Finalizar</button>
                 </form>
@@ -572,9 +646,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 <div class="modal fade" id="infoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title" id="infoModalTitle">Info</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-header">
+                <h5 class="modal-title" id="infoModalTitle">Info</h5><button type="button" class="btn-close"
+                    data-bs-dismiss="modal"></button>
+            </div>
             <div class="modal-body" id="infoModalBody"></div>
-            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="infoModalCloseBtn">Cerrar</button></div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                    id="infoModalCloseBtn">Cerrar</button></div>
         </div>
     </div>
 </div>
@@ -583,7 +661,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
 
     document.addEventListener('DOMContentLoaded', () => {
-        document.body.addEventListener('click', function(e) {
+        document.body.addEventListener('click', function (e) {
             const btn = e.target.closest('.view-pause-reason-btn');
             if (btn) {
                 e.preventDefault();
@@ -598,11 +676,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             }
         });
 
-        document.body.addEventListener('click', function(e) {
+        document.body.addEventListener('click', function (e) {
             const btn = e.target.closest('.view-comprobante-btn-admin');
             if (btn) {
                 e.preventDefault();
-                
+
                 document.getElementById('visor-nombre-titular').textContent = btn.dataset.nombreTitular || 'No registrado';
                 document.getElementById('visor-rut-titular').textContent = btn.dataset.rutTitular || 'No registrado';
 
@@ -618,7 +696,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 imgEl.classList.add('d-none');
                 pdfEl.classList.add('d-none');
                 placeholder.classList.remove('d-none');
-                
+
                 let extension = '';
                 if (urlToLoad.includes('?')) {
                     const urlParams = new URLSearchParams(urlToLoad.split('?')[1]);
@@ -637,7 +715,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         pdfEl.src = urlToLoad;
                         pdfEl.classList.remove('d-none');
                     }
-                    if(downloadBtn) downloadBtn.href = urlToLoad;
+                    if (downloadBtn) downloadBtn.href = urlToLoad;
                 }, 500);
             }
         });

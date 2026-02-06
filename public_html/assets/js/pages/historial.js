@@ -154,7 +154,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             title="Ver Pago"><i class="bi bi-eye"></i> Ver Pago</button>`;
             }
 
-            btns += ` <a href="../generar-factura.php?id=${tx.TransaccionID}" target="_blank" class="btn btn-sm btn-info" title="Descargar PDF"><i class="bi bi-file-earmark-pdf"></i> Ver Orden</a>`;
+            if (estadoId !== 7) {
+                btns += ` <a href="../generar-factura.php?id=${tx.TransaccionID}" target="_blank" class="btn btn-sm btn-info" title="Descargar PDF"><i class="bi bi-file-earmark-pdf"></i> Ver Orden</a>`;
+            } else {
+                btns += ` <span class="badge bg-secondary" title="Disponible tras aprobación"><i class="bi bi-clock"></i> Pendiente</span>`;
+            }
 
             if (tx.ComprobanteEnvioURL) {
                 const ext = getFileExt(tx.ComprobanteEnvioURL);

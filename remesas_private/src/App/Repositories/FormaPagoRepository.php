@@ -37,11 +37,11 @@ class FormaPagoRepository
     {
         $sql = "SELECT DISTINCT fp.FormaPagoID, fp.Nombre 
                 FROM formas_pago fp
-                JOIN cuentas_bancarias_admin cba ON fp.FormaPagoID = cba.FormaPagoID
-                WHERE fp.Activo = TRUE 
-                    AND cba.Activo = TRUE 
+                INNER JOIN cuentas_bancarias_admin cba ON fp.FormaPagoID = cba.FormaPagoID
+                WHERE fp.Activo = 1 
+                    AND cba.Activo = 1 
                     AND cba.PaisID = ?
-                ORDER BY fp.Nombre";
+                ORDER BY fp.Nombre ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $paisOrigenId);

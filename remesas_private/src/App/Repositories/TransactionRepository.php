@@ -466,7 +466,7 @@ class TransactionRepository
         return $result;
     }
 
-    public function getExportData(?string $startDate = null, ?string $endDate = null): array
+    public function getExportData(?string $startDate = null, ?string $endDate = null, ?int $originId = null, ?int $destId = null): array
     {
         $sql = "SELECT
                     T.TransaccionID,
@@ -474,8 +474,10 @@ class TransactionRepository
                     CONCAT(U.PrimerNombre, ' ', U.PrimerApellido) AS ClienteNombre,
                     U.NumeroDocumento AS ClienteDocumento,
                     T.MontoOrigen,
+                    P_Orig.NombrePais AS PaisOrigen,
                     TS.ValorTasa,
                     T.MontoDestino,
+                    P_Dest.NombrePais AS PaisDestino,
                     T.ComisionDestino,
                     (SELECT Timestamp FROM logs 
                     WHERE Detalles LIKE CONCAT('%TX ID: ', T.TransaccionID, '%') 
@@ -489,21 +491,43 @@ class TransactionRepository
                 FROM transacciones T
                 JOIN usuarios U ON T.UserID = U.UserID
                 JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID
+                JOIN paises P_Orig ON TS.PaisOrigenID = P_Orig.PaisID
+                JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
+                JOIN paises P_Dest ON CB.PaisID = P_Dest.PaisID
                 LEFT JOIN formas_pago FP ON T.FormaPagoID = FP.FormaPagoID
                 LEFT JOIN cuentas_bancarias_admin CBA_IN ON T.FormaPagoID = CBA_IN.FormaPagoID AND TS.PaisOrigenID = CBA_IN.PaisID AND CBA_IN.Activo = 1
                 LEFT JOIN cuentas_bancarias_admin CBA_OUT ON T.CuentaAdminSalidaID = CBA_OUT.CuentaAdminID
                 
-                WHERE T.EstadoID IN (4, 5)";
+                WHERE T.EstadoID = 4";
+
+        $params = [];
+        $types = "";
+
         if ($startDate && $endDate) {
             $sql .= " AND DATE(T.FechaTransaccion) BETWEEN ? AND ?";
+            $types .= "ss";
+            $params[] = $startDate;
+            $params[] = $endDate;
+        }
+
+        if ($originId) {
+            $sql .= " AND TS.PaisOrigenID = ?";
+            $types .= "i";
+            $params[] = $originId;
+        }
+
+        if ($destId) {
+            $sql .= " AND CB.PaisID = ?";
+            $types .= "i";
+            $params[] = $destId;
         }
 
         $sql .= " ORDER BY T.FechaTransaccion DESC";
 
         $stmt = $this->db->prepare($sql);
 
-        if ($startDate && $endDate) {
-            $stmt->bind_param("ss", $startDate, $endDate);
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
         }
 
         $stmt->execute();

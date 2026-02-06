@@ -367,7 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
 
-            // Verificación previa para evitar errores de sintaxis si el PHP devuelve warnings
             const textResp = await resp.text();
             let res;
             try {
@@ -392,11 +391,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentStep++;
                     updateView();
                 } else {
-                    // CORRECCIÓN AQUÍ: Usar selector más seguro (.card)
                     const wizardContainer = document.querySelector('.card') || document.getElementById('remittance-form').parentNode;
 
                     if (!wizardContainer) {
                         throw new Error("No se encontró el contenedor para mostrar el formulario de carga.");
+                    }
+                    const paisOrigenVal = parseInt(paisOrigenSelect.value);
+                    const esVenezuelaOrigen = (paisOrigenVal === 3);
+                    const displayRutStyle = esVenezuelaOrigen ? '' : 'd-none';
+                    const requiredRut = esVenezuelaOrigen ? 'required' : '';
+
+                    let htmlQR = '';
+                    if (res.cuentaAdmin && res.cuentaAdmin.QrCodeURL) {
+                        htmlQR = `
+                            <div class="text-center mb-4 p-3 bg-white rounded border shadow-sm animate__animated animate__fadeInDown">
+                                <h6 class="fw-bold text-primary mb-2">Escanea para pagar con ${res.cuentaAdmin.Banco}</h6>
+                                <img src="../assets/img/qr/${res.cuentaAdmin.QrCodeURL}" alt="QR Pago" class="img-fluid border" style="max-height: 250px;">
+                                <div class="small text-muted mt-2 fw-bold">${res.cuentaAdmin.Titular}</div>
+                                <div class="small text-muted">${res.cuentaAdmin.NumeroCuenta}</div>
+                            </div>
+                        `;
                     }
 
                     wizardContainer.innerHTML = `
@@ -405,20 +419,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
                             </div>
                             <h3 class="mb-3 text-success">¡Orden #${finalId} Creada!</h3>
+                            
+                            ${htmlQR}
+
                             <p class="text-muted mb-4">Para procesar tu envío rápidamente, por favor sube el comprobante ahora.</p>
                             
                             <div class="card bg-light border-0 p-4 mx-auto shadow-sm" style="max-width: 500px;">
                                 <form id="form-comprobante-express">
                                     <input type="hidden" name="transaction_id" value="${finalId}">
                                     
-                                    <div class="form-floating mb-3 text-start">
-                                        <input type="text" class="form-control" id="rut_titular_pago" name="rut_titular" required placeholder="Ej: 12.345.678-9">
-                                        <label for="rut_titular_pago">RUT del Titular (Quien transfirió)</label>
+                                    <div class="form-floating mb-3 text-start ${displayRutStyle}">
+                                        <input type="text" class="form-control" id="rut_titular_pago" name="rut_titular" ${requiredRut} placeholder="Ej: 12.345.678-9">
+                                        <label for="rut_titular_pago">RUT/Documento del Titular</label>
                                     </div>
 
                                     <div class="form-floating mb-3 text-start">
                                         <input type="text" class="form-control" id="nombre_titular_pago" name="nombre_titular" required placeholder="Nombre Completo">
-                                        <label for="nombre_titular_pago">Nombre del Titular</label>
+                                        <label for="nombre_titular_pago">Nombre del Titular (Quien transfirió)</label>
                                     </div>
 
                                     <div class="mb-3 text-start">
@@ -438,14 +455,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     `;
 
-                    // Activar validador de RUT si existe, sino no pasa nada
-                    if (typeof RutValidator !== 'undefined') {
+                    if (typeof RutValidator !== 'undefined' && esVenezuelaOrigen) {
                         new RutValidator(document.getElementById('rut_titular_pago'));
-                    } else {
-                        console.warn("RutValidator no está cargado, la validación de RUT será básica.");
                     }
 
-                    // Manejar Envío del Comprobante
                     document.getElementById('form-comprobante-express').addEventListener('submit', async function (ev) {
                         ev.preventDefault();
                         const btnUp = document.getElementById('btn-subir-express');
@@ -454,6 +467,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         btnUp.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Subiendo...';
 
                         const fd = new FormData(this);
+                        if (!esVenezuelaOrigen) {
+                            fd.set('rut_titular', 'N/A');
+                        }
+
                         try {
                             const upResp = await fetch('../api/?accion=subirComprobanteDetallado', { method: 'POST', body: fd });
                             const upJson = await upResp.json();
@@ -714,6 +731,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (containerBankInputText) containerBankInputText.classList.add('d-none');
             if (containerOtherBank) containerOtherBank.classList.add('d-none');
             if (containerCCI) containerCCI.classList.add('d-none');
+            if (inputCCI) { inputCCI.value = ''; inputCCI.required = false; }
             if (cardOptions) cardOptions.classList.remove('d-none');
 
             // Mostrar documentos por defecto (REQUERIMIENTO: OTROS PAISES SE MUESTRA)
@@ -788,12 +806,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // VENEZUELA (ID 3)
             else if (paisId === C_VENEZUELA) {
                 if (containerBankInputText) containerBankInputText.classList.remove('d-none');
-                if (walletPhonePrefix) { 
-                    walletPhonePrefix.classList.add('d-none'); 
-                    walletPhonePrefix.textContent = ''; 
-                } 
+                if (walletPhonePrefix) {
+                    walletPhonePrefix.classList.add('d-none');
+                    walletPhonePrefix.textContent = '';
+                }
                 if (phoneCodeSelect) {
-                    phoneCodeSelect.style.display = 'block'; 
+                    phoneCodeSelect.style.display = 'block';
                     phoneCodeSelect.innerHTML = '';
                     ['0412', '0414', '0416', '0424', '0426'].forEach(p => phoneCodeSelect.add(new Option(p, p)));
                 }
@@ -833,6 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const paisId = parseInt(benefPaisIdInput.value);
                 if (containerOtherBank) containerOtherBank.classList.add('d-none');
                 if (containerCCI) containerCCI.classList.add('d-none');
+                if (inputCCI) inputCCI.required = false;
                 if (containerBankFields) containerBankFields.classList.add('d-none');
                 if (containerMobileFields) containerMobileFields.classList.add('d-none');
                 if (checkBank) checkBank.checked = false;
@@ -1023,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     finalCode = walletPhonePrefix.textContent;
                 }
                 else if (phoneCodeSelect && phoneCodeSelect.style.display !== 'none') {
-                    finalCode = phoneCodeSelect.value; 
+                    finalCode = phoneCodeSelect.value;
                 }
                 if (finalCode) formData.set('phoneCode', finalCode);
 

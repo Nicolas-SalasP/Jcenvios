@@ -66,24 +66,23 @@ class ClientController extends BaseController
                 'role' => $role
             ];
 
-            $feriado = $this->settingsService->getActiveHoliday(); 
+            $feriado = $this->settingsService->getActiveHoliday();
 
             if ($feriado) {
                 if ($feriado['BloqueoSistema'] == 1) {
                     $response['active'] = false;
                     $response['reason'] = 'holiday';
-                    $response['message'] = $feriado['Motivo']; 
+                    $response['message'] = $feriado['Motivo'];
                     $response['ends_at'] = $feriado['FechaFin'];
-                }
-                else {
+                } else {
                     $response['holiday_warning'] = [
-                        'title' => 'AVISO INFORMATIVO', 
+                        'title' => 'AVISO INFORMATIVO',
                         'message' => $feriado['Motivo'],
                         'ends_at' => $feriado['FechaFin']
                     ];
                 }
             }
-            
+
             $this->sendJsonResponse($response);
 
         } catch (Exception $e) {
@@ -119,7 +118,7 @@ class ClientController extends BaseController
         }
     }
 
-    public function getFormasDePago(): void
+    public function getFormasDePago()
     {
         $paisOrigenId = (int) ($_GET['origenId'] ?? 0);
 
@@ -130,7 +129,7 @@ class ClientController extends BaseController
         }
 
         $nombres = array_column($formasPago, 'Nombre');
-        $this->sendJsonResponse($nombres);
+        $this->jsonResponse($nombres);
     }
 
     public function getTransactionsHistory(): void
@@ -304,7 +303,7 @@ class ClientController extends BaseController
     public function uploadVerificationDocs(): void
     {
         $userId = $this->ensureLoggedIn();
-        
+
         $data = $_POST;
         $files = $_FILES;
 
@@ -319,10 +318,10 @@ class ClientController extends BaseController
             if (!empty($updatedUser['FotoPerfilURL'])) {
                 $_SESSION['user_photo_url'] = $updatedUser['FotoPerfilURL'];
             }
-            $_SESSION['verification_status'] = 'Pendiente'; 
-            
+            $_SESSION['verification_status'] = 'Pendiente';
+
             $this->sendJsonResponse([
-                'success' => true, 
+                'success' => true,
                 'message' => 'Documentos recibidos. Tu perfil ha sido actualizado.',
                 'newPhotoUrl' => $updatedUser['FotoPerfilURL'] ?? null
             ]);

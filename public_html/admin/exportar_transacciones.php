@@ -20,13 +20,15 @@ try {
     $modo = $_GET['mode'] ?? 'historico';
     $startDate = $_GET['start'] ?? null;
     $endDate = $_GET['end'] ?? null;
+    $originId = !empty($_GET['origin_id']) ? (int)$_GET['origin_id'] : null;
+    $destId = !empty($_GET['dest_id']) ? (int)$_GET['dest_id'] : null;
 
     if ($modo === 'dia') {
         $startDate = date('Y-m-d');
         $endDate = date('Y-m-d');
     }
 
-    $data = $txRepository->getExportData($startDate, $endDate);
+    $data = $txRepository->getExportData($startDate, $endDate, $originId, $destId);
 
     $spreadsheet = new Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
@@ -37,9 +39,11 @@ try {
         'Fecha Solicitud',
         'Cliente',
         'Doc. Cliente',
+        'País Origen',
         'Cantidad enviada',
         'Tasa',
         'Cantidad destino',
+        'País Destino',
         'Comisión',
         'Fecha Completado',
         'Hora Completado',
@@ -50,7 +54,7 @@ try {
         'Beneficiario'
     ];
     $sheet->fromArray($headers, NULL, 'A1');
-    $sheet->getStyle('A1:O1')->getFont()->setBold(true);
+    $sheet->getStyle('A1:Q1')->getFont()->setBold(true);
 
     $rowNumber = 2;
     foreach ($data as $row) {
@@ -66,41 +70,45 @@ try {
 
         $sheet->setCellValue('C' . $rowNumber, $row['ClienteNombre']);
         $sheet->setCellValueExplicit('D' . $rowNumber, $row['ClienteDocumento'], DataType::TYPE_STRING);
-        $sheet->setCellValue('E' . $rowNumber, (float) $row['MontoOrigen']);
-        $sheet->getStyle('E' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
-        $sheet->setCellValue('F' . $rowNumber, (float) $row['ValorTasa']);
-        $sheet->getStyle('F' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00000');
-        $sheet->setCellValue('G' . $rowNumber, (float) $row['MontoDestino']);
-        $sheet->getStyle('G' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
-        $sheet->setCellValue('H' . $rowNumber, (float) $row['ComisionDestino']);
+        $sheet->setCellValue('E' . $rowNumber, $row['PaisOrigen']);
+        $sheet->setCellValue('F' . $rowNumber, (float) $row['MontoOrigen']);
+        $sheet->getStyle('F' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
+        $sheet->setCellValue('G' . $rowNumber, (float) $row['ValorTasa']);
+        $sheet->getStyle('G' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00000');
+        $sheet->setCellValue('H' . $rowNumber, (float) $row['MontoDestino']);
         $sheet->getStyle('H' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
+        $sheet->setCellValue('I' . $rowNumber, $row['PaisDestino']);
+        $sheet->setCellValue('J' . $rowNumber, (float) $row['ComisionDestino']);
+        $sheet->getStyle('J' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
+        
         if (!empty($row['FechaCompletado'])) {
             $timestamp = strtotime($row['FechaCompletado']);
+            $sheet->setCellValue('K' . $rowNumber, Date::PHPToExcel($timestamp));
+            $sheet->getStyle('K' . $rowNumber)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
 
-            $sheet->setCellValue('I' . $rowNumber, Date::PHPToExcel($timestamp));
-            $sheet->getStyle('I' . $rowNumber)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
-
-            $sheet->setCellValue('J' . $rowNumber, Date::PHPToExcel($timestamp));
-            $sheet->getStyle('J' . $rowNumber)->getNumberFormat()->setFormatCode('HH:mm:ss');
+            $sheet->setCellValue('L' . $rowNumber, Date::PHPToExcel($timestamp));
+            $sheet->getStyle('L' . $rowNumber)->getNumberFormat()->setFormatCode('HH:mm:ss');
         } else {
-            $sheet->setCellValue('I' . $rowNumber, '-');
-            $sheet->setCellValue('J' . $rowNumber, '-');
+            $sheet->setCellValue('K' . $rowNumber, '-');
+            $sheet->setCellValue('L' . $rowNumber, '-');
         }
 
-        $sheet->setCellValue('K' . $rowNumber, $row['BancoOrigenCliente'] ?? 'N/A');
-        $sheet->setCellValue('L' . $rowNumber, $row['BancoSalidaAdmin'] ?? 'N/A');
-        $sheet->setCellValue('M' . $rowNumber, $row['BeneficiarioBanco']);
-        $sheet->setCellValueExplicit('N' . $rowNumber, $row['BeneficiarioNumeroCuenta'], DataType::TYPE_STRING);
-        $sheet->setCellValue('O' . $rowNumber, $row['BeneficiarioNombre']);
+        $sheet->setCellValue('M' . $rowNumber, $row['BancoOrigenCliente'] ?? 'N/A');
+        $sheet->setCellValue('N' . $rowNumber, $row['BancoSalidaAdmin'] ?? 'N/A');
+        $sheet->setCellValue('O' . $rowNumber, $row['BeneficiarioBanco']);
+        $sheet->setCellValueExplicit('P' . $rowNumber, $row['BeneficiarioNumeroCuenta'], DataType::TYPE_STRING);
+        $sheet->setCellValue('Q' . $rowNumber, $row['BeneficiarioNombre']);
 
         $rowNumber++;
     }
 
-    foreach (range('A', 'O') as $col) {
+    foreach (range('A', 'Q') as $col) {
         $sheet->getColumnDimension($col)->setAutoSize(true);
     }
 
     $prefix = ($modo === 'dia') ? "Reporte_Diario_" : "Reporte_General_";
+    if ($destId) { $prefix .= "Ruta_Filtrada_"; }
+    
     $filename = $prefix . date('Y-m-d_His') . ".xlsx";
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

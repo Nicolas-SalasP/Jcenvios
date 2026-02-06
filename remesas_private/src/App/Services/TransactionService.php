@@ -199,6 +199,7 @@ class TransactionService
         $data['beneficiarioDocumento'] = $beneficiario['TitularNumeroDocumento'];
         $data['beneficiarioBanco'] = $beneficiario['NombreBanco'];
         $data['beneficiarioNumeroCuenta'] = $beneficiario['NumeroCuenta'];
+        $data['beneficiarioCCI'] = $beneficiario['CCI'] ?? null;
         $data['beneficiarioTelefono'] = $beneficiario['NumeroTelefono'];
 
         $formaPagoID = $this->formaPagoRepo->findIdByName($data['formaDePago']);
@@ -241,6 +242,22 @@ class TransactionService
 
             $logDetail = "TX ID: $transactionId - Notificación WhatsApp: " . ($whatsappSent ? 'Éxito' : 'Fallo');
             $this->notificationService->logAdminAction($data['userID'], 'Creación de Transacción', $logDetail);
+            $cuentaAdminData = null;
+            if (isset($txData['CuentaAdmin'])) {
+                $cuentaAdminData = [
+                    'Banco' => $txData['CuentaAdmin']['Banco'],
+                    'Titular' => $txData['CuentaAdmin']['Titular'],
+                    'NumeroCuenta' => $txData['CuentaAdmin']['NumeroCuenta'],
+                    'TipoCuenta' => $txData['CuentaAdmin']['TipoCuenta'],
+                    'QrCodeURL' => $txData['CuentaAdmin']['QrCodeURL']
+                ];
+            }
+
+            return [
+                'id' => $transactionId,
+                'status' => 'created',
+                'cuentaAdmin' => $cuentaAdminData
+            ];
 
             return [
                 'id' => $transactionId,
