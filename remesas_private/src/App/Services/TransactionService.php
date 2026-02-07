@@ -171,7 +171,18 @@ class TransactionService
 
         $tasaInfo = $this->rateRepository->findCurrentRate($paisOrigenID, $paisDestinoID, (float) $data['montoOrigen']);
 
-        if ($tasaInfo && isset($tasaInfo['EsRiesgoso']) && (int) $tasaInfo['EsRiesgoso'] === 1) {
+        if (!$tasaInfo) {
+            throw new Exception("La tasa ha cambiado o ya no está disponible para este monto. Por favor recargue la página.", 400);
+        }
+        $tasaValor = (float) $tasaInfo['ValorTasa'];
+        $calculoBackend = (float) $data['montoOrigen'] * $tasaValor;
+        
+        // Sobreescribimos los datos críticos
+        $data['montoDestino'] = $calculoBackend; 
+        $data['tasaID'] = $tasaInfo['TasaID'];
+        $data['monedaDestino'] = $data['monedaDestino'];
+        
+        if (isset($tasaInfo['EsRiesgoso']) && (int) $tasaInfo['EsRiesgoso'] === 1) {
             $estadoInicialID = 7;
             $statusKey = 'requires_approval';
         }

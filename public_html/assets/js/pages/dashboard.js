@@ -396,11 +396,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!wizardContainer) {
                         throw new Error("No se encontró el contenedor para mostrar el formulario de carga.");
                     }
-                    const paisOrigenVal = parseInt(paisOrigenSelect.value);
-                    const esVenezuelaOrigen = (paisOrigenVal === 3);
-                    const displayRutStyle = esVenezuelaOrigen ? '' : 'd-none';
-                    const requiredRut = esVenezuelaOrigen ? 'required' : '';
 
+                    const paisOrigenVal = parseInt(paisOrigenSelect.value);
+                    const esChile = (paisOrigenVal === 1);
+                    const displayRutStyle = esChile ? '' : 'd-none';
+                    const requiredRut = esChile ? 'required' : '';
                     let htmlQR = '';
                     if (res.cuentaAdmin && res.cuentaAdmin.QrCodeURL) {
                         htmlQR = `
@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     
                                     <div class="form-floating mb-3 text-start ${displayRutStyle}">
                                         <input type="text" class="form-control" id="rut_titular_pago" name="rut_titular" ${requiredRut} placeholder="Ej: 12.345.678-9">
-                                        <label for="rut_titular_pago">RUT/Documento del Titular</label>
+                                        <label for="rut_titular_pago">RUT del Titular (Quien transfirió)</label>
                                     </div>
 
                                     <div class="form-floating mb-3 text-start">
@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     `;
 
-                    if (typeof RutValidator !== 'undefined' && esVenezuelaOrigen) {
+                    if (typeof RutValidator !== 'undefined' && esChile) {
                         new RutValidator(document.getElementById('rut_titular_pago'));
                     }
 
@@ -467,7 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         btnUp.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Subiendo...';
 
                         const fd = new FormData(this);
-                        if (!esVenezuelaOrigen) {
+                        if (!esChile) {
                             fd.set('rut_titular', 'N/A');
                         }
 
@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 isSubmitting = false;
             }
         } catch (e) {
-            console.error("Error CRÍTICO al crear orden:", e); // <--- MIRA AQUÍ EN CONSOLA SI FALLA
+            console.error("Error CRÍTICO al crear orden:", e);
             window.showInfoModal('Error', 'Hubo un problema procesando la respuesta. Revisa la consola.', false);
             submitBtn.disabled = false;
             submitBtn.textContent = 'Confirmar Orden';

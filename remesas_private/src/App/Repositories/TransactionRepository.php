@@ -653,7 +653,7 @@ class TransactionRepository
                 SET ComprobanteURL = ?, 
                     RutTitularOrigen = ?, 
                     NombreTitularOrigen = ?,
-                    EstadoID = (SELECT EstadoID FROM estados_transaccion WHERE NombreEstado = 'En Proceso' LIMIT 1),
+                    EstadoID = (SELECT EstadoID FROM estados_transaccion WHERE NombreEstado = 'En Verificacion' LIMIT 1),
                     FechaSubidaComprobante = NOW()
                 WHERE TransaccionID = ?";
 
