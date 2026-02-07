@@ -653,7 +653,7 @@ class TransactionRepository
                 SET ComprobanteURL = ?, 
                     RutTitularOrigen = ?, 
                     NombreTitularOrigen = ?,
-                    EstadoID = (SELECT EstadoID FROM estados_transaccion WHERE NombreEstado = 'En Verificacion' LIMIT 1),
+                    EstadoID = 2,
                     FechaSubidaComprobante = NOW()
                 WHERE TransaccionID = ?";
 
@@ -662,6 +662,9 @@ class TransactionRepository
         $stmt->bind_param("sssi", $imgName, $rut, $nombre, $id);
 
         $result = $stmt->execute();
+        if (!$result) {
+            error_log("Error DB updatePaymentDetails: " . $stmt->error);
+        }
         $stmt->close();
 
         return $result;

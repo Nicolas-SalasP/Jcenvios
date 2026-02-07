@@ -166,22 +166,38 @@ class TransactionService
             throw new Exception("Beneficiario no encontrado o no te pertenece.", 404);
         }
 
-        $paisOrigenID = $client['PaisID'] ?? 1;
+        $paisOrigenID = !empty($data['paisOrigenID']) ? (int) $data['paisOrigenID'] : ($client['PaisID'] ?? 1);
         $paisDestinoID = $beneficiario['PaisID'];
 
         $tasaInfo = $this->rateRepository->findCurrentRate($paisOrigenID, $paisDestinoID, (float) $data['montoOrigen']);
 
         if (!$tasaInfo) {
-            throw new Exception("La tasa ha cambiado o ya no está disponible para este monto. Por favor recargue la página.", 400);
+            throw new Exception("La tasa ha cambiado o ya no está disponible. Por favor recargue.", 400);
         }
+
+        $inverseRoutes = [
+            '2-3', // Col -> Ven
+            '4-1', // Peru -> Chile
+            '2-1', // Col -> Chile
+            '3-1', // Ven -> Chile
+            '3-4', // Ven -> Peru
+        ];
+
+        $routeKey = "{$paisOrigenID}-{$paisDestinoID}";
         $tasaValor = (float) $tasaInfo['ValorTasa'];
-        $calculoBackend = (float) $data['montoOrigen'] * $tasaValor;
-        
-        // Sobreescribimos los datos críticos
-        $data['montoDestino'] = $calculoBackend; 
+        $calculoBackend = 0;
+
+        if (in_array($routeKey, $inverseRoutes)) {
+            if ($tasaValor == 0)
+                throw new Exception("Error crítico: Tasa 0 en ruta inversa.");
+            $calculoBackend = (float) $data['montoOrigen'] / $tasaValor;
+        } else {
+            $calculoBackend = (float) $data['montoOrigen'] * $tasaValor;
+        }
+
+        $data['montoDestino'] = $calculoBackend;
         $data['tasaID'] = $tasaInfo['TasaID'];
-        $data['monedaDestino'] = $data['monedaDestino'];
-        
+
         if (isset($tasaInfo['EsRiesgoso']) && (int) $tasaInfo['EsRiesgoso'] === 1) {
             $estadoInicialID = 7;
             $statusKey = 'requires_approval';
@@ -221,20 +237,24 @@ class TransactionService
 
         try {
             $transactionId = $this->txRepository->create($data);
+
             if ($statusKey === 'requires_approval') {
-                $this->notificationService->logAdminAction($data['userID'], 'Orden Riesgosa Creada', "TX ID: $transactionId - Esperando aprobación de seguridad.");
+                $this->notificationService->logAdminAction($data['userID'], 'Orden Riesgosa Creada', "TX ID: $transactionId - Esperando aprobación.");
                 return [
                     'id' => $transactionId,
                     'status' => 'requires_approval'
                 ];
             }
+
             $txData = $this->txRepository->getFullTransactionDetails($transactionId);
             if (!$txData) {
-                throw new Exception("No se pudieron obtener los detalles de la transacción #{$transactionId}.", 500);
+                throw new Exception("No se pudieron obtener los detalles de la transacción.", 500);
             }
 
             $txData['TelefonoCliente'] = $client['Telefono'];
 
+            // Obtener cuenta admin para el QR
+            $cuentaAdminData = null;
             if (isset($txData['FormaPagoID']) && isset($txData['PaisOrigenID'])) {
                 $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais(
                     (int) $txData['FormaPagoID'],
@@ -242,6 +262,13 @@ class TransactionService
                 );
                 if ($cuentaAdmin) {
                     $txData['CuentaAdmin'] = $cuentaAdmin;
+                    $cuentaAdminData = [
+                        'Banco' => $cuentaAdmin['Banco'],
+                        'Titular' => $cuentaAdmin['Titular'],
+                        'NumeroCuenta' => $cuentaAdmin['NumeroCuenta'],
+                        'TipoCuenta' => $cuentaAdmin['TipoCuenta'],
+                        'QrCodeURL' => $cuentaAdmin['QrCodeURL']
+                    ];
                 }
             }
 
@@ -251,18 +278,8 @@ class TransactionService
             $whatsappSent = $this->notificationService->sendOrderToClientWhatsApp($txData, $pdfUrl);
             $this->notificationService->sendNewOrderEmail($txData, $pdfContent);
 
-            $logDetail = "TX ID: $transactionId - Notificación WhatsApp: " . ($whatsappSent ? 'Éxito' : 'Fallo');
+            $logDetail = "TX ID: $transactionId - WhatsApp: " . ($whatsappSent ? 'Ok' : 'Falló');
             $this->notificationService->logAdminAction($data['userID'], 'Creación de Transacción', $logDetail);
-            $cuentaAdminData = null;
-            if (isset($txData['CuentaAdmin'])) {
-                $cuentaAdminData = [
-                    'Banco' => $txData['CuentaAdmin']['Banco'],
-                    'Titular' => $txData['CuentaAdmin']['Titular'],
-                    'NumeroCuenta' => $txData['CuentaAdmin']['NumeroCuenta'],
-                    'TipoCuenta' => $txData['CuentaAdmin']['TipoCuenta'],
-                    'QrCodeURL' => $txData['CuentaAdmin']['QrCodeURL']
-                ];
-            }
 
             return [
                 'id' => $transactionId,
@@ -270,20 +287,15 @@ class TransactionService
                 'cuentaAdmin' => $cuentaAdminData
             ];
 
-            return [
-                'id' => $transactionId,
-                'status' => 'created'
-            ];
-
         } catch (Exception $e) {
-            $this->notificationService->logAdminAction($data['userID'], 'Error Creación Transacción', "Error: " . $e->getMessage());
+            $this->notificationService->logAdminAction($data['userID'], 'Error Creación', "Error: " . $e->getMessage());
             throw $e;
         }
     }
 
     public function authorizeRiskyTransaction(int $txId, int $adminId): bool
     {
-        $estadoRiesgo = 7; 
+        $estadoRiesgo = 7;
         $estadoPendientePago = 1;
         $affectedRows = $this->txRepository->updateStatus($txId, $estadoPendientePago, $estadoRiesgo);
 
@@ -295,7 +307,8 @@ class TransactionService
 
                 if (isset($txData['FormaPagoID'], $txData['PaisOrigenID'])) {
                     $cuentaAdmin = $this->cuentasAdminRepo->findActiveByFormaPagoAndPais((int) $txData['FormaPagoID'], (int) $txData['PaisOrigenID']);
-                    if ($cuentaAdmin) $txData['CuentaAdmin'] = $cuentaAdmin;
+                    if ($cuentaAdmin)
+                        $txData['CuentaAdmin'] = $cuentaAdmin;
                 }
 
                 $pdfContent = $this->pdfService->generateOrder($txData);
@@ -304,11 +317,11 @@ class TransactionService
                 $this->notificationService->sendOrderToClientWhatsApp($txData, $pdfUrl);
                 $this->notificationService->sendNewOrderEmail($txData, $pdfContent);
             }
-            
+
             $this->notificationService->logAdminAction($adminId, 'Autorización Riesgo', "TX ID: $txId autorizada. Ahora puede pagar.");
             return true;
         }
-        
+
         return false;
     }
 
@@ -392,8 +405,9 @@ class TransactionService
         $nuevoEstadoID = $isSoftReject ? $estadoPendienteID : $estadoCanceladoID;
 
         $txData = $this->txRepository->getFullTransactionDetails($txId);
-        if (!$txData) throw new Exception("Transacción no encontrada.", 404);
-            
+        if (!$txData)
+            throw new Exception("Transacción no encontrada.", 404);
+
         $affectedRows = $this->txRepository->updateStatus($txId, $nuevoEstadoID, $estadosPermitidos);
 
         if ($affectedRows === 0) {
@@ -560,10 +574,10 @@ class TransactionService
             throw new Exception("Transacción no encontrada.");
         }
         if ($tx['EstadoID'] == 7 && $newState == 1) {
-            $adminId = $_SESSION['user_id'] ?? 0; 
+            $adminId = $_SESSION['user_id'] ?? 0;
             return $this->authorizeRiskyTransaction($txId, $adminId);
         }
-        $estadoActual = (int)$tx['EstadoID'];
+        $estadoActual = (int) $tx['EstadoID'];
         $affected = $this->txRepository->updateStatus($txId, $newState, $estadoActual);
 
         if ($affected > 0) {

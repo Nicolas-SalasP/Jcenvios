@@ -361,7 +361,8 @@ document.addEventListener('DOMContentLoaded', () => {
             monedaOrigen: monedaOrigen,
             montoDestino: parseInput(montoDestinoInput.value),
             monedaDestino: paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency,
-            formaDePago: formaDePagoSelect.value
+            formaDePago: formaDePagoSelect.value,
+            paisOrigenID: parseInt(paisOrigenSelect.value)
         };
 
         try {
