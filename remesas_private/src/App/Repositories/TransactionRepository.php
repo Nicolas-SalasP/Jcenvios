@@ -15,6 +15,7 @@ class TransactionRepository
 
     public function create(array $data): int
     {
+        // Obtener si es riesgoso
         $sqlTasa = "SELECT EsRiesgoso FROM tasas WHERE TasaID = ?";
         $stmtTasa = $this->db->prepare($sqlTasa);
         $stmtTasa->bind_param("i", $data['tasaID']);
@@ -22,24 +23,28 @@ class TransactionRepository
         $resTasa = $stmtTasa->get_result()->fetch_assoc();
         $esRiesgoso = $resTasa['EsRiesgoso'] ?? 0;
         $stmtTasa->close();
+
         $estadoInicialID = ($esRiesgoso == 1) ? 7 : 1;
+
+        // --- CAMBIO AQUÍ: Agregamos TasaCapturada al INSERT ---
         $sql = "INSERT INTO transacciones (
-                UserID, CuentaBeneficiariaID, TasaID_Al_Momento, 
-                MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino, 
-                EstadoID, FormaPagoID, 
-                BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco, 
-                BeneficiarioNumeroCuenta, BeneficiarioCCI, BeneficiarioTelefono
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            UserID, CuentaBeneficiariaID, TasaID_Al_Momento, TasaCapturada, 
+            MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino, 
+            EstadoID, FormaPagoID, 
+            BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco, 
+            BeneficiarioNumeroCuenta, BeneficiarioCCI, BeneficiarioTelefono
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
 
         $beneficiarioCCI = $data['beneficiarioCCI'] ?? null;
-
+        $tasaCapturada = $data['tasaCapturada'] ?? 0.0;
         $stmt->bind_param(
-            "iiidsdsiissssss",
+            "iiiddsdsiissssss",
             $data['userID'],
             $data['cuentaID'],
             $data['tasaID'],
+            $tasaCapturada,
             $data['montoOrigen'],
             $data['monedaOrigen'],
             $data['montoDestino'],
@@ -122,8 +127,8 @@ class TransactionRepository
 
     public function getFullTransactionDetails(int $transactionId): ?array
     {
-        $sql = "SELECT
-            T.TransaccionID, T.UserID, T.CuentaBeneficiariaID, T.TasaID_Al_Momento,
+            $sql = "SELECT
+            T.TransaccionID, T.UserID, T.CuentaBeneficiariaID, T.TasaID_Al_Momento, T.TasaCapturada,
             T.MontoOrigen, T.MonedaOrigen, T.MontoDestino, T.ComisionDestino, T.MonedaDestino,
             T.FechaTransaccion, T.ComprobanteURL, T.ComprobanteEnvioURL,
             T.RutTitularOrigen, 
@@ -151,7 +156,7 @@ class TransactionRepository
             TB.Nombre AS BeneficiarioTipoNombre,
             
             T.MotivoPausa, T.MensajeReanudacion
-            
+
         FROM transacciones AS T
         JOIN usuarios AS U ON T.UserID = U.UserID
         JOIN tasas AS TS ON T.TasaID_Al_Momento = TS.TasaID

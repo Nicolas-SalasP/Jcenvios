@@ -197,6 +197,7 @@ class TransactionService
 
         $data['montoDestino'] = $calculoBackend;
         $data['tasaID'] = $tasaInfo['TasaID'];
+        $data['tasaCapturada'] = $tasaValor; 
 
         if (isset($tasaInfo['EsRiesgoso']) && (int) $tasaInfo['EsRiesgoso'] === 1) {
             $estadoInicialID = 7;
