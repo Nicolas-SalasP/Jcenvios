@@ -1,16 +1,86 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // =================================================
-    // 0. UTILIDADES GLOBALES & HELPERS
+    // 0. UTILIDADES GLOBALES & HELPERS (MODALES REALES BOOTSTRAP)
     // =================================================
 
-    window.showConfirmModal = async (title, message) => {
-        return confirm(`${title}\n\n${message}`);
+    window.showConfirmModal = (title, message) => {
+        return new Promise((resolve) => {
+            const existing = document.getElementById('js-global-confirm-modal');
+            if (existing) existing.remove();
+            const modalEl = document.createElement('div');
+            modalEl.id = 'js-global-confirm-modal';
+            modalEl.className = 'modal fade';
+            modalEl.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow">
+                        <div class="modal-header bg-light">
+                            <h5 class="modal-title fw-bold text-dark">${title}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-4 fs-6">${message}</div>
+                        <div class="modal-footer bg-light border-0">
+                            <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary px-4" id="js-global-confirm-btn">Confirmar</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modalEl);
+
+            const modal = new bootstrap.Modal(modalEl);
+            const confirmBtn = document.getElementById('js-global-confirm-btn');
+
+            let isConfirmed = false;
+
+            confirmBtn.onclick = () => {
+                isConfirmed = true;
+                modal.hide();
+                resolve(true);
+            };
+
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (!isConfirmed) resolve(false);
+                modalEl.remove();
+            });
+
+            modal.show();
+        });
     };
 
     window.showInfoModal = (title, message, isSuccess = false, callback = null) => {
-        alert(`${title}: ${message}`);
-        if (callback) callback();
+        const id = 'js-global-info-modal';
+        const existing = document.getElementById(id);
+        if (existing) existing.remove();
+
+        const modalEl = document.createElement('div');
+        modalEl.id = id;
+        modalEl.className = 'modal fade';
+        const headerClass = isSuccess ? 'bg-success text-white' : 'bg-primary text-white';
+        const icon = isSuccess ? '<i class="bi bi-check-circle-fill me-2"></i>' : '<i class="bi bi-info-circle-fill me-2"></i>';
+
+        modalEl.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header ${headerClass}">
+                        <h5 class="modal-title fw-bold">${icon}${title}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 fs-6">${message}</div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Entendido</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modalEl);
+
+        const modal = new bootstrap.Modal(modalEl);
+
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            if (callback) callback();
+            modalEl.remove();
+        });
+
+        modal.show();
     };
 
     window.copyToClipboard = (elementId, btnElement) => {
@@ -18,26 +88,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!input) return;
         input.select();
         input.setSelectionRange(0, 99999);
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(input.value).then(() => showFeedback(btnElement));
-        } else {
+
+        navigator.clipboard.writeText(input.value).then(() => {
+            showFeedback(btnElement);
+        }).catch(() => {
             document.execCommand('copy');
             showFeedback(btnElement);
-        }
+        });
     };
 
     function showFeedback(btn) {
         const originalHtml = btn.innerHTML;
         const originalClass = btn.className;
-
         btn.innerHTML = '<i class="bi bi-check-lg"></i>';
         btn.classList.remove('btn-outline-secondary', 'btn-primary');
         btn.classList.add('btn-success');
-
         setTimeout(() => {
             btn.innerHTML = originalHtml;
             btn.className = originalClass;
-        }, 1500);
+        }, 2000);
     }
 
     // =================================================
@@ -822,7 +891,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-// =========================================================
+    // =========================================================
     // 5.8 VISOR DE COMPROBANTES (CORREGIDO: MÓVIL & SIN ALERTS)
     // =========================================================
     const viewComprobanteModalEl = document.getElementById('viewComprobanteModal');
@@ -837,16 +906,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const placeholder = document.getElementById('comprobante-placeholder');
             const downloadBtn = document.getElementById('download-comprobante-btn');
             const modalTitle = viewComprobanteModalEl.querySelector('.modal-title');
-            
+
             // 2. Datos del botón
             const txId = btn.getAttribute('data-tx-id');
             const urlUser = btn.getAttribute('data-comprobante-url');
             const urlAdmin = btn.getAttribute('data-envio-url');
-            const startType = btn.getAttribute('data-start-type') || 'user'; 
-            
+            const startType = btn.getAttribute('data-start-type') || 'user';
+
             // 3. Llenar Textos y Sidebar
             if (modalTitle) modalTitle.textContent = `Comprobante Orden #${txId}`;
-            
+
             const elNombre = document.getElementById('visor-nombre-titular');
             const elRut = document.getElementById('visor-rut-titular');
             if (elNombre) elNombre.textContent = btn.getAttribute('data-nombre-titular') || 'No registrado';
@@ -858,13 +927,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 imgEl.classList.add('d-none');
                 pdfEl.classList.add('d-none');
                 placeholder.classList.remove('d-none');
-                
+
                 // Limpiar fuentes anteriores para evitar parpadeos
-                imgEl.removeAttribute('src'); 
+                imgEl.removeAttribute('src');
                 pdfEl.removeAttribute('src');
-                
+
                 // Quitar listeners viejos
-                imgEl.onload = imgEl.onerror = null; 
+                imgEl.onload = imgEl.onerror = null;
 
                 if (!fileUrl) {
                     placeholder.innerHTML = '<div class="text-white">Sin archivo disponible.</div>';
@@ -893,7 +962,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         pdfEl.src = fileUrl;
                         pdfEl.classList.remove('d-none');
                         // En PDF forzamos ocultar spinner porque el iframe carga interno
-                        placeholder.classList.add('d-none'); 
+                        placeholder.classList.add('d-none');
                     } else {
                         // MODO IMAGEN
                         imgEl.onerror = () => {
@@ -1158,6 +1227,216 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 'image/jpeg', 0.85);
             });
         }
+    }
+
+    // =================================================
+    // 9. GESTIÓN DE BENEFICIARIOS (VISUAL MEJORADA)
+    // =================================================
+
+    document.addEventListener('click', async (e) => {
+        const btnVer = e.target.closest('.btn-ver-beneficiarios');
+        if (btnVer) {
+            const userId = btnVer.dataset.userid;
+            const row = btnVer.closest('tr');
+            const userNameElement = row ? row.querySelector('td:nth-child(2) strong') : null;
+            const userName = userNameElement ? userNameElement.innerText : 'Usuario #' + userId;
+
+            const modalElement = document.getElementById('modalBeneficiariosUser');
+            if (!modalElement) return;
+
+            const modal = new bootstrap.Modal(modalElement);
+            const tbody = document.querySelector('#tablaBeneficiariosUser tbody');
+            const loader = document.getElementById('listaBeneficiariosLoader');
+            const modalTitle = modalElement.querySelector('.modal-title');
+            modalTitle.innerHTML = `Beneficiarios de: <span class="text-primary fw-bold">${userName}</span>`;
+
+            modal.show();
+            tbody.innerHTML = '';
+            if (loader) loader.classList.remove('d-none');
+
+            try {
+                const response = await fetch(`../api/?accion=adminGetUserBeneficiaries&userId=${userId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    if (!data.beneficiarios || data.beneficiarios.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted p-4"><i class="bi bi-folder2-open display-6 d-block mb-2"></i>Sin beneficiarios registrados.</td></tr>';
+                    } else {
+                        let htmlRows = '';
+                        data.beneficiarios.forEach(ben => {
+                            let detallesCuenta = '';
+
+                            // Teléfono (Pago Móvil, Yape, Plin)
+                            if (ben.NumeroTelefono) {
+                                detallesCuenta += `<div class="mb-1 text-nowrap"><i class="bi bi-phone-vibrate text-success me-1"></i> ${ben.NumeroTelefono}</div>`;
+                            }
+                            // Cuenta Bancaria tradicional
+                            if (ben.NumeroCuenta) {
+                                detallesCuenta += `<div class="mb-1 text-nowrap"><i class="bi bi-credit-card-2-front text-secondary me-1"></i> <span class="fw-bold text-dark">${ben.NumeroCuenta}</span></div>`;
+                            }
+                            // Documento (Cédula/DNI)
+                            if (ben.TitularNumeroDocumento) {
+                                detallesCuenta += `<div class="text-muted small"><i class="bi bi-person-vcard me-1"></i> ${ben.TitularNumeroDocumento}</div>`;
+                            }
+                            // CCI
+                            if (ben.CCI) {
+                                detallesCuenta += `<div class="text-muted small">CCI: ${ben.CCI}</div>`;
+                            }
+
+                            const bancoInfo = `<div class="fw-bold text-dark">${ben.NombreBanco}</div>
+                                             <small class="text-primary"><i class="bi bi-globe-americas"></i> ${ben.NombrePais} <span class="text-muted">(${ben.CodigoMoneda || ''})</span></small>
+                                             ${ben.Alias ? `<br><span class="badge bg-light text-dark border mt-1"><i class="bi bi-tag"></i> ${ben.Alias}</span>` : ''}`;
+
+                            const titularInfo = `<div class="fw-bold text-dark">${ben.BeneficiarioNombre}</div>
+                                               <small class="text-muted">${ben.TipoBeneficiarioNombre || 'Destinatario'}</small>`;
+
+                            let actionBtns = '';
+                            if (ben.PermitirEdicion == 1) {
+                                const jsonSafe = JSON.stringify(ben).replace(/"/g, '&quot;');
+                                actionBtns = `<button class="btn btn-sm btn-warning btn-admin-edit-ben mb-1 w-100 shadow-sm" data-json="${jsonSafe}"><i class="bi bi-pencil-square"></i> Editar</button>
+                                              <div class="text-success small text-center fw-bold"><i class="bi bi-unlock-fill"></i> Habilitado</div>`;
+                            } else {
+                                actionBtns = `<button class="btn btn-sm btn-outline-primary btn-request-access mb-1 w-100" data-id="${ben.CuentaID}" data-user="${ben.UserID}">
+                                                <i class="bi bi-bell"></i> Solicitar
+                                              </button>
+                                              <div class="text-muted small text-center"><i class="bi bi-lock-fill"></i> Bloqueado</div>`;
+                            }
+
+                            htmlRows += `
+                                <tr class="align-middle">
+                                    <td>${bancoInfo}</td>
+                                    <td>${titularInfo}</td>
+                                    <td>${detallesCuenta}</td>
+                                    <td style="width: 150px;">${actionBtns}</td>
+                                </tr>
+                            `;
+                        });
+                        tbody.innerHTML = htmlRows;
+                    }
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger text-center p-3">Error: ${data.error}</td></tr>`;
+                }
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center p-3">Error de conexión con la API.</td></tr>';
+            } finally {
+                if (loader) loader.classList.add('d-none');
+            }
+        }
+
+        const btnRequest = e.target.closest('.btn-request-access');
+        if (btnRequest) {
+            const btn = btnRequest;
+            const originalContent = btn.innerHTML;
+            const confirmado = await window.showConfirmModal(
+                "Solicitar Permiso",
+                "¿Deseas enviar una notificación al usuario solicitando que desbloquee la edición de este beneficiario?"
+            );
+
+            if (!confirmado) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            try {
+                const res = await fetch('../api/?accion=adminRequestBeneficiaryAccess', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: btn.dataset.user,
+                        cuentaId: btn.dataset.id
+                    })
+                });
+
+                let data;
+                try { data = await res.json(); } catch (err) { throw new Error("Error JSON"); }
+
+                if (data.success) {
+                    window.showInfoModal("Solicitud Enviada", "Se ha notificado al usuario correctamente.", true);
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Enviado';
+                    btn.classList.remove('btn-outline-primary');
+                    btn.classList.add('btn-success');
+                } else {
+                    window.showInfoModal("Error", data.error || "No se pudo enviar.", false);
+                    btn.innerHTML = originalContent;
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                window.showInfoModal("Error de Conexión", "No se pudo contactar con el servidor.", false);
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+
+        const btnEditBen = e.target.closest('.btn-admin-edit-ben');
+        if (btnEditBen) {
+            let data;
+            try {
+                const rawJson = btnEditBen.dataset.json.replace(/&quot;/g, '"');
+                data = JSON.parse(rawJson);
+            } catch (err) {
+                console.error("Error JSON", err);
+                return;
+            }
+
+            const modalEl = document.getElementById('modalAdminEditarBeneficiario');
+            if (modalEl) {
+                document.getElementById('editBenId').value = data.CuentaID;
+                document.getElementById('editBenUserId').value = data.UserID;
+                document.getElementById('editBenNombre').value = data.BeneficiarioNombre;
+                document.getElementById('editBenDoc').value = data.TitularNumeroDocumento || '';
+                document.getElementById('editBenBanco').value = data.NombreBanco;
+                document.getElementById('editBenCuenta').value = data.NumeroTelefono || data.NumeroCuenta || '';
+
+                new bootstrap.Modal(modalEl).show();
+            }
+        }
+    });
+
+    // =================================================
+    // 9.1 LOGICA DEL FORMULARIO DE EDICIÓN
+    // =================================================
+    const formEditBen = document.getElementById('formAdminEditarBeneficiario');
+    if (formEditBen) {
+        formEditBen.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = formEditBen.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+            const formData = new FormData(formEditBen);
+            const data = Object.fromEntries(formData.entries());
+
+            try {
+                const res = await fetch('../api/?accion=adminUpdateBeneficiary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await res.json();
+
+                if (result.success) {
+                    const modalEl = document.getElementById('modalAdminEditarBeneficiario');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    modalInstance.hide();
+                    window.showInfoModal('Éxito', 'Beneficiario actualizado correctamente.', true);
+                    const userId = document.getElementById('editBenUserId').value;
+                    const btnVer = document.querySelector(`.btn-ver-beneficiarios[data-userid="${userId}"]`);
+                    if (btnVer) btnVer.click();
+
+                } else {
+                    window.showInfoModal('Error', result.error, false);
+                }
+            } catch (error) {
+                window.showInfoModal('Error Critico', 'Error de conexión al guardar.', false);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
     }
 
     startAutoRefresh();

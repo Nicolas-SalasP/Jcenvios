@@ -294,4 +294,25 @@ class CuentasBeneficiariasService
             }
         }
     }
+
+    public function getUserBeneficiariesForAdmin(int $userId): array
+    {
+        return $this->cuentasRepo->findAllByUserId($userId);
+    }
+
+    public function adminUpdateBeneficiary(array $data): void
+    {
+        if (empty($data['cuentaId']) || empty($data['nombre']) || empty($data['cuenta'])) {
+            throw new Exception("Faltan datos obligatorios para la edición.");
+        }
+
+        $cuentaId = (int)$data['cuentaId'];
+        $success = $this->cuentasRepo->adminUpdateBeneficiary($cuentaId, $data);
+
+        if (!$success) {
+            throw new Exception("No se pudo actualizar la cuenta en la base de datos.");
+        }
+        
+        // $this->logService->logAction($adminId, "EDIT_BENEFICIARY", "Editó cuenta $cuentaId");
+    }
 }

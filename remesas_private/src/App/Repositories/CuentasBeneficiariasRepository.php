@@ -152,4 +152,75 @@ class CuentasBeneficiariasRepository
     {
         return $this->softDelete($cuentaId);
     }
+
+    public function findAllByUserId(int $userId): array
+    {
+        $sql = "SELECT 
+                    cb.CuentaID, cb.Alias, cb.UserID, cb.PaisID,
+                    CONCAT_WS(' ', cb.TitularPrimerNombre, cb.TitularSegundoNombre, cb.TitularPrimerApellido, cb.TitularSegundoApellido) as BeneficiarioNombre,
+                    cb.TitularNumeroDocumento,
+                    cb.NombreBanco, 
+                    cb.NumeroCuenta, 
+                    cb.CCI, 
+                    cb.NumeroTelefono,
+                    cb.PermitirEdicion,
+                    p.NombrePais, 
+                    p.CodigoMoneda,
+                    tb.Nombre as TipoBeneficiarioNombre
+                FROM cuentas_beneficiarias cb 
+                JOIN paises p ON cb.PaisID = p.PaisID
+                LEFT JOIN tipos_beneficiario tb ON cb.TipoBeneficiarioID = tb.TipoBeneficiarioID
+                WHERE cb.UserID = ? AND cb.Activo = 1
+                ORDER BY cb.FechaCreacion DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
+    public function toggleAdminPermission(int $cuentaId, int $userId, int $newState): bool
+    {
+        $sql = "UPDATE cuentas_beneficiarias SET PermitirEdicion = ? WHERE CuentaID = ? AND UserID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iii", $newState, $cuentaId, $userId);
+        return $stmt->execute();
+    }
+
+    public function adminUpdateBeneficiary(int $cuentaId, array $data): bool
+    {
+        $checkSql = "SELECT PermitirEdicion FROM cuentas_beneficiarias WHERE CuentaID = ?";
+        $stmtCheck = $this->db->prepare($checkSql);
+        $stmtCheck->bind_param("i", $cuentaId);
+        $stmtCheck->execute();
+        $res = $stmtCheck->get_result()->fetch_assoc();
+        $stmtCheck->close();
+
+        if (!$res || (int)$res['PermitirEdicion'] !== 1) {
+            throw new Exception("El cliente revocó el permiso de edición o la cuenta no existe.");
+        }
+        $sql = "UPDATE cuentas_beneficiarias SET 
+                TitularPrimerNombre = ?, 
+                TitularNumeroDocumento = ?, 
+                NombreBanco = ?, 
+                NumeroCuenta = ?
+                WHERE CuentaID = ?";
+
+        $stmt = $this->db->prepare($sql);
+        
+        $stmt->bind_param(
+            "ssssi",
+            $data['nombre'],
+            $data['documento'],
+            $data['banco'],
+            $data['cuenta'],
+            $cuentaId
+        );
+
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
+    }
 }

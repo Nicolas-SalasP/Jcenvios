@@ -9,6 +9,7 @@ use App\Services\SystemSettingsService;
 use App\Repositories\RolRepository;
 use App\Repositories\CuentasAdminRepository;
 use App\Services\FileHandlerService;
+use App\Services\CuentasBeneficiariasService;
 use Exception;
 
 class AdminController extends BaseController
@@ -21,6 +22,7 @@ class AdminController extends BaseController
     private CuentasAdminRepository $cuentasAdminRepo;
     private SystemSettingsService $settingsService;
     private FileHandlerService $fileHandler;
+    private CuentasBeneficiariasService $cuentasService;
 
     public function __construct(
         TransactionService $txService,
@@ -30,7 +32,8 @@ class AdminController extends BaseController
         RolRepository $rolRepo,
         CuentasAdminRepository $cuentasAdminRepo,
         SystemSettingsService $settingsService,
-        FileHandlerService $fileHandler
+        FileHandlerService $fileHandler,
+        CuentasBeneficiariasService $cuentasService
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -40,6 +43,7 @@ class AdminController extends BaseController
         $this->cuentasAdminRepo = $cuentasAdminRepo;
         $this->settingsService = $settingsService;
         $this->fileHandler = $fileHandler;
+        $this->cuentasService = $cuentasService;
     }
 
     // --- GESTIÓN DE VACACIONES ---
@@ -656,6 +660,60 @@ class AdminController extends BaseController
         try {
             $this->pricingService->saveGlobalAdjustmentSettings($adminId, $percent, $time);
             $this->sendJsonResponse(['success' => true, 'message' => 'Configuración de ajuste global guardada.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function getUserBeneficiaries()
+    {
+        $this->ensureAdmin();
+        
+        $userId = isset($_GET['userId']) ? (int)$_GET['userId'] : 0;
+        
+        if ($userId <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'ID de usuario inválido.'], 400);
+            return;
+        }
+
+        try {
+            $beneficiarios = $this->cuentasService->getUserBeneficiariesForAdmin($userId);
+            $this->sendJsonResponse(['success' => true, 'beneficiarios' => $beneficiarios]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Error al obtener datos.'], 500);
+        }
+    }
+
+    public function requestBeneficiaryAccess()
+    {
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        
+        $userId = (int)($data['userId'] ?? 0);
+        $cuentaId = (int)($data['cuentaId'] ?? 0);
+
+        if ($userId <= 0 || $cuentaId <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos.'], 400);
+            return;
+        }
+
+        try {
+            // $this->notificationService->sendRequestAccess($userId, $cuentaId);
+            
+            $this->sendJsonResponse(['success' => true, 'message' => 'Solicitud enviada al usuario.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function adminUpdateBeneficiary()
+    {
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+
+        try {
+            $this->cuentasService->adminUpdateBeneficiary($data);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Beneficiario corregido exitosamente.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
