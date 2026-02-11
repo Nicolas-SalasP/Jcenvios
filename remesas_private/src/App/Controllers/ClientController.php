@@ -129,7 +129,7 @@ class ClientController extends BaseController
         }
 
         $nombres = array_column($formasPago, 'Nombre');
-        $this->jsonResponse($nombres);
+        $this->sendJsonResponse($nombres);
     }
 
     public function getTransactionsHistory(): void
@@ -568,6 +568,29 @@ class ClientController extends BaseController
 
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    public function toggleBeneficiaryPermission()
+    {
+        $userId = $this->ensureLoggedIn();
+        $data = $this->getJsonInput();
+
+        if (!isset($data['cuentaId']) || !isset($data['state'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
+            return;
+        }
+
+        try {
+            $cuentaId = (int) $data['cuentaId'];
+            $newState = (int) $data['state'];
+
+            $this->cuentasBeneficiariasService->togglePermission($userId, $cuentaId, $newState);
+
+            $msg = $newState ? "Permiso de soporte activado." : "Permiso de soporte revocado.";
+            $this->sendJsonResponse(['success' => true, 'message' => $msg]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 }

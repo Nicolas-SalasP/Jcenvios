@@ -17,18 +17,73 @@ class CuentasBeneficiariasRepository
     {
         $sql = "SELECT
                     cb.CuentaID, cb.Alias, cb.UserID, cb.PaisID,
+                    cb.PermitirEdicion, 
+                    cb.SolicitudEdicion,  
                     p.NombrePais,
                     tb.TipoBeneficiarioID, tb.Nombre AS TipoBeneficiarioNombre,
                     cb.TitularPrimerNombre, cb.TitularSegundoNombre,
                     cb.TitularPrimerApellido, cb.TitularSegundoApellido,
                     td.TipoDocumentoID AS TitularTipoDocumentoID, td.NombreDocumento AS TitularTipoDocumentoNombre,
                     cb.TitularNumeroDocumento, cb.NombreBanco, cb.NumeroCuenta,
-                    cb.NumeroTelefono, cb.FechaCreacion
+                    cb.NumeroTelefono, cb.FechaCreacion, cb.CCI
                 FROM cuentas_beneficiarias cb 
                 JOIN paises p ON cb.PaisID = p.PaisID
                 LEFT JOIN tipos_beneficiario tb ON cb.TipoBeneficiarioID = tb.TipoBeneficiarioID
                 LEFT JOIN tipos_documento td ON cb.TitularTipoDocumentoID = td.TipoDocumentoID
                 WHERE cb.UserID = ? AND cb.Activo = 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
+    public function setSolicitudEdicion(int $cuentaId, int $userId, int $estado): bool
+    {
+        $sql = "UPDATE cuentas_beneficiarias SET SolicitudEdicion = ? WHERE CuentaID = ? AND UserID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iii", $estado, $cuentaId, $userId);
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
+    }
+
+    public function toggleAdminPermission(int $cuentaId, int $userId, int $newState): bool
+    {
+        $sql = "UPDATE cuentas_beneficiarias 
+                SET PermitirEdicion = ?, 
+                    SolicitudEdicion = CASE WHEN ? = 1 THEN 0 ELSE SolicitudEdicion END
+                WHERE CuentaID = ? AND UserID = ?";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iiii", $newState, $newState, $cuentaId, $userId);
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
+    }
+
+    public function findAllByUserId(int $userId): array
+    {
+        $sql = "SELECT 
+                    cb.CuentaID, cb.Alias, cb.UserID, cb.PaisID,
+                    CONCAT_WS(' ', cb.TitularPrimerNombre, cb.TitularSegundoNombre, cb.TitularPrimerApellido, cb.TitularSegundoApellido) as BeneficiarioNombre,
+                    cb.TitularNumeroDocumento,
+                    cb.NombreBanco, 
+                    cb.NumeroCuenta, 
+                    cb.CCI, 
+                    cb.NumeroTelefono,
+                    cb.PermitirEdicion,
+                    cb.SolicitudEdicion,
+                    p.NombrePais, 
+                    p.CodigoMoneda,
+                    tb.Nombre as TipoBeneficiarioNombre
+                FROM cuentas_beneficiarias cb 
+                JOIN paises p ON cb.PaisID = p.PaisID
+                LEFT JOIN tipos_beneficiario tb ON cb.TipoBeneficiarioID = tb.TipoBeneficiarioID
+                WHERE cb.UserID = ? AND cb.Activo = 1
+                ORDER BY cb.FechaCreacion DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $userId);
@@ -153,42 +208,6 @@ class CuentasBeneficiariasRepository
         return $this->softDelete($cuentaId);
     }
 
-    public function findAllByUserId(int $userId): array
-    {
-        $sql = "SELECT 
-                    cb.CuentaID, cb.Alias, cb.UserID, cb.PaisID,
-                    CONCAT_WS(' ', cb.TitularPrimerNombre, cb.TitularSegundoNombre, cb.TitularPrimerApellido, cb.TitularSegundoApellido) as BeneficiarioNombre,
-                    cb.TitularNumeroDocumento,
-                    cb.NombreBanco, 
-                    cb.NumeroCuenta, 
-                    cb.CCI, 
-                    cb.NumeroTelefono,
-                    cb.PermitirEdicion,
-                    p.NombrePais, 
-                    p.CodigoMoneda,
-                    tb.Nombre as TipoBeneficiarioNombre
-                FROM cuentas_beneficiarias cb 
-                JOIN paises p ON cb.PaisID = p.PaisID
-                LEFT JOIN tipos_beneficiario tb ON cb.TipoBeneficiarioID = tb.TipoBeneficiarioID
-                WHERE cb.UserID = ? AND cb.Activo = 1
-                ORDER BY cb.FechaCreacion DESC";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("i", $userId);
-        $stmt->execute();
-        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-        return $result;
-    }
-
-    public function toggleAdminPermission(int $cuentaId, int $userId, int $newState): bool
-    {
-        $sql = "UPDATE cuentas_beneficiarias SET PermitirEdicion = ? WHERE CuentaID = ? AND UserID = ?";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iii", $newState, $cuentaId, $userId);
-        return $stmt->execute();
-    }
-
     public function adminUpdateBeneficiary(int $cuentaId, array $data): bool
     {
         $checkSql = "SELECT PermitirEdicion FROM cuentas_beneficiarias WHERE CuentaID = ?";
@@ -205,11 +224,10 @@ class CuentasBeneficiariasRepository
                 TitularPrimerNombre = ?, 
                 TitularNumeroDocumento = ?, 
                 NombreBanco = ?, 
-                NumeroCuenta = ?
+                NumeroCuenta = ? 
                 WHERE CuentaID = ?";
 
         $stmt = $this->db->prepare($sql);
-        
         $stmt->bind_param(
             "ssssi",
             $data['nombre'],

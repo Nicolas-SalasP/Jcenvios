@@ -244,6 +244,7 @@ try {
         'generate2FASecret' => [ClientController::class, 'generate2FASecret', 'POST'],
         'enable2FA' => [ClientController::class, 'enable2FA', 'POST'],
         'disable2FA' => [ClientController::class, 'disable2FA', 'POST'],
+        'toggleBeneficiaryPermission' => [ClientController::class, 'toggleBeneficiaryPermission', 'POST'],
 
         // Client - Transacciones
         'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],

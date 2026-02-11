@@ -83,8 +83,7 @@ if (!$isAjax) {
 ?>
 
 <?php if (!$isAjax): ?>
-<div class="container-fluid px-4 mt-4">
-    <h1 class="mb-4">Gestión de Usuarios</h1>
+<div class="container mt-4"> <h1 class="mb-4">Gestión de Usuarios</h1>
 
     <div class="card shadow-sm mb-4 border-0 bg-light">
         <div class="card-body">

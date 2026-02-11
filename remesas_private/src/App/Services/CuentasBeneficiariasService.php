@@ -315,4 +315,14 @@ class CuentasBeneficiariasService
         
         // $this->logService->logAction($adminId, "EDIT_BENEFICIARY", "Editó cuenta $cuentaId");
     }
+
+    public function togglePermission(int $userId, int $cuentaId, int $newState): bool
+    {
+        $existing = $this->cuentasRepo->findByIdAndUserId($cuentaId, $userId);
+        if (!$existing) {
+            throw new Exception("Cuenta no encontrada o no autorizada.", 403);
+        }
+
+        return $this->cuentasRepo->toggleAdminPermission($cuentaId, $userId, $newState);
+    }
 }
