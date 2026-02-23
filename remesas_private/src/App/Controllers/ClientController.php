@@ -243,8 +243,18 @@ class ClientController extends BaseController
 
         $data = $this->getJsonInput();
         $data['userID'] = $userId;
-        $transactionId = $this->txService->createTransaction($data);
-        $this->sendJsonResponse(['success' => true, 'transaccionID' => $transactionId], 201);
+        $result = $this->txService->createTransaction($data);
+
+        if (is_array($result)) {
+            $this->sendJsonResponse([
+                'success' => true,
+                'transaccionID' => $result['id'],
+                'status' => $result['status'] ?? 'created',
+                'cuentaAdmin' => $result['cuentaAdmin'] ?? null
+            ], 201);
+        } else {
+            $this->sendJsonResponse(['success' => true, 'transaccionID' => $result], 201);
+        }
     }
 
     public function cancelTransaction(): void
@@ -592,5 +602,10 @@ class ClientController extends BaseController
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    public function subirComprobanteDetallado(): void
+    {
+        $this->uploadReceipt();
     }
 }

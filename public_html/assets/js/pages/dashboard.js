@@ -371,24 +371,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentStep++;
                     updateView();
                 } else {
-                     const wizardContainer = document.querySelector('.card') || document.getElementById('remittance-form').parentNode;
+                    const wizardContainer = document.querySelector('.card') || document.getElementById('remittance-form').parentNode;
 
                     if (!wizardContainer) {
                         throw new Error("No se encontró el contenedor para mostrar el formulario de carga.");
                     }
 
                     const paisOrigenVal = parseInt(paisOrigenSelect.value);
+                    const esColombia = (paisOrigenVal === C_COLOMBIA);
                     const esChile = (paisOrigenVal === 1);
-                    const displayRutStyle = esChile ? '' : 'd-none';
-                    const requiredRut = esChile ? 'required' : '';
+                    const requiereRut = !esColombia;
+                    const displayRutStyle = requiereRut ? '' : 'd-none';
+                    const requiredRut = requiereRut ? 'required' : '';
+
                     let htmlQR = '';
                     if (res.cuentaAdmin && res.cuentaAdmin.QrCodeURL) {
                         htmlQR = `
                             <div class="text-center mb-4 p-3 bg-white rounded border shadow-sm animate__animated animate__fadeInDown">
-                                <h6 class="fw-bold text-primary mb-2">Escanea para pagar con ${res.cuentaAdmin.Banco}</h6>
-                                <img src="../assets/img/qr/${res.cuentaAdmin.QrCodeURL}" alt="QR Pago" class="img-fluid border" style="max-height: 250px;">
-                                <div class="small text-muted mt-2 fw-bold">${res.cuentaAdmin.Titular}</div>
-                                <div class="small text-muted">${res.cuentaAdmin.NumeroCuenta}</div>
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-qr-code-scan"></i> Escanea para pagar con ${res.cuentaAdmin.Banco}</h6>
+                                <img src="../assets/img/qr/${res.cuentaAdmin.QrCodeURL}" alt="QR de Pago" title="Código QR de Pago" class="img-fluid border rounded mb-2 shadow-sm" style="max-height: 250px;">
+                                <div class="small text-muted fw-bold fs-6">${res.cuentaAdmin.Titular}</div>
+                                <div class="small text-muted mb-2">Cuenta/Celular: ${res.cuentaAdmin.NumeroCuenta}</div>
+                                <a href="../assets/img/qr/${res.cuentaAdmin.QrCodeURL}" download="QR_Pago_${res.cuentaAdmin.Banco}" class="btn btn-sm btn-outline-secondary mt-1">
+                                    <i class="bi bi-download"></i> Descargar QR
+                                </a>
                             </div>
                         `;
                     }
@@ -402,25 +408,25 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             ${htmlQR}
 
-                            <p class="text-muted mb-4">Para procesar tu envío rápidamente, por favor sube el comprobante ahora.</p>
+                            <p class="text-muted mb-4">Para procesar tu envío rápidamente, por favor sube el comprobante de la transferencia ahora.</p>
                             
                             <div class="card bg-light border-0 p-4 mx-auto shadow-sm" style="max-width: 500px;">
                                 <form id="form-comprobante-express">
-                                    <input type="hidden" name="transaction_id" value="${finalId}">
+                                    <input type="hidden" name="transactionId" value="${finalId}">
                                     
                                     <div class="form-floating mb-3 text-start ${displayRutStyle}">
-                                        <input type="text" class="form-control" id="rut_titular_pago" name="rut_titular" ${requiredRut} placeholder="Ej: 12.345.678-9">
-                                        <label for="rut_titular_pago">RUT del Titular (Quien transfirió)</label>
+                                        <input type="text" class="form-control" id="rut_titular_pago" name="rutTitularOrigen" ${requiredRut} placeholder="Documento / RUT">
+                                        <label for="rut_titular_pago">Documento / RUT del Titular</label>
                                     </div>
 
                                     <div class="form-floating mb-3 text-start">
-                                        <input type="text" class="form-control" id="nombre_titular_pago" name="nombre_titular" required placeholder="Nombre Completo">
+                                        <input type="text" class="form-control" id="nombre_titular_pago" name="nombreTitularOrigen" required placeholder="Nombre Completo">
                                         <label for="nombre_titular_pago">Nombre del Titular (Quien transfirió)</label>
                                     </div>
 
                                     <div class="mb-3 text-start">
                                         <label class="form-label small fw-bold">Adjuntar Comprobante</label>
-                                        <input class="form-control" type="file" id="comprobante_file" name="comprobante" accept="image/*,.pdf" required>
+                                        <input class="form-control" type="file" id="comprobante_file" name="receiptFile" accept="image/*,.pdf" required>
                                     </div>
 
                                     <button type="submit" class="btn btn-primary w-100 py-3 fw-bold fs-5" id="btn-subir-express">
@@ -447,24 +453,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         btnUp.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Subiendo...';
 
                         const fd = new FormData(this);
-                        if (!esChile) {
-                            fd.set('rut_titular', 'N/A');
+                        if (!requiereRut) {
+                            fd.set('rutTitularOrigen', 'N/A');
                         }
 
                         try {
-                            const upResp = await fetch('../api/?accion=subirComprobanteDetallado', { method: 'POST', body: fd });
+                            const upResp = await fetch('../api/?accion=uploadReceipt', { method: 'POST', body: fd });
                             const upJson = await upResp.json();
 
                             if (upJson.success) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: '¡Comprobante Recibido!',
-                                    text: 'Tu orden está siendo verificada.',
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                }).then(() => { window.location.href = 'historial.php'; });
+                                Swal.fire({ icon: 'success', title: '¡Éxito!', text: 'Comprobante validado y recibido.' })
+                                    .then(() => { window.location.href = 'historial.php'; });
                             } else {
-                                throw new Error(upJson.message || 'Error al subir');
+                                throw new Error(upJson.error || 'Este comprobante ya fue utilizado.');
                             }
                         } catch (errUp) {
                             Swal.fire('Error', errUp.message, 'error');
@@ -505,15 +506,16 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const respF = await fetch(`../api/?accion=getFormasDePago&origenId=${origenId}`);
             const opts = await respF.json();
+
             if (Array.isArray(opts)) {
                 formaDePagoSelect.innerHTML = opts.length ? '<option value="">Selecciona...</option>' : '<option>Sin opciones</option>';
                 opts.forEach(op => formaDePagoSelect.innerHTML += `<option value="${op}">${op}</option>`);
             } else {
-                console.error("Error API Formas Pago:", opts);
-                formaDePagoSelect.innerHTML = '<option value="">Error al cargar</option>';
+                console.warn('opts no es iterable', opts);
+                formaDePagoSelect.innerHTML = '<option value="">Error al cargar opciones</option>';
             }
-        } catch (e) { 
-            console.error(e); 
+        } catch (e) {
+            console.error(e);
             formaDePagoSelect.innerHTML = '<option value="">Error conexión</option>';
         }
     };
@@ -1210,13 +1212,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (LOGGED_IN_USER_ID) {
-        loadPaises('Origen', paisOrigenSelect); 
+        loadPaises('Origen', paisOrigenSelect);
         loadPaises('Destino', paisDestinoSelect);
-        loadTiposDocumento(); 
-        updateView(); 
+        loadTiposDocumento();
+        updateView();
         toggleBcvFields();
-        
+
         // --- AQUÍ ESTÁ EL ARREGLO: LLAMAR A LA VERIFICACIÓN AL CARGAR ---
-        checkGlobalRequests(); 
+        checkGlobalRequests();
     }
 });
