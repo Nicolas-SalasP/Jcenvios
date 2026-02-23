@@ -1,8 +1,10 @@
 <?php
 require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
-if (!isset($_SESSION['user_rol_name']) || 
-    ($_SESSION['user_rol_name'] !== 'Admin' && $_SESSION['user_rol_name'] !== 'Operador')) {
+if (
+    !isset($_SESSION['user_rol_name']) ||
+    ($_SESSION['user_rol_name'] !== 'Admin' && $_SESSION['user_rol_name'] !== 'Operador')
+) {
     http_response_code(403);
     exit('Acceso denegado');
 }
@@ -45,16 +47,23 @@ foreach ($transacciones as $tx):
         default => 'bg-secondary'
     };
 
-    $esPagoMovil = ($tx['BeneficiarioNumeroCuenta'] === 'PAGO MOVIL');
-    $cuentaMostrar = $esPagoMovil ? $tx['BeneficiarioTelefono'] : $tx['BeneficiarioNumeroCuenta'];
-    
+    $hasCuenta = !empty(trim($tx['BeneficiarioNumeroCuenta'] ?? ''));
+    $hasTelefono = !empty(trim($tx['BeneficiarioTelefono'] ?? ''));
+
     $textoCopiado = "ORDEN #{$tx['TransaccionID']}\n";
     $textoCopiado .= "Banco: {$tx['BeneficiarioBanco']}\n";
     $textoCopiado .= "Beneficiario: {$tx['BeneficiarioNombre']}\n";
-    $textoCopiado .= ($esPagoMovil ? "Teléfono" : "Cuenta") . ": {$cuentaMostrar}\n";
+
+    if ($hasCuenta) {
+        $textoCopiado .= "Cuenta: {$tx['BeneficiarioNumeroCuenta']}\n";
+    }
+    if ($hasTelefono) {
+        $textoCopiado .= "Teléfono: {$tx['BeneficiarioTelefono']}\n";
+    }
+
     $textoCopiado .= "Doc: {$tx['BeneficiarioDocumento']}\n";
     $textoCopiado .= "Monto: " . number_format($tx['MontoDestino'], 2, ',', '.') . " {$tx['MonedaDestino']}";
-    
+
     $textoBase64 = base64_encode($textoCopiado);
 
     $jsonData = htmlspecialchars(json_encode([
@@ -62,11 +71,13 @@ foreach ($transacciones as $tx):
         'banco' => $tx['BeneficiarioBanco'],
         'nombre' => $tx['BeneficiarioNombre'],
         'doc' => $tx['BeneficiarioDocumento'],
-        'cuenta' => $cuentaMostrar,
-        'tipo' => $esPagoMovil ? 'Pago Móvil' : 'Cuenta Bancaria',
+        'cuenta' => $tx['BeneficiarioNumeroCuenta'],
+        'telefono' => $tx['BeneficiarioTelefono'],
+        'hasCuenta' => $hasCuenta,
+        'hasTelefono' => $hasTelefono,
         'monto' => number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $tx['MonedaDestino']
     ]), ENT_QUOTES, 'UTF-8');
-?>
+    ?>
     <tr>
         <td><strong>#<?php echo $tx['TransaccionID']; ?></strong></td>
         <td><?php echo date("d/m H:i", strtotime($tx['FechaTransaccion'])); ?></td>
@@ -81,7 +92,7 @@ foreach ($transacciones as $tx):
         <td class="fw-bold text-success">
             <?php echo number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $tx['MonedaDestino']; ?>
         </td>
-        
+
         <td>
             <div class="d-flex flex-column align-items-center">
                 <span class="badge <?php echo $badgeClass; ?>"><?php echo $tx['EstadoNombre']; ?></span>
@@ -90,14 +101,14 @@ foreach ($transacciones as $tx):
 
         <td class="text-center">
             <div class="d-flex justify-content-center gap-1">
-                <button class="btn btn-sm btn-primary d-flex align-items-center gap-1" 
-                        onclick="copiarDatosDirecto(this, '<?php echo $textoBase64; ?>')" 
-                        title="Copiar todos los datos al portapapeles">
+                <button class="btn btn-sm btn-primary d-flex align-items-center gap-1"
+                    onclick="copiarDatosDirecto(this, '<?php echo $textoBase64; ?>')"
+                    title="Copiar todos los datos al portapapeles">
                     <i class="bi bi-clipboard-check"></i> <span>Copiar</span>
                 </button>
-                
-                <button class="btn btn-sm btn-outline-secondary copy-data-btn ms-1"
-                    data-datos="<?php echo $jsonData; ?>" title="Ver Detalles Visualmente">
+
+                <button class="btn btn-sm btn-outline-secondary copy-data-btn ms-1" data-datos="<?php echo $jsonData; ?>"
+                    title="Ver Detalles Visualmente">
                     <i class="bi bi-eye"></i>
                 </button>
             </div>
@@ -105,24 +116,21 @@ foreach ($transacciones as $tx):
 
         <td class="text-end">
             <div class="d-flex gap-1 justify-content-end">
-                <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>"
-                    target="_blank" class="btn btn-sm btn-outline-danger" title="Ver Orden PDF">
+                <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
+                    class="btn btn-sm btn-outline-danger" title="Ver Orden PDF">
                     <i class="bi bi-file-earmark-pdf"></i>
                 </a>
 
                 <?php if ($tx['EstadoNombre'] === 'Pausado' && !empty($tx['MotivoPausa'])): ?>
-                    <button type="button" 
-                        class="btn btn-sm btn-warning view-pause-reason-btn" 
-                        data-reason="<?php echo htmlspecialchars($tx['MotivoPausa']); ?>"
-                        title="Ver Motivo de Pausa">
+                    <button type="button" class="btn btn-sm btn-warning view-pause-reason-btn"
+                        data-reason="<?php echo htmlspecialchars($tx['MotivoPausa']); ?>" title="Ver Motivo de Pausa">
                         <i class="bi bi-info-circle-fill"></i>
                     </button>
                 <?php endif; ?>
 
                 <?php if (!empty($tx['ComprobanteURL'])): ?>
-                    <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin"
-                        data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                    <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
+                        data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                         data-comprobante-url="<?php echo BASE_URL . '/admin/view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']); ?>"
                         title="Ver Comprobante Cliente">
                         <i class="bi bi-eye"></i>
@@ -130,27 +138,23 @@ foreach ($transacciones as $tx):
                 <?php endif; ?>
 
                 <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
-                    <button class="btn btn-sm btn-success admin-upload-btn" 
-                        data-bs-toggle="modal"
-                        data-bs-target="#adminUploadModal"
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                    <button class="btn btn-sm btn-success admin-upload-btn" data-bs-toggle="modal"
+                        data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                         data-monto-destino="<?php echo $tx['MontoDestino']; ?>"
-                        data-pais-id="<?php echo $tx['PaisDestinoID']; ?>" 
-                        title="Finalizar y Pagar">
+                        data-pais-id="<?php echo $tx['PaisDestinoID']; ?>" title="Finalizar y Pagar">
                         <i class="bi bi-upload"></i>
                     </button>
-                    <button class="btn btn-sm btn-warning pause-btn-modal" 
-                        data-bs-toggle="modal"
-                        data-bs-target="#pauseModal" 
-                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                        title="Pausar Orden">
+                    <button class="btn btn-sm btn-warning pause-btn-modal" data-bs-toggle="modal" data-bs-target="#pauseModal"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Pausar Orden">
                         <i class="bi bi-pause-circle-fill"></i>
                     </button>
                 <?php endif; ?>
 
                 <?php if (!$isOperator && $tx['EstadoNombre'] === 'En Verificación'): ?>
-                    <button class="btn btn-sm btn-success process-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Aprobar"><i class="bi bi-check-lg"></i></button>
-                    <button class="btn btn-sm btn-danger reject-btn" data-bs-toggle="modal" data-bs-target="#rejectionModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Rechazar"><i class="bi bi-x-lg"></i></button>
+                    <button class="btn btn-sm btn-success process-btn" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        title="Aprobar"><i class="bi bi-check-lg"></i></button>
+                    <button class="btn btn-sm btn-danger reject-btn" data-bs-toggle="modal" data-bs-target="#rejectionModal"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Rechazar"><i class="bi bi-x-lg"></i></button>
                 <?php endif; ?>
             </div>
         </td>

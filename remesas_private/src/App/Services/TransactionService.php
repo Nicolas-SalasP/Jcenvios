@@ -166,6 +166,13 @@ class TransactionService
             throw new Exception("Beneficiario no encontrado o no te pertenece.", 404);
         }
 
+        $hasCuenta = !empty(trim($beneficiario['NumeroCuenta'] ?? ''));
+        $hasTelefono = !empty(trim($beneficiario['NumeroTelefono'] ?? ''));
+
+        if (!$hasCuenta && !$hasTelefono) {
+            throw new Exception("El beneficiario no posee un número de cuenta ni un número de teléfono válido para procesar el pago.", 400);
+        }
+
         $paisOrigenID = !empty($data['paisOrigenID']) ? (int) $data['paisOrigenID'] : ($client['PaisID'] ?? 1);
         $paisDestinoID = $beneficiario['PaisID'];
 
@@ -197,7 +204,7 @@ class TransactionService
 
         $data['montoDestino'] = $calculoBackend;
         $data['tasaID'] = $tasaInfo['TasaID'];
-        $data['tasaCapturada'] = $tasaValor; 
+        $data['tasaCapturada'] = $tasaValor;
 
         if (isset($tasaInfo['EsRiesgoso']) && (int) $tasaInfo['EsRiesgoso'] === 1) {
             $estadoInicialID = 7;

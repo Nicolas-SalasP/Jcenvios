@@ -119,10 +119,12 @@ document.addEventListener('DOMContentLoaded', () => {
             banco: document.getElementById('copy-banco'),
             doc: document.getElementById('copy-doc'),
             cuenta: document.getElementById('copy-cuenta'),
+            telefono: document.getElementById('copy-telefono'),
+            divCuenta: document.getElementById('container-cuenta'),
+            divTelefono: document.getElementById('container-telefono'),
             nombre: document.getElementById('copy-nombre'),
             montoDisplay: document.getElementById('copy-monto-display'),
             montoValue: document.getElementById('copy-monto-value'),
-            labelCuenta: document.getElementById('label-cuenta-tipo'),
             txId: document.getElementById('copy-tx-id'),
             btnFinalizar: document.getElementById('btn-ir-a-finalizar')
         };
@@ -130,17 +132,34 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('click', (e) => {
             const btn = e.target.closest('.copy-data-btn');
             if (btn) {
+                e.preventDefault();
+                e.stopPropagation(); 
+                
                 try {
                     const data = JSON.parse(btn.dataset.datos);
 
                     if (fields.txId) fields.txId.textContent = data.id;
-                    fields.banco.value = data.banco;
-                    fields.doc.value = data.doc;
-                    fields.cuenta.value = data.cuenta;
-                    fields.nombre.value = data.nombre;
-                    fields.montoDisplay.textContent = data.monto;
+                    if (fields.banco) fields.banco.value = data.banco;
+                    if (fields.doc) fields.doc.value = data.doc;
+                    if (fields.nombre) fields.nombre.value = data.nombre;
+                    if (fields.montoDisplay) fields.montoDisplay.textContent = data.monto;
                     if (fields.montoValue) fields.montoValue.value = data.monto;
-                    fields.labelCuenta.textContent = data.tipo;
+                    if (fields.divCuenta && fields.cuenta) {
+                        if (data.hasCuenta) {
+                            fields.cuenta.value = data.cuenta;
+                            fields.divCuenta.style.display = 'block';
+                        } else {
+                            fields.divCuenta.style.display = 'none';
+                        }
+                    }
+                    if (fields.divTelefono && fields.telefono) {
+                        if (data.hasTelefono) {
+                            fields.telefono.value = data.telefono;
+                            fields.divTelefono.style.display = 'block';
+                        } else {
+                            fields.divTelefono.style.display = 'none';
+                        }
+                    }
 
                     if (fields.btnFinalizar) {
                         fields.btnFinalizar.onclick = () => {
@@ -159,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                     }
                     copyModal.show();
-                } catch (e) { console.error(e); }
+                } catch (e) { console.error("Error procesando datos del modal:", e); }
             }
         });
     }

@@ -98,15 +98,27 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="small text-muted fw-bold" id="label-cuenta-tipo">Cuenta</label>
+
+                    <div class="col-md-6" id="container-cuenta" style="display: none;">
+                        <label class="small text-muted fw-bold">Cuenta Bancaria</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-cuenta" readonly>
                             <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
-                    <div class="col-md-4">
+
+                    <div class="col-md-6" id="container-telefono" style="display: none;">
+                        <label class="small text-muted fw-bold">Teléfono</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control fw-bold" id="copy-telefono" readonly>
+                            <button class="btn btn-outline-secondary"
+                                onclick="copyToClipboard('copy-telefono', this)"><i
+                                    class="bi bi-clipboard"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
                         <label class="small text-muted fw-bold">Documento</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-doc" readonly>
@@ -114,7 +126,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
-                    <div class="col-md-8">
+                    <div class="col-12">
                         <label class="small text-muted fw-bold">Beneficiario</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-nombre" readonly>
@@ -223,7 +235,8 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content shadow">
             <div class="modal-header bg-warning py-2">
-                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-pause-circle-fill me-2"></i>Motivo de Pausa</h6>
+                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-pause-circle-fill me-2"></i>Motivo de Pausa
+                </h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body text-center p-4">
@@ -244,17 +257,20 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                 <h5 class="modal-title fs-6" id="viewComprobanteModalLabel">Visor de Comprobante</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center position-relative flex-grow-1 h-100 overflow-hidden">
-                
+            <div
+                class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center position-relative flex-grow-1 h-100 overflow-hidden">
+
                 <div id="comprobante-placeholder" class="spinner-border text-light" role="status">
                     <span class="visually-hidden">Cargando...</span>
                 </div>
 
-                <img id="comprobante-img-full" class="d-none" style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
-                
+                <img id="comprobante-img-full" class="d-none"
+                    style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
+
                 <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
 
-                <a id="download-comprobante-btn" class="btn btn-light position-absolute top-0 end-0 m-3 d-none" download>
+                <a id="download-comprobante-btn" class="btn btn-light position-absolute top-0 end-0 m-3 d-none"
+                    download>
                     <i class="bi bi-download"></i> Descargar
                 </a>
             </div>
@@ -309,25 +325,6 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
             });
     }
 
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.copy-data-btn');
-        if (btn) {
-            try {
-                const data = JSON.parse(btn.dataset.datos);
-                document.getElementById('copy-tx-id').textContent = data.id;
-                document.getElementById('copy-monto-display').textContent = data.monto;
-                document.getElementById('copy-monto-value').value = data.monto;
-                document.getElementById('copy-banco').value = data.banco;
-                document.getElementById('copy-nombre').value = data.nombre;
-                document.getElementById('copy-doc').value = data.doc;
-                document.getElementById('copy-cuenta').value = data.cuenta;
-                document.getElementById('label-cuenta-tipo').textContent = data.tipo === 'Pago Móvil' ? 'Teléfono' : 'Cuenta';
-                const modal = new bootstrap.Modal(document.getElementById('copyDataModal'));
-                modal.show();
-            } catch (err) { console.error("Error JSON:", err); }
-        }
-    });
-
     const style = document.createElement('style');
     style.innerHTML = `
         .spin-anim { animation: spin 1s linear infinite; }
@@ -339,20 +336,17 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
         cargarTablaPendientes();
         setInterval(cargarTablaPendientes, 10000);
 
-        // --- LÓGICA MODAL MOTIVO PAUSA (MANUAL) ---
-        // Solución para evitar error 'backdrop'
-        document.body.addEventListener('click', function(e) {
+        document.body.addEventListener('click', function (e) {
             const btn = e.target.closest('.view-pause-reason-btn');
             if (btn) {
                 e.preventDefault();
-                
+
                 const reason = btn.getAttribute('data-reason');
                 const modalBodyText = document.getElementById('pause-reason-text');
                 if (modalBodyText) modalBodyText.textContent = reason;
 
                 const modalEl = document.getElementById('viewPauseReasonModal');
                 if (modalEl) {
-                    // Verificar si ya existe instancia, sino crearla
                     let modalInstance = bootstrap.Modal.getInstance(modalEl);
                     if (!modalInstance) {
                         modalInstance = new bootstrap.Modal(modalEl);
@@ -362,26 +356,23 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
             }
         });
 
-        // --- LÓGICA MEJORADA VISOR COMPROBANTE ---
-        document.body.addEventListener('click', function(e) {
+        document.body.addEventListener('click', function (e) {
             const btn = e.target.closest('.view-comprobante-btn-admin');
             if (btn) {
                 e.preventDefault();
-                
+
                 const url = btn.dataset.comprobanteUrl;
                 const imgEl = document.getElementById('comprobante-img-full');
                 const pdfEl = document.getElementById('comprobante-pdf-full');
                 const placeholder = document.getElementById('comprobante-placeholder');
                 const downloadBtn = document.getElementById('download-comprobante-btn');
-                
-                // Reset
+
                 imgEl.classList.add('d-none');
                 pdfEl.classList.add('d-none');
                 placeholder.classList.remove('d-none');
                 imgEl.src = '';
                 pdfEl.src = '';
-                
-                // Detectar extensión real
+
                 let extension = '';
                 if (url.includes('?')) {
                     const urlParams = new URLSearchParams(url.split('?')[1]);
@@ -393,10 +384,9 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                     extension = url.split('.').pop().toLowerCase();
                 }
 
-                // Mostrar
                 setTimeout(() => {
                     placeholder.classList.add('d-none');
-                    
+
                     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
                         imgEl.src = url;
                         imgEl.classList.remove('d-none');
@@ -407,8 +397,8 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                         imgEl.src = url;
                         imgEl.classList.remove('d-none');
                     }
-                    
-                    if(downloadBtn) {
+
+                    if (downloadBtn) {
                         downloadBtn.href = url;
                         downloadBtn.classList.remove('d-none');
                     }
