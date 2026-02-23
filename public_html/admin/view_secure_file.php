@@ -1,11 +1,9 @@
 <?php
-// Desactivar salida de errores para no corromper la imagen
 ini_set('display_errors', 0);
 error_reporting(0);
 
 require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
-// 1. Seguridad Básica: Login
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
     exit;
@@ -15,7 +13,6 @@ $userId = (int)$_SESSION['user_id'];
 $rol = $_SESSION['user_rol_name'] ?? '';
 $isAdminOrOperator = ($rol === 'Admin' || $rol === 'Operador');
 
-// 2. Validar parámetro
 if (!isset($_GET['file']) || empty($_GET['file'])) {
     http_response_code(400);
     exit;
@@ -23,7 +20,6 @@ if (!isset($_GET['file']) || empty($_GET['file'])) {
 
 $fileRequest = urldecode($_GET['file']);
 
-// --- 3. LIMPIEZA INTELIGENTE DE RUTA ---
 $fileRequest = str_replace([
     'http://' . $_SERVER['HTTP_HOST'], 
     'https://' . $_SERVER['HTTP_HOST'],
@@ -39,8 +35,6 @@ if (strpos($fileRequest, 'public_html/') === 0) {
     $fileRequest = substr($fileRequest, 12);
 }
 
-// --- 4. VALIDACIÓN DE PERMISOS ---
-// --- 4. VALIDACIÓN DE PERMISOS ---
 $hasPermission = false;
 
 if ($isAdminOrOperator) {
@@ -79,7 +73,6 @@ if (!$hasPermission) {
     exit;
 }
 
-// 5. Definir Rutas Base Posibles
 $basePrivate = realpath(__DIR__ . '/../../remesas_private');
 
 $candidates = [
@@ -103,7 +96,6 @@ foreach ($candidates as $candidate) {
     }
 }
 
-// 6. Servir el archivo
 if ($realFullPath && file_exists($realFullPath)) {
     
     $mimeType = null;
@@ -121,10 +113,20 @@ if ($realFullPath && file_exists($realFullPath)) {
         $mimeType = $mimes[$ext] ?? 'application/octet-stream';
     }
 
+    $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    
+    if (!in_array($mimeType, $allowed_mimes)) {
+        $disposition = 'attachment';
+    } else {
+        $disposition = 'inline';
+    }
+
     header('Content-Type: ' . $mimeType);
     header('Content-Length: ' . filesize($realFullPath));
-    header('Content-Disposition: inline; filename="' . basename($realFullPath) . '"');
+    header('Content-Disposition: ' . $disposition . '; filename="' . basename($realFullPath) . '"');
     header('Cache-Control: private, max-age=86400');
+    header('X-Frame-Options: SAMEORIGIN');
+    header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; plugin-types application/pdf;");
     
     if (ob_get_length()) ob_clean();
     flush();

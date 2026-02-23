@@ -91,9 +91,23 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Comprobante de Pago</label>
-                        <input class="form-control" type="file" name="receiptFile" required
-                            accept="image/*, application/pdf">
+                        <label class="form-label fw-bold">Comprobante de Transferencia</label>
+                        <input class="form-control" type="file" name="receiptFile" id="adminReceiptFileInput"
+                            accept="image/jpeg,image/png,image/webp,application/pdf" required>
+                        <div class="form-text">Sube la captura del pago realizado (JPG, PNG o PDF).</div>
+                    </div>
+
+                    <div id="upload-preview-container"
+                        class="mt-3 d-none border rounded p-3 text-center position-relative bg-light shadow-sm">
+                        <button type="button" class="btn-close position-absolute top-0 end-0 m-2"
+                            id="clear-upload-preview-btn" aria-label="Eliminar" title="Quitar archivo"></button>
+                        <span class="badge bg-primary mb-2 shadow-sm"><i class="bi bi-eye"></i> Vista Previa del
+                            Documento</span>
+                        <img id="upload-preview-img" class="img-fluid d-none rounded border"
+                            style="max-height: 250px; object-fit: contain; width: 100%;" alt="Vista previa de imagen">
+                        <iframe id="upload-preview-pdf" class="w-100 d-none rounded border" style="height: 300px;"
+                            frameborder="0"></iframe>
+                        <div id="upload-preview-info" class="small text-muted mt-2 fw-medium"></div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Comisión (0.3% Sugerido)</label>

@@ -91,7 +91,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
 
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="small text-muted fw-bold">Banco</label>
+                        <label class="small text-muted fw-bold">Banco / Billetera</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-banco" readonly>
                             <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i
@@ -109,7 +109,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                     </div>
 
                     <div class="col-md-6" id="container-telefono" style="display: none;">
-                        <label class="small text-muted fw-bold">Teléfono</label>
+                        <label class="small text-muted fw-bold">Teléfono (Pago Móvil/Billetera)</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-telefono" readonly>
                             <button class="btn btn-outline-secondary"
@@ -160,13 +160,22 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                             <option value="">-- Cargando Bancos... --</option>
                         </select>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label fw-bold">Comprobante de Transferencia</label>
-                        <input class="form-control" type="file" name="receiptFile" accept="image/*,application/pdf"
-                            required>
-                        <div class="form-text">Sube la captura del pago realizado.</div>
+                        <input class="form-control" type="file" name="receiptFile" id="adminReceiptFileInput" accept="image/jpeg,image/png,image/webp,application/pdf" required>
+                        <div class="form-text">Sube la captura del pago realizado (JPG, PNG o PDF).</div>
                     </div>
-                    <div class="mb-3">
+
+                    <div id="upload-preview-container" class="mt-3 d-none border rounded p-3 text-center position-relative bg-light shadow-sm">
+                        <button type="button" class="btn-close position-absolute top-0 end-0 m-2" id="clear-upload-preview-btn" aria-label="Eliminar" title="Quitar archivo"></button>
+                        <span class="badge bg-primary mb-2 shadow-sm"><i class="bi bi-eye"></i> Vista Previa del Documento</span>
+                        <img id="upload-preview-img" class="img-fluid d-none rounded border" style="max-height: 250px; object-fit: contain; width: 100%;" alt="Vista previa de imagen">
+                        <iframe id="upload-preview-pdf" class="w-100 d-none rounded border" style="height: 300px;" frameborder="0"></iframe>
+                        <div id="upload-preview-info" class="small text-muted mt-2 fw-medium"></div>
+                    </div>
+
+                    <div class="mb-3 mt-3">
                         <label class="form-label fw-bold">Comisión (0.3% Sugerido)</label>
                         <input type="number" step="0.01" class="form-control" id="opComisionDestino"
                             name="comisionDestino" placeholder="0.00" value="0">
@@ -251,59 +260,77 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
 </div>
 
 <div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content d-flex flex-column" style="height: 90vh;">
-            <div class="modal-header py-2 bg-light">
-                <h5 class="modal-title fs-6" id="viewComprobanteModalLabel">Visor de Comprobante</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" id="modal-content-visor">
+            <div class="modal-header py-2 bg-dark text-white">
+                <h5 class="modal-title fs-6"><i class="bi bi-eye"></i> Revisión de Pago</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div
-                class="modal-body p-0 bg-dark d-flex align-items-center justify-content-center position-relative flex-grow-1 h-100 overflow-hidden">
 
-                <div id="comprobante-placeholder" class="spinner-border text-light" role="status">
-                    <span class="visually-hidden">Cargando...</span>
+            <div class="modal-body p-0 d-flex flex-column flex-lg-row">
+                <div class="bg-light p-3 border-bottom border-lg-bottom-0 border-lg-end overflow-auto sidebar-datos">
+                    <h6 class="text-primary border-bottom pb-2 mb-3">Datos del Titular (Origen)</h6>
+                    <div class="mb-3">
+                        <label class="small text-muted fw-bold">Nombre Titular</label>
+                        <div class="fs-6 text-dark text-break" id="visor-nombre-titular">Cargando...</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small text-muted fw-bold">RUT / Documento</label>
+                        <div class="fs-6 text-dark" id="visor-rut-titular">Cargando...</div>
+                    </div>
+                    <div class="alert alert-info small mt-3 mb-0">
+                        <i class="bi bi-info-circle-fill"></i> Verifique que estos datos coincidan con la imagen del
+                        comprobante.
+                    </div>
                 </div>
 
-                <img id="comprobante-img-full" class="d-none"
-                    style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
-
-                <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none" frameborder="0"></iframe>
-
-                <a id="download-comprobante-btn" class="btn btn-light position-absolute top-0 end-0 m-3 d-none"
-                    download>
-                    <i class="bi bi-download"></i> Descargar
-                </a>
+                <div class="flex-grow-1 bg-dark d-flex align-items-center justify-content-center position-relative visor-container">
+                    <div id="comprobante-placeholder" class="spinner-border text-light"></div>
+                    <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center p-2">
+                        <img id="comprobante-img-full" class="d-none shadow rounded"
+                            style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
+                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none rounded border-0"></iframe>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-    function copiarDatosDirecto(btn, base64Text) {
-        try {
-            const text = atob(base64Text);
-
-            navigator.clipboard.writeText(text).then(() => {
-                const originalHtml = btn.innerHTML;
-                const originalClass = btn.className;
-
-                btn.innerHTML = '<i class="bi bi-check2-all"></i> ¡Copiado!';
-                btn.className = 'btn btn-sm btn-success d-flex align-items-center gap-1';
-
-                setTimeout(() => {
-                    btn.innerHTML = originalHtml;
-                    btn.className = originalClass;
-                }, 1500);
-            }).catch(err => {
-                console.error(err);
-                alert('No se pudo acceder al portapapeles. Verifica permisos del navegador.');
-            });
-        } catch (e) {
-            console.error(e);
-            alert('Error al copiar datos.');
+<style>
+    #modal-content-visor {
+        height: auto;
+        min-height: 80vh;
+    }
+    .sidebar-datos {
+        width: 100%;
+        max-height: 300px;
+    }
+    .visor-container {
+        min-height: 50vh;
+        background-color: #333;
+    }
+    @media (min-width: 992px) {
+        #modal-content-visor {
+            height: 90vh;
+        }
+        .modal-body {
+            height: 100%;
+            overflow: hidden;
+        }
+        .sidebar-datos {
+            width: 320px;
+            min-width: 320px;
+            height: 100%;
+            max-height: none;
+        }
+        .visor-container {
+            height: 100%;
         }
     }
+</style>
 
+<script>
     function cargarTablaPendientes() {
         const btn = document.getElementById('btnRefresh');
         const icon = btn.querySelector('i');
@@ -340,7 +367,6 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
             const btn = e.target.closest('.view-pause-reason-btn');
             if (btn) {
                 e.preventDefault();
-
                 const reason = btn.getAttribute('data-reason');
                 const modalBodyText = document.getElementById('pause-reason-text');
                 if (modalBodyText) modalBodyText.textContent = reason;
@@ -353,56 +379,6 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                     }
                     modalInstance.show();
                 }
-            }
-        });
-
-        document.body.addEventListener('click', function (e) {
-            const btn = e.target.closest('.view-comprobante-btn-admin');
-            if (btn) {
-                e.preventDefault();
-
-                const url = btn.dataset.comprobanteUrl;
-                const imgEl = document.getElementById('comprobante-img-full');
-                const pdfEl = document.getElementById('comprobante-pdf-full');
-                const placeholder = document.getElementById('comprobante-placeholder');
-                const downloadBtn = document.getElementById('download-comprobante-btn');
-
-                imgEl.classList.add('d-none');
-                pdfEl.classList.add('d-none');
-                placeholder.classList.remove('d-none');
-                imgEl.src = '';
-                pdfEl.src = '';
-
-                let extension = '';
-                if (url.includes('?')) {
-                    const urlParams = new URLSearchParams(url.split('?')[1]);
-                    const fileParam = urlParams.get('file');
-                    if (fileParam) {
-                        extension = fileParam.split('.').pop().toLowerCase();
-                    }
-                } else {
-                    extension = url.split('.').pop().toLowerCase();
-                }
-
-                setTimeout(() => {
-                    placeholder.classList.add('d-none');
-
-                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
-                        imgEl.src = url;
-                        imgEl.classList.remove('d-none');
-                    } else if (extension === 'pdf') {
-                        pdfEl.src = url;
-                        pdfEl.classList.remove('d-none');
-                    } else {
-                        imgEl.src = url;
-                        imgEl.classList.remove('d-none');
-                    }
-
-                    if (downloadBtn) {
-                        downloadBtn.href = url;
-                        downloadBtn.classList.remove('d-none');
-                    }
-                }, 500);
             }
         });
     });

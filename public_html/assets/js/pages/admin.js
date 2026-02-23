@@ -133,8 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.target.closest('.copy-data-btn');
             if (btn) {
                 e.preventDefault();
-                e.stopPropagation(); 
-                
+                e.stopPropagation();
+
                 try {
                     const data = JSON.parse(btn.dataset.datos);
 
@@ -778,6 +778,64 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+    // =========================================================
+    // UX: PREVISUALIZACIÓN DE DOCUMENTOS ANTES DE SUBIR
+    // =========================================================
+    const fileInput = document.getElementById('adminReceiptFileInput');
+    const previewContainer = document.getElementById('upload-preview-container');
+    const previewImg = document.getElementById('upload-preview-img');
+    const previewPdf = document.getElementById('upload-preview-pdf');
+    const clearPreviewBtn = document.getElementById('clear-upload-preview-btn');
+    const previewInfo = document.getElementById('upload-preview-info');
+
+    let currentObjectURL = null;
+
+    if (fileInput && previewContainer) {
+        fileInput.addEventListener('change', function () {
+            const file = this.files[0];
+            if (currentObjectURL) URL.revokeObjectURL(currentObjectURL);
+
+            if (file) {
+                const fileType = file.type;
+                currentObjectURL = URL.createObjectURL(file);
+                previewImg.classList.add('d-none');
+                previewPdf.classList.add('d-none');
+                previewContainer.classList.remove('d-none');
+                previewInfo.innerHTML = `<i class="bi bi-file-earmark-check text-success"></i> ${file.name} <span class="text-muted">(${(file.size / 1024).toFixed(1)} KB)</span>`;
+
+                if (fileType.startsWith('image/')) {
+                    previewImg.src = currentObjectURL;
+                    previewImg.classList.remove('d-none');
+                } else if (fileType === 'application/pdf') {
+                    previewPdf.src = currentObjectURL;
+                    previewPdf.classList.remove('d-none');
+                } else {
+                    previewInfo.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Formato no soportado para vista previa. Guarde como JPG, PNG o PDF.</span>`;
+                    fileInput.value = '';
+                }
+            } else {
+                previewContainer.classList.add('d-none');
+            }
+        });
+
+        clearPreviewBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            previewContainer.classList.add('d-none');
+            if (currentObjectURL) {
+                URL.revokeObjectURL(currentObjectURL);
+                currentObjectURL = null;
+            }
+            previewImg.src = '';
+            previewPdf.src = '';
+        });
+
+        const adminUploadModalEl = document.getElementById('adminUploadModal');
+        if (adminUploadModalEl) {
+            adminUploadModalEl.addEventListener('hidden.bs.modal', () => {
+                clearPreviewBtn.click();
+            });
+        }
+    }
 
     // 5.5 EDITAR COMISIÓN (Si existe el modal)
     const editCommissionModalElement = document.getElementById('editCommissionModal');
@@ -951,6 +1009,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 imgEl.removeAttribute('src');
                 pdfEl.removeAttribute('src');
 
+                const filenameEl = document.getElementById('visor-filename');
+                if (filenameEl) {
+                    let name = fileUrl.split('file=').pop();
+                    if (name.includes('&')) name = name.split('&')[0];
+                    filenameEl.textContent = decodeURIComponent(name).split('/').pop() || 'documento_adjunto';
+                }
                 // Quitar listeners viejos
                 imgEl.onload = imgEl.onerror = null;
 
@@ -1419,7 +1483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (formEditBen) {
         formEditBen.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const btn = formEditBen.querySelector('button[type="submit"]');
             const originalText = btn.innerHTML;
             btn.disabled = true;
@@ -1434,7 +1498,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                
+
                 const result = await res.json();
 
                 if (result.success) {
