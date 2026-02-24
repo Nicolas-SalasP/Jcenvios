@@ -11,6 +11,7 @@ use App\Repositories\TipoBeneficiarioRepository;
 use App\Repositories\TipoDocumentoRepository;
 use App\Repositories\RolRepository;
 use App\Services\NotificationService;
+use App\Services\BeneficiaryAuditService;
 use Exception;
 
 class ClientController extends BaseController
@@ -25,6 +26,7 @@ class ClientController extends BaseController
     private RolRepository $rolRepo;
     private NotificationService $notificationService;
     private SystemSettingsService $settingsService;
+    private BeneficiaryAuditService $auditService;
 
     public function __construct(
         TransactionService $txService,
@@ -36,7 +38,8 @@ class ClientController extends BaseController
         TipoDocumentoRepository $tipoDocumentoRepo,
         RolRepository $rolRepo,
         NotificationService $notificationService,
-        SystemSettingsService $settingsService
+        SystemSettingsService $settingsService,
+        BeneficiaryAuditService $auditService
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -48,6 +51,7 @@ class ClientController extends BaseController
         $this->rolRepo = $rolRepo;
         $this->notificationService = $notificationService;
         $this->settingsService = $settingsService;
+        $this->auditService = $auditService;
     }
 
     // --- CHECKEO DE SISTEMA---
@@ -607,5 +611,107 @@ class ClientController extends BaseController
     public function subirComprobanteDetallado(): void
     {
         $this->uploadReceipt();
+    }
+
+    // =========================================================================
+    // MÉTODOS DE AUDITORÍA Y SEGURIDAD 
+    // =========================================================================
+
+    public function getPendingBeneficiaryRequests(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        try {
+            $requests = $this->auditService->getPendingRequestsForUser($userId);
+            $this->sendJsonResponse(['success' => true, 'requests' => $requests]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function respondBeneficiaryRequest(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        $data = $this->getJsonInput();
+        
+        $solicitudId = (int)($data['solicitudId'] ?? 0);
+        $respuesta = $data['respuesta'] ?? '';
+
+        if ($solicitudId <= 0 || empty($respuesta)) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
+            return;
+        }
+
+        try {
+            $this->auditService->respondToRequest($userId, $solicitudId, $respuesta);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Tu respuesta ha sido registrada exitosamente.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function requestBeneficiaryEdit(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $this->ensureIsAdminOrOperator();
+        
+        $data = $this->getJsonInput();
+        $cuentaId = (int)($data['cuentaId'] ?? 0);
+        $userId = (int)($data['userId'] ?? 0);
+        $campos = $data['campos'] ?? [];
+        $motivo = trim($data['motivo'] ?? '');
+
+        if ($cuentaId <= 0 || $userId <= 0 || empty($campos) || empty($motivo)) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Faltan datos obligatorios para la solicitud.'], 400);
+            return;
+        }
+
+        try {
+            $this->auditService->requestModification($adminId, $cuentaId, $userId, $campos, $motivo);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Solicitud enviada al cliente. Esperando su aprobación.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function executeBeneficiaryEdit(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $this->ensureIsAdminOrOperator();
+        
+        $data = $this->getJsonInput();
+        $cuentaId = (int)($data['cuentaId'] ?? 0);
+        $userId = (int)($data['userId'] ?? 0);
+        $nuevosDatos = $data['nuevosDatos'] ?? [];
+
+        try {
+            $this->auditService->executeApprovedModification($adminId, $cuentaId, $userId, $nuevosDatos);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Beneficiario actualizado y guardado en la bitácora de auditoría.']);
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 ? $e->getCode() : 500;
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+        }
+    }
+    public function getBeneficiaryHistory(): void
+    {
+        $this->ensureLoggedIn();
+        $this->ensureIsAdminOrOperator();
+        
+        $cuentaId = (int)($_GET['cuentaId'] ?? 0);
+        
+        try {
+            $history = $this->auditService->getBeneficiaryHistory($cuentaId);
+            $this->sendJsonResponse(['success' => true, 'history' => $history]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    private function ensureIsAdminOrOperator(): void
+    {
+        $rol = $_SESSION['user_rol_name'] ?? '';
+        if ($rol !== 'Admin' && $rol !== 'Operador') {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Acceso denegado. Se requieren privilegios de administración.'], 403);
+            exit;
+        }
     }
 }

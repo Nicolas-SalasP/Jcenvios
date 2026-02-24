@@ -21,10 +21,17 @@ $params = [];
 $types = "";
 
 if ($busqueda !== '') {
-    $conditions .= " AND (U.PrimerNombre LIKE ? OR U.PrimerApellido LIKE ? OR U.Email LIKE ? OR U.NumeroDocumento LIKE ?)";
+    $conditions .= " AND (
+        U.PrimerNombre LIKE ? OR 
+        U.PrimerApellido LIKE ? OR 
+        U.Email LIKE ? OR 
+        U.NumeroDocumento LIKE ? OR
+        CONCAT_WS(' ', U.PrimerNombre, U.PrimerApellido) LIKE ? OR
+        CONCAT_WS(' ', U.PrimerNombre, U.SegundoNombre, U.PrimerApellido, U.SegundoApellido) LIKE ?
+    )";
     $term = "%$busqueda%";
-    array_push($params, $term, $term, $term, $term);
-    $types .= "ssss";
+    array_push($params, $term, $term, $term, $term, $term, $term);
+    $types .= "ssssss";
 }
 
 if ($rolFiltro !== '') {
@@ -288,45 +295,110 @@ if (!$isAjax) {
     </div>
 </div>
 
+<div class="modal fade" id="modalSolicitarEdicion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-primary">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-shield-lock"></i> Solicitar Autorización al Cliente</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formSolicitarEdicion">
+                <div class="modal-body">
+                    <input type="hidden" id="reqBenId" name="cuentaId">
+                    <input type="hidden" id="reqBenUserId" name="userId">
+                    
+                    <div class="alert alert-light border shadow-sm text-center mb-3 p-2">
+                        <small class="text-muted"><i class="bi bi-info-circle"></i> El sistema Zero-Trust exige que el dueño de la cuenta autorice los cambios. Se le enviará una notificación inmediata.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Motivo de la corrección (El cliente lo leerá)</label>
+                        <textarea class="form-control" name="motivo" rows="2" required placeholder="Ej: Faltan números en la cuenta o el documento está errado..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Campos que necesitas editar</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="campos[]" value="Número de Cuenta/Teléfono" id="chkCta" checked>
+                            <label class="form-check-label" for="chkCta">Número de Cuenta / Teléfono</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="campos[]" value="Documento de Identidad" id="chkDoc">
+                            <label class="form-check-label" for="chkDoc">Documento de Identidad</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="campos[]" value="Nombre del Titular" id="chkNom">
+                            <label class="form-check-label" for="chkNom">Nombre del Titular</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="campos[]" value="Banco Destino" id="chkBanco">
+                            <label class="form-check-label" for="chkBanco">Banco Destino</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Enviar Solicitud</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalAdminEditarBeneficiario" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
+        <div class="modal-content border-warning">
             <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Editar Beneficiario</h5>
+                <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Editar Beneficiario (Auditoría)</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="formAdminEditarBeneficiario">
                 <div class="modal-body">
                     <input type="hidden" id="editBenId" name="cuentaId">
                     <input type="hidden" id="editBenUserId" name="userId">
+                    
+                    <div class="alert alert-success border shadow-sm text-center mb-3 p-2">
+                        <small><i class="bi bi-check-circle-fill"></i> El cliente ha autorizado esta edición.</small>
+                    </div>
 
                     <div class="mb-3">
-                        <label class="form-label small fw-bold">Nombre del Titular</label>
+                        <label class="form-label small fw-bold text-muted">Alias (Solo Lectura)</label>
+                        <input type="text" class="form-control bg-light" id="editBenAlias" readonly>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Nombre Completo del Titular</label>
                         <input type="text" class="form-control" id="editBenNombre" name="nombre" required>
                     </div>
 
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label small fw-bold">Documento</label>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small fw-bold">Documento (Solo N°)</label>
                             <input type="text" class="form-control" id="editBenDoc" name="documento" required>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small fw-bold">Banco</label>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small fw-bold">Banco Destino</label>
                             <input type="text" class="form-control" id="editBenBanco" name="banco" required>
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Número de Cuenta / Teléfono</label>
-                        <input type="text" class="form-control" id="editBenCuenta" name="cuenta" required>
-                        <div class="form-text small text-muted">
-                            <i class="bi bi-info-circle"></i> Si es Pago Móvil, ingresa el teléfono. Si es cuenta, el número.
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small fw-bold">Número de Cuenta</label>
+                            <input type="text" class="form-control" id="editBenCuenta" name="cuenta" placeholder="Si aplica...">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small fw-bold">Teléfono</label>
+                            <input type="text" class="form-control" id="editBenTelefono" name="telefono" placeholder="Si aplica...">
+                        </div>
+                        <div class="col-md-12 mb-3" id="divEditBenCCI" style="display:none;">
+                            <label class="form-label small fw-bold">Código CCI (Perú)</label>
+                            <input type="text" class="form-control" id="editBenCCI" name="cci">
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer bg-light border-0">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                    <button type="submit" class="btn btn-warning fw-bold"><i class="bi bi-save"></i> Guardar y Auditar</button>
                 </div>
             </form>
         </div>

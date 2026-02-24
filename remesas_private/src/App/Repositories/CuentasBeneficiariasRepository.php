@@ -210,33 +210,71 @@ class CuentasBeneficiariasRepository
 
     public function adminUpdateBeneficiary(int $cuentaId, array $data): bool
     {
-        $checkSql = "SELECT PermitirEdicion FROM cuentas_beneficiarias WHERE CuentaID = ?";
-        $stmtCheck = $this->db->prepare($checkSql);
-        $stmtCheck->bind_param("i", $cuentaId);
-        $stmtCheck->execute();
-        $res = $stmtCheck->get_result()->fetch_assoc();
-        $stmtCheck->close();
+        $partes = array_values(array_filter(explode(' ', trim($data['nombre']))));
+        $primerNombre = $partes[0] ?? '';
+        $segundoNombre = '';
+        $primerApellido = '';
+        $segundoApellido = '';
 
-        if (!$res || (int)$res['PermitirEdicion'] !== 1) {
-            throw new Exception("El cliente revocó el permiso de edición o la cuenta no existe.");
+        if (count($partes) == 2) {
+            $primerApellido = $partes[1];
+        } elseif (count($partes) == 3) {
+            $primerApellido = $partes[1];
+            $segundoApellido = $partes[2];
+        } elseif (count($partes) >= 4) {
+            $segundoNombre = $partes[1];
+            $primerApellido = $partes[2];
+            $segundoApellido = implode(' ', array_slice($partes, 3));
         }
+
+        $documento = trim($data['documento'] ?? '');
+        $banco = trim($data['banco'] ?? '');
+        $cuenta = trim($data['cuenta'] ?? '');
+        $telefono = trim($data['telefono'] ?? '');
+        $cci = trim($data['cci'] ?? '');
+
         $sql = "UPDATE cuentas_beneficiarias SET 
                 TitularPrimerNombre = ?, 
+                TitularSegundoNombre = ?, 
+                TitularPrimerApellido = ?, 
+                TitularSegundoApellido = ?, 
                 TitularNumeroDocumento = ?, 
                 NombreBanco = ?, 
-                NumeroCuenta = ? 
+                NumeroCuenta = ?,
+                NumeroTelefono = ?,
+                CCI = ?
                 WHERE CuentaID = ?";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param(
-            "ssssi",
-            $data['nombre'],
-            $data['documento'],
-            $data['banco'],
-            $data['cuenta'],
+            "sssssssssi",
+            $primerNombre,
+            $segundoNombre,
+            $primerApellido,
+            $segundoApellido,
+            $documento,
+            $banco,
+            $cuenta,
+            $telefono,
+            $cci,
             $cuentaId
         );
 
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
+    }
+
+    public function findById(int $cuentaId): ?array
+    {
+        return $this->getById($cuentaId);
+    }
+
+    public function updatePermission(int $cuentaId, int $newState): bool
+    {
+        $sql = "UPDATE cuentas_beneficiarias SET PermitirEdicion = ? WHERE CuentaID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ii", $newState, $cuentaId);
         $res = $stmt->execute();
         $stmt->close();
         return $res;

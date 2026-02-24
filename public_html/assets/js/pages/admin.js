@@ -1409,45 +1409,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const btnRequest = e.target.closest('.btn-request-access');
         if (btnRequest) {
-            const btn = btnRequest;
-            const originalContent = btn.innerHTML;
-            const confirmado = await window.showConfirmModal(
-                "Solicitar Permiso",
-                "¿Deseas enviar una notificación al usuario solicitando que desbloquee la edición de este beneficiario?"
-            );
-
-            if (!confirmado) return;
-
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-
-            try {
-                const res = await fetch('../api/?accion=adminRequestBeneficiaryAccess', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userId: btn.dataset.user,
-                        cuentaId: btn.dataset.id
-                    })
-                });
-
-                let data;
-                try { data = await res.json(); } catch (err) { throw new Error("Error JSON"); }
-
-                if (data.success) {
-                    window.showInfoModal("Solicitud Enviada", "Se ha notificado al usuario correctamente.", true);
-                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Enviado';
-                    btn.classList.remove('btn-outline-primary');
-                    btn.classList.add('btn-success');
-                } else {
-                    window.showInfoModal("Error", data.error || "No se pudo enviar.", false);
-                    btn.innerHTML = originalContent;
-                    btn.disabled = false;
-                }
-            } catch (err) {
-                window.showInfoModal("Error de Conexión", "No se pudo contactar con el servidor.", false);
-                btn.innerHTML = originalContent;
-                btn.disabled = false;
+            const modalEl = document.getElementById('modalSolicitarEdicion');
+            if (modalEl) {
+                document.getElementById('reqBenId').value = btnRequest.dataset.id;
+                document.getElementById('reqBenUserId').value = btnRequest.dataset.user;
+                document.getElementById('formSolicitarEdicion').reset();
+                new bootstrap.Modal(modalEl).show();
             }
         }
 
@@ -1457,28 +1424,76 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const rawJson = btnEditBen.dataset.json.replace(/&quot;/g, '"');
                 data = JSON.parse(rawJson);
-            } catch (err) {
-                console.error("Error JSON", err);
-                return;
-            }
+            } catch (err) { return; }
 
             const modalEl = document.getElementById('modalAdminEditarBeneficiario');
             if (modalEl) {
                 document.getElementById('editBenId').value = data.CuentaID;
                 document.getElementById('editBenUserId').value = data.UserID;
-                document.getElementById('editBenNombre').value = data.BeneficiarioNombre;
+                document.getElementById('editBenAlias').value = data.Alias || 'Sin Alias';
+                document.getElementById('editBenNombre').value = data.BeneficiarioNombre || '';
                 document.getElementById('editBenDoc').value = data.TitularNumeroDocumento || '';
-                document.getElementById('editBenBanco').value = data.NombreBanco;
-                document.getElementById('editBenCuenta').value = data.NumeroTelefono || data.NumeroCuenta || '';
+                document.getElementById('editBenBanco').value = data.NombreBanco || '';
+                
+                document.getElementById('editBenCuenta').value = data.NumeroCuenta || '';
+                document.getElementById('editBenTelefono').value = data.NumeroTelefono || '';
+                document.getElementById('editBenCCI').value = data.CCI || '';
+                document.getElementById('divEditBenCCI').style.display = (parseInt(data.PaisID) === 4) ? 'block' : 'none';
 
                 new bootstrap.Modal(modalEl).show();
             }
         }
     });
 
+   // =================================================
+    // 9.1 ENVIAR LA SOLICITUD DE EDICIÓN AL CLIENTE
     // =================================================
-    // 9.1 LOGICA DEL FORMULARIO DE EDICIÓN
+    const formReq = document.getElementById('formSolicitarEdicion');
+    if (formReq) {
+        formReq.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = formReq.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
+
+            const formData = new FormData(formReq);
+            const data = {
+                cuentaId: formData.get('cuentaId'),
+                userId: formData.get('userId'),
+                motivo: formData.get('motivo'),
+                campos: formData.getAll('campos[]')
+            };
+
+            try {
+                const res = await fetch('../api/?accion=requestBeneficiaryEdit', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                
+                if (result.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalSolicitarEdicion')).hide();
+                    window.showInfoModal("Solicitud Enviada", "Se ha notificado al usuario correctamente. La edición estará bloqueada hasta que el cliente la apruebe.", true);
+                    const origBtn = document.querySelector(`.btn-request-access[data-id="${data.cuentaId}"]`);
+                    if(origBtn) {
+                        origBtn.innerHTML = '<i class="bi bi-clock-history"></i> Petición en espera...';
+                        origBtn.classList.replace('btn-outline-primary', 'btn-secondary');
+                    }
+                } else {
+                    window.showInfoModal("Error", result.error || "No se pudo enviar la solicitud.", false);
+                }
+            } catch (err) {
+                window.showInfoModal("Error de Conexión", "No se pudo contactar con el servidor.", false);
+            } finally {
+                btn.disabled = false; btn.innerHTML = originalText;
+            }
+        });
+    }
+
     // =================================================
+    // 9.2 EJECUTAR LA EDICIÓN (SOLO SI FUE APROBADA)
+    // =================================================
+
     const formEditBen = document.getElementById('formAdminEditarBeneficiario');
     if (formEditBen) {
         formEditBen.addEventListener('submit', async (e) => {
@@ -1487,37 +1502,45 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = formEditBen.querySelector('button[type="submit"]');
             const originalText = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando y Auditando...';
 
             const formData = new FormData(formEditBen);
-            const data = Object.fromEntries(formData.entries());
+            const payload = {
+                cuentaId: formData.get('cuentaId'),
+                userId: formData.get('userId'),
+                nuevosDatos: {
+                    nombre: formData.get('nombre'),
+                    documento: formData.get('documento'),
+                    banco: formData.get('banco'),
+                    cuenta: formData.get('cuenta'),
+                    telefono: formData.get('telefono'),
+                    cci: formData.get('cci')
+                }
+            };
 
             try {
-                const res = await fetch('../api/?accion=adminUpdateBeneficiary', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                const res = await fetch('../api/?accion=executeBeneficiaryEdit', {
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(payload)
                 });
 
                 const result = await res.json();
 
                 if (result.success) {
-                    const modalEl = document.getElementById('modalAdminEditarBeneficiario');
-                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
-                    modalInstance.hide();
-                    window.showInfoModal('Éxito', 'Beneficiario actualizado correctamente.', true);
-                    const userId = document.getElementById('editBenUserId').value;
+                    bootstrap.Modal.getInstance(document.getElementById('modalAdminEditarBeneficiario')).hide();
+                    window.showInfoModal('Éxito de Auditoría', 'Beneficiario actualizado y guardado en la bitácora inmutable.', true);
+                    const userId = payload.userId;
                     const btnVer = document.querySelector(`.btn-ver-beneficiarios[data-userid="${userId}"]`);
                     if (btnVer) btnVer.click();
 
                 } else {
-                    window.showInfoModal('Error', result.error, false);
+                    window.showInfoModal('Bloqueo de Seguridad', result.error, false);
                 }
             } catch (error) {
-                window.showInfoModal('Error Critico', 'Error de conexión al guardar.', false);
+                window.showInfoModal('Error Crítico', 'Error de conexión al guardar.', false);
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+                btn.disabled = false; btn.innerHTML = originalText;
             }
         });
     }

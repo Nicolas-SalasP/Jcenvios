@@ -545,12 +545,118 @@ document.addEventListener('DOMContentLoaded', () => {
         }catch(e){}
     };
 
+    // =========================================================
+    // SISTEMA DE AUTORIZACIÓN ZERO-TRUST (PERFIL)
+    // =========================================================
+    const checkPendingBeneficiaryRequests = async () => {
+        try {
+            const resp = await fetch('../api/?accion=getPendingBeneficiaryRequests');
+            const data = await resp.json();
+
+            if (data.success && data.requests && data.requests.length > 0) {
+                showZeroTrustAuthorizationModal(data.requests[0]);
+            }
+        } catch (e) {
+            console.error("Error verificando solicitudes de seguridad:", e);
+        }
+    };
+
+    const showZeroTrustAuthorizationModal = (request) => {
+        const existing = document.getElementById('modalZeroTrustAuth');
+        if (existing) existing.remove();
+
+        let camposArray = [];
+        try { camposArray = JSON.parse(request.CamposSolicitados); } catch(e) {}
+        const camposText = camposArray.length > 0 ? camposArray.join(', ') : 'Datos generales';
+
+        const modalHtml = `
+        <div class="modal fade" id="modalZeroTrustAuth" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-primary shadow-lg">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="bi bi-shield-lock-fill"></i> Autorización de Seguridad Requerida</h5>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="alert alert-light border shadow-sm text-center mb-4">
+                            <h6 class="fw-bold mb-1">${request.Alias || request.NombreBanco}</h6>
+                            <p class="text-muted small mb-0">${request.BeneficiarioNombre}</p>
+                        </div>
+                        <p>El administrador <strong>${request.AdminNombre}</strong> ha solicitado permiso para modificar los datos de este beneficiario.</p>
+
+                        <div class="bg-light p-3 rounded mb-3 border border-warning-subtle border-start-3">
+                            <p class="mb-1 text-dark"><strong>Motivo:</strong> ${request.Motivo}</p>
+                            <p class="mb-0 text-muted small"><i class="bi bi-pencil-square"></i> Campos a editar: <span class="fw-medium">${camposText}</span></p>
+                        </div>
+
+                        <p class="small text-danger fw-bold text-center mt-4"><i class="bi bi-exclamation-triangle"></i> Tu autorización explícita es obligatoria. Nadie puede alterar tus datos sin tu consentimiento.</p>
+                    </div>
+                    <div class="modal-footer justify-content-center border-0 pb-4 bg-light">
+                        <button type="button" class="btn btn-outline-danger px-4 auth-response-btn" data-resp="Rechazada" data-id="${request.SolicitudID}">
+                            <i class="bi bi-x-circle"></i> Rechazar
+                        </button>
+                        <button type="button" class="btn btn-success px-4 fw-bold auth-response-btn shadow-sm" data-resp="Aprobada" data-id="${request.SolicitudID}">
+                            <i class="bi bi-check-circle"></i> Aprobar Edición
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modalEl = document.getElementById('modalZeroTrustAuth');
+        const modal = new bootstrap.Modal(modalEl);
+
+        modalEl.querySelectorAll('.auth-response-btn').forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const responseType = this.dataset.resp;
+                const reqId = this.dataset.id;
+
+                modalEl.querySelectorAll('.auth-response-btn').forEach(b => b.disabled = true);
+                this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Registrando...';
+
+                try {
+                    const res = await fetch('../api/?accion=respondBeneficiaryRequest', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ solicitudId: reqId, respuesta: responseType })
+                    });
+                    const data = await res.json();
+
+                    if (data.success) {
+                        modal.hide();
+                        if (window.showInfoModal) {
+                            window.showInfoModal(
+                                "Auditoría Registrada",
+                                responseType === 'Aprobada' ? 'Has autorizado la edición. El administrador ha sido notificado.' : 'Has rechazado la edición. Tus datos se mantendrán intactos.',
+                                true
+                            );
+                        } else {
+                            alert(responseType === 'Aprobada' ? 'Autorizado correctamente. El admin ya puede editar.' : 'Rechazado correctamente.');
+                        }
+                        loadBeneficiaries();
+                        setTimeout(checkPendingBeneficiaryRequests, 1000);
+
+                    } else {
+                        alert("Error: " + data.error);
+                        modal.hide();
+                    }
+                } catch (e) {
+                    alert("Error de conexión al registrar respuesta.");
+                    modal.hide();
+                }
+            });
+        });
+
+        modal.show();
+    };
+
     Promise.all([
         loadSelect('getPaises&rol=Destino', benefPaisIdInput, 'NombrePais', 'PaisID'),
         loadSelect('getDocumentTypes', benefDocTypeSelect, 'NombreDocumento', 'TipoDocumentoID')
     ]).then(() => { 
         loadUserProfile(); 
         loadBeneficiaries(); 
+        checkPendingBeneficiaryRequests();
     });
 
 });

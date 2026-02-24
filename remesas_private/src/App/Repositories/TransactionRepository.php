@@ -674,4 +674,17 @@ class TransactionRepository
 
         return $result;
     }
+
+    public function countActiveTransactionsByAccount(int $cuentaId): int
+    {
+        $sql = "SELECT COUNT(*) as total FROM transacciones 
+                WHERE CuentaBeneficiariaID = ? AND EstadoID IN (1, 2, 3, 6, 7)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $cuentaId);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        
+        return (int) ($res['total'] ?? 0);
+    }
 }

@@ -18,7 +18,8 @@ use App\Repositories\{
     TasasHistoricoRepository,
     CuentasAdminRepository,
     HolidayRepository,
-    SystemSettingsRepository
+    SystemSettingsRepository,
+    BeneficiaryAuditRepository
 };
 use App\Services\{
     LogService,
@@ -31,7 +32,8 @@ use App\Services\{
     CuentasBeneficiariasService,
     DashboardService,
     SystemSettingsService,
-    ContabilidadService
+    ContabilidadService,
+    BeneficiaryAuditService
 };
 use App\Controllers\{
     AuthController,
@@ -85,6 +87,7 @@ class Container
             CuentasAdminRepository::class => new CuentasAdminRepository($this->getDb()),
             SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
             HolidayRepository::class => new HolidayRepository($this->getDb()),
+            BeneficiaryAuditRepository::class => new BeneficiaryAuditRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -157,6 +160,12 @@ class Container
                 $this->get(FileHandlerService::class)
             ),
 
+            BeneficiaryAuditService::class => new BeneficiaryAuditService(
+                $this->get(BeneficiaryAuditRepository::class),
+                $this->get(CuentasBeneficiariasRepository::class),
+                $this->get(TransactionRepository::class)
+            ),
+
                 // Controladores
             AuthController::class => new AuthController($this->get(UserService::class)),
 
@@ -170,7 +179,8 @@ class Container
                 $this->get(TipoDocumentoRepository::class),
                 $this->get(RolRepository::class),
                 $this->get(NotificationService::class),
-                $this->get(SystemSettingsService::class)
+                $this->get(SystemSettingsService::class),
+                $this->get(BeneficiaryAuditService::class)
             ),
 
             AdminController::class => new AdminController(
@@ -309,6 +319,16 @@ try {
 
         // Webhooks
         'botWebhook' => [BotController::class, 'handleWebhook', 'POST'],
+
+        // AUDITORÍA Y SEGURIDAD ZERO-TRUST
+        // Vista Cliente
+        'getPendingBeneficiaryRequests' => [ClientController::class, 'getPendingBeneficiaryRequests', 'GET'],
+        'respondBeneficiaryRequest' => [ClientController::class, 'respondBeneficiaryRequest', 'POST'],
+        
+        // Vista Admin
+        'requestBeneficiaryEdit' => [ClientController::class, 'requestBeneficiaryEdit', 'POST'],
+        'executeBeneficiaryEdit' => [ClientController::class, 'executeBeneficiaryEdit', 'POST'],
+        'getBeneficiaryHistory'  => [ClientController::class, 'getBeneficiaryHistory', 'GET'],
     ];
 
     if (isset($routes[$accion])) {
