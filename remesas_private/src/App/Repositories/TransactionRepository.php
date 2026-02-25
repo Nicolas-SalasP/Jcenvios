@@ -300,7 +300,10 @@ class TransactionRepository
         }
         $placeholders = implode(',', array_fill(0, count($allowedStatusIds), '?'));
 
-        $sql = "UPDATE transacciones SET EstadoID = ?
+        $sql = "UPDATE transacciones SET 
+                    EstadoID = ?, 
+                    ComprobanteURL = NULL, 
+                    ComprobanteHash = NULL 
                 WHERE TransaccionID = ? AND UserID = ? AND EstadoID IN ($placeholders)";
 
         $stmt = $this->db->prepare($sql);
