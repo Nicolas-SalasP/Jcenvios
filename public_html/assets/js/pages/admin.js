@@ -763,6 +763,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const res = await fetch('../api/?accion=adminUploadProof', {
                         method: 'POST', body: formData
                     });
+                    if (!res.ok) {
+                        throw new Error(`Error del servidor (${res.status}). Es posible que el archivo sea demasiado pesado.`);
+                    }
                     const result = await res.json();
 
                     if (result.success) {
@@ -771,7 +774,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         window.showInfoModal('Error', result.error, false);
                     }
                 } catch (e) {
-                    window.showInfoModal('Error', e.message || 'Error de red', false);
+                    let msg = e.message || 'Error de red desconocido.';
+                    if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+                        msg = 'Error de conexión. Verifica que el archivo no sea muy pesado (máximo recomendado 2MB) o tu conexión a internet.';
+                    }
+                    window.showInfoModal('Error', msg, false);
                 } finally {
                     btn.disabled = false; btn.textContent = originalText;
                 }
@@ -999,11 +1006,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (elRut) elRut.textContent = btn.getAttribute('data-rut-titular') || 'No registrado';
 
             // 4. Función de carga controlada
-            const loadFile = (fileUrl) => {
+            const loadFile = async (fileUrl) => {
                 // Reset visual completo
                 imgEl.classList.add('d-none');
                 pdfEl.classList.add('d-none');
                 placeholder.classList.remove('d-none');
+                placeholder.innerHTML = '<div class="text-white mt-3"><span class="spinner-border spinner-border-sm mb-2"></span><br>Cargando documento...</div>';
 
                 // Limpiar fuentes anteriores para evitar parpadeos
                 imgEl.removeAttribute('src');
@@ -1015,11 +1023,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (name.includes('&')) name = name.split('&')[0];
                     filenameEl.textContent = decodeURIComponent(name).split('/').pop() || 'documento_adjunto';
                 }
-                // Quitar listeners viejos
+
                 imgEl.onload = imgEl.onerror = null;
 
                 if (!fileUrl) {
-                    placeholder.innerHTML = '<div class="text-white">Sin archivo disponible.</div>';
+                    placeholder.innerHTML = '<div class="text-white mt-3"><i class="bi bi-file-earmark-x display-4 text-danger"></i><br>Sin archivo disponible.</div>';
                     return;
                 }
 
@@ -1038,27 +1046,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     downloadBtn.classList.remove('disabled');
                 }
 
-                // Cargar con pequeño delay para que el modal esté listo
-                setTimeout(() => {
-                    if (['pdf'].includes(ext)) {
-                        // MODO PDF
+                if (['pdf'].includes(ext)) {
+                    try {
+                        const response = await fetch(fileUrl, { credentials: 'same-origin' });
+                        if (!response.ok) throw new Error('Error al obtener el PDF');
+                        
+                        const blob = await response.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        
+                        pdfEl.src = blobUrl;
+                        pdfEl.classList.remove('d-none');
+                        placeholder.classList.add('d-none');
+                    } catch (err) {
+                        console.warn("Fallback PDF direct load:", err);
                         pdfEl.src = fileUrl;
                         pdfEl.classList.remove('d-none');
-                        // En PDF forzamos ocultar spinner porque el iframe carga interno
                         placeholder.classList.add('d-none');
-                    } else {
-                        // MODO IMAGEN
-                        imgEl.onerror = () => {
-                            console.warn("Error cargando imagen:", fileUrl); // Sin Alert
-                            placeholder.innerHTML = '<div class="text-danger">No se pudo cargar la imagen.</div>';
-                        };
-                        imgEl.onload = () => {
-                            placeholder.classList.add('d-none');
-                            imgEl.classList.remove('d-none');
-                        };
-                        imgEl.src = fileUrl;
                     }
-                }, 100);
+                } else {
+                    imgEl.onerror = () => {
+                        placeholder.innerHTML = '<div class="text-danger mt-3 bg-white p-2 rounded shadow"><i class="bi bi-exclamation-triangle"></i> Imagen corrupta o no encontrada.</div>';
+                    };
+                    imgEl.onload = () => {
+                        placeholder.classList.add('d-none');
+                        imgEl.classList.remove('d-none');
+                    };
+                    imgEl.src = fileUrl;
+                }
             };
 
             // 5. Gestión de Tabs (Cliente vs Admin)

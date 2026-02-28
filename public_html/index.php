@@ -1,20 +1,6 @@
 <?php
 require_once __DIR__ . '/../remesas_private/src/core/init.php';
 
-// Redirecciones de sesión (Si ya está logueado, lo mandamos a su panel)
-if (isset($_SESSION['user_id'])) {
-    if (isset($_SESSION['user_rol_name']) && $_SESSION['user_rol_name'] === 'Admin') {
-        header('Location: ' . BASE_URL . '/admin/');
-        exit();
-    }
-    if (isset($_SESSION['user_rol_name']) && $_SESSION['user_rol_name'] === 'Operador') {
-        header('Location: ' . BASE_URL . '/operador/pendientes.php');
-        exit();
-    }
-    header('Location: ' . BASE_URL . '/dashboard/');
-    exit();
-}
-
 $pageTitle = 'Inicio';
 $pageScript = 'home.js';
 
@@ -99,9 +85,15 @@ require_once __DIR__ . '/../remesas_private/src/templates/header.php';
                         </div>
 
                         <div class="d-grid">
-                            <a href="<?php echo BASE_URL; ?>/login.php" class="btn btn-warning btn-lg fw-bold shadow-sm" id="btn-enviar-ahora">
-                                ¡Quiero Enviar Ahora! <i class="bi bi-arrow-right-circle-fill ms-2"></i>
-                            </a>
+                            <?php if (isset($_SESSION['user_id'])): ?>
+                                <a href="<?php echo BASE_URL; ?>/dashboard/" class="btn btn-warning btn-lg fw-bold shadow-sm" id="btn-enviar-ahora">
+                                    ¡Ir a mi Panel para Enviar! <i class="bi bi-arrow-right-circle-fill ms-2"></i>
+                                </a>
+                            <?php else: ?>
+                                <a href="<?php echo BASE_URL; ?>/login.php" class="btn btn-warning btn-lg fw-bold shadow-sm" id="btn-enviar-ahora">
+                                    ¡Quiero Enviar Ahora! <i class="bi bi-arrow-right-circle-fill ms-2"></i>
+                                </a>
+                            <?php endif; ?>
                         </div>
                     </form>
                 </div>
@@ -206,6 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(btnEnviar) {
                 btnEnviar.classList.replace('btn-warning', 'btn-secondary');
                 btnEnviar.innerHTML = '<i class="bi bi-lock-fill me-2"></i>Servicio Pausado';
+                btnEnviar.style.pointerEvents = 'none';
             }
         }
     } catch (error) {

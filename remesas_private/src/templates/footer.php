@@ -22,7 +22,7 @@
         <h6 class="text-uppercase fw-bold mb-3">Contacto</h6>
         <p class="mb-2"><i class="bi bi-geo-alt-fill me-2"></i>Agustinas 681, Santiago, Chile</p>
         <p class="mb-2"><i class="bi bi-envelope-fill me-2"></i>multiserviciosjcspachile@gmail.com</p>
-        <p class="mb-2"><i class="bi bi-telephone-fill me-2"></i>+56 9 2382 6018</p>
+        <p class="mb-2"><i class="bi bi-telephone-fill me-2"></i>+56 9 3896 4664</p>
       </div>
     </div>
   </div>

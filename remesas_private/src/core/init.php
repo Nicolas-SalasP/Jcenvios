@@ -47,13 +47,14 @@ $cspDirectives = [
     "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' https://cdn.jsdelivr.net",
     "img-src 'self' data: blob:",
-    "frame-src 'self' http://googleusercontent.com/maps.google.com/ https://www.google.com/",
-    "connect-src 'self' " . $cspHost . " https://cdn.jsdelivr.net",
-    "object-src 'none'",
+    "frame-src 'self' blob: chrome-extension: http://googleusercontent.com/maps.google.com/ https://www.google.com/",
+    "connect-src 'self' blob: " . $cspHost . " https://cdn.jsdelivr.net",
+    "object-src 'self' blob: chrome-extension:",
     "frame-ancestors 'self'",
     "base-uri 'self'",
     "form-action 'self'"
 ];
+
 header("Content-Security-Policy: " . implode('; ', $cspDirectives));
 
 session_start();
@@ -63,46 +64,64 @@ set_exception_handler('App\\Core\\exception_handler');
 
 $tiempo_limite = 86400; 
 
-/* if (isset($_SESSION['user_rol_name']) && in_array($_SESSION['user_rol_name'], ['Admin', 'Operador'])) {
-    $tiempo_limite = 86400; 
-}
-*/
-
 if (isset($_SESSION['user_id'])) {
     if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad'] > $tiempo_limite)) {
         session_unset();
         session_destroy();
-        if (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Sesión expirada', 'redirect' => BASE_URL . '/login.php?expired=1']);
-            exit();
-        }
-        header('Location: ' . BASE_URL . '/login.php?expired=1');
-        exit();
-    }
-    $accionActual = $_GET['accion'] ?? '';
-    if ($accionActual !== 'checkSessionStatus') {
-        $_SESSION['ultima_actividad'] = time();
-    }
-
-    $is_admin_or_operador = (isset($_SESSION['user_rol_name']) && ($_SESSION['user_rol_name'] === 'Admin' || $_SESSION['user_rol_name'] === 'Operador'));
-    $two_fa_enabled = (isset($_SESSION['twofa_enabled']) && $_SESSION['twofa_enabled'] == 1);
-
-    if ($is_admin_or_operador && $two_fa_enabled) {
-        $current_page = basename($_SERVER['SCRIPT_NAME']);
-        $is_on_auth_page = in_array($current_page, ['verify-2fa.php', 'logout.php']);
-        $is_api_call = (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false);
-        if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad'] >= $tiempo_limite)) {
-            $_SESSION['2fa_user_id'] = $_SESSION['user_id'];
-            unset($_SESSION['user_id']);
-
-            if (!$is_api_call && !$is_on_auth_page) {
-                header('Location: ' . BASE_URL . '/verify-2fa.php?grace_expired=1');
+        
+        $isApi = (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false);
+        
+        if ($isApi) {
+            $accionActual = $_GET['accion'] ?? '';
+            $public_api_actions = [
+                'loginUser', 'registerUser', 'getTasa', 'getCurrentRate', 
+                'getPaises', 'getDolarBcv', 'checkSystemStatus', 'requestPasswordReset', 
+                'performPasswordReset', 'getFormasDePago', 'getBeneficiaryTypes', 
+                'getDocumentTypes', 'getActiveDestinationCountries'
+            ];
+            if (!in_array($accionActual, $public_api_actions)) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Sesión expirada', 'redirect' => BASE_URL . '/login.php?expired=1']);
                 exit();
+            }
+            
+        } else {
+            $scriptPath = $_SERVER['SCRIPT_NAME'] ?? '';
+            $isPrivateArea = (strpos($scriptPath, '/dashboard/') !== false || 
+                              strpos($scriptPath, '/admin/') !== false || 
+                              strpos($scriptPath, '/operador/') !== false);
+            
+            if ($isPrivateArea) {
+                header('Location: ' . BASE_URL . '/login.php?expired=1');
+                exit();
+            }
+        }
+    } else {
+        $accionActual = $_GET['accion'] ?? '';
+        if ($accionActual !== 'checkSessionStatus') {
+            $_SESSION['ultima_actividad'] = time();
+        }
+
+        $is_admin_or_operador = (isset($_SESSION['user_rol_name']) && ($_SESSION['user_rol_name'] === 'Admin' || $_SESSION['user_rol_name'] === 'Operador'));
+        $two_fa_enabled = (isset($_SESSION['twofa_enabled']) && $_SESSION['twofa_enabled'] == 1);
+
+        if ($is_admin_or_operador && $two_fa_enabled) {
+            $current_page = basename($_SERVER['SCRIPT_NAME']);
+            $is_on_auth_page = in_array($current_page, ['verify-2fa.php', 'logout.php']);
+            $is_api_call = (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false);
+            if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad'] >= $tiempo_limite)) {
+                $_SESSION['2fa_user_id'] = $_SESSION['user_id'];
+                unset($_SESSION['user_id']);
+
+                if (!$is_api_call && !$is_on_auth_page) {
+                    header('Location: ' . BASE_URL . '/verify-2fa.php?grace_expired=1');
+                    exit();
+                }
             }
         }
     }
 }
+
 try {
     $conexion = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     if ($conexion->connect_error) {

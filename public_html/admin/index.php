@@ -22,6 +22,8 @@ $f_id = $_GET['f_id'] ?? '';
 $f_user = $_GET['f_user'] ?? '';
 $f_date = $_GET['f_date'] ?? '';
 $f_status = $_GET['f_status'] ?? '';
+$f_origen = $_GET['f_origen'] ?? '';
+$f_destino = $_GET['f_destino'] ?? '';
 
 $whereClause = "WHERE 1=1";
 $params = [];
@@ -33,11 +35,16 @@ if (!empty($f_id)) {
     $types .= "i";
 }
 if (!empty($f_user)) {
-    $whereClause .= " AND (U.PrimerNombre LIKE ? OR U.PrimerApellido LIKE ?)";
+    $whereClause .= " AND (
+        U.PrimerNombre LIKE ? OR 
+        U.PrimerApellido LIKE ? OR 
+        CONCAT_WS(' ', U.PrimerNombre, U.PrimerApellido) LIKE ? OR
+        CONCAT_WS(' ', U.PrimerNombre, U.SegundoNombre, U.PrimerApellido, U.SegundoApellido) LIKE ? OR
+        T.BeneficiarioNombre LIKE ?
+    )";
     $likeUser = "%" . $f_user . "%";
-    $params[] = $likeUser;
-    $params[] = $likeUser;
-    $types .= "ss";
+    array_push($params, $likeUser, $likeUser, $likeUser, $likeUser, $likeUser);
+    $types .= "sssss";
 }
 if (!empty($f_date)) {
     $whereClause .= " AND DATE(T.FechaTransaccion) = ?";
@@ -47,6 +54,26 @@ if (!empty($f_date)) {
 if (!empty($f_status)) {
     $whereClause .= " AND T.EstadoID = ?";
     $params[] = $f_status;
+    $types .= "i";
+}
+
+$joinClauseCount = "JOIN usuarios U ON T.UserID = U.UserID";
+$joinClauseData = "JOIN usuarios U ON T.UserID = U.UserID LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID";
+
+if (!empty($f_origen) || !empty($f_destino)) {
+    $extraJoins = " LEFT JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID";
+    $joinClauseCount .= $extraJoins;
+    $joinClauseData .= $extraJoins;
+}
+
+if (!empty($f_origen)) {
+    $whereClause .= " AND TS.PaisOrigenID = ?";
+    $params[] = $f_origen;
+    $types .= "i";
+}
+if (!empty($f_destino)) {
+    $whereClause .= " AND CB.PaisID = ?";
+    $params[] = $f_destino;
     $types .= "i";
 }
 
@@ -61,7 +88,7 @@ if (!isset($_GET['ajax'])) {
     $sqlCount = "
         SELECT COUNT(*) as total 
         FROM transacciones T
-        JOIN usuarios U ON T.UserID = U.UserID 
+        $joinClauseCount 
         $whereClause
     ";
     $stmtCount = $conexion->prepare($sqlCount);
@@ -80,8 +107,7 @@ $sql = "
         ET.NombreEstado AS EstadoNombre,
         U.NumeroDocumento AS UsuarioDocumento
     FROM transacciones T
-    JOIN usuarios U ON T.UserID = U.UserID
-    LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
+    $joinClauseData
     $whereClause
     ORDER BY T.FechaTransaccion DESC
     LIMIT ? OFFSET ?
@@ -225,7 +251,7 @@ function getPaginationUrl($page, $filters)
     $params = array_merge($filters, ['pagina' => $page]);
     return '?' . http_build_query($params);
 }
-$currentFilters = ['f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status];
+$currentFilters = ['f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status, 'f_origen' => $f_origen, 'f_destino' => $f_destino];
 
 $pageTitle = 'Panel de Administración';
 $pageScript = 'admin.js';
@@ -255,17 +281,17 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
     <div class="bg-light p-3 rounded mb-4 border">
         <form method="GET" class="row g-2 align-items-end" id="admin-filter-form">
-            <div class="col-6 col-md-2">
-                <label class="form-label small fw-bold mb-1">ID Orden</label>
+            <div class="col-6 col-md-1">
+                <label class="form-label small fw-bold mb-1">ID</label>
                 <input type="number" name="f_id" class="form-control form-control-sm" placeholder="#"
                     value="<?php echo htmlspecialchars($f_id); ?>">
             </div>
-            <div class="col-6 col-md-3">
-                <label class="form-label small fw-bold mb-1">Usuario</label>
+            <div class="col-6 col-md-2">
+                <label class="form-label small fw-bold mb-1">Usuario / Ben.</label>
                 <input type="text" name="f_user" class="form-control form-control-sm" placeholder="Nombre..."
                     value="<?php echo htmlspecialchars($f_user); ?>">
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <label class="form-label small fw-bold mb-1">Estado</label>
                 <select name="f_status" class="form-select form-select-sm">
                     <option value="">Todos</option>
@@ -277,11 +303,33 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 </select>
             </div>
             <div class="col-6 col-md-2">
+                <label class="form-label small fw-bold mb-1">Origen</label>
+                <select name="f_origen" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <?php foreach ($listaPaises as $pais): ?>
+                        <option value="<?php echo $pais['PaisID']; ?>" <?php echo ($f_origen == $pais['PaisID']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small fw-bold mb-1">Destino</label>
+                <select name="f_destino" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <?php foreach ($listaPaises as $pais): ?>
+                        <option value="<?php echo $pais['PaisID']; ?>" <?php echo ($f_destino == $pais['PaisID']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
                 <label class="form-label small fw-bold mb-1">Fecha</label>
                 <input type="date" name="f_date" class="form-control form-control-sm"
                     value="<?php echo htmlspecialchars($f_date); ?>">
             </div>
-            <div class="col-12 col-md-2 d-flex gap-1">
+            <div class="col-12 col-md-1 d-flex gap-1">
                 <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i></button>
                 <a href="index.php" class="btn btn-sm btn-secondary" title="Limpiar"><i class="bi bi-x-lg"></i></a>
             </div>
