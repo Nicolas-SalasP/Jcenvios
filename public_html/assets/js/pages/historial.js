@@ -34,53 +34,157 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const getFileExt = (path) => path ? path.split('.').pop().toLowerCase() : 'jpg';
 
+    // =========================================================
+    // MODAL DE REANUDAR
+    // =========================================================
     const injectResumeForm = () => {
-        const form = document.getElementById('resume-order-form');
-        if (!form) return;
-        form.innerHTML = `
-            <input type="hidden" id="resume-tx-id" name="txId">
-            <div class="alert alert-info py-2 small mb-3">
-                <i class="bi bi-pencil-square"></i> Edita los datos incorrectos y guarda los cambios.
-            </div>
-            
-            <div class="mb-2">
-                <label class="form-label fw-bold small mb-1">Nombre del Beneficiario</label>
-                <input type="text" class="form-control form-control-sm" id="edit-benef-name" required>
-            </div>
+        if (document.getElementById('resumeOrderModal')) {
+            document.getElementById('resumeOrderModal').remove();
+        }
 
-            <div class="row g-2 mb-2">
-                <div class="col-6">
-                    <label class="form-label fw-bold small mb-1">Documento</label>
-                    <input type="text" class="form-control form-control-sm" id="edit-benef-doc" required>
-                </div>
-                <div class="col-6">
-                    <label class="form-label fw-bold small mb-1">Teléfono</label>
-                    <input type="text" class="form-control form-control-sm" id="edit-benef-phone">
-                </div>
-            </div>
+        const formHtml = `
+            <div class="modal fade" id="resumeOrderModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content border-warning shadow-lg">
+                        <div class="modal-header bg-warning text-dark">
+                            <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square"></i> Corregir y Reanudar Orden</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="resume-order-form">
+                                <input type="hidden" id="resume-tx-id" name="transactionId">
+                                <div class="alert alert-warning small">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Corrige los datos solicitados por el administrador para poder reanudar tu orden.
+                                </div>
 
-            <div class="row g-2 mb-3">
-                <div class="col-6">
-                    <label class="form-label fw-bold small mb-1">Banco</label>
-                    <input type="text" class="form-control form-control-sm" id="edit-benef-bank" required>
-                </div>
-                <div class="col-6">
-                    <label class="form-label fw-bold small mb-1">Número de Cuenta</label>
-                    <input type="text" class="form-control form-control-sm" id="edit-benef-account" required>
-                </div>
-            </div>
+                                <div class="alert alert-info d-none mb-3 p-2 small" id="monto-edit-alert"></div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Monto Enviado (Origen)</label>
+                                    <input type="number" step="0.01" id="edit-monto-origen" class="form-control bg-light" readonly>
+                                    <div class="form-text text-muted" style="font-size: 0.75rem;">Modificable solo bajo autorización del administrador.</div>
+                                </div>
 
-            <div class="mb-3 border-top pt-2">
-                <label for="resume-message" class="form-label small text-muted">Mensaje adicional (Opcional)</label>
-                <textarea class="form-control form-control-sm" id="resume-message" name="mensaje" rows="2" placeholder="Ej: Corregí el número de cuenta que estaba errado."></textarea>
-            </div>
+                                <div class="card bg-light border-0 mb-3">
+                                    <div class="card-body p-3">
+                                        <h6 class="fw-bold mb-3 border-bottom pb-2">Datos del Beneficiario a Corregir</h6>
+                                        <div class="row g-2">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold mb-1">Nombre Completo</label>
+                                                <input type="text" id="edit-benef-name" name="benefNombre" class="form-control form-control-sm" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold mb-1">N° Documento</label>
+                                                <input type="text" id="edit-benef-doc" name="benefDocumento" class="form-control form-control-sm" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold mb-1">Banco Destino</label>
+                                                <input type="text" id="edit-benef-bank" name="benefBanco" class="form-control form-control-sm" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold mb-1">N° Cuenta / CCI</label>
+                                                <input type="text" id="edit-benef-account" name="benefCuenta" class="form-control form-control-sm" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold mb-1">Teléfono Móvil</label>
+                                                <input type="text" id="edit-benef-phone" name="benefTelefono" class="form-control form-control-sm">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-            <div class="d-grid">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-save me-2"></i> Guardar y Corregir
-                </button>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Mensaje / Nota para el Administrador (Opcional)</label>
+                                    <textarea id="resume-message" name="mensaje" class="form-control" rows="2" placeholder="Explica brevemente tu corrección..."></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Nuevo Comprobante de Pago (Si te lo solicitaron)</label>
+                                    <input type="file" id="resume-receipt" name="receiptFile" class="form-control" accept="image/*,application/pdf">
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer bg-light border-0">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" form="resume-order-form" class="btn btn-warning fw-bold"><i class="bi bi-send-check-fill"></i> Guardar y Reanudar</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
+        document.body.insertAdjacentHTML('beforeend', formHtml);
+
+        const form = document.getElementById('resume-order-form');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = form.querySelector('button[type="submit"]');
+                const originalText = btn.innerHTML;
+
+                const fileInput = document.getElementById('resume-receipt');
+                const montoInput = document.getElementById('edit-monto-origen');
+                const txId = document.getElementById('resume-tx-id').value;
+                const mensaje = document.getElementById('resume-message').value.trim();
+
+                const originalMonto = parseFloat(montoInput.dataset.original);
+                let nuevoMonto = parseFloat(montoInput.value);
+                if (montoInput.dataset.moneda !== 'USD') {
+                    nuevoMonto = Math.floor(nuevoMonto);
+                }
+                const hasNewAmount = !isNaN(nuevoMonto) && (nuevoMonto !== originalMonto);
+                const beneficiaryData = {
+                    nombre: document.getElementById('edit-benef-name').value.trim(),
+                    documento: document.getElementById('edit-benef-doc').value.trim(),
+                    banco: document.getElementById('edit-benef-bank').value.trim(),
+                    cuenta: document.getElementById('edit-benef-account').value.trim(),
+                    telefono: document.getElementById('edit-benef-phone').value.trim()
+                };
+
+                if (!beneficiaryData.nombre || !beneficiaryData.cuenta) {
+                    window.showInfoModal('Faltan Datos', 'El nombre y la cuenta del beneficiario son obligatorios.', false);
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+
+                try {
+                    if (hasNewAmount && !montoInput.readOnly) {
+                        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Auditando Monto...';
+                        const resAmount = await fetch('../api/?accion=updatePausedTransactionAmount', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ txId: txId, nuevoMonto: nuevoMonto })
+                        });
+                        const dataAmount = await resAmount.json();
+                        if (!dataAmount.success) {
+                            throw new Error(dataAmount.error || 'Error al actualizar el monto.');
+                        }
+                    }
+
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando Orden...';
+                    const formData = new FormData(form);
+                    formData.append('beneficiaryData', JSON.stringify(beneficiaryData));
+                    formData.append('txId', txId);
+                    
+                    const res = await fetch('../api/?accion=resumeOrder', {
+                        method: 'POST', body: formData
+                    });
+                    const result = await res.json();
+                    
+                    if (!result.success) throw new Error(result.error || 'Error al reanudar orden.');
+
+                    bootstrap.Modal.getInstance(document.getElementById('resumeOrderModal')).hide();
+                    window.showInfoModal('Éxito', 'Orden actualizada y reanudada correctamente.', true, () => {
+                        loadHistorial();
+                    });
+
+                } catch (err) {
+                    window.showInfoModal('Error', err.message, false);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            });
+        }
     };
 
     const loadHistorial = async () => {
@@ -119,11 +223,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (estadoId === 6) {
                 btns += `
                     <button class="btn btn-sm btn-info text-white view-reason-btn me-1" data-reason="${motivoSafe}" title="Ver Motivo"><i class="bi bi-info-circle"></i> Ver Motivo</button>
-                    <button class="btn btn-sm btn-primary resume-order-btn" 
+                    <button class="btn btn-sm btn-warning fw-bold resume-order-btn" 
                         data-bs-toggle="modal" 
                         data-bs-target="#resumeOrderModal" 
                         data-tx-id="${tx.TransaccionID}" 
                         
+                        data-monto="${tx.MontoOrigen}"
+                        data-permitir="${tx.PermitirEdicionMonto || 0}"
+                        data-moneda="${tx.MonedaOrigen || ''}"
                         data-benef-name="${tx.BeneficiarioNombre || tx.BeneficiarioAlias || ''}"
                         data-benef-doc="${tx.BeneficiarioDocumento || ''}"
                         data-benef-bank="${tx.BeneficiarioBanco || ''}"
@@ -243,6 +350,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (const [id, value] of Object.entries(inputs)) {
                     const el = document.getElementById(id);
                     if (el) el.value = value || '';
+                }
+                const montoInput = document.getElementById('edit-monto-origen');
+                const montoAlert = document.getElementById('monto-edit-alert');
+
+                if (montoInput) {
+                    montoInput.dataset.original = parseFloat(btn.dataset.monto);
+                    montoInput.dataset.moneda = btn.dataset.moneda;
+                    if (btn.dataset.moneda === 'USD') {
+                        montoInput.step = "0.01";
+                        montoInput.value = parseFloat(btn.dataset.monto);
+                    } else {
+                        montoInput.step = "1";
+                        montoInput.value = Math.floor(parseFloat(btn.dataset.monto));
+                    }
+
+                    if (btn.dataset.permitir == '1') {
+                        montoInput.readOnly = false;
+                        montoInput.classList.remove('bg-light');
+                        montoInput.classList.add('border-warning', 'fw-bold');
+                        if(montoAlert) {
+                            montoAlert.innerHTML = '<i class="bi bi-unlock-fill"></i> Tienes autorización para corregir el monto de esta orden.';
+                            montoAlert.classList.replace('d-none', 'd-block');
+                        }
+                    } else {
+                        montoInput.readOnly = true;
+                        montoInput.classList.add('bg-light');
+                        montoInput.classList.remove('border-warning', 'fw-bold');
+                        if(montoAlert) montoAlert.classList.replace('d-block', 'd-none');
+                    }
                 }
             }
         });
@@ -435,59 +571,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- REANUDAR/CORREGIR ORDEN ---
-    const resumeForm = document.getElementById('resume-order-form');
-    const resumeModalEl = document.getElementById('resumeOrderModal');
-    if (resumeForm) {
-        resumeForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const submitBtn = resumeForm.querySelector('button[type="submit"]');
-            const originalText = submitBtn.textContent;
-            const txId = document.getElementById('resume-tx-id').value;
-            const mensaje = document.getElementById('resume-message').value.trim();
-
-            const beneficiaryData = {
-                nombre: document.getElementById('edit-benef-name').value.trim(),
-                documento: document.getElementById('edit-benef-doc').value.trim(),
-                banco: document.getElementById('edit-benef-bank').value.trim(),
-                cuenta: document.getElementById('edit-benef-account').value.trim(),
-                telefono: document.getElementById('edit-benef-phone').value.trim()
-            };
-
-            if (!beneficiaryData.nombre || !beneficiaryData.cuenta) {
-                alert("Por favor completa los datos obligatorios.");
-                return;
-            }
-
-            submitBtn.disabled = true; submitBtn.textContent = 'Enviando...';
-
-            try {
-                const res = await fetch('../api/?accion=resumeOrder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        txId,
-                        mensaje,
-                        beneficiaryData
-                    })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    bootstrap.Modal.getInstance(resumeModalEl).hide();
-                    window.showInfoModal('Corrección Enviada', 'La orden ha sido actualizada y enviada a revisión.', true, loadHistorial);
-                } else {
-                    throw new Error(data.error);
-                }
-            } catch (err) {
-                alert(err.message || "Error conexión.");
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalText;
-            }
-        });
-    }
-
     // --- CANCELAR ORDEN ---
     document.addEventListener('click', async (e) => {
         const btn = e.target.closest('.cancel-btn');
@@ -537,7 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const response = await fetch(url);
                 const blob = await response.blob();
-                
+
                 const mimeType = current.ext === 'pdf' ? 'application/pdf' : blob.type;
                 const fileName = `comprobante_${currentTxId}.${current.ext}`;
                 const file = new File([blob], fileName, { type: mimeType });
@@ -633,7 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             currentTxId = btn.dataset.txId || '';
             comprobantes = [];
-            
+
             if (btn.dataset.comprobanteUrl) {
                 comprobantes.push({
                     type: 'user',

@@ -264,6 +264,7 @@ try {
         'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
         'getHistorialTransacciones' => [ClientController::class, 'getTransactionsHistory', 'GET'],
         'checkSessionStatus' => [ClientController::class, 'checkSessionStatus', 'GET'],
+        'updatePausedTransactionAmount' => [ClientController::class, 'updatePausedTransactionAmount', 'POST'],
 
         // Admin - Gestión General
         'getDashboardStats' => [AdminController::class, 'getDashboardStats', 'GET'],
@@ -302,6 +303,7 @@ try {
         'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
         'resumeTransactionAdmin' => [AdminController::class, 'resumeTransactionAdmin', 'POST'],
         'authorizeTransaction' => [AdminController::class, 'authorizeTransaction', 'POST'],
+        'toggleMontoEditPermission' => [AdminController::class, 'toggleMontoEditPermission', 'POST'],
 
         // Admin - Cuentas Bancarias del Sistema
         'getCuentasAdmin' => [AdminController::class, 'getCuentasAdmin', 'GET'],

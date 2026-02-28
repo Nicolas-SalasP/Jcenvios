@@ -714,4 +714,27 @@ class ClientController extends BaseController
             exit;
         }
     }
+
+    public function updatePausedTransactionAmount(): void
+    {
+        $this->ensureLoggedIn();
+        $data = $this->getJsonInput();
+        
+        $txId = (int)($data['txId'] ?? 0);
+        $nuevoMonto = (float)($data['nuevoMonto'] ?? 0);
+
+        if ($txId <= 0 || $nuevoMonto <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos o monto en cero.'], 400);
+            return;
+        }
+
+        try {
+            $userId = $_SESSION['user_id'];
+            $this->txService->updatePausedTransactionAmount($txId, $userId, $nuevoMonto);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Monto actualizado y auditado correctamente.']);
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 ? $e->getCode() : 400;
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+        }
+    }
 }

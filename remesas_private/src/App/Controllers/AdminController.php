@@ -718,4 +718,26 @@ class AdminController extends BaseController
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
     }
+
+    public function toggleMontoEditPermission(): void
+    {
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        
+        $txId = (int)($data['txId'] ?? 0);
+        $estado = (int)($data['estado'] ?? 0);
+
+        if ($txId <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'ID de transacción inválido.'], 400);
+            return;
+        }
+
+        try {
+            $adminId = $_SESSION['user_id'];
+            $this->txService->toggleMontoEditPermission($txId, $adminId, $estado);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Permiso actualizado correctamente.']);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
 }

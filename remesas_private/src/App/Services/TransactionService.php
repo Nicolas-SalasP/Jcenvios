@@ -595,4 +595,71 @@ class TransactionService
 
         return false;
     }
+
+    // =======================================================
+    // MOTOR DE AUTORIZACIÓN DE MONTOS
+    // =======================================================
+
+    public function toggleMontoEditPermission(int $txId, int $adminId, int $estado): void
+    {
+        $tx = $this->txRepository->getById($txId);
+        if (!$tx) {
+            throw new Exception("Transacción no encontrada.");
+        }
+
+        $this->txRepository->updateMontoEditPermission($txId, $estado);
+
+        $accionStr = $estado === 1 ? 'Autorizó edición de monto' : 'Revocó edición de monto';
+        $this->notificationService->logAdminAction($adminId, 'Autorización Monto', "{$accionStr} para la TX #{$txId}");
+    }
+
+    public function updatePausedTransactionAmount(int $txId, int $userId, float $nuevoMontoOrigen): void
+    {
+        $tx = $this->txRepository->getById($txId);
+
+        if (!$tx || $tx['UserID'] != $userId) {
+            throw new Exception("Transacción no encontrada o no pertenece a tu usuario.");
+        }
+
+        if (($tx['PermitirEdicionMonto'] ?? 0) != 1) {
+            throw new Exception("Bloqueo de Seguridad: No posees autorización del administrador para modificar el monto de esta orden.");
+        }
+
+        if ($nuevoMontoOrigen <= 0) {
+            if ($tx['MonedaOrigen'] !== 'USD') {
+                $nuevoMontoOrigen = floor($nuevoMontoOrigen);
+            }
+            throw new Exception("El monto a enviar debe ser mayor a 0.");
+        }
+        $montoOrigenOriginal = (float) $tx['MontoOrigen'];
+        $montoDestinoOriginal = (float) $tx['MontoDestino'];
+        $comisionOriginal = (float) ($tx['ComisionDestino'] ?? 0);
+
+        if ($montoOrigenOriginal > 0) {
+            $factorDestino = $montoDestinoOriginal / $montoOrigenOriginal;
+            $factorComision = $comisionOriginal / $montoOrigenOriginal;
+        } else {
+            throw new Exception("Error lógico en la base de datos: El monto original de la transacción es 0.");
+        }
+
+        $nuevoMontoDestino = round($nuevoMontoOrigen * $factorDestino, 2);
+        $nuevaComision = round($nuevoMontoOrigen * $factorComision, 2);
+        $adminId = 0;
+        $this->txRepository->logMontoAudit(
+            $txId,
+            $adminId,
+            $userId,
+            $montoOrigenOriginal,
+            $nuevoMontoOrigen,
+            $montoDestinoOriginal,
+            $nuevoMontoDestino,
+            $comisionOriginal,
+            $nuevaComision
+        );
+        $updated = $this->txRepository->updateTransactionAmounts($txId, $nuevoMontoOrigen, $nuevoMontoDestino, $nuevaComision);
+
+        if (!$updated) {
+            throw new Exception("Error al actualizar la base de datos.");
+        }
+    }
 }

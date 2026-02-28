@@ -1,5 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
 
+    window.refreshAdminTable = async () => {
+        const tbody = document.getElementById('transactionsTableBody');
+        if (tbody) {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('ajax', '1');
+            try {
+                const response = await fetch(currentUrl);
+                if (response.ok) {
+                    tbody.innerHTML = await response.text();
+                }
+            } catch (e) { console.warn(e); }
+        } else {
+            window.location.reload();
+        }
+    };
+
     // =================================================
     // 0. UTILIDADES GLOBALES & HELPERS (MODALES REALES BOOTSTRAP)
     // =================================================
@@ -1133,6 +1149,57 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 10000);
     }
+
+    // =========================================================
+    // 6.5 AUTORIZACIÓN DE CAMBIO DE MONTO (ZERO-TRUST)
+    // =========================================================
+    document.addEventListener('click', async (e) => {
+        const btnToggleMonto = e.target.closest('.toggle-monto-btn');
+        if (btnToggleMonto) {
+            e.preventDefault();
+            const txId = btnToggleMonto.dataset.txId;
+            const newStatus = btnToggleMonto.dataset.status;
+
+            const isPermitting = newStatus == 1 || newStatus == '1';
+            const confirmado = await window.showConfirmModal(
+                'Autorizar Cambio de Monto', 
+                `¿Estás seguro de ${isPermitting ? 'PERMITIR' : 'REVOCAR'} que el cliente modifique el monto de la orden #${txId}?`
+            );
+
+            if (!confirmado) return;
+
+            const originalHtml = btnToggleMonto.innerHTML;
+            btnToggleMonto.disabled = true;
+            btnToggleMonto.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            try {
+                const res = await fetch('../api/?accion=toggleMontoEditPermission', {
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ txId: txId, estado: newStatus })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    window.showInfoModal('Éxito', data.message, true, () => {
+                        if (typeof window.refreshAdminTable === 'function') {
+                            window.refreshAdminTable();
+                        } else {
+                            window.location.reload();
+                        }
+                    });
+                } else {
+                    window.showInfoModal('Error', data.error, false);
+                    btnToggleMonto.disabled = false;
+                    btnToggleMonto.innerHTML = originalHtml;
+                }
+            } catch (err) {
+                window.showInfoModal('Error', 'Error de conexión', false);
+                btnToggleMonto.disabled = false;
+                btnToggleMonto.innerHTML = originalHtml;
+            }
+        }
+    });
 
     // =========================================================
     // 7. AUTORIZAR ORDEN DE RIESGO (Estado 7 -> 1)

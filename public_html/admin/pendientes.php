@@ -358,7 +358,18 @@ function renderTableRows($transacciones)
                 <?php if ($estadoId === 7): ?>
                     <span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Riesgo</span>
                 <?php elseif ($estadoId === 6): ?>
-                    <span class="badge bg-warning text-dark"><i class="bi bi-pause-circle"></i> Pausado</span>
+                    <button class="btn btn-sm btn-success process-btn"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>">Reanudar</button>
+                    <button class="btn btn-sm btn-danger reject-btn"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
+                    
+                    <?php $permitir = (int)($tx['PermitirEdicionMonto'] ?? 0); ?>
+                    <button class="btn btn-sm <?= $permitir ? 'btn-success' : 'btn-outline-secondary' ?> toggle-monto-btn ms-1" 
+                            data-tx-id="<?php echo $tx['TransaccionID']; ?>" 
+                            data-status="<?= $permitir ? 0 : 1 ?>"
+                            title="<?= $permitir ? 'Revocar Edición de Monto' : 'Permitir Edición de Monto' ?>">
+                        <i class="bi <?= $permitir ? 'bi-unlock-fill' : 'bi-lock-fill' ?>"></i>
+                    </button>
                 <?php elseif ($estadoId === 3): ?>
                     <span class="badge bg-primary">En Proceso</span>
                 <?php elseif ($estadoId === 2): ?>

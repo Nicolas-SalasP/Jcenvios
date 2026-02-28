@@ -95,6 +95,7 @@ class TransactionRepository
         $sql = "SELECT
                     T.TransaccionID, T.FechaTransaccion, T.MontoOrigen, T.MonedaOrigen,
                     T.MontoDestino, T.MonedaDestino, T.ComprobanteURL, T.ComprobanteEnvioURL,
+                    T.PermitirEdicionMonto,
                     
                     -- DATOS DE LA CUENTA (SNAPSHOT) --
                     T.BeneficiarioNombre, 
@@ -689,5 +690,43 @@ class TransactionRepository
         $stmt->close();
         
         return (int) ($res['total'] ?? 0);
+    }
+
+    // =======================================================
+    // AUDITORÍA Y PERMISOS DE MONTO ZERO-TRUST
+    // =======================================================
+    
+    public function updateMontoEditPermission(int $txId, int $estado): bool
+    {
+        $sql = "UPDATE transacciones SET PermitirEdicionMonto = ? WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ii", $estado, $txId);
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
+    }
+
+    public function logMontoAudit(int $txId, int $adminId, int $userId, float $oldOrigen, float $newOrigen, float $oldDestino, float $newDestino, float $oldComision, float $newComision): bool
+    {
+        $sql = "INSERT INTO transacciones_auditoria_montos 
+                (TransaccionID, AdminAutorizadorID, UsuarioModificadorID, MontoOrigenAnterior, MontoOrigenNuevo, MontoDestinoAnterior, MontoDestinoNuevo, ComisionAnterior, ComisionNueva) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iiidddddd", $txId, $adminId, $userId, $oldOrigen, $newOrigen, $oldDestino, $newDestino, $oldComision, $newComision);
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
+    }
+
+    public function updateTransactionAmounts(int $txId, float $newOrigen, float $newDestino, float $newComision): bool
+    {
+        $sql = "UPDATE transacciones SET 
+                MontoOrigen = ?, MontoDestino = ?, ComisionDestino = ?, PermitirEdicionMonto = 0 
+                WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("dddi", $newOrigen, $newDestino, $newComision, $txId);
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
     }
 }
