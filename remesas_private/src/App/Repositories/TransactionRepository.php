@@ -693,6 +693,34 @@ class TransactionRepository
     }
 
     // =======================================================
+    // NOTIFICACIONES ADMINISTRADOR
+    // =======================================================
+    public function getAdminAlertsData(): array
+    {
+        $sql = "SELECT 
+                    SUM(CASE WHEN EstadoID = 2 THEN 1 ELSE 0 END) AS en_verificacion,
+                    SUM(CASE WHEN EstadoID = 3 THEN 1 ELSE 0 END) AS en_proceso,
+                    SUM(CASE WHEN EstadoID = 6 THEN 1 ELSE 0 END) AS pausadas,
+                    SUM(CASE WHEN EstadoID = 7 THEN 1 ELSE 0 END) AS riesgo,
+                    MAX(CASE WHEN EstadoID IN (2, 3, 6, 7) THEN TransaccionID ELSE 0 END) AS ultimo_id_relevante
+                FROM transacciones 
+                WHERE EstadoID IN (2, 3, 6, 7)";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        return [
+            'en_verificacion' => (int)($res['en_verificacion'] ?? 0),
+            'en_proceso' => (int)($res['en_proceso'] ?? 0),
+            'pausadas' => (int)($res['pausadas'] ?? 0),
+            'riesgo' => (int)($res['riesgo'] ?? 0),
+            'ultimo_id_relevante' => (int)($res['ultimo_id_relevante'] ?? 0)
+        ];
+    }
+
+    // =======================================================
     // AUDITORÍA Y PERMISOS DE MONTO ZERO-TRUST
     // =======================================================
     

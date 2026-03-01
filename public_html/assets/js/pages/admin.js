@@ -125,6 +125,87 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 2000);
     }
 
+    // =========================================================
+    // MOTOR DE ALERTAS EN TIEMPO REAL (SONIDO Y BADGES)
+    // =========================================================
+    const initAdminAlerts = () => {
+        const audioEl = document.getElementById('admin-alert-sound');
+        const btnToggleSound = document.getElementById('btn-toggle-sound');
+        const iconSound = document.getElementById('icon-sound-status');
+        let soundEnabled = localStorage.getItem('adminSoundEnabled') !== 'false';
+
+        const updateSoundUI = () => {
+            if (iconSound) {
+                iconSound.className = soundEnabled ? 'bi bi-bell-fill text-warning' : 'bi bi-bell-slash text-muted';
+            }
+        };
+        updateSoundUI();
+
+        if (btnToggleSound) {
+            btnToggleSound.addEventListener('click', () => {
+                soundEnabled = !soundEnabled;
+                localStorage.setItem('adminSoundEnabled', soundEnabled);
+                updateSoundUI();
+                if (soundEnabled && audioEl) audioEl.play().catch(e => console.warn(e));
+            });
+        }
+
+        const updateBadge = (id, count, isDanger = false) => {
+            const badge = document.getElementById(id);
+            if (!badge) return;
+            badge.textContent = count;
+            if (count > 0) {
+                badge.classList.remove('d-none');
+                if (isDanger) {
+                    badge.classList.add('bg-danger');
+                    badge.classList.add('animate-pulse');
+                }
+            } else {
+                badge.classList.add('d-none');
+            }
+        };
+
+        const fetchAlerts = async () => {
+            try {
+                const res = await fetch('../api/?accion=getAdminAlerts');
+                if (!res.ok) return;
+                const json = await res.json();
+
+                if (json.success && json.data) {
+                    const data = json.data;
+                    updateBadge('badge-verificacion', data.en_verificacion, true); // Pulso rojo porque requiere revisar pago
+                    updateBadge('badge-proceso', data.en_proceso, false);          // Azul, requiere enviar el dinero
+                    updateBadge('badge-pausadas', data.pausadas, false);           // Naranja
+                    updateBadge('badge-riesgo', data.riesgo, true);                // Pulso oscuro
+                    
+                    const currentMaxId = data.ultimo_id_relevante;
+                    const lastSeenId = parseInt(localStorage.getItem('lastSeenTxId') || '0');
+
+                    if (currentMaxId > lastSeenId) {
+                        localStorage.setItem('lastSeenTxId', currentMaxId);
+
+                        if (soundEnabled && audioEl) {
+                            audioEl.play().catch(err => console.warn("Auto-play bloqueado:", err));
+                        }
+
+                        window.showInfoModal('¡Atención Requerida!', `Una orden requiere tu atención (ID #${currentMaxId}).`, true);
+
+                        if (typeof window.refreshAdminTable === 'function') {
+                            window.refreshAdminTable();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Error fetching alerts:', error);
+            }
+        };
+
+        fetchAlerts();
+        setInterval(fetchAlerts, 10000);
+    };
+
+    initAdminAlerts();
+
     // =================================================
     // 1. OPERADORES: LÓGICA DE COPIADO DE DATOS
     // =================================================
@@ -1066,10 +1147,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         const response = await fetch(fileUrl, { credentials: 'same-origin' });
                         if (!response.ok) throw new Error('Error al obtener el PDF');
-                        
+
                         const blob = await response.blob();
                         const blobUrl = URL.createObjectURL(blob);
-                        
+
                         pdfEl.src = blobUrl;
                         pdfEl.classList.remove('d-none');
                         placeholder.classList.add('d-none');
@@ -1162,7 +1243,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const isPermitting = newStatus == 1 || newStatus == '1';
             const confirmado = await window.showConfirmModal(
-                'Autorizar Cambio de Monto', 
+                'Autorizar Cambio de Monto',
                 `¿Estás seguro de ${isPermitting ? 'PERMITIR' : 'REVOCAR'} que el cliente modifique el monto de la orden #${txId}?`
             );
 
@@ -1174,12 +1255,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const res = await fetch('../api/?accion=toggleMontoEditPermission', {
-                    method: 'POST', 
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ txId: txId, estado: newStatus })
                 });
                 const data = await res.json();
-                
+
                 if (data.success) {
                     window.showInfoModal('Éxito', data.message, true, () => {
                         if (typeof window.refreshAdminTable === 'function') {
@@ -1515,7 +1596,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('editBenNombre').value = data.BeneficiarioNombre || '';
                 document.getElementById('editBenDoc').value = data.TitularNumeroDocumento || '';
                 document.getElementById('editBenBanco').value = data.NombreBanco || '';
-                
+
                 document.getElementById('editBenCuenta').value = data.NumeroCuenta || '';
                 document.getElementById('editBenTelefono').value = data.NumeroTelefono || '';
                 document.getElementById('editBenCCI').value = data.CCI || '';
@@ -1526,7 +1607,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-   // =================================================
+    // =================================================
     // 9.1 ENVIAR LA SOLICITUD DE EDICIÓN AL CLIENTE
     // =================================================
     const formReq = document.getElementById('formSolicitarEdicion');
@@ -1551,12 +1632,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
                 });
                 const result = await res.json();
-                
+
                 if (result.success) {
                     bootstrap.Modal.getInstance(document.getElementById('modalSolicitarEdicion')).hide();
                     window.showInfoModal("Solicitud Enviada", "Se ha notificado al usuario correctamente. La edición estará bloqueada hasta que el cliente la apruebe.", true);
                     const origBtn = document.querySelector(`.btn-request-access[data-id="${data.cuentaId}"]`);
-                    if(origBtn) {
+                    if (origBtn) {
                         origBtn.innerHTML = '<i class="bi bi-clock-history"></i> Petición en espera...';
                         origBtn.classList.replace('btn-outline-primary', 'btn-secondary');
                     }
@@ -1601,8 +1682,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const res = await fetch('../api/?accion=executeBeneficiaryEdit', {
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 

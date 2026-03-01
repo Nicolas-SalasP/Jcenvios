@@ -662,4 +662,9 @@ class TransactionService
             throw new Exception("Error al actualizar la base de datos.");
         }
     }
+
+    public function getAdminAlerts(): array
+    {
+        return $this->txRepository->getAdminAlertsData();
+    }
 }

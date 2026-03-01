@@ -101,6 +101,12 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             text-align: center;
             display: inline-block;
         }
+        .badge-anim {
+            transition: transform 0.3s ease-in-out;
+        }
+        .badge-anim.pulse {
+            transform: scale(1.2);
+        }
 
         @media (max-width: 991.98px) {
             .navbar-collapse {
@@ -214,7 +220,16 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                             <?php elseif ($is_admin): ?>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/admin/dashboard.php">Dashboard</a></li>
-                                <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/admin/">Órdenes</a></li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/index.php">
+                                        Órdenes 
+                                        <span id="badge-verificacion" class="badge rounded-pill bg-primary ms-1 d-none badge-anim" title="En Verificación">0</span>
+                                        <span id="badge-proceso" class="badge rounded-pill bg-info text-dark ms-1 d-none badge-anim" title="En Proceso">0</span>
+                                        <span id="badge-pausadas" class="badge rounded-pill bg-warning text-dark ms-1 d-none badge-anim" title="Pausadas">0</span>
+                                        <span id="badge-riesgo" class="badge rounded-pill bg-dark ms-1 d-none badge-anim" title="Riesgo">0</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/admin/">Historial</a></li>
 
                                 <li class="nav-item dropdown">
                                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -250,8 +265,13 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         href="<?php echo BASE_URL; ?>/admin/contabilidad.php">Contabilidad</a></li>
 
                             <?php elseif ($is_operator): ?>
-                                <li class="nav-item"><a class="nav-link fw-bold text-primary"
-                                        href="<?php echo BASE_URL; ?>/operador/pendientes.php">Pendientes</a></li>
+                                <li class="nav-item">
+                                    <a class="nav-link fw-bold text-primary" href="<?php echo BASE_URL; ?>/operador/pendientes.php">
+                                        Pendientes
+                                        <span id="badge-pendientes" class="badge rounded-pill bg-danger ms-1 d-none badge-anim">0</span>
+                                        <span id="badge-pausadas" class="badge rounded-pill bg-warning text-dark ms-1 d-none badge-anim" title="Pausadas">0</span>
+                                    </a>
+                                </li>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/operador/index.php">Historial</a></li>
 
@@ -274,6 +294,13 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
 
                     <div class="d-flex align-items-center gap-2 mt-3 mt-lg-0">
                         <?php if ($is_logged_in): ?>
+                            
+                            <?php if ($is_admin || $is_operator): ?>
+                            <button id="btn-toggle-sound" class="btn btn-sm btn-outline-secondary rounded-circle me-2" title="Alertas de Sonido">
+                                <i class="bi bi-bell-fill" id="icon-sound-status"></i>
+                            </button>
+                            <?php endif; ?>
+
                             <div class="dropdown w-100">
                                 <a href="#"
                                     class="d-flex align-items-center text-decoration-none dropdown-toggle text-dark p-1 rounded hover-bg-light"
@@ -314,5 +341,11 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             </div>
         </nav>
     </header>
+    
+    <?php if ($is_admin || $is_operator): ?>
+    <audio id="admin-alert-sound" preload="auto">
+        <source src="<?= BASE_URL ?>/assets/audio/notification.mp3" type="audio/mpeg">
+    </audio>
+    <?php endif; ?>
 
     <main class="flex-grow-1">

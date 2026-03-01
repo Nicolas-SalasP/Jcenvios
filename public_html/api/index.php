@@ -309,6 +309,9 @@ try {
         'getCuentasAdmin' => [AdminController::class, 'getCuentasAdmin', 'GET'],
         'saveCuentaAdmin' => [AdminController::class, 'saveCuentaAdmin', 'POST'],
         'deleteCuentaAdmin' => [AdminController::class, 'deleteCuentaAdmin', 'POST'],
+        
+        //Admin - Notificaciones
+        'getAdminAlerts' => [AdminController::class, 'getAdminAlerts', 'GET'],
 
         // Contabilidad
         'getSaldosContables' => [ContabilidadController::class, 'getSaldos', 'GET'],
