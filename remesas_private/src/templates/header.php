@@ -203,40 +203,6 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             });
         </script>
     <?php endif; ?>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const checkSystemAlerts = async () => {
-                try {
-                    const baseUrl = "<?php echo BASE_URL; ?>";
-                    const response = await fetch(`${baseUrl}/api/?accion=checkSystemStatus&_=${new Date().getTime()}`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        const alertBar = document.getElementById('holiday-alert-bar');
-                        if (alertBar) {
-                            if (data.holiday_warning) {
-                                document.getElementById('holiday-title').textContent = data.holiday_warning.title || 'AVISO';
-                                document.getElementById('holiday-message').textContent = data.holiday_warning.message;
-                                
-                                const endDate = new Date(data.holiday_warning.ends_at);
-                                const options = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
-                                document.getElementById('holiday-date').textContent = endDate.toLocaleDateString('es-CL', options);
-
-                                alertBar.classList.remove('d-none');
-                                setTimeout(() => alertBar.classList.add('show'), 100);
-                            } else {
-                                alertBar.classList.remove('show');
-                                setTimeout(() => alertBar.classList.add('d-none'), 600);
-                            }
-                        }
-                    }
-                } catch (error) { console.error("Error verificando alertas:", error); }
-            };
-
-            checkSystemAlerts();
-            setInterval(checkSystemAlerts, 60000); // Consultar cada 1 minuto
-        });
-    </script>
 </head>
 
 <body class="d-flex flex-column min-vh-100 bg-light" data-base-url="<?php echo htmlspecialchars(BASE_URL); ?>"

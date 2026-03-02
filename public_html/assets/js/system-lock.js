@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     checkSystemStatus();
-    setInterval(checkSystemStatus, 30000);
+    setInterval(checkSystemStatus, 45000);
 });
 
 let logoutTimer = null;
@@ -16,7 +16,32 @@ async function checkSystemStatus() {
         const apiUrl = basePath + '?accion=checkSystemStatus&_=' + new Date().getTime();
         
         const response = await fetch(apiUrl);
+        if (!response.ok) return;
+        
         const data = await response.json();
+        const alertBar = document.getElementById('holiday-alert-bar');
+        if (alertBar) {
+            if (data.holiday_warning) {
+                const msgElement = document.getElementById('holiday-message');
+                const dateElement = document.getElementById('holiday-date');
+                const titleElement = document.getElementById('holiday-title');
+                
+                if (titleElement) titleElement.textContent = data.holiday_warning.title || 'AVISO';
+                if (msgElement) msgElement.textContent = data.holiday_warning.message;
+                
+                if (dateElement) {
+                    const endDate = new Date(data.holiday_warning.ends_at);
+                    const options = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
+                    dateElement.textContent = endDate.toLocaleDateString('es-CL', options);
+                }
+
+                alertBar.classList.remove('d-none');
+                setTimeout(() => alertBar.classList.add('show'), 100);
+            } else {
+                alertBar.classList.remove('show');
+                setTimeout(() => alertBar.classList.add('d-none'), 600);
+            }
+        }
 
         if (!data.logged_in) {
             cleanupLockState();
@@ -37,68 +62,47 @@ async function checkSystemStatus() {
             });
             
             disableInterface();
-
-        } else if (data.holiday_warning) {
-            cleanupLockState();
         } else {
             cleanupLockState();
         }
 
     } catch (error) {
-        console.error(error);
+        // console.warn("Polling omitido temporalmente:", error);
     }
 }
 
-function showLockModal({ message, logoutUrl }) {
-    if (document.getElementById('system-lock-modal')) return;
+function showLockModal(status) {
+    if (document.getElementById('system-lock-modal')) return; 
 
-    const modalBackdrop = document.createElement('div');
-    modalBackdrop.id = 'system-lock-backdrop';
-    modalBackdrop.className = 'modal-backdrop show';
-    modalBackdrop.style.zIndex = '1050';
-
-    const modal = document.createElement('div');
-    modal.id = 'system-lock-modal';
-    modal.className = 'modal fade show d-block';
-    modal.setAttribute('tabindex', '-1');
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.style.zIndex = '1055';
-    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
-
-    modal.innerHTML = `
-        <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content shadow-lg border-0">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title fw-bold">
-                        <i class="bi bi-exclamation-octagon-fill me-2"></i>Acceso Restringido
-                    </h5>
-                </div>
-                <div class="modal-body text-center p-4">
-                    <h4 class="mb-3 fw-bold text-dark">${message}</h4>
-                    
-                    <div class="alert alert-warning d-inline-block mt-3">
-                        Cerrando sesión en <strong id="lock-countdown" class="fs-5">10</strong> segundos...
-                    </div>
-                </div>
-                <div class="modal-footer justify-content-center bg-light">
-                    <a href="${logoutUrl}" class="btn btn-danger w-100 fw-bold">
-                        <i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión Ahora
-                    </a>
-                </div>
+    const modalHtml = `
+        <div id="system-lock-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9998; backdrop-filter: blur(8px);"></div>
+        <div id="system-lock-modal" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 40px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); z-index: 9999; text-align: center; max-width: 90%; width: 450px;">
+            <div style="background: #fee2e2; color: #dc2626; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px;">
+                <i class="bi bi-lock-fill" style="font-size: 2.5rem;"></i>
+            </div>
+            <h3 style="color: #111827; font-weight: 700; margin-bottom: 16px; font-size: 1.5rem;">Sistema en Mantenimiento</h3>
+            <p style="color: #4b5563; font-size: 1.1rem; line-height: 1.5; margin-bottom: 24px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
+                ${status.message}
+            </p>
+            <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+                <p style="color: #6b7280; font-size: 0.95rem; margin-bottom: 16px;">
+                    Serás desconectado por seguridad en <strong id="lock-countdown" style="color: #dc2626; font-size: 1.2rem;">30</strong> segundos.
+                </p>
+                <a href="${status.logoutUrl}" style="display: inline-block; background: #dc2626; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; width: 100%; transition: background 0.2s;">
+                    Cerrar Sesión Ahora
+                </a>
             </div>
         </div>
     `;
 
-    document.body.appendChild(modalBackdrop);
-    document.body.appendChild(modal);
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
     document.body.classList.add('modal-open');
     document.body.style.overflow = 'hidden';
 
-    startCountdown(10, logoutUrl);
+    startLogoutCountdown(30, status.logoutUrl);
 }
 
-function startCountdown(seconds, logoutUrl) {
+function startLogoutCountdown(seconds, logoutUrl) {
     let counter = seconds;
     const countSpan = document.getElementById('lock-countdown');
     
@@ -149,6 +153,6 @@ function enableInterface() {
     const elements = document.querySelectorAll('button, input, select, textarea, a');
     elements.forEach(el => {
         el.style.pointerEvents = '';
-        el.removeAttribute('tabindex');
+        el.tabIndex = 0;
     });
 }
