@@ -101,12 +101,24 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             text-align: center;
             display: inline-block;
         }
+
+        /* --- ESTILOS PARA BADGES ANIMADOS --- */
         .badge-anim {
             transition: transform 0.3s ease-in-out;
         }
         .badge-anim.pulse {
             transform: scale(1.2);
         }
+        
+        /* Contenedor flexible para alinear texto y badges sin que se rompan feo */
+        .nav-link-badges {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        /* --- ALERTA INFORMATIVA GLOBAL --- */
         #holiday-alert-bar {
             background: linear-gradient(45deg, #ffc107, #ff9800); 
             color: #000;
@@ -114,7 +126,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             max-height: 0;
             transition: max-height 0.6s cubic-bezier(0.19, 1, 0.22, 1); 
         }
-        #holiday-alert-bar.show { max-height: 100px; }
+        /* CORRECCIÓN MÓVIL: Aumentado de 100px a 400px para que el texto largo no se corte al hacer wrap */
+        #holiday-alert-bar.show { max-height: 400px; } 
 
         @media (max-width: 991.98px) {
             .navbar-collapse {
@@ -134,15 +147,15 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 border-bottom: 1px solid #f8f9fa;
             }
 
-            .d-flex.align-items-center.gap-2 {
-                flex-direction: column;
+            /* CORRECCIÓN MÓVIL: Alinear avatar y botón de sonido horizontalmente */
+            .user-actions-mobile {
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                align-items: center !important;
                 width: 100%;
                 margin-top: 15px;
-            }
-
-            .btn {
-                width: 100%;
-                justify-content: center;
+                padding-top: 15px;
+                border-top: 1px solid #f8f9fa;
             }
 
             .dropdown-menu-custom {
@@ -150,6 +163,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 border: 1px solid #eee;
                 background: #fdfdfd;
                 margin-top: 5px;
+                position: static !important; /* Despegar del absolute nativo en móviles */
+                transform: none !important;
             }
         }
     </style>
@@ -219,7 +234,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             };
 
             checkSystemAlerts();
-            setInterval(checkSystemAlerts, 60000);
+            setInterval(checkSystemAlerts, 60000); // Consultar cada 1 minuto
         });
     </script>
 </head>
@@ -256,12 +271,12 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/admin/dashboard.php">Dashboard</a></li>
                                 <li class="nav-item">
-                                    <a class="nav-link fw-bold" href="<?php echo BASE_URL; ?>/admin/index.php">
+                                    <a class="nav-link fw-bold nav-link-badges" href="<?php echo BASE_URL; ?>/admin/index.php">
                                         Órdenes 
-                                        <span id="badge-verificacion" class="badge rounded-pill bg-primary ms-1 d-none badge-anim" title="En Verificación">0</span>
-                                        <span id="badge-proceso" class="badge rounded-pill bg-info text-dark ms-1 d-none badge-anim" title="En Proceso">0</span>
-                                        <span id="badge-pausadas" class="badge rounded-pill bg-warning text-dark ms-1 d-none badge-anim" title="Pausadas">0</span>
-                                        <span id="badge-riesgo" class="badge rounded-pill bg-dark ms-1 d-none badge-anim" title="Riesgo">0</span>
+                                        <span id="badge-verificacion" class="badge rounded-pill bg-primary d-none badge-anim" title="En Verificación">0</span>
+                                        <span id="badge-proceso" class="badge rounded-pill bg-info text-dark d-none badge-anim" title="En Proceso">0</span>
+                                        <span id="badge-pausadas" class="badge rounded-pill bg-warning text-dark d-none badge-anim" title="Pausadas">0</span>
+                                        <span id="badge-riesgo" class="badge rounded-pill bg-dark d-none badge-anim" title="Riesgo">0</span>
                                     </a>
                                 </li>
                                 <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/admin/pendientes.php">Pendientes</a></li>
@@ -288,11 +303,11 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
 
                             <?php elseif ($is_operator): ?>
                                 <li class="nav-item">
-                                    <a class="nav-link fw-bold" href="<?php echo BASE_URL; ?>/operador/index.php">
+                                    <a class="nav-link fw-bold nav-link-badges" href="<?php echo BASE_URL; ?>/operador/index.php">
                                         Órdenes
-                                        <span id="badge-verificacion" class="badge rounded-pill bg-primary ms-1 d-none badge-anim" title="En Verificación">0</span>
-                                        <span id="badge-proceso" class="badge rounded-pill bg-info text-dark ms-1 d-none badge-anim" title="En Proceso">0</span>
-                                        <span id="badge-pausadas" class="badge rounded-pill bg-warning text-dark ms-1 d-none badge-anim" title="Pausadas">0</span>
+                                        <span id="badge-verificacion" class="badge rounded-pill bg-primary d-none badge-anim" title="En Verificación">0</span>
+                                        <span id="badge-proceso" class="badge rounded-pill bg-info text-dark d-none badge-anim" title="En Proceso">0</span>
+                                        <span id="badge-pausadas" class="badge rounded-pill bg-warning text-dark d-none badge-anim" title="Pausadas">0</span>
                                     </a>
                                 </li>
                                 <li class="nav-item"><a class="nav-link text-primary"
@@ -312,42 +327,31 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                         <?php endif; ?>
                     </ul>
 
-                    <div class="d-flex align-items-center gap-2 mt-3 mt-lg-0">
+                    <div class="d-flex align-items-center user-actions-mobile gap-2 mt-3 mt-lg-0">
                         <?php if ($is_logged_in): ?>
                             
                             <?php if ($is_admin || $is_operator): ?>
-                            <button id="btn-toggle-sound" class="btn btn-sm btn-outline-secondary rounded-circle me-2" title="Alertas de Sonido">
+                            <button id="btn-toggle-sound" class="btn btn-sm btn-outline-secondary rounded-circle me-1" title="Alertas de Sonido">
                                 <i class="bi bi-bell-fill" id="icon-sound-status"></i>
                             </button>
                             <?php endif; ?>
 
-                            <div class="dropdown w-100">
+                            <div class="dropdown flex-grow-1 flex-lg-grow-0">
                                 <a href="#"
-                                    class="d-flex align-items-center text-decoration-none dropdown-toggle text-dark p-1 rounded hover-bg-light"
+                                    class="d-flex align-items-center text-decoration-none dropdown-toggle text-dark p-1 rounded hover-bg-light justify-content-end justify-content-lg-start"
                                     id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <img src="<?php echo $photoUrl; ?>" alt="Perfil"
-                                        class="user-avatar rounded-circle me-2">
-                                    <div class="d-flex flex-column text-start lh-1">
-                                        <span
-                                            class="fw-bold small"><?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
-                                        <small class="text-muted"
-                                            style="font-size: 0.75rem;"><?php echo htmlspecialchars($user_role ?: 'Cliente'); ?></small>
+                                    <div class="d-flex flex-column text-end text-lg-start lh-1 me-2 me-lg-0 ms-lg-2 order-1 order-lg-2">
+                                        <span class="fw-bold small"><?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
+                                        <small class="text-muted" style="font-size: 0.75rem;"><?php echo htmlspecialchars($user_role ?: 'Cliente'); ?></small>
                                     </div>
+                                    <img src="<?php echo $photoUrl; ?>" alt="Perfil" class="user-avatar rounded-circle order-2 order-lg-1">
                                 </a>
-                                <ul
-                                    class="dropdown-menu dropdown-menu-end dropdown-menu-custom animate__animated animate__fadeIn">
-                                    <li>
-                                        <h6 class="dropdown-header">Mi Cuenta</h6>
-                                    </li>
-                                    <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/dashboard/perfil.php"><i
-                                                class="bi bi-person me-2"></i> Perfil</a></li>
-                                    <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/dashboard/seguridad.php"><i
-                                                class="bi bi-shield-lock me-2"></i> Seguridad</a></li>
-                                    <li>
-                                        <hr class="dropdown-divider">
-                                    </li>
-                                    <li><a class="dropdown-item text-danger" href="<?php echo BASE_URL; ?>/logout.php"><i
-                                                class="bi bi-box-arrow-right me-2"></i> Salir</a></li>
+                                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-custom animate__animated animate__fadeIn">
+                                    <li><h6 class="dropdown-header">Mi Cuenta</h6></li>
+                                    <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/dashboard/perfil.php"><i class="bi bi-person me-2"></i> Perfil</a></li>
+                                    <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/dashboard/seguridad.php"><i class="bi bi-shield-lock me-2"></i> Seguridad</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="<?php echo BASE_URL; ?>/logout.php"><i class="bi bi-box-arrow-right me-2"></i> Salir</a></li>
                                 </ul>
                             </div>
                         <?php else: ?>
@@ -362,13 +366,13 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
         </nav>
 
         <div id="holiday-alert-bar" class="d-none shadow-sm text-center w-100 border-top border-warning">
-            <div class="container py-2">
+            <div class="container py-3">
                 <div class="d-flex align-items-center justify-content-center flex-wrap gap-2">
                     <i class="bi bi-info-circle-fill fs-5"></i>
                     <span class="badge bg-dark text-white fw-bold" id="holiday-title">AVISO</span>
                     <span class="fw-medium" id="holiday-message">...</span>
                     <span class="d-none d-md-inline">|</span>
-                    <span class="small">
+                    <span class="small d-block d-md-inline w-100 w-md-auto">
                         Válido hasta: <strong id="holiday-date">...</strong>
                     </span>
                 </div>
