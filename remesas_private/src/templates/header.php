@@ -107,6 +107,14 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
         .badge-anim.pulse {
             transform: scale(1.2);
         }
+        #holiday-alert-bar {
+            background: linear-gradient(45deg, #ffc107, #ff9800); 
+            color: #000;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.6s cubic-bezier(0.19, 1, 0.22, 1); 
+        }
+        #holiday-alert-bar.show { max-height: 100px; }
 
         @media (max-width: 991.98px) {
             .navbar-collapse {
@@ -150,9 +158,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <?php endif; ?>
 
-    <?php 
-    if ($is_logged_in && $verifStatusId !== 3): 
-    ?>
+    <?php if ($is_logged_in && $verifStatusId !== 3): ?>
         <script>
             document.addEventListener('DOMContentLoaded', () => {
                 let isChecking = false;
@@ -160,17 +166,13 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
 
                 const checkStatus = async () => {
                     if (isChecking || document.hidden) return;
-                    
                     isChecking = true;
-
                     try {
                         const baseUrl = "<?php echo BASE_URL; ?>";
                         const response = await fetch(`${baseUrl}/api/?accion=checkSessionStatus&_=${new Date().getTime()}`);
-                        
                         if (response.ok) {
                             const data = await response.json();
                             if (data.success && data.needs_refresh) {
-                                console.log("Estado de verificación actualizado. Recargando...");
                                 window.location.reload();
                             }
                         }
@@ -187,6 +189,39 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
         </script>
     <?php endif; ?>
 
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const checkSystemAlerts = async () => {
+                try {
+                    const baseUrl = "<?php echo BASE_URL; ?>";
+                    const response = await fetch(`${baseUrl}/api/?accion=checkSystemStatus&_=${new Date().getTime()}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const alertBar = document.getElementById('holiday-alert-bar');
+                        if (alertBar) {
+                            if (data.holiday_warning) {
+                                document.getElementById('holiday-title').textContent = data.holiday_warning.title || 'AVISO';
+                                document.getElementById('holiday-message').textContent = data.holiday_warning.message;
+                                
+                                const endDate = new Date(data.holiday_warning.ends_at);
+                                const options = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
+                                document.getElementById('holiday-date').textContent = endDate.toLocaleDateString('es-CL', options);
+
+                                alertBar.classList.remove('d-none');
+                                setTimeout(() => alertBar.classList.add('show'), 100);
+                            } else {
+                                alertBar.classList.remove('show');
+                                setTimeout(() => alertBar.classList.add('d-none'), 600);
+                            }
+                        }
+                    }
+                } catch (error) { console.error("Error verificando alertas:", error); }
+            };
+
+            checkSystemAlerts();
+            setInterval(checkSystemAlerts, 60000);
+        });
+    </script>
 </head>
 
 <body class="d-flex flex-column min-vh-100 bg-light" data-base-url="<?php echo htmlspecialchars(BASE_URL); ?>"
@@ -221,7 +256,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/admin/dashboard.php">Dashboard</a></li>
                                 <li class="nav-item">
-                                    <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/index.php">
+                                    <a class="nav-link fw-bold" href="<?php echo BASE_URL; ?>/admin/index.php">
                                         Órdenes 
                                         <span id="badge-verificacion" class="badge rounded-pill bg-primary ms-1 d-none badge-anim" title="En Verificación">0</span>
                                         <span id="badge-proceso" class="badge rounded-pill bg-info text-dark ms-1 d-none badge-anim" title="En Proceso">0</span>
@@ -229,36 +264,23 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         <span id="badge-riesgo" class="badge rounded-pill bg-dark ms-1 d-none badge-anim" title="Riesgo">0</span>
                                     </a>
                                 </li>
-                                <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/admin/">Historial</a></li>
+                                <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/admin/pendientes.php">Pendientes</a></li>
 
                                 <li class="nav-item dropdown">
                                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                         Gestión
                                     </a>
                                     <ul class="dropdown-menu dropdown-menu-custom animate__animated animate__fadeIn">
-                                        <li>
-                                            <h6 class="dropdown-header text-uppercase small text-muted">Administración</h6>
-                                        </li>
-                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/usuarios.php"><i
-                                                    class="bi bi-people text-primary me-2"></i> Usuarios</a></li>
-                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/verificaciones.php"><i 
-                                                    class="bi bi-person-badge text-dark me-2"></i> Verificaciones</a></li>
-                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/cuentas.php"><i
-                                                    class="bi bi-bank text-success me-2"></i> Ctas. Bancarias</a></li>
-                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/paises.php"><i
-                                                    class="bi bi-globe-americas text-info me-2"></i> Países</a></li>
-                                        <li>
-                                            <hr class="dropdown-divider">
-                                        </li>
-                                        <li>
-                                            <h6 class="dropdown-header text-uppercase small text-muted">Sistema</h6>
-                                        </li>
-                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/tasas.php"><i
-                                                    class="bi bi-currency-exchange text-warning me-2"></i> Tasas</a></li>
-                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/feriados.php"><i
-                                                    class="bi bi-calendar-event text-danger me-2"></i> Feriados</a></li>
-                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/logs.php"><i
-                                                    class="bi bi-clipboard-data text-secondary me-2"></i> Bitácora</a></li>
+                                        <li><h6 class="dropdown-header text-uppercase small text-muted">Administración</h6></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/usuarios.php"><i class="bi bi-people text-primary me-2"></i> Usuarios</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/verificaciones.php"><i class="bi bi-person-badge text-dark me-2"></i> Verificaciones</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/cuentas.php"><i class="bi bi-bank text-success me-2"></i> Ctas. Bancarias</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/paises.php"><i class="bi bi-globe-americas text-info me-2"></i> Países</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header text-uppercase small text-muted">Sistema</h6></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/tasas.php"><i class="bi bi-currency-exchange text-warning me-2"></i> Tasas</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/feriados.php"><i class="bi bi-calendar-event text-danger me-2"></i> Feriados</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/logs.php"><i class="bi bi-clipboard-data text-secondary me-2"></i> Bitácora</a></li>
                                     </ul>
                                 </li>
                                 <li class="nav-item"><a class="nav-link"
@@ -266,14 +288,15 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
 
                             <?php elseif ($is_operator): ?>
                                 <li class="nav-item">
-                                    <a class="nav-link fw-bold text-primary" href="<?php echo BASE_URL; ?>/operador/pendientes.php">
-                                        Pendientes
-                                        <span id="badge-pendientes" class="badge rounded-pill bg-danger ms-1 d-none badge-anim">0</span>
+                                    <a class="nav-link fw-bold" href="<?php echo BASE_URL; ?>/operador/index.php">
+                                        Órdenes
+                                        <span id="badge-verificacion" class="badge rounded-pill bg-primary ms-1 d-none badge-anim" title="En Verificación">0</span>
+                                        <span id="badge-proceso" class="badge rounded-pill bg-info text-dark ms-1 d-none badge-anim" title="En Proceso">0</span>
                                         <span id="badge-pausadas" class="badge rounded-pill bg-warning text-dark ms-1 d-none badge-anim" title="Pausadas">0</span>
                                     </a>
                                 </li>
-                                <li class="nav-item"><a class="nav-link"
-                                        href="<?php echo BASE_URL; ?>/operador/index.php">Historial</a></li>
+                                <li class="nav-item"><a class="nav-link text-primary"
+                                        href="<?php echo BASE_URL; ?>/operador/pendientes.php">Pendientes</a></li>
 
                             <?php else: ?>
                                 <li class="nav-item"><a class="nav-link"
@@ -283,12 +306,9 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                             <?php endif; ?>
 
                         <?php else: ?>
-                            <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/index.php">Inicio</a>
-                            </li>
-                            <li class="nav-item"><a class="nav-link"
-                                    href="<?php echo BASE_URL; ?>/quienes-somos.php">Nosotros</a></li>
-                            <li class="nav-item"><a class="nav-link"
-                                    href="<?php echo BASE_URL; ?>/contacto.php">Contacto</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/index.php">Inicio</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/quienes-somos.php">Nosotros</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/contacto.php">Contacto</a></li>
                         <?php endif; ?>
                     </ul>
 
@@ -340,6 +360,20 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 </div>
             </div>
         </nav>
+
+        <div id="holiday-alert-bar" class="d-none shadow-sm text-center w-100 border-top border-warning">
+            <div class="container py-2">
+                <div class="d-flex align-items-center justify-content-center flex-wrap gap-2">
+                    <i class="bi bi-info-circle-fill fs-5"></i>
+                    <span class="badge bg-dark text-white fw-bold" id="holiday-title">AVISO</span>
+                    <span class="fw-medium" id="holiday-message">...</span>
+                    <span class="d-none d-md-inline">|</span>
+                    <span class="small">
+                        Válido hasta: <strong id="holiday-date">...</strong>
+                    </span>
+                </div>
+            </div>
+        </div>
     </header>
     
     <?php if ($is_admin || $is_operator): ?>

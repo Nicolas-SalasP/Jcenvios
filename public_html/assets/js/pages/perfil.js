@@ -248,9 +248,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 document.querySelectorAll('.btn-edit').forEach(b => b.addEventListener('click', e => openEditModal(JSON.parse(e.currentTarget.dataset.json))));
                 
-                // --- CORRECCIÓN: Capturar el ID antes del await ---
                 document.querySelectorAll('.btn-delete').forEach(b => b.addEventListener('click', async e => {
-                    const idToDelete = e.currentTarget.dataset.id; // GUARDAR REFERENCIA
+                    const idToDelete = e.currentTarget.dataset.id; 
                     if(await window.showConfirmModal('Eliminar', '¿Estás seguro de eliminar este beneficiario?')) {
                         await fetch('../api/?accion=deleteBeneficiary', {
                             method:'POST', 
@@ -260,7 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         loadBeneficiaries();
                     }
                 }));
-                // ------------------------------------------------
             } else listContainer.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-person-badge fs-1 d-block mb-2"></i>No tienes beneficiarios registrados.</div>';
         } catch(e) { if(loadingDiv) loadingDiv.classList.add('d-none'); }
     };
@@ -285,7 +283,13 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleField(d.TitularSegundoNombre, 'toggle-benef-segundo-nombre', 'container-benef-segundo-nombre', 'benef-secondname');
         toggleField(d.TitularSegundoApellido, 'toggle-benef-segundo-apellido', 'container-benef-segundo-apellido', 'benef-secondlastname');
 
-        if(benefDocTypeSelect) { benefDocTypeSelect.value = d.TitularTipoDocumentoID; updateDocValidation(); }
+        if(benefDocTypeSelect) { 
+            // 1. Primero configuramos los documentos permitidos para ese país
+            updateDocValidation(); 
+            // 2. Luego asignamos el valor
+            setTimeout(() => { benefDocTypeSelect.value = d.TitularTipoDocumentoID; }, 50);
+        }
+        
         if(benefDocNumberInput) {
             let num = d.TitularNumeroDocumento;
             if(parseInt(d.PaisID)===3 && benefDocPrefix) {
@@ -329,7 +333,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================
 
     if(benefPaisIdInput) {
-        benefPaisIdInput.addEventListener('change', (e) => configureModalForCountry(parseInt(e.target.value)));
+        benefPaisIdInput.addEventListener('change', (e) => {
+            configureModalForCountry(parseInt(e.target.value));
+            updateDocValidation();
+        });
     }
 
     if (benefBankSelect) {
@@ -340,6 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
             [containerOtherBank, containerCCI, containerBankInput, containerMobileInput].forEach(el => el.classList.add('d-none'));
             if(checkIncludeBank) checkIncludeBank.checked = false;
             if(checkIncludeMobile) checkIncludeMobile.checked = false;
+            if(inputOtherBank) inputOtherBank.required = false;
+            if(inputCCI) inputCCI.required = false;
 
             if(!val) return;
 
@@ -361,8 +370,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if(labelAccount) labelAccount.textContent = "Cuenta Interbank";
                     } else if (val === 'Otro Banco') {
                         if(containerOtherBank) containerOtherBank.classList.remove('d-none');
-                        if(containerCCI) containerCCI.classList.remove('d-none'); 
                         if(inputOtherBank) inputOtherBank.required = true;
+                        
+                        if(labelAccount) labelAccount.textContent = "Número de Cuenta (Opcional)";
+                        if(inputAccountNum) inputAccountNum.required = false;
+                        
+                        if(containerCCI) containerCCI.classList.remove('d-none'); 
+                        if(inputCCI) inputCCI.required = true;
                     }
                 }
             }
@@ -391,10 +405,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if(inp) inp.addEventListener('input', function() { this.value = this.value.replace(/\D/g, ''); });
     });
 
+    // --- NUEVO FILTRO DINÁMICO DE DOCUMENTOS (PASO 4) ---
     const updateDocValidation = () => {
-        const p = parseInt(benefPaisIdInput.value);
-        if(p===3 && benefDocPrefix) benefDocPrefix.classList.remove('d-none'); 
-        else if(benefDocPrefix) benefDocPrefix.classList.add('d-none');
+        const destId = parseInt(benefPaisIdInput.value);
+        
+        if (destId === C_VENEZUELA && benefDocPrefix) {
+            benefDocPrefix.classList.remove('d-none');
+            benefDocNumberInput.oninput = function () { this.value = this.value.replace(/[^0-9]/g, ''); };
+        } else if (benefDocPrefix) {
+            benefDocPrefix.classList.add('d-none');
+            benefDocNumberInput.oninput = null; 
+        }
+
+        if (!window.allDocumentTypes || !benefDocTypeSelect) return;
+        
+        benefDocTypeSelect.innerHTML = '<option value="">Seleccione...</option>';
+        
+        const isVenezuela = (destId === C_VENEZUELA);
+        const isColombia = (destId === C_COLOMBIA);
+        const isPeru = (destId === C_PERU);
+
+        window.allDocumentTypes.forEach(doc => {
+            const nombreDoc = doc.NombreDocumento || "";
+            if (!nombreDoc) return;
+            const nameUC = nombreDoc.toUpperCase();
+            let show = false;
+
+            if (isVenezuela) {
+                if (nameUC.includes('CÉDULA') || nameUC.includes('CEDULA') || nameUC.includes('PASAPORTE') || nameUC.includes('RIF')) show = true;
+            }
+            else if (isColombia) {
+                if (nameUC.includes('CÉDULA') || nameUC.includes('CEDULA') || nameUC.includes('PASAPORTE') || nameUC.includes('PPT') || nameUC.includes('OTROS')) show = true;
+            }
+            else if (isPeru) {
+                if (nameUC.includes('DNI') || nameUC.includes('PASAPORTE') || nameUC.includes('CARNET') || nameUC.includes('OTROS')) show = true;
+            }
+            else {
+                if (!nameUC.includes('RIF')) show = true;
+            }
+
+            if (show) {
+                benefDocTypeSelect.innerHTML += `<option value="${doc.TipoDocumentoID}">${nombreDoc}</option>`;
+            }
+        });
     };
     if(benefDocTypeSelect) benefDocTypeSelect.addEventListener('change', updateDocValidation);
 
@@ -420,6 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
             benefCuentaIdInput.value = '';
             benefPaisIdInput.value = 3; 
             configureModalForCountry(3);
+            updateDocValidation();
             if(addAccountModal) addAccountModal.show();
         });
     }
@@ -453,7 +507,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(pais === C_PERU) {
             if(isMov && phone.length !== 9) { alert(`${banco} debe tener 9 dígitos.`); btn.disabled=false; btn.textContent=txt; return; }
-            if(isCta && (acc.length !== 13 && acc.length !== 14)) { alert('La cuenta en Perú debe tener 13 o 14 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
+            if(isCta) {
+                if (banco === 'Interbank') {
+                    if (acc.length !== 13 && acc.length !== 14) { alert('La cuenta Interbank debe tener 13 o 14 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
+                } else if (banco === 'Otro Banco') {
+                    const cci = fd.get('cci') || '';
+                    if (cci.length !== 20) { alert('El CCI debe tener exactamente 20 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
+                }
+            }
         }
         else if(pais === C_COLOMBIA) {
             if(isMov && phone.length !== 10) { alert('Celular debe tener 10 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
@@ -505,7 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             profileSaveBtn.disabled = true; profileSaveBtn.textContent = 'Guardando...';
             const fd = new FormData();
-            const ph = (profilePhoneCodeEl?.value||'') + (document.getElementById('profile-telefono')?.value||'');
+            const ph = (document.getElementById('profile-phone-code')?.value||'') + (document.getElementById('profile-telefono')?.value||'');
             fd.append('telefono', ph);
             if(capturedBlob) fd.append('fotoPerfil', capturedBlob, 'perfil.jpg');
             try {
@@ -540,9 +601,17 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const r = await fetch(`../api/?accion=${act}`);
             const d = await r.json();
+            
+            // Si estamos cargando documentos, guárdalos globalmente para poder filtrarlos después
+            if (act === 'getDocumentTypes') {
+                window.allDocumentTypes = d;
+                return d;
+            }
+
             el.innerHTML = '<option value="">Seleccione...</option>';
             d.forEach(i => el.innerHTML+=`<option value="${i[val]||i.PaisID||i.TipoDocumentoID}">${i[txt]||i.NombrePais||i.NombreDocumento}</option>`);
-        }catch(e){}
+            return d;
+        }catch(e){ console.error(e); }
     };
 
     // =========================================================
@@ -654,6 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadSelect('getPaises&rol=Destino', benefPaisIdInput, 'NombrePais', 'PaisID'),
         loadSelect('getDocumentTypes', benefDocTypeSelect, 'NombreDocumento', 'TipoDocumentoID')
     ]).then(() => { 
+        updateDocValidation(); // Desencadena el filtro de documentos
         loadUserProfile(); 
         loadBeneficiaries(); 
         checkPendingBeneficiaryRequests();

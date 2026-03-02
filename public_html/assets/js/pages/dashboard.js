@@ -910,7 +910,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         else if (val === 'Otro Banco') {
                             if (containerOtherBank) containerOtherBank.classList.remove('d-none');
                             if (inputOtherBank) inputOtherBank.required = true;
-                            if (labelAccount) labelAccount.textContent = 'Número de Cuenta';
+                            if (labelAccount) labelAccount.textContent = 'Número de Cuenta (Opcional)';
+                            if (inputAccount) inputAccount.required = false;
                             if (containerCCI) containerCCI.classList.remove('d-none');
                             if (inputCCI) inputCCI.required = true;
                         }
@@ -1014,10 +1015,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                 } else if (paisId === C_PERU) {
-                    if (accNum.length !== 14) {
-                        window.showInfoModal('Error', 'El número de cuenta en Perú debe tener 14 dígitos.', false);
-                        if (btn) { btn.disabled = false; btn.textContent = originalText; }
-                        return;
+                    const bancoSeleccionado = benefBankSelect ? benefBankSelect.value : '';
+                    if (bancoSeleccionado === 'Interbank') {
+                        if (accNum.length !== 14) {
+                            window.showInfoModal('Error', 'El número de cuenta Interbank debe tener 14 dígitos.', false);
+                            if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                            return;
+                        }
                     }
                 }
             }

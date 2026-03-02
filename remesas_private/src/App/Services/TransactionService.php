@@ -93,8 +93,8 @@ class TransactionService
     public function requestResume(int $txId, int $userId, string $mensaje, int $estadoId, ?array $beneficiaryData = null): bool
     {
         if ($beneficiaryData) {
-            if (empty($beneficiaryData['nombre']) || empty($beneficiaryData['cuenta'])) {
-                throw new Exception("Nombre y Cuenta son obligatorios para corregir.");
+            if (empty(trim($beneficiaryData['nombre']))) {
+                throw new Exception("El nombre del beneficiario es obligatorio para corregir la orden.");
             }
             $this->txRepository->updateBeneficiarySnapshot($txId, $beneficiaryData);
         }

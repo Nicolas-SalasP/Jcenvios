@@ -119,10 +119,14 @@ class CuentasBeneficiariasService
                 $data['numeroTelefono'] = null;
                 $data['tipoBeneficiario'] = 'Pago Móvil';
             } else {
-                if (empty($numeroCuenta))
-                    throw new Exception("El número de cuenta es obligatorio.", 400);
-                if (!$esInterbank && empty($data['cci'])) {
-                    throw new Exception("Para transferencias a '$nombreBanco' en Perú, el CCI es obligatorio.", 400);
+                if ($esInterbank) {
+                    if (empty($numeroCuenta)) {
+                        throw new Exception("El número de cuenta es obligatorio para Interbank.", 400);
+                    }
+                } else {
+                    if (empty($data['cci'])) {
+                        throw new Exception("Para transferencias a '$nombreBanco' en Perú, el CCI es obligatorio.", 400);
+                    }
                 }
                 $data['tipoBeneficiario'] = 'Cuenta Bancaria';
             }

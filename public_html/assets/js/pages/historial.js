@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                             </div>
                                             <div class="col-md-4">
                                                 <label class="form-label small fw-bold mb-1">N° Cuenta / CCI</label>
-                                                <input type="text" id="edit-benef-account" name="benefCuenta" class="form-control form-control-sm" required>
+                                                <input type="text" id="edit-benef-account" name="benefCuenta" class="form-control form-control-sm">
                                             </div>
                                             <div class="col-md-4">
                                                 <label class="form-label small fw-bold mb-1">Teléfono Móvil</label>
@@ -138,8 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     telefono: document.getElementById('edit-benef-phone').value.trim()
                 };
 
-                if (!beneficiaryData.nombre || !beneficiaryData.cuenta) {
-                    window.showInfoModal('Faltan Datos', 'El nombre y la cuenta del beneficiario son obligatorios.', false);
+                if (!beneficiaryData.nombre) {
+                    window.showInfoModal('Faltan Datos', 'El nombre del beneficiario es obligatorio para la corrección.', false);
                     return;
                 }
 
@@ -164,12 +164,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const formData = new FormData(form);
                     formData.append('beneficiaryData', JSON.stringify(beneficiaryData));
                     formData.append('txId', txId);
-                    
+
                     const res = await fetch('../api/?accion=resumeOrder', {
                         method: 'POST', body: formData
                     });
                     const result = await res.json();
-                    
+
                     if (!result.success) throw new Error(result.error || 'Error al reanudar orden.');
 
                     bootstrap.Modal.getInstance(document.getElementById('resumeOrderModal')).hide();
@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         montoInput.readOnly = false;
                         montoInput.classList.remove('bg-light');
                         montoInput.classList.add('border-warning', 'fw-bold');
-                        if(montoAlert) {
+                        if (montoAlert) {
                             montoAlert.innerHTML = '<i class="bi bi-unlock-fill"></i> Tienes autorización para corregir el monto de esta orden.';
                             montoAlert.classList.replace('d-none', 'd-block');
                         }
@@ -377,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         montoInput.readOnly = true;
                         montoInput.classList.add('bg-light');
                         montoInput.classList.remove('border-warning', 'fw-bold');
-                        if(montoAlert) montoAlert.classList.replace('d-block', 'd-none');
+                        if (montoAlert) montoAlert.classList.replace('d-block', 'd-none');
                     }
                 }
             }
