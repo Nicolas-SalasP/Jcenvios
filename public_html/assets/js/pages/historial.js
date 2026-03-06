@@ -681,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mediaEl.style.width = '100%';
                 mediaEl.style.height = '75vh';
                 mediaEl.style.border = '0';
+                setTimeout(() => modalPlaceholder.classList.add('d-none'), 500);
             } else {
                 mediaEl = document.createElement('img');
                 mediaEl.style.maxWidth = '100%';
@@ -688,17 +689,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 mediaEl.style.objectFit = 'contain';
                 mediaEl.style.display = 'block';
                 mediaEl.style.margin = '0 auto';
+
+                mediaEl.onload = () => modalPlaceholder.classList.add('d-none');
+                mediaEl.onerror = () => {
+                    modalPlaceholder.classList.add('d-none');
+                    modalContent.innerHTML = '<div class="text-danger bg-white p-3 rounded shadow mt-3"><i class="bi bi-exclamation-triangle"></i> No se pudo cargar la vista previa. Intenta descargarlo directamente.</div>';
+                };
+                setTimeout(() => modalPlaceholder.classList.add('d-none'), 3000);
             }
-            mediaEl.onload = () => modalPlaceholder.classList.add('d-none');
-            mediaEl.onerror = () => {
-                modalPlaceholder.classList.add('d-none');
-                modalContent.innerHTML = '<div class="text-white">No se pudo cargar la vista previa.</div>';
-            };
 
             mediaEl.src = finalUrl;
             modalContent.appendChild(mediaEl);
-
-            if (isPdf) setTimeout(() => modalPlaceholder.classList.add('d-none'), 1500);
 
             if (comprobantes.length > 1) {
                 if (navigationDiv) navigationDiv.classList.remove('d-none');

@@ -873,7 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     let msg = e.message || 'Error de red desconocido.';
                     if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-                        msg = 'Error de conexión. Verifica que el archivo no sea muy pesado (máximo recomendado 2MB) o tu conexión a internet.';
+                        msg = 'Error de conexión. Verifica que el archivo no sea muy pesado (máximo recomendado 5MB) o tu conexión a internet.';
                     }
                     window.showInfoModal('Error', msg, false);
                 } finally {
@@ -1104,13 +1104,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 4. Función de carga controlada
             const loadFile = async (fileUrl) => {
-                // Reset visual completo
                 imgEl.classList.add('d-none');
                 pdfEl.classList.add('d-none');
                 placeholder.classList.remove('d-none');
                 placeholder.innerHTML = '<div class="text-white mt-3"><span class="spinner-border spinner-border-sm mb-2"></span><br>Cargando documento...</div>';
-
-                // Limpiar fuentes anteriores para evitar parpadeos
                 imgEl.removeAttribute('src');
                 pdfEl.removeAttribute('src');
 
@@ -1128,7 +1125,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Detectar extensión
                 let ext = 'jpg';
                 if (fileUrl.includes('?')) {
                     const match = fileUrl.match(/file=([^&]+)/);
@@ -1137,29 +1133,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     ext = fileUrl.split('.').pop().toLowerCase();
                 }
 
-                // Configurar Botón Descarga
                 if (downloadBtn) {
                     downloadBtn.href = fileUrl;
                     downloadBtn.classList.remove('disabled');
                 }
 
                 if (['pdf'].includes(ext)) {
-                    try {
-                        const response = await fetch(fileUrl, { credentials: 'same-origin' });
-                        if (!response.ok) throw new Error('Error al obtener el PDF');
-
-                        const blob = await response.blob();
-                        const blobUrl = URL.createObjectURL(blob);
-
-                        pdfEl.src = blobUrl;
-                        pdfEl.classList.remove('d-none');
-                        placeholder.classList.add('d-none');
-                    } catch (err) {
-                        console.warn("Fallback PDF direct load:", err);
-                        pdfEl.src = fileUrl;
-                        pdfEl.classList.remove('d-none');
-                        placeholder.classList.add('d-none');
-                    }
+                    pdfEl.src = fileUrl;
+                    pdfEl.classList.remove('d-none');
+                    placeholder.classList.add('d-none');
                 } else {
                     imgEl.onerror = () => {
                         placeholder.innerHTML = '<div class="text-danger mt-3 bg-white p-2 rounded shadow"><i class="bi bi-exclamation-triangle"></i> Imagen corrupta o no encontrada.</div>';
@@ -1169,6 +1151,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         imgEl.classList.remove('d-none');
                     };
                     imgEl.src = fileUrl;
+                    setTimeout(() => {
+                        placeholder.classList.add('d-none');
+                        imgEl.classList.remove('d-none');
+                    }, 3000);
                 }
             };
 

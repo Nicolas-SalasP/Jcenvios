@@ -321,7 +321,7 @@ class TransactionRepository
 
     public function findByHash(string $fileHash): ?array
     {
-        $sql = "SELECT TransaccionID FROM transacciones WHERE ComprobanteHash = ? LIMIT 1";
+        $sql = "SELECT TransaccionID FROM transacciones WHERE ComprobanteHash = ? AND EstadoID != 5 LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("s", $fileHash);
         $stmt->execute();
