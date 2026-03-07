@@ -80,8 +80,8 @@ function showLockModal(status) {
             <div style="background: #fee2e2; color: #dc2626; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px;">
                 <i class="bi bi-lock-fill" style="font-size: 2.5rem;"></i>
             </div>
-            <h3 style="color: #111827; font-weight: 700; margin-bottom: 16px; font-size: 1.5rem;">Sistema en Mantenimiento</h3>
-            <p style="color: #4b5563; font-size: 1.1rem; line-height: 1.5; margin-bottom: 24px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
+            <h3 style="color: #111827; font-weight: 400; margin-bottom: 16px; font-size: 1.5rem;">Sistema en Mantenimiento</h3>
+            <p style="color: #1f2937; font-weight: 700; font-size: 1.1rem; line-height: 1.5; margin-bottom: 24px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
                 ${status.message}
             </p>
             <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
