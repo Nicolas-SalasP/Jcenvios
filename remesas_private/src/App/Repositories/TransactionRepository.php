@@ -106,6 +106,7 @@ class TransactionRepository
                     T.BeneficiarioTelefono,
                     
                     T.FormaPagoID, 
+                    FP.Nombre AS FormaPagoNombre,
                     T.EstadoID,
                     T.CuentaBeneficiariaID, 
                     P.NombrePais AS PaisDestino,
@@ -115,6 +116,7 @@ class TransactionRepository
                 JOIN cuentas_beneficiarias AS C ON T.CuentaBeneficiariaID = C.CuentaID
                 JOIN paises AS P ON C.PaisID = P.PaisID
                 LEFT JOIN estados_transaccion AS ET ON T.EstadoID = ET.EstadoID
+                LEFT JOIN formas_pago AS FP ON T.FormaPagoID = FP.FormaPagoID
                 WHERE T.UserID = ?
                 ORDER BY T.FechaTransaccion DESC";
 

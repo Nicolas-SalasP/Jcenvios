@@ -124,12 +124,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const txId = document.getElementById('resume-tx-id').value;
                 const mensaje = document.getElementById('resume-message').value.trim();
 
-                const originalMonto = parseFloat(montoInput.dataset.original);
-                let nuevoMonto = parseFloat(montoInput.value);
-                if (montoInput.dataset.moneda !== 'USD') {
-                    nuevoMonto = Math.floor(nuevoMonto);
+                let originalMonto = 0;
+                let nuevoMonto = 0;
+                let hasNewAmount = false;
+
+                if (montoInput && montoInput.dataset.original) {
+                    originalMonto = parseFloat(montoInput.dataset.original);
+                    nuevoMonto = parseFloat(montoInput.value);
+                    
+                    if (montoInput.dataset.moneda !== 'USD') {
+                        nuevoMonto = Math.floor(nuevoMonto);
+                    }
+                    if (!isNaN(nuevoMonto) && (nuevoMonto !== originalMonto)) {
+                        hasNewAmount = true;
+                    }
                 }
-                const hasNewAmount = !isNaN(nuevoMonto) && (nuevoMonto !== originalMonto);
+            
                 const beneficiaryData = {
                     nombre: document.getElementById('edit-benef-name').value.trim(),
                     documento: document.getElementById('edit-benef-doc').value.trim(),
@@ -231,6 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         data-monto="${tx.MontoOrigen}"
                         data-permitir="${tx.PermitirEdicionMonto || 0}"
                         data-moneda="${tx.MonedaOrigen || ''}"
+                        data-pais="${tx.PaisDestino || ''}"
                         data-benef-name="${tx.BeneficiarioNombre || tx.BeneficiarioAlias || ''}"
                         data-benef-doc="${tx.BeneficiarioDocumento || ''}"
                         data-benef-bank="${tx.BeneficiarioBanco || ''}"
@@ -244,9 +255,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 btns += `<button class="btn btn-sm btn-outline-danger cancel-btn" data-tx-id="${tx.TransaccionID}" title="Cancelar Orden"><i class="bi bi-x-circle"></i> Cancelar</button>`;
             }
             if (!tx.ComprobanteURL && estadoId === 1) {
-                btns += ` <button class="btn btn-sm btn-warning upload-btn" data-id="${tx.TransaccionID}" title="Subir Comprobante"><i class="bi bi-upload"></i> Subir Pago</button>`;
+                btns += ` <button class="btn btn-sm btn-warning upload-btn" data-id="${tx.TransaccionID}" data-pais="${tx.PaisDestino || ''}" data-cuenta="${tx.BeneficiarioNumeroCuenta || ''}" data-banco="${tx.BeneficiarioBanco || ''}" data-formapago="${tx.FormaPagoNombre || ''}" title="Subir Comprobante"><i class="bi bi-upload"></i> Subir Pago</button>`;
             } else if (tx.ComprobanteURL && ![4, 5, 6].includes(estadoId)) {
-                btns += ` <button class="btn btn-sm btn-secondary upload-btn" data-id="${tx.TransaccionID}" title="Modificar Pago"><i class="bi bi-pencil-square"></i> Modificar</button>`;
+                btns += ` <button class="btn btn-sm btn-secondary upload-btn" data-id="${tx.TransaccionID}" data-pais="${tx.PaisDestino || ''}" data-cuenta="${tx.BeneficiarioNumeroCuenta || ''}" data-banco="${tx.BeneficiarioBanco || ''}" data-formapago="${tx.FormaPagoNombre || ''}" title="Modificar Pago"><i class="bi bi-pencil-square"></i> Modificar</button>`;
             }
 
             if (tx.ComprobanteURL) {
@@ -333,6 +344,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 const txIdField = document.getElementById('transactionIdField');
                 const txLabel = document.getElementById('modal-tx-id');
                 const modalEl = document.getElementById('uploadReceiptModal');
+                
+                const paisDestino = btn.dataset.pais;
+                const cuenta = btn.dataset.cuenta;
+                const banco = btn.dataset.banco;
+                const formaPago = btn.dataset.formapago || '';
+                const isVzlaPagoMovil = (paisDestino === 'Venezuela' && (cuenta === 'PAGO MOVIL' || banco === 'Pago Móvil'));
+                const isCajaVecina = formaPago.toLowerCase().includes('caja vecina');
+                const titularContainer = document.getElementById('container-titular-origen');
+                const rutInput = document.getElementById('rutTitularOrigen');
+                const nombreInput = document.getElementById('nombreTitularOrigen');
+                
+                if (isVzlaPagoMovil || isCajaVecina) {
+                    if (titularContainer) titularContainer.classList.add('d-none');
+                    if (rutInput) rutInput.required = false;
+                    if (nombreInput) nombreInput.required = false;
+                } else {
+                    if (titularContainer) titularContainer.classList.remove('d-none');
+                    if (rutInput) rutInput.required = true;
+                    if (nombreInput) nombreInput.required = true;
+                }
+
                 if (txIdField) txIdField.value = btn.dataset.id;
                 if (txLabel) txLabel.textContent = btn.dataset.id;
                 if (modalEl) new bootstrap.Modal(modalEl).show();
@@ -346,6 +378,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     'edit-benef-account': btn.dataset.benefAccount,
                     'edit-benef-phone': btn.dataset.benefPhone
                 };
+                const paisDestino = btn.dataset.pais;
+                const labelCuenta = document.getElementById('edit-benef-account').previousElementSibling;
+                const labelTelefono = document.getElementById('edit-benef-phone').previousElementSibling;
+
+                if (paisDestino === 'Perú') {
+                    if (labelCuenta) labelCuenta.textContent = 'CCI / N° Cuenta';
+                    if (labelTelefono) labelTelefono.textContent = 'PLIN / YAPE';
+                } else if (paisDestino === 'Venezuela') {
+                    if (labelCuenta) labelCuenta.textContent = 'N° Cuenta';
+                    if (labelTelefono) labelTelefono.textContent = 'Pago Móvil';
+                } else {
+                    if (labelCuenta) labelCuenta.textContent = 'N° Cuenta / CCI';
+                    if (labelTelefono) labelTelefono.textContent = 'Teléfono Móvil';
+                }
 
                 for (const [id, value] of Object.entries(inputs)) {
                     const el = document.getElementById(id);
@@ -511,7 +557,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const originalText = submitBtn.textContent;
             const rutOrigen = document.getElementById('rutTitularOrigen').value.trim();
             const nombreOrigen = document.getElementById('nombreTitularOrigen').value.trim();
-            if (!rutOrigen || !nombreOrigen) {
+            const titularContainer = document.getElementById('container-titular-origen');
+            const isVzlaPagoMovil = titularContainer && titularContainer.classList.contains('d-none');
+
+            if (!isVzlaPagoMovil && (!rutOrigen || !nombreOrigen)) {
                 window.showInfoModal('Faltan Datos', 'Debes completar los Datos del Titular de la cuenta origen.', false);
                 return;
             }

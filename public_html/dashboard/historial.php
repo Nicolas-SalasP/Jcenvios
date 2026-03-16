@@ -115,7 +115,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
                 <form id="upload-receipt-form" enctype="multipart/form-data">
                     
-                    <div class="mb-3 p-3 bg-light border rounded">
+                    <div class="mb-3 p-3 bg-light border rounded" id="container-titular-origen">
                         <label class="form-label fw-bold text-primary small">DATOS DEL TITULAR DE LA CUENTA CON LA QUE SE TRANSFERIRA</label>
                         
                         <div class="alert alert-info py-2 px-3 mb-3" style="font-size: 0.85rem;">

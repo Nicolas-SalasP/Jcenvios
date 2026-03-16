@@ -376,11 +376,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!wizardContainer) {
                         throw new Error("No se encontró el contenedor para mostrar el formulario de carga.");
                     }
-
                     const paisOrigenVal = parseInt(paisOrigenSelect.value);
+                    const paisDestinoVal = parseInt(paisDestinoSelect.value);
                     const esColombia = (paisOrigenVal === C_COLOMBIA);
                     const esChile = (paisOrigenVal === 1);
-                    const requiereRut = !esColombia;
+                    
+                    const checkedRadio = document.querySelector('input[name="beneficiary-radio"]:checked');
+                    const nombreBancoDestino = checkedRadio ? (checkedRadio.dataset.banco || '').toUpperCase() : '';
+                    
+                    const isVzlaPagoMovil = (paisDestinoVal === C_VENEZUELA && (nombreBancoDestino.includes('PAGO MOVIL') || nombreBancoDestino.includes('PAGO MÓVIL')));
+                    const isCajaVecina = (formaDePagoSelect.value || '').toUpperCase().includes('CAJA VECINA');
+                    const requiereRut = !esColombia && !isVzlaPagoMovil && !isCajaVecina;
                     const displayRutStyle = requiereRut ? '' : 'd-none';
                     const requiredRut = requiereRut ? 'required' : '';
 
@@ -414,13 +420,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <form id="form-comprobante-express">
                                     <input type="hidden" name="transactionId" value="${finalId}">
                                     
-                                    <div class="form-floating mb-3 text-start ${displayRutStyle}">
+                                    <div id="container-rut-titular" class="form-floating mb-3 text-start ${displayRutStyle}">
                                         <input type="text" class="form-control" id="rut_titular_pago" name="rutTitularOrigen" ${requiredRut} placeholder="Documento / RUT">
                                         <label for="rut_titular_pago">Documento / RUT del Titular</label>
                                     </div>
 
-                                    <div class="form-floating mb-3 text-start">
-                                        <input type="text" class="form-control" id="nombre_titular_pago" name="nombreTitularOrigen" required placeholder="Nombre Completo">
+                                    <div id="container-nombre-titular" class="form-floating mb-3 text-start ${displayRutStyle}">
+                                        <input type="text" class="form-control" id="nombre_titular_pago" name="nombreTitularOrigen" ${requiredRut} placeholder="Nombre Completo">
                                         <label for="nombre_titular_pago">Nombre del Titular (Quien transfirió)</label>
                                     </div>
 
@@ -455,6 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const fd = new FormData(this);
                         if (!requiereRut) {
                             fd.set('rutTitularOrigen', 'N/A');
+                            fd.set('nombreTitularOrigen', 'N/A');
                         }
 
                         try {
