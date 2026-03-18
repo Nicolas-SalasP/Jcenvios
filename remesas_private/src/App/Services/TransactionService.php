@@ -129,6 +129,9 @@ class TransactionService
         if ($affectedRows === 0) {
             throw new Exception("No se puede cancelar la transacción en su estado actual.", 409);
         }
+        if (method_exists($this->txRepository, 'clearComprobanteHash')) {
+            $this->txRepository->clearComprobanteHash($txId);
+        }
 
         $this->notificationService->logAdminAction($userId, 'Usuario canceló transacción', "TX ID: $txId");
         return true;
@@ -420,6 +423,9 @@ class TransactionService
 
         if ($affectedRows === 0) {
             throw new Exception("No se pudo rechazar. El estado actual no permite esta acción.", 409);
+        }
+        if (method_exists($this->txRepository, 'clearComprobanteHash')) {
+            $this->txRepository->clearComprobanteHash($txId);
         }
 
         if ($isSoftReject) {

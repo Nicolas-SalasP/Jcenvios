@@ -694,6 +694,15 @@ class TransactionRepository
         return (int) ($res['total'] ?? 0);
     }
 
+    public function clearComprobanteHash(int $txId): void
+    {
+        $sql = "UPDATE transacciones SET ComprobanteHash = NULL WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $txId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
     // =======================================================
     // NOTIFICACIONES ADMINISTRADOR
     // =======================================================
