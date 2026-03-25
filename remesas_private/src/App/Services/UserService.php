@@ -308,6 +308,9 @@ class UserService
         // 5. Actualizar estado de verificación en BD
         if ($this->userRepository->updateVerificationDocuments($userId, $pathFrente, $pathReverso, $estadoPendienteID)) {
             $this->notificationService->logAdminAction($userId, 'Subida Documentos Verificación', "Usuario ID: $userId. Selfie actualizada y docs subidos.");
+            if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id']) && $_SESSION['user_id'] == $userId) {
+                $_SESSION['verification_status'] = 'Pendiente';
+            }
         } else {
             @unlink($this->fileHandler->getAbsolutePath($pathFrente));
             @unlink($this->fileHandler->getAbsolutePath($pathReverso));

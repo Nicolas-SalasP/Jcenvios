@@ -478,7 +478,7 @@ class UserRepository
                 WHERE U.Eliminado = 0 AND U.VerificacionEstadoID = ?
                 ORDER BY 
                     CASE WHEN U.UserID = 1 THEN 0 ELSE 1 END,
-                    U.FechaRegistro DESC
+                    U.UserID DESC
                 LIMIT ? OFFSET ?";
 
         $stmt = $this->db->prepare($sql);

@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const modalEl = document.getElementById('confirmModal');
             if (!modalEl) return resolve(confirm(message));
 
-            const modal = new bootstrap.Modal(modalEl);
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
             const titleEl = document.getElementById('confirmModalTitle');
             const bodyEl = document.getElementById('confirmModalBody');
 
@@ -273,6 +273,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const fetchRates = async () => {
+        const nextBtn = document.getElementById('next-btn');
+        if (nextBtn) nextBtn.disabled = true;
         const origenID = paisOrigenSelect.value;
         const destinoID = paisDestinoSelect.value;
         if (!origenID || !destinoID) return;
@@ -301,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (montoParaTasa > 0 && montoParaTasa < 10) montoParaTasa = 0;
         await performRateFetch(origenID, destinoID, montoParaTasa);
         recalculateAll();
+        if (nextBtn) nextBtn.disabled = false;
     };
 
     const handleInput = (e) => {
@@ -378,12 +381,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     const paisOrigenVal = parseInt(paisOrigenSelect.value);
                     const paisDestinoVal = parseInt(paisDestinoSelect.value);
-                    const esColombia = (paisOrigenVal === C_COLOMBIA);
-                    const esChile = (paisOrigenVal === 1);
-                    
+                    const selectedOrigenOpt = paisOrigenSelect.options[paisOrigenSelect.selectedIndex];
+                    const monedaOrigen = selectedOrigenOpt ? selectedOrigenOpt.dataset.currency : '';
+
+                    const esColombia = (monedaOrigen === 'COP');
+                    const esChile = (monedaOrigen === 'CLP');
+                    const esPeru = (monedaOrigen === 'PEN');
+                    const isVenezuela = (paisDestinoSelect.options[paisDestinoSelect.selectedIndex]?.dataset.currency === 'VES');
+
                     const checkedRadio = document.querySelector('input[name="beneficiary-radio"]:checked');
                     const nombreBancoDestino = checkedRadio ? (checkedRadio.dataset.banco || '').toUpperCase() : '';
-                    
+
                     const isVzlaPagoMovil = (paisDestinoVal === C_VENEZUELA && (nombreBancoDestino.includes('PAGO MOVIL') || nombreBancoDestino.includes('PAGO MÓVIL')));
                     const isCajaVecina = (formaDePagoSelect.value || '').toUpperCase().includes('CAJA VECINA');
                     const requiereRut = !esColombia && !isVzlaPagoMovil && !isCajaVecina;
@@ -1198,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const resp = await fetch('../api/?accion=getPendingBeneficiaryRequests');
             const data = await resp.json();
-            
+
             if (data.success && data.requests && data.requests.length > 0) {
                 showZeroTrustAuthorizationModal(data.requests[0]);
             }
@@ -1212,7 +1220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (existing) existing.remove();
 
         let camposArray = [];
-        try { camposArray = JSON.parse(request.CamposSolicitados); } catch(e) {}
+        try { camposArray = JSON.parse(request.CamposSolicitados); } catch (e) { }
         const camposText = camposArray.length > 0 ? camposArray.join(', ') : 'Datos generales';
 
         const modalHtml = `
@@ -1272,15 +1280,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         modal.hide();
                         if (window.showInfoModal) {
                             window.showInfoModal(
-                                "Auditoría Registrada", 
-                                responseType === 'Aprobada' ? 'Has autorizado la edición. El administrador ha sido notificado.' : 'Has rechazado la edición. Tus datos se mantendrán intactos.', 
+                                "Auditoría Registrada",
+                                responseType === 'Aprobada' ? 'Has autorizado la edición. El administrador ha sido notificado.' : 'Has rechazado la edición. Tus datos se mantendrán intactos.',
                                 true
                             );
                         }
-                        
+
                         const paisId = document.getElementById('pais-destino')?.value;
                         if (paisId) loadBeneficiaries(paisId);
-                        setTimeout(checkPendingBeneficiaryRequests, 1000); 
+                        setTimeout(checkPendingBeneficiaryRequests, 1000);
 
                     } else {
                         alert("Error: " + data.error);

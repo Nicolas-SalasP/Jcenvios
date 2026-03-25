@@ -119,13 +119,14 @@ if (!$isAjax) {
                                     <td><?php echo date("d/m/Y", strtotime($user['FechaRegistro'])); ?></td>
                                     <td>
                                         <?php if ($tieneDocs): ?>
+                                            <?php $cacheBuster = time(); ?>
                                             <button class="btn btn-primary btn-sm view-verification-btn" data-bs-toggle="modal"
                                                 data-bs-target="#verificationModal" 
                                                 data-user-id="<?php echo $user['UserID']; ?>"
                                                 data-user-name="<?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?>"
-                                                data-img-frente="<?php echo htmlspecialchars($user['DocumentoImagenURL_Frente']); ?>"
-                                                data-img-reverso="<?php echo htmlspecialchars($user['DocumentoImagenURL_Reverso']); ?>"
-                                                data-foto-perfil="<?php echo htmlspecialchars($user['FotoPerfilURL']); ?>"
+                                                data-img-frente="<?php echo htmlspecialchars($user['DocumentoImagenURL_Frente']); ?>?v=<?php echo $cacheBuster; ?>"
+                                                data-img-reverso="<?php echo htmlspecialchars($user['DocumentoImagenURL_Reverso']); ?>?v=<?php echo $cacheBuster; ?>"
+                                                data-foto-perfil="<?php echo htmlspecialchars($user['FotoPerfilURL']); ?>?v=<?php echo $cacheBuster; ?>"
                                                 data-full-name="<?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . ($user['SegundoNombre'] ?? '') . ' ' . $user['PrimerApellido'] . ' ' . ($user['SegundoApellido'] ?? '')); ?>"
                                                 data-email="<?php echo htmlspecialchars($user['Email']); ?>"
                                                 data-phone="<?php echo htmlspecialchars($user['Telefono']); ?>"
