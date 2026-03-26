@@ -320,9 +320,11 @@ document.addEventListener('DOMContentLoaded', () => {
             els.phone.textContent = btn.dataset.phone || 'N/A';
             els.doc.textContent = `${btn.dataset.docType || 'Doc'}: ${btn.dataset.docNum || 'N/A'}`;
 
-            const urlFrente = btn.dataset.imgFrente ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.imgFrente)}` : '';
-            const urlReverso = btn.dataset.imgReverso ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.imgReverso)}` : '';
-            const urlPerfil = btn.dataset.fotoPerfil ? `../admin/view_secure_file.php?file=${encodeURIComponent(btn.dataset.fotoPerfil)}` : defaultProfilePic;
+            const getCleanUrl = (path) => path ? `../admin/view_secure_file.php?file=${encodeURIComponent(path.split('?')[0])}&v=${new Date().getTime()}` : '';
+            
+            const urlFrente = getCleanUrl(btn.dataset.imgFrente);
+            const urlReverso = getCleanUrl(btn.dataset.imgReverso);
+            const urlPerfil = btn.dataset.fotoPerfil ? getCleanUrl(btn.dataset.fotoPerfil) : defaultProfilePic;
 
             if (els.imgProfile) els.imgProfile.src = urlPerfil;
 
@@ -627,7 +629,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (path && path.trim() !== '') {
-                    const fullPath = `../admin/view_secure_file.php?file=${encodeURIComponent(path)}&t=${new Date().getTime()}`;
+                    const cleanPath = path.split('?')[0]; 
+                    const fullPath = `../admin/view_secure_file.php?file=${encodeURIComponent(cleanPath)}&t=${new Date().getTime()}`;
                     imgEl.src = fullPath;
                     linkEl.href = fullPath;
                     linkEl.classList.remove('disabled');
