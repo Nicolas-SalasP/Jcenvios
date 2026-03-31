@@ -499,4 +499,15 @@ class UserRepository
         $stmt->close();
         return (int)($result['total'] ?? 0);
     }
+
+    public function logDocumentHistory(int $userId, string $tipo, string $ruta, ?int $adminId, ?string $motivo): bool
+    {
+        $sql = "INSERT INTO historial_documentos_usuarios (UserID, TipoArchivo, RutaArchivo, AdminID, Motivo) 
+                VALUES (?, ?, ?, ?, ?)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("issis", $userId, $tipo, $ruta, $adminId, $motivo);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
 }

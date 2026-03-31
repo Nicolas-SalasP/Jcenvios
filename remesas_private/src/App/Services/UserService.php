@@ -569,11 +569,14 @@ class UserService
 
     // --- MÉTODOS PARA EDICIÓN POR ADMIN ---
 
-    public function updateProfilePicPath(int $userId, string $newPath): void
+    public function updateProfilePicPath(int $userId, string $newPath, ?int $adminId = null, ?string $motivo = null): void
     {
         $user = $this->userRepository->findUserById($userId);
         if (!$user) {
             throw new Exception("Usuario no encontrado.", 404);
+        }
+        if (method_exists($this->userRepository, 'logDocumentHistory')) {
+            $this->userRepository->logDocumentHistory($userId, 'perfil', $newPath, $adminId, $motivo);
         }
         $currentPhone = $user['Telefono'] ?? '';
         if (!$this->userRepository->updateProfileInfo($userId, $currentPhone, $newPath)) {
@@ -581,11 +584,14 @@ class UserService
         }
     }
 
-    public function updateVerificationDocPath(int $userId, string $docType, string $newPath): void
+    public function updateVerificationDocPath(int $userId, string $docType, string $newPath, ?int $adminId = null, ?string $motivo = null): void
     {
         $user = $this->userRepository->findUserById($userId);
         if (!$user) {
             throw new Exception("Usuario no encontrado.", 404);
+        }
+        if (method_exists($this->userRepository, 'logDocumentHistory')) {
+            $this->userRepository->logDocumentHistory($userId, $docType, $newPath, $adminId, $motivo);
         }
 
         $pathFrente = $user['DocumentoImagenURL_Frente'] ?? '';

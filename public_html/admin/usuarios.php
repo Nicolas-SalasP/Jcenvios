@@ -414,6 +414,7 @@ if (!$isAjax) {
             </div>
             <div class="modal-body">
                 <input type="hidden" id="viewDocsUserId">
+                <input type="file" id="adminHiddenFileInput" accept="image/jpeg, image/png, image/webp" class="d-none">
                 <div class="row g-4">
                     <div class="col-lg-4 text-center border-end">
                         <h6 class="text-muted mb-3">Foto de Perfil</h6>
@@ -421,7 +422,8 @@ if (!$isAjax) {
                             <img id="docsProfilePic" src="" class="rounded-circle shadow-sm border" style="width: 180px; height: 180px; object-fit: cover;">
                             <div class="mt-2">
                                 <a id="btnProfileView" href="#" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver"><i class="bi bi-eye"></i></a>
-                                <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="perfil" title="Editar"><i class="bi bi-pencil"></i></button>
+                                <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="perfil" title="Recortar Actual"><i class="bi bi-crop"></i></button>
+                                <button type="button" class="btn btn-sm btn-outline-success btn-upload-admin-doc" data-doc-type="perfil" title="Subir Nuevo"><i class="bi bi-upload"></i></button>
                                 <a id="btnProfileDown" href="#" download class="btn btn-sm btn-outline-dark" title="Descargar"><i class="bi bi-download"></i></a>
                             </div>
                         </div>
@@ -436,7 +438,8 @@ if (!$isAjax) {
                                 </div>
                                 <div class="mt-2 btn-group">
                                     <a id="btnFrenteView" href="#" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
-                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="frente"><i class="bi bi-pencil"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="frente" title="Recortar Actual"><i class="bi bi-crop"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-success btn-upload-admin-doc" data-doc-type="frente" title="Subir Nuevo"><i class="bi bi-upload"></i></button>
                                     <a id="btnFrenteDown" href="#" download class="btn btn-sm btn-outline-dark"><i class="bi bi-download"></i></a>
                                 </div>
                             </div>
@@ -448,7 +451,8 @@ if (!$isAjax) {
                                 </div>
                                 <div class="mt-2 btn-group">
                                     <a id="btnReversoView" href="#" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
-                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="reverso"><i class="bi bi-pencil"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark btn-edit-admin-doc" data-doc-type="reverso" title="Recortar Actual"><i class="bi bi-crop"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-success btn-upload-admin-doc" data-doc-type="reverso" title="Subir Nuevo"><i class="bi bi-upload"></i></button>
                                     <a id="btnReversoDown" href="#" download class="btn btn-sm btn-outline-dark"><i class="bi bi-download"></i></a>
                                 </div>
                             </div>

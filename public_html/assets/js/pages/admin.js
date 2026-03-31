@@ -99,6 +99,68 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.show();
     };
 
+    window.showPromptModal = (title, message, placeholder = '') => {
+        return new Promise((resolve) => {
+            const id = 'js-global-prompt-modal';
+            const existing = document.getElementById(id);
+            if (existing) existing.remove();
+
+            const modalEl = document.createElement('div');
+            modalEl.id = id;
+            modalEl.className = 'modal fade';
+            modalEl.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>${title}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-4 fs-6">
+                            <p class="mb-3 text-dark">${message}</p>
+                            <textarea id="js-global-prompt-input" class="form-control" rows="3" placeholder="${placeholder}"></textarea>
+                        </div>
+                        <div class="modal-footer bg-light border-0">
+                            <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary px-4" id="js-global-prompt-btn">Confirmar y Guardar</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modalEl);
+
+            const modal = new bootstrap.Modal(modalEl);
+            const confirmBtn = document.getElementById('js-global-prompt-btn');
+            const inputEl = document.getElementById('js-global-prompt-input');
+
+            let isConfirmed = false;
+
+            confirmBtn.onclick = () => {
+                const val = inputEl.value.trim();
+                if (val.length < 5) {
+                    window.showInfoModal('Faltan Datos', 'El motivo es obligatorio y debe tener al menos 5 caracteres', false);
+                    return;
+                }
+                isConfirmed = true;
+                modal.hide();
+                resolve(val);
+            };
+
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (!isConfirmed) resolve(null);
+                modalEl.remove();
+                setTimeout(() => {
+                    if (!document.querySelector('.modal.show')) {
+                        document.body.classList.remove('modal-open');
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
+                        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    }
+                }, 100);
+            });
+
+            modal.show();
+        });
+    };
+
     window.copyToClipboard = (elementId, btnElement) => {
         const input = document.getElementById(elementId);
         if (!input) return;
@@ -1396,16 +1458,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (rotateRight) rotateRight.addEventListener('click', () => adminCropper && adminCropper.rotate(90));
         const saveBtn = document.getElementById('admin-crop-confirm');
         if (saveBtn) {
-            saveBtn.addEventListener('click', () => {
+            saveBtn.replaceWith(saveBtn.cloneNode(true));
+            const newSaveBtn = document.getElementById('admin-crop-confirm');
+
+            newSaveBtn.addEventListener('click', async () => {
                 if (!adminCropper) return;
                 if (!currentEditingUserId) {
-                    alert("Error crítico: Se perdió el ID del usuario.");
+                    window.showInfoModal('Error Crítico', 'Se perdió el ID del usuario.', false);
                     return;
                 }
+                const motivo = await window.showPromptModal(
+                    'Auditoría de Cambio', 
+                    'Estás reemplazando un documento en la ficha del usuario. Ingresa el motivo para el historial (Mín. 5 caracteres):',
+                    'Ej: Actualización de documento vencido'
+                );
+                
+                if (!motivo) return; 
 
-                const originalText = saveBtn.innerHTML;
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+                const originalText = newSaveBtn.innerHTML;
+                newSaveBtn.disabled = true;
+                newSaveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
 
                 adminCropper.getCroppedCanvas({
                     width: 1280,
@@ -1417,6 +1489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const formData = new FormData();
                     formData.append('userId', currentEditingUserId);
                     formData.append('docType', currentEditDocType);
+                    formData.append('motivo', motivo); // Se va al backend para historial
                     formData.append('newDocFile', blob, 'edited_by_admin.jpg');
 
                     try {
@@ -1427,8 +1500,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         const result = await res.json();
 
                         if (result.success) {
-                            const newUrl = `../admin/view_secure_file.php?file=${encodeURIComponent(result.newPath)}&t=${new Date().getTime()}`;
-
+                            const cleanPath = result.newPath.split('?')[0];
+                            const newUrl = `../admin/view_secure_file.php?file=${encodeURIComponent(cleanPath)}&t=${new Date().getTime()}`;
                             if (currentEditDocType === 'perfil') {
                                 const img = document.getElementById('docsProfilePic');
                                 const link = document.getElementById('btnProfileView');
@@ -1445,23 +1518,82 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (img) img.src = newUrl;
                                 if (link) link.href = newUrl;
                             }
+
+                            const tableBtn = document.querySelector(`.view-user-docs-btn[data-user-id="${currentEditingUserId}"]`);
+                            if (tableBtn) {
+                                if (currentEditDocType === 'perfil') tableBtn.dataset.fotoPerfil = cleanPath;
+                                else if (currentEditDocType === 'frente') tableBtn.dataset.imgFrente = cleanPath;
+                                else if (currentEditDocType === 'reverso') tableBtn.dataset.imgReverso = cleanPath;
+                            }
+                            
                             adminCropModal.hide();
+                            setTimeout(() => {
+                                window.showInfoModal('Éxito', 'Documento actualizado y registrado en la bitácora de auditoría.', true);
+                                const modalesAbiertos = document.querySelectorAll('.modal.show').length;
+                                const fondosOscuros = document.querySelectorAll('.modal-backdrop');
+                                if (fondosOscuros.length > modalesAbiertos) {
+                                    fondosOscuros.forEach((fondo, index) => {
+                                        if (index >= modalesAbiertos) fondo.remove();
+                                    });
+                                }
+                            }, 400);
 
                         } else {
-                            alert('Error al guardar: ' + (result.error || 'Desconocido'));
+                            window.showInfoModal('Error al Guardar', result.error || 'Ocurrió un error desconocido.', false);
                         }
                     } catch (e) {
                         console.error(e);
-                        alert('Error de conexión al guardar.');
+                        window.showInfoModal('Error de Conexión', 'No se pudo contactar con el servidor. Revisa tu red.', false);
                     } finally {
-                        saveBtn.disabled = false;
-                        saveBtn.innerHTML = originalText;
+                        newSaveBtn.disabled = false;
+                        newSaveBtn.innerHTML = originalText;
                     }
 
                 }, 'image/jpeg', 0.85);
             });
         }
     }
+
+    const adminFileInput = document.getElementById('adminHiddenFileInput');
+    document.addEventListener('click', (e) => {
+        const uploadBtn = e.target.closest('.btn-upload-admin-doc');
+        if (uploadBtn) {
+            const hiddenInput = document.getElementById('viewDocsUserId');
+            if (hiddenInput && hiddenInput.value) {
+                currentEditingUserId = hiddenInput.value;
+            } else {
+                window.showInfoModal('Error', 'No se pudo identificar el ID del usuario.', false);
+                return;
+            }
+            
+            currentEditDocType = uploadBtn.dataset.docType;
+            if(adminFileInput) adminFileInput.click();
+        }
+    });
+
+    if (adminFileInput) {
+        adminFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            e.target.value = '';
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                adminImageToCrop.src = event.target.result;
+                const docsModalEl = document.getElementById('userDocsModal');
+                if (docsModalEl) {
+                    const docsModal = bootstrap.Modal.getInstance(docsModalEl);
+                    if (docsModal) docsModal.hide();
+                }
+                const cropModalEl = document.getElementById('adminCropModal');
+                if (cropModalEl) {
+                    bootstrap.Modal.getOrCreateInstance(cropModalEl).show();
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    // =====================================================
 
     // =================================================
     // 9. GESTIÓN DE BENEFICIARIOS (VISUAL MEJORADA)

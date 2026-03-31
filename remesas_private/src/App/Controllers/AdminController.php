@@ -471,16 +471,18 @@ class AdminController extends BaseController
         $userId = (int) $_POST['userId'];
         $docType = $_POST['docType'];
         $fileData = $_FILES['newDocFile'];
+        $motivo = $_POST['motivo'] ?? 'Corrección visual por el Administrador';
+        $adminId = $_SESSION['user_id'] ?? null;
 
         try {
             $newPath = '';
 
             if ($docType === 'perfil') {
                 $newPath = $this->fileHandler->saveUserProfileImage($fileData, $userId);
-                $this->userService->updateProfilePicPath($userId, $newPath);
+                $this->userService->updateProfilePicPath($userId, $newPath, $adminId, $motivo);
             } elseif ($docType === 'frente' || $docType === 'reverso') {
                 $newPath = $this->fileHandler->saveVerificationDoc($fileData, $userId, $docType);
-                $this->userService->updateVerificationDocPath($userId, $docType, $newPath);
+                $this->userService->updateVerificationDocPath($userId, $docType, $newPath, $adminId, $motivo);
             } else {
                 throw new Exception("Tipo de documento no válido.");
             }
