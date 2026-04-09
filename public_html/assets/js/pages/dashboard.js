@@ -1150,9 +1150,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const minutes = chileTime.getMinutes();
         const totalMinutes = hour * 60 + minutes;
 
-        const startMinutes = 10 * 60 + 30; // 10:30 AM (630 min)
-        const endWeekday = 20 * 60;        // 20:00 PM (1200 min)
-        const endSaturday = 16 * 60;       // 16:00 PM (960 min)
+        const startMinutes = 10 * 60;        // 10:00 AM (600 min)
+        const endWeekday = 19 * 60 + 30;     // 19:30 PM (1170 min)
+        const endSaturday = 16 * 60;         // 16:00 PM (960 min)
 
         if (day >= 1 && day <= 5) {
             return (totalMinutes >= startMinutes && totalMinutes < endWeekday);

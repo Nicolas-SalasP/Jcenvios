@@ -35,9 +35,20 @@ class PricingService
     {
         $settings = $this->getGlobalAdjustmentSettings();
         $horaActual = date('H:i');
+        $diaSemana = (int) date('N');
         $hoy = date('Y-m-d');
 
-        if ($horaActual !== $settings['time']) {
+        // === LÓGICA DE HORARIO DINÁMICO SEGÚN EL DÍA ===
+        $horaTarget = '';
+        if ($diaSemana >= 1 && $diaSemana <= 5) {
+            $horaTarget = '19:30';
+        } elseif ($diaSemana === 6) {
+            $horaTarget = '16:00';
+        } else {
+            return false;
+        }
+
+        if ($horaActual !== $horaTarget) {
             return false;
         }
         $ultimaEjecucion = $settings['last_run'] ? date('Y-m-d', strtotime($settings['last_run'])) : '';
