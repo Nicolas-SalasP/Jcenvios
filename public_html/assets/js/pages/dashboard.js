@@ -442,6 +442,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <label class="form-label small fw-bold">Adjuntar Comprobante</label>
                                         <input class="form-control" type="file" id="comprobante_file" name="receiptFile" accept="image/*,.pdf" required>
                                     </div>
+                                    <div id="express-preview-container" class="mt-3 mb-3 text-center d-none">
+                                        <img id="express-preview-img" class="img-fluid rounded border d-none" style="max-height: 250px; object-fit: contain;" alt="Vista previa">
+                                        <div id="express-preview-pdf" class="alert alert-info d-none p-2 mb-0">
+                                            <strong><i class="fas fa-file-pdf text-danger"></i> Documento PDF seleccionado</strong>
+                                        </div>
+                                    </div>
 
                                     <button type="submit" class="btn btn-primary w-100 py-3 fw-bold fs-5" id="btn-subir-express">
                                         <i class="bi bi-cloud-upload-fill me-2"></i> Subir y Finalizar
@@ -457,6 +463,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (typeof RutValidator !== 'undefined' && esChile) {
                         new RutValidator(document.getElementById('rut_titular_pago'));
+                    }
+                    
+                    const expressFileInput = document.getElementById('comprobante_file');
+                    const previewContainer = document.getElementById('express-preview-container');
+                    const previewImg = document.getElementById('express-preview-img');
+                    const previewPdf = document.getElementById('express-preview-pdf');
+
+                    if (expressFileInput) {
+                        expressFileInput.addEventListener('change', function(e) {
+                        const file = e.target.files[0];
+                        if (file) {
+                            previewContainer.classList.remove('d-none');
+                            if (file.type.startsWith('image/')) {
+                                const reader = new FileReader();
+                                reader.onload = function(evt) {
+                                    previewImg.src = evt.target.result;
+                                    previewImg.classList.remove('d-none');
+                                    previewPdf.classList.add('d-none');
+                                }
+                            reader.readAsDataURL(file);
+                            } else if (file.type === 'application/pdf') {
+                                previewImg.classList.add('d-none');
+                                previewPdf.classList.remove('d-none');
+                                }
+                            } else {
+                                previewContainer.classList.add('d-none');
+                            }
+                        });
                     }
 
                     document.getElementById('form-comprobante-express').addEventListener('submit', async function (ev) {
