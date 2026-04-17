@@ -140,6 +140,12 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         </div>
                         <input class="form-control" type="file" id="receiptFile" name="receiptFile" accept="image/png, image/jpeg, application/pdf" capture="environment" required>
                     </div>
+                    <div id="historial-preview-container" class="mt-3 mb-3 text-center d-none">
+                        <img id="historial-preview-img" class="img-fluid rounded border d-none" style="max-height: 250px; object-fit: contain;" alt="Vista previa">
+                        <div id="historial-preview-pdf" class="alert alert-info d-none p-2 mb-0">
+                            <strong><i class="fas fa-file-pdf text-danger"></i> Documento PDF seleccionado</strong>
+                        </div>
+                    </div>
                     <input type="hidden" id="transactionIdField" name="transactionId">
                     <div class="d-grid"><button type="submit" class="btn btn-primary">Subir Archivo</button></div>
                 </form>

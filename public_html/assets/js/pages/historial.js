@@ -255,9 +255,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 btns += `<button class="btn btn-sm btn-outline-danger cancel-btn" data-tx-id="${tx.TransaccionID}" title="Cancelar Orden"><i class="bi bi-x-circle"></i> Cancelar</button>`;
             }
             if (!tx.ComprobanteURL && estadoId === 1) {
-                btns += ` <button class="btn btn-sm btn-warning upload-btn" data-id="${tx.TransaccionID}" data-pais="${tx.PaisDestino || ''}" data-cuenta="${tx.BeneficiarioNumeroCuenta || ''}" data-banco="${tx.BeneficiarioBanco || ''}" data-formapago="${tx.FormaPagoNombre || ''}" title="Subir Comprobante"><i class="bi bi-upload"></i> Subir Pago</button>`;
+                btns += ` <button class="btn btn-sm btn-warning upload-btn" data-id="${tx.TransaccionID}" data-moneda-origen="${tx.MonedaOrigen || ''}" title="Subir Comprobante"><i class="bi bi-upload"></i> Subir Pago</button>`;
             } else if (tx.ComprobanteURL && ![4, 5, 6].includes(estadoId)) {
-                btns += ` <button class="btn btn-sm btn-secondary upload-btn" data-id="${tx.TransaccionID}" data-pais="${tx.PaisDestino || ''}" data-cuenta="${tx.BeneficiarioNumeroCuenta || ''}" data-banco="${tx.BeneficiarioBanco || ''}" data-formapago="${tx.FormaPagoNombre || ''}" title="Modificar Pago"><i class="bi bi-pencil-square"></i> Modificar</button>`;
+                btns += ` <button class="btn btn-sm btn-secondary upload-btn" data-id="${tx.TransaccionID}" data-moneda-origen="${tx.MonedaOrigen || ''}" title="Modificar Pago"><i class="bi bi-pencil-square"></i> Modificar</button>`;
             }
 
             if (tx.ComprobanteURL) {
@@ -345,24 +345,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const txLabel = document.getElementById('modal-tx-id');
                 const modalEl = document.getElementById('uploadReceiptModal');
                 
-                const paisDestino = btn.dataset.pais;
-                const cuenta = btn.dataset.cuenta;
-                const banco = btn.dataset.banco;
-                const formaPago = btn.dataset.formapago || '';
-                const isVzlaPagoMovil = (paisDestino === 'Venezuela' && (cuenta === 'PAGO MOVIL' || banco === 'Pago Móvil'));
-                const isCajaVecina = formaPago.toLowerCase().includes('caja vecina');
-                const titularContainer = document.getElementById('container-titular-origen');
-                const rutInput = document.getElementById('rutTitularOrigen');
-                const nombreInput = document.getElementById('nombreTitularOrigen');
+                const monedaOrigen = btn.dataset.monedaOrigen;
+                const isChile = (monedaOrigen === 'CLP');
                 
-                if (isVzlaPagoMovil || isCajaVecina) {
-                    if (titularContainer) titularContainer.classList.add('d-none');
-                    if (rutInput) rutInput.required = false;
-                    if (nombreInput) nombreInput.required = false;
+                const rutInput = document.getElementById('rutTitularOrigen');
+                const rutContainer = rutInput ? rutInput.closest('.mb-3') : null;
+                
+                if (!isChile) {
+                    if (rutContainer) rutContainer.classList.add('d-none');
+                    if (rutInput) { rutInput.required = false; rutInput.value = 'N/A'; }
                 } else {
-                    if (titularContainer) titularContainer.classList.remove('d-none');
-                    if (rutInput) rutInput.required = true;
-                    if (nombreInput) nombreInput.required = true;
+                    if (rutContainer) rutContainer.classList.remove('d-none');
+                    if (rutInput) { rutInput.required = true; rutInput.value = ''; }
                 }
 
                 if (txIdField) txIdField.value = btn.dataset.id;
@@ -430,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LÓGICA DE SUBIDA OPTIMIZADA (IOS FIX + COMPRESIÓN) ---
+    // --- LÓGICA DE SUBIDA OPTIMIZADA ---
     const uploadModalElement = document.getElementById('uploadReceiptModal');
     const uploadForm = document.getElementById('upload-receipt-form');
     const transactionIdField = document.getElementById('transactionIdField');
@@ -446,6 +440,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let stream = null;
     let uploadModalInstance = null;
+
+    const previewContainer = document.getElementById('historial-preview-container');
+    const previewImg = document.getElementById('historial-preview-img');
+    const previewPdf = document.getElementById('historial-preview-pdf');
+    const handleFilePreview = (file) => {
+        if (!previewContainer) return;
+        if (file) {
+            previewContainer.classList.remove('d-none');
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    previewImg.src = evt.target.result;
+                    previewImg.classList.remove('d-none');
+                    previewPdf.classList.add('d-none');
+                }
+                reader.readAsDataURL(file);
+            } else if (file.type === 'application/pdf') {
+                previewImg.classList.add('d-none');
+                previewPdf.classList.remove('d-none');
+            }
+        } else {
+            previewContainer.classList.add('d-none');
+        }
+    };
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            handleFilePreview(e.target.files[0]);
+        });
+    }
 
     const compressImage = (file) => {
         return new Promise((resolve, reject) => {
@@ -528,7 +552,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!blob) return;
                 const txId = transactionIdField.value || 'temp';
                 const file = new File([blob], `foto_${txId}.jpg`, { type: 'image/jpeg' });
-                const dt = new DataTransfer(); dt.items.add(file); fileInput.files = dt.files;
+                const dt = new DataTransfer(); dt.items.add(file); 
+                fileInput.files = dt.files;
+                handleFilePreview(file);
+
                 stopCamera();
             }, 'image/jpeg', 0.85);
         };
@@ -544,7 +571,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (transactionIdField) transactionIdField.value = txId;
                 if (modalTxIdLabel) modalTxIdLabel.textContent = txId;
             }
-            if (uploadForm) uploadForm.reset();
+            if (uploadForm) {
+                uploadForm.reset();
+                if (previewContainer) previewContainer.classList.add('d-none');
+            }
             if (cameraToggleContainer) cameraToggleContainer.classList.remove('d-none');
             if (cameraSection) cameraSection.classList.add('d-none');
         });
@@ -555,13 +585,14 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const submitBtn = uploadForm.querySelector('button[type="submit"]');
             const originalText = submitBtn.textContent;
-            const rutOrigen = document.getElementById('rutTitularOrigen').value.trim();
-            const nombreOrigen = document.getElementById('nombreTitularOrigen').value.trim();
-            const titularContainer = document.getElementById('container-titular-origen');
-            const isVzlaPagoMovil = titularContainer && titularContainer.classList.contains('d-none');
+            const rutInput = document.getElementById('rutTitularOrigen');
+            const nombreInput = document.getElementById('nombreTitularOrigen');
+            const rutOrigen = rutInput ? rutInput.value.trim() : '';
+            const nombreOrigen = nombreInput ? nombreInput.value.trim() : '';
+            const isRutRequired = rutInput && rutInput.required;
 
-            if (!isVzlaPagoMovil && (!rutOrigen || !nombreOrigen)) {
-                window.showInfoModal('Faltan Datos', 'Debes completar los Datos del Titular de la cuenta origen.', false);
+            if ((isRutRequired && !rutOrigen) || !nombreOrigen) {
+                window.showInfoModal('Faltan Datos', 'Debes completar el Nombre y/o RUT del titular solicitados.', false);
                 return;
             }
 
