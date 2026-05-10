@@ -15,7 +15,14 @@ class NotificationService
     public function __construct(LogService $logService)
     {
         $this->logService = $logService;
-        $this->adminEmail = defined('ADMIN_EMAIL') ? ADMIN_EMAIL : 'nicolas.salas.1200@gmail.com';
+        // FIX B8: el email del admin debe venir SIEMPRE de config.php (constante ADMIN_EMAIL).
+        // Antes había un fallback hardcoded a un correo personal, lo cual filtra el correo en GitHub.
+        if (!defined('ADMIN_EMAIL') || !filter_var(ADMIN_EMAIL, FILTER_VALIDATE_EMAIL)) {
+            error_log("ADMIN_EMAIL no está definido o es inválido en config.php — las notificaciones admin no se enviarán.");
+            $this->adminEmail = '';
+        } else {
+            $this->adminEmail = ADMIN_EMAIL;
+        }
     }
 
     public function logAdminAction(?int $userId, string $action, string $details): void

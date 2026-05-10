@@ -282,9 +282,14 @@ class UserService
             throw new Exception("La selfie en vivo es obligatoria para la verificación.", 400);
         }
 
-        $estadoPendienteID = $this->estadoVerificacionRepo->findIdByName('Pendiente');
-        if (!$estadoPendienteID)
-            throw new Exception("Estado 'Pendiente' no encontrado en la base de datos.", 500);
+        // FIX B4: si el usuario ya estaba Rechazado (4), al re-subir documentos
+        // debe volver a la cola de revisión (estado "En Revisión" = ID 2), no a "Pendiente".
+        // Lo mismo si llega como "Pendiente" (1) con documentos completos.
+        // Buscamos el ID por nombre para no acoplarnos a un número mágico.
+        $estadoEnRevisionID = $this->estadoVerificacionRepo->findIdByName('En Revisión')
+                          ?? $this->estadoVerificacionRepo->findIdByName('Pendiente'); // fallback
+        if (!$estadoEnRevisionID)
+            throw new Exception("Estado de verificación no encontrado en la base de datos.", 500);
 
         try {
             // 3. Procesar Selfie: Guardar y actualizar foto de perfil
@@ -306,10 +311,10 @@ class UserService
         }
 
         // 5. Actualizar estado de verificación en BD
-        if ($this->userRepository->updateVerificationDocuments($userId, $pathFrente, $pathReverso, $estadoPendienteID)) {
-            $this->notificationService->logAdminAction($userId, 'Subida Documentos Verificación', "Usuario ID: $userId. Selfie actualizada y docs subidos.");
+        if ($this->userRepository->updateVerificationDocuments($userId, $pathFrente, $pathReverso, $estadoEnRevisionID)) {
+            $this->notificationService->logAdminAction($userId, 'Subida Documentos Verificación', "Usuario ID: $userId. Selfie actualizada y docs subidos. Pasa a En Revisión.");
             if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id']) && $_SESSION['user_id'] == $userId) {
-                $_SESSION['verification_status'] = 'Pendiente';
+                $_SESSION['verification_status'] = 'En Revisión';
             }
         } else {
             @unlink($this->fileHandler->getAbsolutePath($pathFrente));

@@ -113,10 +113,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.insertAdjacentHTML('beforeend', formHtml);
 
         const form = document.getElementById('resume-order-form');
-        if (form) {
+        // FIX B1: el botón submit vive en modal-footer (FUERA del <form>) usando form="resume-order-form".
+        // form.querySelector('button[type=submit]') devolvía null y reventaba en btn.innerHTML.
+        // Buscamos el botón por el atributo form="..." que es como se conectan en HTML5.
+        const submitBtn = document.querySelector('button[form="resume-order-form"][type="submit"]');
+
+        if (form && submitBtn) {
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const btn = form.querySelector('button[type="submit"]');
+                const btn = submitBtn;
                 const originalText = btn.innerHTML;
 
                 const fileInput = document.getElementById('resume-receipt');
@@ -262,14 +267,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (tx.ComprobanteURL) {
                 const ext = getFileExt(tx.ComprobanteURL);
+                // M2: Mostrar fecha y hora de subida del comprobante en el tooltip y como sub-texto
+                const fechaSubida = tx.FechaSubidaComprobante
+                    ? new Date(tx.FechaSubidaComprobante.replace(' ', 'T')).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+                    : null;
+                const tituloPago = fechaSubida ? `Ver Pago (subido ${fechaSubida})` : 'Ver Pago';
                 btns += ` <button class="btn btn-sm btn-outline-secondary view-comprobante-btn" 
                             data-bs-toggle="modal" 
                             data-bs-target="#viewComprobanteModal" 
                             data-tx-id="${tx.TransaccionID}" 
                             data-comprobante-url="ver-comprobantes.php?id=${tx.TransaccionID}&type=user"
                             data-file-ext="${ext}"
+                            data-fecha-subida="${tx.FechaSubidaComprobante || ''}"
                             data-start-type="user" 
-                            title="Ver Pago"><i class="bi bi-eye"></i> Ver Pago</button>`;
+                            title="${tituloPago}"><i class="bi bi-eye"></i> Ver Pago${fechaSubida ? ` <small class="opacity-75">(${fechaSubida.split(',')[0]})</small>` : ''}</button>`;
             }
 
             if (estadoId !== 7) {
@@ -345,19 +356,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const txLabel = document.getElementById('modal-tx-id');
                 const modalEl = document.getElementById('uploadReceiptModal');
                 
-                const monedaOrigen = btn.dataset.monedaOrigen;
-                const isChile = (monedaOrigen === 'CLP');
-                
-                const rutInput = document.getElementById('rutTitularOrigen');
-                const rutContainer = rutInput ? rutInput.closest('.mb-3') : null;
-                
-                if (!isChile) {
-                    if (rutContainer) rutContainer.classList.add('d-none');
-                    if (rutInput) { rutInput.required = false; rutInput.value = 'N/A'; }
-                } else {
-                    if (rutContainer) rutContainer.classList.remove('d-none');
-                    if (rutInput) { rutInput.required = true; rutInput.value = ''; }
-                }
+                // FIX (race condition): la lógica de mostrar/ocultar RUT según país origen
+                // se movió al listener `show.bs.modal` más abajo, porque ese listener hace
+                // `uploadForm.reset()` que borra el value='N/A' si lo seteábamos acá primero.
+                // En su lugar, pasamos la moneda al modal vía dataset y la leemos allá.
+                if (modalEl) modalEl.dataset.monedaOrigen = btn.dataset.monedaOrigen || '';
 
                 if (txIdField) txIdField.value = btn.dataset.id;
                 if (txLabel) txLabel.textContent = btn.dataset.id;
@@ -575,6 +578,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 uploadForm.reset();
                 if (previewContainer) previewContainer.classList.add('d-none');
             }
+
+            // FIX (race condition con click handler): la lógica del RUT debe ir DESPUÉS
+            // del uploadForm.reset(), porque sino el reset borra el value='N/A' que se
+            // pusiera antes. La moneda viene en uploadModalElement.dataset.monedaOrigen
+            // (la setea el click handler antes de abrir el modal).
+            const monedaOrigen = uploadModalElement.dataset.monedaOrigen || '';
+            const isChile = (monedaOrigen === 'CLP');
+            const rutInput = document.getElementById('rutTitularOrigen');
+            const rutContainer = rutInput ? rutInput.closest('.mb-3') : null;
+            if (!isChile) {
+                if (rutContainer) rutContainer.classList.add('d-none');
+                if (rutInput) { rutInput.required = false; rutInput.value = 'N/A'; }
+            } else {
+                if (rutContainer) rutContainer.classList.remove('d-none');
+                if (rutInput) { rutInput.required = true; rutInput.value = ''; }
+            }
+
             if (cameraToggleContainer) cameraToggleContainer.classList.remove('d-none');
             if (cameraSection) cameraSection.classList.add('d-none');
         });
@@ -587,9 +607,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const originalText = submitBtn.textContent;
             const rutInput = document.getElementById('rutTitularOrigen');
             const nombreInput = document.getElementById('nombreTitularOrigen');
+            const isRutRequired = rutInput && rutInput.required;
+            // FIX (defensa): si el RUT no es requerido (origen no Chile) y el value
+            // está vacío por cualquier motivo, forzar 'N/A'. Esto evita que el backend
+            // rechace con "RUT obligatorio" si algo en el flujo borra el value.
+            if (rutInput && !isRutRequired && !rutInput.value.trim()) {
+                rutInput.value = 'N/A';
+            }
             const rutOrigen = rutInput ? rutInput.value.trim() : '';
             const nombreOrigen = nombreInput ? nombreInput.value.trim() : '';
-            const isRutRequired = rutInput && rutInput.required;
 
             if ((isRutRequired && !rutOrigen) || !nombreOrigen) {
                 window.showInfoModal('Faltan Datos', 'Debes completar el Nombre y/o RUT del titular solicitados.', false);

@@ -21,18 +21,58 @@ async function checkSystemStatus() {
         const data = await response.json();
         const alertBar = document.getElementById('holiday-alert-bar');
         if (alertBar) {
+            // FIX: el banner ahora se muestra para CUALQUIERA con feriado activo,
+            // logueado o no. Antes el flujo `!data.logged_in → return` cortaba
+            // antes de llegar a este punto y solo se mostraba a usuarios con sesión.
+            // Ahora mostramos:
+            //  - holiday_warning (informativo) → tal cual venía
+            //  - active === false (bloqueo total) → mismo banner como aviso para no
+            //    logueados, así saben antes de intentar entrar
+            let bannerInfo = null;
+
             if (data.holiday_warning) {
-                const msgElement = document.getElementById('holiday-message');
-                const dateElement = document.getElementById('holiday-date');
+                bannerInfo = {
+                    title:   data.holiday_warning.title || 'AVISO',
+                    message: data.holiday_warning.message,
+                    ends_at: data.holiday_warning.ends_at,
+                    danger:  false
+                };
+            } else if (data.active === false) {
+                // Feriado bloqueante. Para usuarios logueados (clientes) además
+                // se va a disparar el modal de bloqueo más abajo. Pero el banner
+                // se muestra a TODOS, especialmente útil para los no logueados.
+                bannerInfo = {
+                    title:   'SISTEMA EN MANTENIMIENTO',
+                    message: data.message || 'El sistema está temporalmente fuera de servicio.',
+                    ends_at: data.ends_at,
+                    danger:  true
+                };
+            }
+
+            if (bannerInfo) {
+                const msgElement   = document.getElementById('holiday-message');
+                const dateElement  = document.getElementById('holiday-date');
                 const titleElement = document.getElementById('holiday-title');
-                
-                if (titleElement) titleElement.textContent = data.holiday_warning.title || 'AVISO';
-                if (msgElement) msgElement.textContent = data.holiday_warning.message;
-                
+
+                if (titleElement) titleElement.textContent = bannerInfo.title;
+                if (msgElement)   msgElement.textContent   = bannerInfo.message;
+
                 if (dateElement) {
-                    const endDate = new Date(data.holiday_warning.ends_at);
-                    const options = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
-                    dateElement.textContent = endDate.toLocaleDateString('es-CL', options);
+                    if (bannerInfo.ends_at) {
+                        const endDate = new Date(bannerInfo.ends_at);
+                        const options = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
+                        dateElement.textContent = endDate.toLocaleDateString('es-CL', options);
+                        dateElement.style.display = 'inline-block';
+                    } else {
+                        dateElement.style.display = 'none';
+                    }
+                }
+
+                // Cambiar color del banner según severidad
+                if (bannerInfo.danger) {
+                    alertBar.classList.add('alert-danger-mode');
+                } else {
+                    alertBar.classList.remove('alert-danger-mode');
                 }
 
                 alertBar.classList.remove('d-none');

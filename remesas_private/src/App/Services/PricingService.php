@@ -60,6 +60,15 @@ class PricingService
 
     public function applyGlobalAdjustment(int $adminId, float $percentage): int
     {
+        // FIX B6: blindaje extra contra domingos.
+        // runScheduledAdjustment() ya filtra día semana, pero applyGlobalAdjustment
+        // puede llamarse desde cualquier punto (cron mal configurado, llamada manual).
+        // Política negocio: ajustes solo Lun-Sáb. Domingo (date('N') === 7) bloqueado.
+        $diaSemana = (int) date('N');
+        if ($diaSemana === 7) {
+            throw new Exception("Los ajustes automáticos de tasa están deshabilitados los domingos por política comercial.");
+        }
+
         $status = $this->systemService->checkSystemAvailability();
         if (!$status['available']) {
             throw new Exception("Operación Bloqueada: El sistema está en modo '{$status['reason']}' ({$status['message']}). Las tasas están congeladas.");

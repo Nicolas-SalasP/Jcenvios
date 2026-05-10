@@ -201,6 +201,30 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     </div>
                 </td>
                 <td class="text-center">
+                    <?php
+                        // M5: botón "Copiar datos generales" para admin (idéntico al de operador, con fecha).
+                        $hasCuenta_a   = !empty(trim($tx['BeneficiarioNumeroCuenta'] ?? ''));
+                        $hasTelefono_a = !empty(trim($tx['BeneficiarioTelefono'] ?? ''));
+                        $fechaGen_a    = !empty($tx['FechaTransaccion'])
+                            ? date('d/m/Y H:i', strtotime($tx['FechaTransaccion']))
+                            : '';
+
+                        $textoCopiado_a  = "ORDEN #{$tx['TransaccionID']}\n";
+                        if ($fechaGen_a) $textoCopiado_a .= "Fecha: {$fechaGen_a}\n";
+                        $textoCopiado_a .= "Banco: " . ($tx['BeneficiarioBanco'] ?? '') . "\n";
+                        $textoCopiado_a .= "Beneficiario: " . ($tx['BeneficiarioNombre'] ?? '') . "\n";
+                        if ($hasCuenta_a)   $textoCopiado_a .= "Cuenta: {$tx['BeneficiarioNumeroCuenta']}\n";
+                        if ($hasTelefono_a) $textoCopiado_a .= "Teléfono: {$tx['BeneficiarioTelefono']}\n";
+                        $textoCopiado_a .= "Doc: " . ($tx['BeneficiarioDocumento'] ?? '') . "\n";
+                        $textoCopiado_a .= "Monto: " . number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '');
+
+                        $textoBase64_a = base64_encode($textoCopiado_a);
+                    ?>
+                    <button class="btn btn-sm btn-outline-primary me-1"
+                        onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')"
+                        title="Copiar datos generales (incluye fecha)">
+                        <i class="bi bi-clipboard-check"></i>
+                    </button>
                     <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
                         class="btn btn-sm btn-info text-white" title="PDF">
                         <i class="bi bi-file-earmark-pdf"></i>

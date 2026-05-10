@@ -95,6 +95,7 @@ class TransactionRepository
         $sql = "SELECT
                     T.TransaccionID, T.FechaTransaccion, T.MontoOrigen, T.MonedaOrigen,
                     T.MontoDestino, T.MonedaDestino, T.ComprobanteURL, T.ComprobanteEnvioURL,
+                    T.FechaSubidaComprobante, /* M2: para mostrar fecha/hora del comprobante */
                     T.PermitirEdicionMonto,
                     
                     -- DATOS DE LA CUENTA (SNAPSHOT) --

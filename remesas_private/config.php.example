@@ -1,0 +1,82 @@
+<?php
+/**
+ * config.php.example
+ *
+ * Copia este archivo a `remesas_private/config.php` y rellena con tus datos reales.
+ * `config.php` está (debería estar) en .gitignore — nunca se sube al repo.
+ *
+ * Estructura: remesas_private/config.php (al mismo nivel que composer.json).
+ */
+
+// ============================================================
+//  BASE / RUTAS
+// ============================================================
+
+// La URL base del proyecto SIN slash final.
+// XAMPP típico (proyecto en subcarpeta de htdocs):
+define('BASE_URL', 'http://localhost/jcenvios');
+
+// Si usas VirtualHost (recomendado, ver README):
+// define('BASE_URL', 'http://jcenvios.local');
+
+// Cookie domain de la sesión. Para localhost dejarlo así:
+define('SESSION_DOMAIN', 'localhost');
+// Si usas VirtualHost: define('SESSION_DOMAIN', 'jcenvios.local');
+
+// Producción usaría 'true'; en local con XAMPP HTTP, dejar 'false':
+define('IS_HTTPS', false);
+
+
+// ============================================================
+//  BASE DE DATOS (MySQL/MariaDB de XAMPP)
+// ============================================================
+
+define('DB_HOST', '127.0.0.1');
+define('DB_USER', 'root');         // user default de XAMPP
+define('DB_PASS', '');             // password default de XAMPP es vacío
+define('DB_NAME', 'jcenvios');     // crear esta DB en phpMyAdmin
+
+
+// ============================================================
+//  SEGURIDAD
+// ============================================================
+
+// EXACTAMENTE 32 caracteres. Genera una con:
+//   php -r "echo bin2hex(random_bytes(16));"
+// (ejecuta eso en consola, copia el resultado y péguelo acá)
+define('APP_ENCRYPTION_KEY', 'CAMBIAME_32_caracteres_exactos__');
+
+
+// ============================================================
+//  EMAIL ADMIN (para notificaciones internas)
+// ============================================================
+
+// Tu correo. Si lo dejás vacío, se loguea warning y no se envían
+// notificaciones admin. En local podés usar el mismo SMTP_USER.
+define('ADMIN_EMAIL', 'tucorreo@gmail.com');
+
+
+// ============================================================
+//  SMTP (envío de correos: recuperación contraseña, 2FA, etc.)
+// ============================================================
+// Para Gmail conviene una "Contraseña de aplicación" (no tu password real).
+// Cómo generarla: https://myaccount.google.com/apppasswords
+// Si no querés mandar correos en local, podés dejar valores dummy y
+// ese flujo va a fallar en silencio sin afectar el resto del sistema.
+
+define('SMTP_HOST',   'smtp.gmail.com');
+define('SMTP_USER',   'tucorreo@gmail.com');
+define('SMTP_PASS',   'xxxx-xxxx-xxxx-xxxx');  // app password de Gmail
+define('SMTP_SECURE', 'tls');
+define('SMTP_PORT',   587);
+
+
+// ============================================================
+//  TWILIO (WhatsApp / SMS) - OPCIONAL
+// ============================================================
+// Si no usás Twilio, deja los SID/TOKEN vacíos. El código ya chequea
+// con `defined() && !empty()` y omite el envío si no hay credenciales.
+
+define('TWILIO_SID',            '');  // ej: 'ACxxxxxxxxxxxxxxxx'
+define('TWILIO_TOKEN',          '');
+define('TWILIO_WHATSAPP_FROM',  '');  // ej: 'whatsapp:+14155238886'

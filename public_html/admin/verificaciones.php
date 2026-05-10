@@ -9,7 +9,9 @@ if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin'
 $busqueda = isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
 $estadoFiltro = isset($_GET['estado']) ? $_GET['estado'] : '';
 
-$conditions = "U.VerificacionEstadoID IN (1, 2) AND U.Eliminado = 0";
+// FIX B4: incluir estado Rechazado (4) para que esos usuarios no desaparezcan del listado.
+// Antes: WHERE U.VerificacionEstadoID IN (1, 2)
+$conditions = "U.VerificacionEstadoID IN (1, 2, 4) AND U.Eliminado = 0";
 $params = [];
 $types = "";
 
@@ -66,6 +68,7 @@ if (!$isAjax) {
                         <option value="">Todos los pendientes</option>
                         <option value="1" <?php echo ($estadoFiltro == '1') ? 'selected' : ''; ?>>Documentación Pendiente</option>
                         <option value="2" <?php echo ($estadoFiltro == '2') ? 'selected' : ''; ?>>En Revisión (Con fotos)</option>
+                        <option value="4" <?php echo ($estadoFiltro == '4') ? 'selected' : ''; ?>>Rechazados</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -100,9 +103,19 @@ if (!$isAjax) {
                         <?php else: ?>
                             <?php foreach ($usuariosPendientes as $user): ?>
                                 <?php 
-                                    $tieneDocs = ($user['VerificacionEstadoID'] == 2); 
-                                    $badgeClass = $tieneDocs ? 'bg-info' : 'bg-warning text-dark';
-                                    $statusText = $tieneDocs ? 'Listo para Revisar' : 'Faltan Documentos';
+                                    // FIX B4: distinguir entre Pendiente (1), En Revisión (2) y Rechazado (4).
+                                    $verifId   = (int) $user['VerificacionEstadoID'];
+                                    $tieneDocs = ($verifId === 2 || $verifId === 4);
+                                    $badgeClass = match($verifId) {
+                                        2       => 'bg-info',
+                                        4       => 'bg-danger',
+                                        default => 'bg-warning text-dark'
+                                    };
+                                    $statusText = match($verifId) {
+                                        2       => 'Listo para Revisar',
+                                        4       => 'Rechazado',
+                                        default => 'Faltan Documentos'
+                                    };
                                 ?>
                                 <tr>
                                     <td><?php echo $user['UserID']; ?></td>

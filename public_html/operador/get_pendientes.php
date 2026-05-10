@@ -50,7 +50,15 @@ foreach ($transacciones as $tx):
     $hasCuenta = !empty(trim($tx['BeneficiarioNumeroCuenta'] ?? ''));
     $hasTelefono = !empty(trim($tx['BeneficiarioTelefono'] ?? ''));
 
-    $textoCopiado = "ORDEN #{$tx['TransaccionID']}\n";
+    // M5: incluir fecha de generación de la orden en el texto copiado.
+    $fechaGen = !empty($tx['FechaTransaccion'])
+        ? date('d/m/Y H:i', strtotime($tx['FechaTransaccion']))
+        : '';
+
+    $textoCopiado  = "ORDEN #{$tx['TransaccionID']}\n";
+    if ($fechaGen) {
+        $textoCopiado .= "Fecha: {$fechaGen}\n";
+    }
     $textoCopiado .= "Banco: {$tx['BeneficiarioBanco']}\n";
     $textoCopiado .= "Beneficiario: {$tx['BeneficiarioNombre']}\n";
 
@@ -148,6 +156,12 @@ foreach ($transacciones as $tx):
                         data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Pausar Orden">
                         <i class="bi bi-pause-circle-fill"></i>
                     </button>
+                    <?php /* M6: botón Cancelar Orden disponible también para operador.
+                            El backend (rejectTransaction) ya acepta a operador via ensureAdminOrOperator. */ ?>
+                    <button class="btn btn-sm btn-danger reject-btn" data-bs-toggle="modal" data-bs-target="#rejectionModal"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        data-action-type="cancel"
+                        title="Cancelar Orden"><i class="bi bi-x-circle"></i></button>
                 <?php endif; ?>
 
                 <?php if (!$isOperator && $tx['EstadoNombre'] === 'En Verificación'): ?>

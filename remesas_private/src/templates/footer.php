@@ -299,6 +299,57 @@ if (!empty($baseUrlPhp)) {
     } catch (error) {
     }
   }, 60000);
+
+  // M5: helper global para copiar datos de orden al portapapeles.
+  // Antes se llamaba en operador y admin via onclick="copiarDatosDirecto(...)"
+  // pero la función NUNCA se definía → el botón no hacía nada (bug latente).
+  window.copiarDatosDirecto = function (btn, textoB64) {
+    let texto = '';
+    try {
+      // Soporta base64 con caracteres no-ASCII (acentos, ñ, etc.)
+      texto = decodeURIComponent(escape(atob(textoB64)));
+    } catch (err) {
+      console.error('Error decodificando texto a copiar:', err);
+      return;
+    }
+
+    const showFeedback = () => {
+      if (!btn) return;
+      const original = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-check2"></i> Copiado';
+      btn.classList.add('btn-success');
+      btn.classList.remove('btn-primary', 'btn-outline-primary', 'btn-outline-secondary');
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.classList.remove('btn-success');
+        // Restauramos clase original — best-effort. Si la clase exacta importa,
+        // el llamador puede pasar data-original-class.
+        btn.classList.add('btn-primary');
+      }, 1500);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(showFeedback).catch(() => {
+        // Fallback para navegadores viejos / contextos sin permisos
+        fallbackCopy(texto);
+        showFeedback();
+      });
+    } else {
+      fallbackCopy(texto);
+      showFeedback();
+    }
+
+    function fallbackCopy(t) {
+      const ta = document.createElement('textarea');
+      ta.value = t;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+    }
+  };
 </script>
 </body>
 

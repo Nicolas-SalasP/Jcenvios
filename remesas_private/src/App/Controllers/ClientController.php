@@ -74,10 +74,22 @@ class ClientController extends BaseController
 
             if ($feriado) {
                 if ($feriado['BloqueoSistema'] == 1) {
-                    $response['active'] = false;
-                    $response['reason'] = 'holiday';
-                    $response['message'] = $feriado['Motivo'];
-                    $response['ends_at'] = $feriado['FechaFin'];
+                    // FIX B3: Admin y Operador deben poder seguir trabajando aunque haya feriado.
+                    // Antes: marcaba active=false para todos, lo que bloqueaba el login del staff.
+                    // Ahora: para staff devolvemos solo aviso informativo; el bloqueo solo aplica a clientes.
+                    $isPrivileged = in_array($role, ['Admin', 'Operador'], true);
+                    if ($isPrivileged) {
+                        $response['holiday_warning'] = [
+                            'title'   => 'FERIADO ACTIVO (acceso staff)',
+                            'message' => $feriado['Motivo'],
+                            'ends_at' => $feriado['FechaFin']
+                        ];
+                    } else {
+                        $response['active']  = false;
+                        $response['reason']  = 'holiday';
+                        $response['message'] = $feriado['Motivo'];
+                        $response['ends_at'] = $feriado['FechaFin'];
+                    }
                 } else {
                     $response['holiday_warning'] = [
                         'title' => 'AVISO INFORMATIVO',
@@ -452,11 +464,29 @@ class ClientController extends BaseController
     {
         $userId = $this->ensureLoggedIn();
         try {
-            $data = $this->getJsonInput();
+            // FIX B10: el frontend envía FormData (multipart) porque incluye archivo
+            // de comprobante opcional. getJsonInput() lee php://input que en multipart
+            // queda vacío (PHP ya lo consumió para $_POST/$_FILES). Antes esto resultaba
+            // en txId=0 y disparaba "Identificador de transacción inválido".
+            // Soportamos ambos casos por compatibilidad: si llega JSON puro, lo parseamos.
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            if (stripos($contentType, 'application/json') !== false) {
+                $data = $this->getJsonInput();
+            } else {
+                $data = $_POST;
+            }
 
-            $txId = (int) ($data['txId'] ?? 0);
+            $txId    = (int) ($data['txId'] ?? 0);
             $mensaje = trim($data['mensaje'] ?? '');
+
+            // beneficiaryData puede venir como string JSON (FormData) o como array (JSON puro)
             $beneficiaryData = $data['beneficiaryData'] ?? null;
+            if (is_string($beneficiaryData) && $beneficiaryData !== '') {
+                $decoded = json_decode($beneficiaryData, true);
+                $beneficiaryData = is_array($decoded) ? $decoded : null;
+            } elseif (!is_array($beneficiaryData)) {
+                $beneficiaryData = null;
+            }
 
             if ($txId <= 0) {
                 throw new Exception("Identificador de transacción inválido.");

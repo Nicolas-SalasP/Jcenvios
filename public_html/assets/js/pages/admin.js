@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.show();
     };
 
-    window.showPromptModal = (title, message, placeholder = '') => {
+    window.showPromptModal = (title, message, placeholder = '', requireText = true) => {
         return new Promise((resolve) => {
             const id = 'js-global-prompt-modal';
             const existing = document.getElementById(id);
@@ -118,6 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="modal-body p-4 fs-6">
                             <p class="mb-3 text-dark">${message}</p>
                             <textarea id="js-global-prompt-input" class="form-control" rows="3" placeholder="${placeholder}"></textarea>
+                            ${!requireText ? '<div class="form-text text-muted small">Este campo es opcional.</div>' : ''}
                         </div>
                         <div class="modal-footer bg-light border-0">
                             <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
@@ -135,13 +136,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             confirmBtn.onclick = () => {
                 const val = inputEl.value.trim();
-                if (val.length < 5) {
+                // M3: validación del motivo es opcional según parámetro requireText.
+                // Antes era obligatorio (mín 5 chars) en TODOS los casos.
+                if (requireText && val.length < 5) {
                     window.showInfoModal('Faltan Datos', 'El motivo es obligatorio y debe tener al menos 5 caracteres', false);
                     return;
                 }
                 isConfirmed = true;
                 modal.hide();
-                resolve(val);
+                resolve(val); // si no es requerido y queda vacío, devuelve string vacío
             };
 
             modalEl.addEventListener('hidden.bs.modal', () => {
@@ -880,8 +883,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (txIdLabel) txIdLabel.textContent = txId;
 
             if (comisionInput) {
-                if (!isNaN(monto) && monto > 0) comisionInput.value = (monto * 0.003).toFixed(2);
-                else comisionInput.value = 0;
+                // FIX B5: comisión 0.3% aplica SOLO para Venezuela. Resto en 0.
+                // El ID de país se lee del data-pais-id del botón. Confirmar el ID en `paises`.
+                // Por seguridad chequeamos también el código de moneda (VES) si está disponible.
+                const ID_VENEZUELA = 3;
+                const monedaDestino = (btn.dataset.monedaDestino || '').toUpperCase();
+                const esVenezuela = (paisDestinoId === ID_VENEZUELA) || (monedaDestino === 'VES') || (monedaDestino === 'BS') || (monedaDestino === 'BSS');
+                if (esVenezuela && !isNaN(monto) && monto > 0) {
+                    comisionInput.value = (monto * 0.003).toFixed(2);
+                } else {
+                    comisionInput.value = 0;
+                }
             }
             if (cuentaSelect) {
                 cuentaSelect.innerHTML = '<option value="">-- Seleccionar Banco --</option>';
@@ -1469,11 +1481,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const motivo = await window.showPromptModal(
                     'Auditoría de Cambio', 
-                    'Estás reemplazando un documento en la ficha del usuario. Ingresa el motivo para el historial (Mín. 5 caracteres):',
-                    'Ej: Actualización de documento vencido'
+                    'Estás reemplazando un documento en la ficha del usuario. Si quieres, ingresa el motivo para el historial.',
+                    'Ej: Actualización de documento vencido (opcional)',
+                    false  // M3: motivo NO obligatorio
                 );
                 
-                if (!motivo) return; 
+                // M3: solo abortamos si el usuario CANCELA el modal (motivo === null).
+                // Antes: cualquier valor falsy (incl. string vacío) abortaba, lo que hacía obligatorio el texto.
+                if (motivo === null) return;
 
                 const originalText = newSaveBtn.innerHTML;
                 newSaveBtn.disabled = true;
