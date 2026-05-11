@@ -184,6 +184,9 @@ class TransactionService
         if (!$tasaInfo) {
             throw new Exception("La tasa ha cambiado o ya no está disponible. Por favor recargue.", 400);
         }
+        if (isset($tasaInfo['RutaActiva']) && (int)$tasaInfo['RutaActiva'] === 0) {
+            throw new Exception("Esta ruta está temporalmente desactivada. Contacta al administrador.", 403);
+        }
 
         $inverseRoutes = [
             '2-3', // Col -> Ven
@@ -669,8 +672,64 @@ class TransactionService
         }
     }
 
+    public function confirmReceipt(int $txId, int $userId, bool $received): array
+    {
+        $tx = $this->txRepository->getConfirmacionRecepcion($txId);
+
+        if (!$tx) {
+            throw new Exception("Transacción no encontrada.", 404);
+        }
+        if ((int)$tx['UserID'] !== $userId) {
+            throw new Exception("No tienes permisos sobre esta transacción.", 403);
+        }
+        if (($tx['EstadoNombre'] ?? '') !== 'Exitoso') {
+            throw new Exception("Solo se puede confirmar la recepción de órdenes ya pagadas.", 400);
+        }
+        if (($tx['ConfirmacionRecepcion'] ?? 'pendiente') === 'recibido') {
+            throw new Exception("Ya marcaste esta orden como recibida. No se puede deshacer.", 400);
+        }
+
+        $newStatus = $received ? 'recibido' : 'no_recibido';
+        $updated = $this->txRepository->updateConfirmacionRecepcion($txId, $userId, $newStatus);
+        if (!$updated) {
+            throw new Exception("No se pudo actualizar el estado.", 500);
+        }
+
+        if (!$received) {
+            try {
+                $this->notificationService->logAdminAction(
+                    $userId,
+                    'Cliente reportó NO recibir',
+                    "El cliente reportó que NO recibió el dinero de la transacción ID {$txId}. Contactarlo a la brevedad."
+                );
+            } catch (\Throwable $e) {
+                error_log("F3.1 notify admin failed: " . $e->getMessage());
+            }
+        }
+
+        return [
+            'status' => $newStatus,
+            'lockedFromChange' => ($newStatus === 'recibido')
+        ];
+    }
+
     public function getAdminAlerts(): array
     {
         return $this->txRepository->getAdminAlertsData();
+    }
+
+    public function getPreviousSendsToSameAccount(int $txId): array
+    {
+        $tx = $this->txRepository->getFullTransactionDetails($txId);
+        if (!$tx) {
+            throw new Exception("Transacción no encontrada.", 404);
+        }
+
+        return $this->txRepository->getPreviousSendsToSameAccount(
+            (int) $tx['UserID'],
+            $tx['BeneficiarioNumeroCuenta'] ?? null,
+            $tx['BeneficiarioTelefono'] ?? null,
+            $txId
+        );
     }
 }

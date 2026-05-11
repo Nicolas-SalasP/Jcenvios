@@ -340,5 +340,36 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch('../api/?accion=getBcvRate').then(r => r.json()).then(d => { if (d.success) bcvInput.value = formatNumber(d.rate, 2); });
     }
 
+    document.querySelectorAll('.toggle-route-active').forEach(toggle => {
+        toggle.addEventListener('change', async (e) => {
+            const cb = e.target;
+            const origenId = parseInt(cb.dataset.origenId, 10);
+            const destinoId = parseInt(cb.dataset.destinoId, 10);
+            const active = cb.checked;
+            cb.disabled = true;
+
+            try {
+                const res = await fetch('../api/?accion=toggleRouteActive', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ origenId, destinoId, active })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    window.showInfoModal('Error', data.error || 'No se pudo cambiar el estado de la ruta.', false);
+                    cb.checked = !active;
+                } else {
+                    setTimeout(() => window.location.reload(), 400);
+                }
+            } catch (err) {
+                console.error(err);
+                window.showInfoModal('Error', 'Error de red al cambiar el estado de la ruta.', false);
+                cb.checked = !active;
+            } finally {
+                cb.disabled = false;
+            }
+        });
+    });
+
     resetEditor();
 });

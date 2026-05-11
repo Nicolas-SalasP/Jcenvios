@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- VARIABLES DE CONTROL ---
     let isRiskyRoute = false;
+    let isRouteDisabled = false;
     let isSubmitting = false;
 
     // =========================================================
@@ -228,13 +229,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedTasaIdInput.value = dataRate.tasa.TasaID;
                 calculationMode = dataRate.tasa.operation || 'multiply';
                 isRiskyRoute = (parseInt(dataRate.tasa.EsRiesgoso) === 1);
+                isRouteDisabled = (typeof dataRate.tasa.RutaActiva !== 'undefined') && (parseInt(dataRate.tasa.RutaActiva) === 0);
 
                 const monD = paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency || 'VES';
-                tasaComercialDisplay.textContent = `Tasa Comercial: 1 CLP = ${commercialRate.toFixed(5)} ${monD}`;
-                tasaComercialDisplay.className = 'form-text text-end fw-bold text-primary';
+                if (isRouteDisabled) {
+                    tasaComercialDisplay.innerHTML = `Tasa Comercial: 1 CLP = ${commercialRate.toFixed(5)} ${monD} <br><span class="badge bg-danger mt-1">RUTA TEMPORALMENTE DESACTIVADA</span>`;
+                    tasaComercialDisplay.className = 'form-text text-end fw-bold text-danger';
+                } else {
+                    tasaComercialDisplay.textContent = `Tasa Comercial: 1 CLP = ${commercialRate.toFixed(5)} ${monD}`;
+                    tasaComercialDisplay.className = 'form-text text-end fw-bold text-primary';
+                }
             } else {
                 commercialRate = 0;
                 isRiskyRoute = false;
+                isRouteDisabled = false;
                 selectedTasaIdInput.value = '';
                 tasaComercialDisplay.textContent = dataRate.error || 'Tasa no disponible.';
                 tasaComercialDisplay.className = 'form-text text-end fw-bold text-danger';
@@ -242,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             commercialRate = 0;
             isRiskyRoute = false;
+            isRouteDisabled = false;
             tasaComercialDisplay.textContent = 'Error de conexión.';
         }
     };
@@ -320,6 +329,19 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn?.addEventListener('click', async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
+
+        if (isRouteDisabled) {
+            if (window.showInfoModal) {
+                window.showInfoModal(
+                    'Ruta temporalmente desactivada',
+                    'Esta ruta de envío está temporalmente desactivada por el administrador. La tasa que ves es solo informativa. Intenta de nuevo más tarde.',
+                    false
+                );
+            } else {
+                alert('Esta ruta de envío está temporalmente desactivada por el administrador.');
+            }
+            return;
+        }
 
         if (!checkBusinessHours()) {
             if (!await confirmActionWithModal('Aviso de Horario', 'Estás operando fuera de horario. Tu orden será procesada el próximo día hábil. ¿Deseas continuar?')) return;

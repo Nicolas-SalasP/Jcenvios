@@ -27,7 +27,18 @@ $tasasPorRuta = [];
 foreach ($queryTasas as $tasa) {
     $rutaId = $tasa['PaisOrigenID'] . '-' . $tasa['PaisDestinoID'];
     if (!isset($tasasPorRuta[$rutaId])) {
-        $tasasPorRuta[$rutaId] = ['origen' => $tasa['PaisOrigen'], 'destino' => $tasa['PaisDestino'], 'moneda' => $tasa['MonedaOrigen'], 'items' => []];
+        $tasasPorRuta[$rutaId] = [
+            'origen' => $tasa['PaisOrigen'],
+            'destino' => $tasa['PaisDestino'],
+            'origenId' => $tasa['PaisOrigenID'],
+            'destinoId' => $tasa['PaisDestinoID'],
+            'moneda' => $tasa['MonedaOrigen'],
+            'rutaActiva' => 1,
+            'items' => []
+        ];
+    }
+    if ((int) $tasa['EsReferencial'] === 1) {
+        $tasasPorRuta[$rutaId]['rutaActiva'] = (int) ($tasa['RutaActiva'] ?? 1);
     }
     $tasasPorRuta[$rutaId]['items'][] = $tasa;
 }
@@ -170,12 +181,24 @@ $settings = $pricingService->getGlobalAdjustmentSettings();
     <div class="accordion" id="accordionTasas">
         <?php foreach ($tasasPorRuta as $rutaKey => $ruta): ?>
             <div class="accordion-item shadow-sm mb-2">
-                <h2 class="accordion-header" id="heading-<?= $rutaKey ?>">
-                    <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse"
+                <h2 class="accordion-header d-flex align-items-center" id="heading-<?= $rutaKey ?>">
+                    <button class="accordion-button collapsed fw-bold flex-grow-1" type="button" data-bs-toggle="collapse"
                         data-bs-target="#collapse-<?= $rutaKey ?>">
                         <i class="bi bi-geo-alt-fill me-2 text-primary"></i>
                         <?= $ruta['origen'] ?> <i class="bi bi-arrow-right mx-2"></i> <?= $ruta['destino'] ?>
+                        <?php if ((int) $ruta['rutaActiva'] === 0): ?>
+                            <span class="badge bg-danger ms-3">RUTA DESACTIVADA</span>
+                        <?php endif; ?>
                     </button>
+                    <div class="form-check form-switch me-3" style="min-width:140px;"
+                        title="Si está apagado, los usuarios siguen viendo la tasa pero no pueden enviar.">
+                        <input class="form-check-input toggle-route-active" type="checkbox" role="switch"
+                            id="toggle-route-<?= $rutaKey ?>" data-origen-id="<?= $ruta['origenId'] ?>"
+                            data-destino-id="<?= $ruta['destinoId'] ?>" <?= ((int) $ruta['rutaActiva'] === 1) ? 'checked' : '' ?>>
+                        <label class="form-check-label small" for="toggle-route-<?= $rutaKey ?>">
+                            Ruta activa
+                        </label>
+                    </div>
                 </h2>
                 <div id="collapse-<?= $rutaKey ?>" class="accordion-collapse collapse">
                     <div class="accordion-body p-0">

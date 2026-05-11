@@ -460,15 +460,32 @@ class ClientController extends BaseController
         }
     }
 
+    public function confirmReceipt(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        try {
+            $data = $this->getJsonInput();
+            $txId = (int)($data['transactionId'] ?? 0);
+            if ($txId <= 0) {
+                throw new Exception("Identificador de transacción inválido.", 400);
+            }
+            if (!array_key_exists('received', $data)) {
+                throw new Exception("Falta indicar si recibió el dinero.", 400);
+            }
+            $received = filter_var($data['received'], FILTER_VALIDATE_BOOLEAN);
+
+            $result = $this->txService->confirmReceipt($txId, $userId, $received);
+            $this->sendJsonResponse(['success' => true] + $result);
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 ? $e->getCode() : 400;
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+        }
+    }
+
     public function resumeOrder(): void
     {
         $userId = $this->ensureLoggedIn();
         try {
-            // FIX B10: el frontend envía FormData (multipart) porque incluye archivo
-            // de comprobante opcional. getJsonInput() lee php://input que en multipart
-            // queda vacío (PHP ya lo consumió para $_POST/$_FILES). Antes esto resultaba
-            // en txId=0 y disparaba "Identificador de transacción inválido".
-            // Soportamos ambos casos por compatibilidad: si llega JSON puro, lo parseamos.
             $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
             if (stripos($contentType, 'application/json') !== false) {
                 $data = $this->getJsonInput();
@@ -479,7 +496,6 @@ class ClientController extends BaseController
             $txId    = (int) ($data['txId'] ?? 0);
             $mensaje = trim($data['mensaje'] ?? '');
 
-            // beneficiaryData puede venir como string JSON (FormData) o como array (JSON puro)
             $beneficiaryData = $data['beneficiaryData'] ?? null;
             if (is_string($beneficiaryData) && $beneficiaryData !== '') {
                 $decoded = json_decode($beneficiaryData, true);

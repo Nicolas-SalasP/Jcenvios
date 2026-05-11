@@ -15,7 +15,6 @@ class TransactionRepository
 
     public function create(array $data): int
     {
-        // Obtener si es riesgoso
         $sqlTasa = "SELECT EsRiesgoso FROM tasas WHERE TasaID = ?";
         $stmtTasa = $this->db->prepare($sqlTasa);
         $stmtTasa->bind_param("i", $data['tasaID']);
@@ -26,7 +25,6 @@ class TransactionRepository
 
         $estadoInicialID = ($esRiesgoso == 1) ? 7 : 1;
 
-        // --- CAMBIO AQUÍ: Agregamos TasaCapturada al INSERT ---
         $sql = "INSERT INTO transacciones (
             UserID, CuentaBeneficiariaID, TasaID_Al_Momento, TasaCapturada, 
             MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino, 
@@ -95,10 +93,9 @@ class TransactionRepository
         $sql = "SELECT
                     T.TransaccionID, T.FechaTransaccion, T.MontoOrigen, T.MonedaOrigen,
                     T.MontoDestino, T.MonedaDestino, T.ComprobanteURL, T.ComprobanteEnvioURL,
-                    T.FechaSubidaComprobante, /* M2: para mostrar fecha/hora del comprobante */
+                    T.FechaSubidaComprobante,
+                    T.ConfirmacionRecepcion, T.FechaConfirmacionRecepcion,
                     T.PermitirEdicionMonto,
-                    
-                    -- DATOS DE LA CUENTA (SNAPSHOT) --
                     T.BeneficiarioNombre, 
                     T.BeneficiarioNombre AS BeneficiarioAlias,
                     T.BeneficiarioDocumento, 
@@ -135,6 +132,8 @@ class TransactionRepository
             T.TransaccionID, T.UserID, T.CuentaBeneficiariaID, T.TasaID_Al_Momento, T.TasaCapturada,
             T.MontoOrigen, T.MonedaOrigen, T.MontoDestino, T.ComisionDestino, T.MonedaDestino,
             T.FechaTransaccion, T.ComprobanteURL, T.ComprobanteEnvioURL,
+            T.FechaSubidaComprobante,
+            T.ConfirmacionRecepcion, T.FechaConfirmacionRecepcion,
             T.RutTitularOrigen, 
             T.NombreTitularOrigen,
             U.PrimerNombre, U.PrimerApellido, U.Email, U.NumeroDocumento, U.Telefono, U.FotoPerfilURL,
@@ -159,7 +158,18 @@ class TransactionRepository
             TD_B.NombreDocumento AS BeneficiarioTipoDocumentoNombre,
             TB.Nombre AS BeneficiarioTipoNombre,
             
-            T.MotivoPausa, T.MensajeReanudacion
+            T.MotivoPausa, T.MensajeReanudacion,
+            (SELECT COUNT(*)
+            FROM transacciones T2
+            JOIN estados_transaccion ET2 ON T2.EstadoID = ET2.EstadoID
+            WHERE T2.UserID = T.UserID
+            AND T2.TransaccionID <> T.TransaccionID
+            AND ET2.NombreEstado = 'Exitoso'
+            AND (
+                (COALESCE(T.BeneficiarioNumeroCuenta,'') <> '' AND T2.BeneficiarioNumeroCuenta = T.BeneficiarioNumeroCuenta)
+                OR (COALESCE(T.BeneficiarioTelefono,'')     <> '' AND T2.BeneficiarioTelefono     = T.BeneficiarioTelefono)
+            )
+            ) AS EnviosPreviosMismaCuenta
 
         FROM transacciones AS T
         JOIN usuarios AS U ON T.UserID = U.UserID
@@ -180,6 +190,52 @@ class TransactionRepository
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         return $result;
+    }
+
+    public function getPreviousSendsToSameAccount(int $userId, ?string $numeroCuenta, ?string $telefono, int $excludeTxId = 0, int $limit = 20): array
+    {
+        $hasCuenta = !empty(trim($numeroCuenta ?? ''));
+        $hasTelefono = !empty(trim($telefono ?? ''));
+        if (!$hasCuenta && !$hasTelefono) {
+            return [];
+        }
+
+        $clauses = [];
+        $types = "ii";
+        $params = [$userId, $excludeTxId];
+        if ($hasCuenta) {
+            $clauses[] = "T.BeneficiarioNumeroCuenta = ?";
+            $types .= "s";
+            $params[] = $numeroCuenta;
+        }
+        if ($hasTelefono) {
+            $clauses[] = "T.BeneficiarioTelefono = ?";
+            $types .= "s";
+            $params[] = $telefono;
+        }
+        $where = implode(' OR ', $clauses);
+
+        $sql = "SELECT T.TransaccionID, T.FechaTransaccion, T.MontoDestino, T.MonedaDestino,
+                    T.BeneficiarioNombre, T.BeneficiarioBanco
+                FROM transacciones T
+                JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
+                WHERE T.UserID = ?
+                AND T.TransaccionID <> ?
+                AND ET.NombreEstado = 'Exitoso'
+                AND ($where)
+                ORDER BY T.FechaTransaccion DESC
+                LIMIT $limit";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $rows = [];
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $stmt->close();
+        return $rows;
     }
 
     public function updateBeneficiarySnapshot(int $txId, array $data): bool
@@ -768,5 +824,35 @@ class TransactionRepository
         $res = $stmt->execute();
         $stmt->close();
         return $res;
+    }
+
+    public function updateConfirmacionRecepcion(int $txId, int $userId, string $newStatus): bool
+    {
+        $sql = "UPDATE transacciones
+                SET ConfirmacionRecepcion = ?, FechaConfirmacionRecepcion = NOW()
+                WHERE TransaccionID = ?
+                AND UserID = ?
+                AND ConfirmacionRecepcion <> 'recibido'";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("sii", $newStatus, $txId, $userId);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+        return $affected > 0;
+    }
+
+    public function getConfirmacionRecepcion(int $txId): ?array
+    {
+        $sql = "SELECT T.TransaccionID, T.UserID, T.ConfirmacionRecepcion, T.FechaConfirmacionRecepcion,
+                    ET.NombreEstado AS EstadoNombre
+                FROM transacciones T
+                LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
+                WHERE T.TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $txId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
     }
 }

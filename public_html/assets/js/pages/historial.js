@@ -18,6 +18,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const formatCurrency = (amount, currency) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: currency }).format(amount);
 
+    async function handleConfirmReceipt(btn) {
+        const txId = btn.dataset.txId;
+        const received = btn.dataset.received === 'true';
+
+        let title, message;
+        if (received && btn.textContent.trim().toLowerCase().includes('sí lo recibí')) {
+            title = 'Cambiar a recibido';
+            message = '¿Confirmas que en realidad SÍ recibiste el dinero? Esta acción no se podrá deshacer después.';
+        } else if (received) {
+            title = 'Confirmar recepción';
+            message = '¿Confirmas que recibiste el dinero correctamente? Esta acción no se podrá deshacer.';
+        } else {
+            title = 'Reportar no recibido';
+            message = 'Vas a reportar que NO recibiste el dinero. El administrador será notificado para contactarte. Podrás cambiar esto a "Recibido" más tarde si en realidad sí llegó.';
+        }
+        const ok = await (window.showConfirmModal ? window.showConfirmModal(title, message) : Promise.resolve(confirm(message)));
+        if (!ok) return;
+
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const resp = await fetch('../api/?accion=confirmReceipt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactionId: parseInt(txId, 10), received })
+            });
+            const data = await resp.json();
+
+            if (!data.success) {
+                window.showInfoModal('Error', data.error || 'No se pudo actualizar.', false);
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                return;
+            }
+
+            window.showInfoModal('Listo', received ? 'Confirmaste que recibiste el dinero.' : 'Reportaste que no recibiste el dinero. El administrador fue notificado.', true, () => {
+                fetchAndRenderHistorial();
+            });
+        } catch (err) {
+            console.error(err);
+            window.showInfoModal('Error', 'Error de red. Intenta de nuevo.', false);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
     const getStatusBadge = (statusId, statusName) => {
         const id = parseInt(statusId);
         if (id === 6) return `<span class="badge bg-warning text-dark"><i class="bi bi-pause-circle-fill"></i> Pausado</span>`;
@@ -301,6 +349,29 @@ document.addEventListener('DOMContentLoaded', () => {
                             title="Ver Comprobante Envío"><i class="bi bi-receipt"></i> Ver Envío</button>`;
             }
 
+            if (tx.EstadoNombre === 'Exitoso') {
+                const conf = (tx.ConfirmacionRecepcion || 'pendiente');
+                const fechaConf = tx.FechaConfirmacionRecepcion
+                    ? new Date(tx.FechaConfirmacionRecepcion.replace(' ', 'T')).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+                    : '';
+
+                if (conf === 'pendiente') {
+                    btns += ` <button class="btn btn-sm btn-outline-success confirm-receipt-btn"
+                                data-tx-id="${tx.TransaccionID}" data-received="true"
+                                title="Confirmar que recibí el dinero"><i class="bi bi-check2-circle"></i> Recibí</button>`;
+                    btns += ` <button class="btn btn-sm btn-outline-danger confirm-receipt-btn"
+                                data-tx-id="${tx.TransaccionID}" data-received="false"
+                                title="Reportar que NO recibí el dinero"><i class="bi bi-x-circle"></i> No recibí</button>`;
+                } else if (conf === 'recibido') {
+                    btns += ` <span class="badge bg-success" title="Confirmado el ${fechaConf}"><i class="bi bi-check2-all"></i> Recibido${fechaConf ? ` (${fechaConf.split(',')[0]})` : ''}</span>`;
+                } else if (conf === 'no_recibido') {
+                    btns += ` <span class="badge bg-danger" title="Reportaste no recibir el ${fechaConf}"><i class="bi bi-exclamation-triangle"></i> No recibido</span>`;
+                    btns += ` <button class="btn btn-sm btn-outline-success confirm-receipt-btn"
+                                data-tx-id="${tx.TransaccionID}" data-received="true"
+                                title="En realidad sí lo recibí, cambiar a recibido"><i class="bi bi-check2"></i> Sí lo recibí</button>`;
+                }
+            }
+
             return `
                 <tr class="${estadoId === 6 ? 'table-warning' : ''}">
                     <th scope="row">#${tx.TransaccionID}</th>
@@ -351,15 +422,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     reasonText.textContent = btn.dataset.reason;
                     new bootstrap.Modal(reasonModalEl).show();
                 }
+            } else if (btn.classList.contains('confirm-receipt-btn')) {
+                handleConfirmReceipt(btn);
             } else if (btn.classList.contains('upload-btn')) {
                 const txIdField = document.getElementById('transactionIdField');
                 const txLabel = document.getElementById('modal-tx-id');
                 const modalEl = document.getElementById('uploadReceiptModal');
-                
-                // FIX (race condition): la lógica de mostrar/ocultar RUT según país origen
-                // se movió al listener `show.bs.modal` más abajo, porque ese listener hace
-                // `uploadForm.reset()` que borra el value='N/A' si lo seteábamos acá primero.
-                // En su lugar, pasamos la moneda al modal vía dataset y la leemos allá.
                 if (modalEl) modalEl.dataset.monedaOrigen = btn.dataset.monedaOrigen || '';
 
                 if (txIdField) txIdField.value = btn.dataset.id;

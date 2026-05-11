@@ -20,7 +20,19 @@ $sql = "
         T.BeneficiarioNumeroCuenta, T.BeneficiarioTelefono,
         T.MontoDestino, T.MonedaDestino,
         T.ComprobanteURL, T.ComprobanteEnvioURL,
-        CB.PaisID AS PaisDestinoID
+        CB.PaisID AS PaisDestinoID,
+        -- F3.2: contar envíos previos exitosos a la misma cuenta/teléfono
+        (SELECT COUNT(*)
+        FROM transacciones T2
+        JOIN estados_transaccion ET2 ON T2.EstadoID = ET2.EstadoID
+        WHERE T2.UserID = T.UserID
+        AND T2.TransaccionID <> T.TransaccionID
+        AND ET2.NombreEstado = 'Exitoso'
+        AND (
+            (COALESCE(T.BeneficiarioNumeroCuenta,'') <> '' AND T2.BeneficiarioNumeroCuenta = T.BeneficiarioNumeroCuenta)
+        OR (COALESCE(T.BeneficiarioTelefono,'')     <> '' AND T2.BeneficiarioTelefono     = T.BeneficiarioTelefono)
+        )
+        ) AS EnviosPreviosMismaCuenta
     FROM transacciones T
     JOIN usuarios U ON T.UserID = U.UserID
     LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
@@ -50,7 +62,6 @@ foreach ($transacciones as $tx):
     $hasCuenta = !empty(trim($tx['BeneficiarioNumeroCuenta'] ?? ''));
     $hasTelefono = !empty(trim($tx['BeneficiarioTelefono'] ?? ''));
 
-    // M5: incluir fecha de generación de la orden en el texto copiado.
     $fechaGen = !empty($tx['FechaTransaccion'])
         ? date('d/m/Y H:i', strtotime($tx['FechaTransaccion']))
         : '';
@@ -96,6 +107,19 @@ foreach ($transacciones as $tx):
             <div class="text-muted" style="font-size: 0.75rem;">
                 <?php echo htmlspecialchars($tx['Email']); ?>
             </div>
+            <?php
+                $previos = (int)($tx['EnviosPreviosMismaCuenta'] ?? 0);
+                if ($previos > 0):
+                    $color = $previos >= 5 ? 'bg-warning text-dark' : 'bg-info text-white';
+            ?>
+                <button type="button"
+                        class="badge <?php echo $color; ?> border-0 view-prev-sends-btn mt-1"
+                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        title="Ver envíos previos exitosos a esta misma cuenta"
+                        style="cursor:pointer;font-size:0.65rem;">
+                    <i class="bi bi-arrow-repeat"></i> Envío #<?php echo $previos + 1; ?>
+                </button>
+            <?php endif; ?>
         </td>
         <td class="fw-bold text-success">
             <?php echo number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $tx['MonedaDestino']; ?>
@@ -156,8 +180,6 @@ foreach ($transacciones as $tx):
                         data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Pausar Orden">
                         <i class="bi bi-pause-circle-fill"></i>
                     </button>
-                    <?php /* M6: botón Cancelar Orden disponible también para operador.
-                            El backend (rejectTransaction) ya acepta a operador via ensureAdminOrOperator. */ ?>
                     <button class="btn btn-sm btn-danger reject-btn" data-bs-toggle="modal" data-bs-target="#rejectionModal"
                         data-tx-id="<?php echo $tx['TransaccionID']; ?>"
                         data-action-type="cancel"

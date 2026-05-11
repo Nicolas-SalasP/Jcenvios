@@ -139,6 +139,18 @@ body {
     padding-bottom: 12px;
 }
 
+#holiday-alert-bar.alert-danger-mode {
+    background: #dc3545;
+    color: #fff;
+}
+#holiday-alert-bar.alert-danger-mode #holiday-title {
+    background: rgba(0, 0, 0, 0.25) !important;
+}
+#holiday-alert-bar.alert-danger-mode #holiday-date {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
 #holiday-message {
     display: inline-block;
 }
@@ -176,4 +188,24 @@ body {
         padding: 4px 10px;
         margin-top: 2px;
     }
+}
+
+.img-thumbnail,
+.img-fluid,
+#viewComprobanteModal img,
+#userDetailsModal img,
+#imagePreviewModal img,
+.user-photo,
+.comprobante-preview img,
+.modal-body img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+    -webkit-font-smoothing: subpixel-antialiased;
+}
+
+.img-thumbnail {
+    will-change: transform;
 }

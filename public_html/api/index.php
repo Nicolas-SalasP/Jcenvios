@@ -262,6 +262,7 @@ try {
         'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
         'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
         'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
+        'confirmReceipt' => [ClientController::class, 'confirmReceipt', 'POST'],
         'getHistorialTransacciones' => [ClientController::class, 'getTransactionsHistory', 'GET'],
         'checkSessionStatus' => [ClientController::class, 'checkSessionStatus', 'GET'],
         'updatePausedTransactionAmount' => [ClientController::class, 'updatePausedTransactionAmount', 'POST'],
@@ -279,6 +280,7 @@ try {
         // Admin - Tasas
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
         'deleteRate' => [AdminController::class, 'deleteRate', 'POST'],
+        'toggleRouteActive' => [AdminController::class, 'toggleRouteActive', 'POST'],
         'updateBcvRate' => [AdminController::class, 'updateBcvRate', 'POST'],
         'getBcvRate' => [ClientController::class, 'getBcvRate', 'GET'],
         'applyGlobalAdjustment' => [AdminController::class, 'applyGlobalAdjustment', 'POST'],
@@ -304,13 +306,14 @@ try {
         'resumeTransactionAdmin' => [AdminController::class, 'resumeTransactionAdmin', 'POST'],
         'authorizeTransaction' => [AdminController::class, 'authorizeTransaction', 'POST'],
         'toggleMontoEditPermission' => [AdminController::class, 'toggleMontoEditPermission', 'POST'],
+        'getPreviousSendsToSameAccount' => [AdminController::class, 'getPreviousSendsToSameAccount', 'GET'],
 
         // Admin - Cuentas Bancarias del Sistema
         'getCuentasAdmin' => [AdminController::class, 'getCuentasAdmin', 'GET'],
         'saveCuentaAdmin' => [AdminController::class, 'saveCuentaAdmin', 'POST'],
         'deleteCuentaAdmin' => [AdminController::class, 'deleteCuentaAdmin', 'POST'],
         
-        //Admin - Notificaciones
+        // Admin - Notificaciones
         'getAdminAlerts' => [AdminController::class, 'getAdminAlerts', 'GET'],
 
         // Contabilidad

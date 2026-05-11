@@ -33,30 +33,36 @@ class RateRepository
         $sql = "SELECT TasaID, PaisOrigenID, PaisDestinoID, ValorTasa, MontoMinimo, MontoMaximo, PorcentajeAjuste, EsRiesgoso 
                 FROM tasas 
                 WHERE EsReferencial = 1 AND Activa = 1";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         $result = $stmt->get_result();
         $data = $result->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
-        
+
         return $data;
     }
 
     public function findCurrentRate(int $origenID, int $destinoID, float $montoOrigen = 0): ?array
     {
-        $sql = "SELECT TasaID, ValorTasa, EsReferencial, PorcentajeAjuste, MontoMinimo, MontoMaximo, EsRiesgoso 
-                FROM tasas 
-                WHERE PaisOrigenID = ? AND PaisDestinoID = ? 
-                AND Activa = 1 ";
+        $sql = "SELECT t.TasaID, t.ValorTasa, t.EsReferencial, t.PorcentajeAjuste, t.MontoMinimo, t.MontoMaximo, t.EsRiesgoso,
+                    (SELECT COALESCE(tr.RutaActiva, 1)
+                        FROM tasas tr
+                        WHERE tr.PaisOrigenID = t.PaisOrigenID
+                        AND tr.PaisDestinoID = t.PaisDestinoID
+                        AND tr.EsReferencial = 1
+                        LIMIT 1) AS RutaActiva
+                FROM tasas t
+                WHERE t.PaisOrigenID = ? AND t.PaisDestinoID = ? 
+                AND t.Activa = 1 ";
 
         if ($montoOrigen > 0) {
-            $sql .= " AND ? >= MontoMinimo AND ? <= MontoMaximo ";
-            $sql .= " ORDER BY EsReferencial DESC, FechaEfectiva DESC LIMIT 1";
+            $sql .= " AND ? >= t.MontoMinimo AND ? <= t.MontoMaximo ";
+            $sql .= " ORDER BY t.EsReferencial DESC, t.FechaEfectiva DESC LIMIT 1";
             $stmt = $this->db->prepare($sql);
             $stmt->bind_param("iidd", $origenID, $destinoID, $montoOrigen, $montoOrigen);
         } else {
-            $sql .= " ORDER BY EsReferencial DESC, MontoMinimo ASC LIMIT 1";
+            $sql .= " ORDER BY t.EsReferencial DESC, t.MontoMinimo ASC LIMIT 1";
             $stmt = $this->db->prepare($sql);
             $stmt->bind_param("ii", $origenID, $destinoID);
         }
@@ -86,7 +92,7 @@ class RateRepository
 
     public function findReferentialRate(int $origenID, int $destinoID): ?array
     {
-        $sql = "SELECT TasaID, ValorTasa FROM tasas 
+        $sql = "SELECT TasaID, ValorTasa, COALESCE(RutaActiva, 1) AS RutaActiva FROM tasas 
                 WHERE PaisOrigenID = ? AND PaisDestinoID = ? 
                 AND EsReferencial = 1 AND Activa = 1 LIMIT 1";
         $stmt = $this->db->prepare($sql);
@@ -185,5 +191,35 @@ class RateRepository
         $result = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         return $result;
+    }
+
+    public function toggleRouteActive(int $origenID, int $destinoID, int $active): int
+    {
+        $sql = "UPDATE tasas
+                SET RutaActiva = ?
+                WHERE PaisOrigenID = ? AND PaisDestinoID = ? AND EsReferencial = 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iii", $active, $origenID, $destinoID);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+        return $affected;
+    }
+
+    public function isRouteActive(int $origenID, int $destinoID): bool
+    {
+        $sql = "SELECT COALESCE(RutaActiva, 1) AS RutaActiva
+                FROM tasas
+                WHERE PaisOrigenID = ? AND PaisDestinoID = ? AND EsReferencial = 1
+                LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ii", $origenID, $destinoID);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        // Si no hay referencial creada, asumimos activa
+        if (!$row)
+            return true;
+        return (int) $row['RutaActiva'] === 1;
     }
 }

@@ -292,4 +292,19 @@ class PricingService
     {
         $this->rateRepository->delete($tasaId);
     }
+
+    public function adminToggleRouteActive(int $adminId, int $origenId, int $destinoId, bool $active): bool
+    {
+        if ($origenId <= 0 || $destinoId <= 0) {
+            throw new Exception("Origen/Destino inválidos.", 400);
+        }
+        if ($origenId === $destinoId) {
+            throw new Exception("Origen y destino no pueden ser iguales.", 400);
+        }
+        $affected = $this->rateRepository->toggleRouteActive($origenId, $destinoId, $active ? 1 : 0);
+        if ($affected === 0) {
+            throw new Exception("No existe una tasa referencial para esta ruta. Crearla primero.", 404);
+        }
+        return true;
+    }
 }

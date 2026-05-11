@@ -346,10 +346,103 @@ if (!empty($baseUrlPhp)) {
       ta.style.left = '-9999px';
       document.body.appendChild(ta);
       ta.select();
-      try { document.execCommand('copy'); } catch (_) {}
+      try { document.execCommand('copy'); } catch (_) { }
       document.body.removeChild(ta);
     }
   };
+
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.view-prev-sends-btn');
+    if (!btn) return;
+
+    const txId = btn.dataset.txId;
+    if (!txId) return;
+
+    if (btn.dataset.loading === '1') return;
+    btn.dataset.loading = '1';
+
+    try {
+      const res = await fetch('<?php echo BASE_URL; ?>/api/?accion=getPreviousSendsToSameAccount&txId=' + encodeURIComponent(txId));
+      const data = await res.json();
+
+      if (!data.success) {
+        alert(data.error || 'No se pudo cargar la información');
+        return;
+      }
+
+      const sends = data.sends || [];
+      const rows = sends.length === 0
+        ? '<tr><td colspan="5" class="text-center text-muted py-3">Sin envíos previos.</td></tr>'
+        : sends.map(s => {
+          const fecha = s.FechaTransaccion
+            ? new Date(s.FechaTransaccion.replace(' ', 'T')).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : '—';
+          const monto = (s.MontoDestino !== null && s.MontoDestino !== undefined)
+            ? Number(s.MontoDestino).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : '—';
+          return `<tr>
+              <td><strong>#${s.TransaccionID}</strong></td>
+              <td>${fecha}</td>
+              <td>${escapeHtml(s.BeneficiarioNombre || '—')}</td>
+              <td>${escapeHtml(s.BeneficiarioBanco || '—')}</td>
+              <td class="text-end fw-bold">${monto} ${escapeHtml(s.MonedaDestino || '')}</td>
+            </tr>`;
+        }).join('');
+
+      const modalId = 'prev-sends-modal-' + txId;
+      const existing = document.getElementById(modalId);
+      if (existing) existing.remove();
+
+      const modalHtml = `
+        <div class="modal fade" id="${modalId}" tabindex="-1">
+          <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                  <i class="bi bi-arrow-repeat me-2"></i>
+                  Envíos previos exitosos (${data.total})
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Orden</th>
+                        <th>Fecha</th>
+                        <th>Beneficiario</th>
+                        <th>Banco</th>
+                        <th class="text-end">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      const modalEl = document.getElementById(modalId);
+      const modal = new bootstrap.Modal(modalEl);
+      modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove());
+      modal.show();
+    } catch (err) {
+      console.error('Error cargando envíos previos:', err);
+      alert('Error de red al cargar los envíos previos.');
+    } finally {
+      delete btn.dataset.loading;
+    }
+  });
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
 </script>
 </body>
 

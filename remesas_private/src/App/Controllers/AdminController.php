@@ -314,6 +314,28 @@ class AdminController extends BaseController
         }
     }
 
+    public function toggleRouteActive(): void
+    {
+        $adminId = $this->ensureLoggedIn();
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+
+        $origenId = (int)($data['origenId'] ?? 0);
+        $destinoId = (int)($data['destinoId'] ?? 0);
+        $active = !empty($data['active']);
+
+        try {
+            $this->pricingService->adminToggleRouteActive($adminId, $origenId, $destinoId, $active);
+            $this->sendJsonResponse([
+                'success' => true,
+                'message' => $active ? 'Ruta activada.' : 'Ruta desactivada (la tasa sigue visible pero no se podrá enviar).'
+            ]);
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 ? $e->getCode() : 500;
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+        }
+    }
+
     public function addPais(): void
     {
         $adminId = $this->ensureLoggedIn();
@@ -683,6 +705,24 @@ class AdminController extends BaseController
             $this->sendJsonResponse(['success' => true, 'beneficiarios' => $beneficiarios]);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => 'Error al obtener datos.'], 500);
+        }
+    }
+    
+    public function getPreviousSendsToSameAccount()
+    {
+        $this->ensureAdminOrOperator();
+
+        $txId = isset($_GET['txId']) ? (int)$_GET['txId'] : 0;
+        if ($txId <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'ID de transacción inválido.'], 400);
+            return;
+        }
+
+        try {
+            $sends = $this->txService->getPreviousSendsToSameAccount($txId);
+            $this->sendJsonResponse(['success' => true, 'sends' => $sends, 'total' => count($sends)]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
         }
     }
 

@@ -23,6 +23,7 @@ $f_user = $_GET['f_user'] ?? '';
 $f_date = $_GET['f_date'] ?? '';
 $f_status = $_GET['f_status'] ?? '';
 $f_origen = $_GET['f_origen'] ?? '';
+$f_confirm = $_GET['f_confirm'] ?? '';
 $f_destino = $_GET['f_destino'] ?? '';
 
 $whereClause = "WHERE 1=1";
@@ -55,6 +56,11 @@ if (!empty($f_status)) {
     $whereClause .= " AND T.EstadoID = ?";
     $params[] = $f_status;
     $types .= "i";
+}
+if (!empty($f_confirm) && in_array($f_confirm, ['pendiente', 'recibido', 'no_recibido'], true)) {
+    $whereClause .= " AND T.ConfirmacionRecepcion = ?";
+    $params[] = $f_confirm;
+    $types .= "s";
 }
 
 $joinClauseCount = "JOIN usuarios U ON T.UserID = U.UserID";
@@ -105,7 +111,20 @@ $sql = "
     SELECT T.*, U.PrimerNombre, U.PrimerApellido,
         T.BeneficiarioNombre AS BeneficiarioNombreCompleto,
         ET.NombreEstado AS EstadoNombre,
-        U.NumeroDocumento AS UsuarioDocumento
+        U.NumeroDocumento AS UsuarioDocumento,
+        -- F3.1 ConfirmacionRecepcion ya viene en T.* gracias al ALTER TABLE
+        -- F3.2: contar envíos exitosos previos de este usuario a la misma cuenta/teléfono
+        (SELECT COUNT(*)
+         FROM transacciones T2
+         JOIN estados_transaccion ET2 ON T2.EstadoID = ET2.EstadoID
+         WHERE T2.UserID = T.UserID
+           AND T2.TransaccionID <> T.TransaccionID
+           AND ET2.NombreEstado = 'Exitoso'
+           AND (
+              (COALESCE(T.BeneficiarioNumeroCuenta,'') <> '' AND T2.BeneficiarioNumeroCuenta = T.BeneficiarioNumeroCuenta)
+           OR (COALESCE(T.BeneficiarioTelefono,'')     <> '' AND T2.BeneficiarioTelefono     = T.BeneficiarioTelefono)
+           )
+        ) AS EnviosPreviosMismaCuenta
     FROM transacciones T
     $joinClauseData
     $whereClause
@@ -173,7 +192,22 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 <td class="search-user">
                     <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
                 </td>
-                <td class="search-beneficiary"><?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?></td>
+                <td class="search-beneficiary">
+                    <?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?>
+                    <?php
+                        $previos = (int)($tx['EnviosPreviosMismaCuenta'] ?? 0);
+                        if ($previos > 0):
+                            $color = $previos >= 5 ? 'bg-warning text-dark' : 'bg-info text-white';
+                    ?>
+                        <button type="button"
+                                class="badge <?php echo $color; ?> border-0 view-prev-sends-btn ms-1"
+                                data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                                title="Ver envíos previos exitosos a esta misma cuenta"
+                                style="cursor:pointer;font-size:0.7rem;">
+                            <i class="bi bi-arrow-repeat"></i> Envío #<?php echo $previos + 1; ?>
+                        </button>
+                    <?php endif; ?>
+                </td>
                 <td>
                     <span class="badge <?php echo getStatusBadgeClass($tx['EstadoNombre'] ?? ''); ?>">
                         <?php echo htmlspecialchars($tx['EstadoNombre'] ?? 'Desconocido'); ?>
@@ -187,6 +221,29 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                             </button>
                         </div>
                     <?php endif; ?>
+                    <?php
+                        $conf = $tx['ConfirmacionRecepcion'] ?? 'pendiente';
+                        if (($tx['EstadoNombre'] ?? '') === 'Exitoso' && $conf !== 'pendiente'):
+                            $fechaConf = !empty($tx['FechaConfirmacionRecepcion'])
+                                ? date('d/m/Y H:i', strtotime($tx['FechaConfirmacionRecepcion']))
+                                : '';
+                            if ($conf === 'recibido'):
+                    ?>
+                        <div class="mt-1">
+                            <span class="badge bg-success" title="Cliente confirmó recepción el <?php echo $fechaConf; ?>">
+                                <i class="bi bi-check2-all"></i> Cliente recibió
+                            </span>
+                        </div>
+                    <?php elseif ($conf === 'no_recibido'): ?>
+                        <div class="mt-1">
+                            <span class="badge bg-danger" title="¡Atención! Cliente reportó no recibir el <?php echo $fechaConf; ?>">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Cliente NO recibió
+                            </span>
+                        </div>
+                    <?php
+                            endif;
+                        endif;
+                    ?>
                 </td>
                 <td>
                     <div class="d-flex align-items-center justify-content-between">
@@ -275,7 +332,7 @@ function getPaginationUrl($page, $filters)
     $params = array_merge($filters, ['pagina' => $page]);
     return '?' . http_build_query($params);
 }
-$currentFilters = ['f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status, 'f_origen' => $f_origen, 'f_destino' => $f_destino];
+$currentFilters = ['f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status, 'f_origen' => $f_origen, 'f_destino' => $f_destino, 'f_confirm' => $f_confirm];
 
 $pageTitle = 'Panel de Administración';
 $pageScript = 'admin.js';
@@ -352,6 +409,16 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <label class="form-label small fw-bold mb-1">Fecha</label>
                 <input type="date" name="f_date" class="form-control form-control-sm"
                     value="<?php echo htmlspecialchars($f_date); ?>">
+            </div>
+            <?php /* F3.1: filtro confirmación cliente */ ?>
+            <div class="col-6 col-md-2">
+                <label class="form-label small fw-bold mb-1">Confirmación</label>
+                <select name="f_confirm" class="form-select form-select-sm">
+                    <option value="">Todas</option>
+                    <option value="pendiente" <?= ($f_confirm === 'pendiente') ? 'selected' : '' ?>>Sin confirmar</option>
+                    <option value="recibido" <?= ($f_confirm === 'recibido') ? 'selected' : '' ?>>Cliente recibió ✓</option>
+                    <option value="no_recibido" <?= ($f_confirm === 'no_recibido') ? 'selected' : '' ?>>Cliente NO recibió ✗</option>
+                </select>
             </div>
             <div class="col-12 col-md-1 d-flex gap-1">
                 <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i></button>
