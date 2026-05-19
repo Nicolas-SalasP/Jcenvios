@@ -3,14 +3,11 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Lógica de versión para CSS (Cache busting)
 $cssFilePath = __DIR__ . '/../../../public_html/assets/css/style.css';
 $cssVersion = file_exists($cssFilePath) ? hash_file('md5', $cssFilePath) : '1.0.0';
 
-// Título por defecto
 $pageTitleDisplay = isset($pageTitle) ? htmlspecialchars($pageTitle) . ' | JC Envios' : 'JC Envios | Envíos Rápidos';
 
-// Pre-calcular roles y estados
 $is_logged_in = isset($_SESSION['user_id']);
 $user_role = $_SESSION['user_rol_name'] ?? '';
 $is_admin = ($user_role === 'Admin');
@@ -18,7 +15,6 @@ $is_operator = ($user_role === 'Operador');
 $two_fa_enabled = (isset($_SESSION['twofa_enabled']) && $_SESSION['twofa_enabled'] == 1);
 $verifStatusId = isset($_SESSION['verification_status_id']) ? (int)$_SESSION['verification_status_id'] : 0;
 
-// Lógica de Foto de Perfil
 $photoUrl = BASE_URL . '/assets/img/SoloLogoNegroSinFondo.png';
 if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
     $photoPath = $_SESSION['user_photo_url'];
@@ -44,8 +40,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
 
     <style>
         .main-header {
-            background: #fff;
-            border-bottom: 1px solid #f0f0f0;
+            background: 
+            border-bottom: 1px solid 
         }
 
         .navbar-brand img {
@@ -59,20 +55,20 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
 
         .nav-link {
             font-weight: 500;
-            color: #555;
+            color: 
             transition: color 0.2s;
         }
 
         .nav-link:hover,
         .nav-link.active {
-            color: #0d6efd !important;
+            color: 
         }
 
         .user-avatar {
             width: 36px;
             height: 36px;
             object-fit: cover;
-            border: 2px solid #e9ecef;
+            border: 2px solid 
         }
 
         .dropdown-menu-custom {
@@ -87,12 +83,12 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             border-radius: 8px;
             padding: 8px 12px;
             font-size: 0.95rem;
-            color: #444;
+            color: 
         }
 
         .dropdown-item:hover {
-            background-color: #f8f9fa;
-            color: #0d6efd;
+            background-color: 
+            color: 
         }
 
         .dropdown-item i {
@@ -102,7 +98,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             display: inline-block;
         }
 
-        /* --- ESTILOS PARA BADGES ANIMADOS --- */
+        
         .badge-anim {
             transition: transform 0.3s ease-in-out;
         }
@@ -110,7 +106,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             transform: scale(1.2);
         }
         
-        /* Contenedor flexible para alinear texto y badges sin que se rompan feo */
+        
         .nav-link-badges {
             display: inline-flex;
             align-items: center;
@@ -118,16 +114,16 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             gap: 4px;
         }
 
-        /* --- ALERTA INFORMATIVA GLOBAL --- */
-        #holiday-alert-bar {
-            background: linear-gradient(45deg, #ffc107, #ff9800); 
-            color: #000;
+        
+        
+            background: linear-gradient(45deg, 
+            color: 
             overflow: hidden;
             max-height: 0;
             transition: max-height 0.6s cubic-bezier(0.19, 1, 0.22, 1); 
         }
-        /* CORRECCIÓN MÓVIL: Aumentado de 100px a 400px para que el texto largo no se corte al hacer wrap */
-        #holiday-alert-bar.show { max-height: 400px; } 
+        
+        
 
         @media (max-width: 991.98px) {
             .navbar-collapse {
@@ -137,17 +133,17 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 left: 0;
                 right: 0;
                 padding: 20px;
-                border-top: 1px solid #eee;
+                border-top: 1px solid 
                 box-shadow: 0 15px 30px rgba(0, 0, 0, 0.05);
                 z-index: 1050;
             }
 
             .nav-item {
                 padding: 8px 0;
-                border-bottom: 1px solid #f8f9fa;
+                border-bottom: 1px solid 
             }
 
-            /* CORRECCIÓN MÓVIL: Alinear avatar y botón de sonido horizontalmente */
+            
             .user-actions-mobile {
                 flex-direction: row !important;
                 justify-content: space-between !important;
@@ -155,15 +151,15 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 width: 100%;
                 margin-top: 15px;
                 padding-top: 15px;
-                border-top: 1px solid #f8f9fa;
+                border-top: 1px solid 
             }
 
             .dropdown-menu-custom {
                 box-shadow: none;
-                border: 1px solid #eee;
-                background: #fdfdfd;
+                border: 1px solid 
+                background: 
                 margin-top: 5px;
-                position: static !important; /* Despegar del absolute nativo en móviles */
+                position: static !important; 
                 transform: none !important;
             }
         }
@@ -331,25 +327,31 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             </div>
         </nav>
 
-        <div id="holiday-alert-bar" class="d-none shadow-sm text-center w-100 border-top border-warning">
-            <div class="container py-3">
-                <div class="d-flex align-items-center justify-content-center flex-wrap gap-2">
-                    <i class="bi bi-info-circle-fill fs-5"></i>
-                    <span class="badge bg-dark text-white fw-bold" id="holiday-title">AVISO</span>
-                    <span class="fw-medium" id="holiday-message">...</span>
-                    <span class="d-none d-md-inline">|</span>
-                    <span class="small d-block d-md-inline w-100 w-md-auto">
-                        Válido hasta: <strong id="holiday-date">...</strong>
-                    </span>
-                </div>
-            </div>
-        </div>
     </header>
-    
+
     <?php if ($is_admin || $is_operator): ?>
     <audio id="admin-alert-sound" preload="auto">
         <source src="<?= BASE_URL ?>/assets/audio/notification.mp3" type="audio/mpeg">
     </audio>
     <?php endif; ?>
+
+    <!-- FIX MÓVIL: el banner de feriado estaba DENTRO del <header sticky-top>.
+         En desktop no se nota, pero en móvil el texto ocupa más líneas y el banner
+         alto quedaba "pegado" tapando el contenido al hacer scroll.
+         Solución: sacarlo del header y ponerlo en el flujo normal del documento,
+         entre el navbar y el <main>. Así scrollea con la página. -->
+    <div id="holiday-alert-bar" class="d-none shadow-sm text-center w-100 border-bottom border-warning">
+        <div class="container py-3">
+            <div class="d-flex align-items-center justify-content-center flex-wrap gap-2">
+                <i class="bi bi-info-circle-fill fs-5"></i>
+                <span class="badge bg-dark text-white fw-bold" id="holiday-title">AVISO</span>
+                <span class="fw-medium" id="holiday-message">...</span>
+                <span class="d-none d-md-inline">|</span>
+                <span class="small d-block d-md-inline w-100 w-md-auto">
+                    Válido hasta: <strong id="holiday-date">...</strong>
+                </span>
+            </div>
+        </div>
+    </div>
 
     <main class="flex-grow-1">

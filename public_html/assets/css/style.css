@@ -37,7 +37,6 @@ body {
     }
 }
 
-
 .auth-container {
     max-width: 500px;
     margin: 1rem auto;
@@ -108,9 +107,6 @@ body {
     position: fixed !important;
 }
 
-/* =========================================
-    ESTILOS PARA ALERTA DE SISTEMA (FERIADOS)
-========================================= */
 #holiday-alert-bar {
     width: 100%;
     background: #ffc107;
@@ -127,6 +123,7 @@ body {
     font-weight: 500;
     line-height: 1.5;
     text-align: center;
+    
     max-height: 0;
     padding-top: 0;
     padding-bottom: 0;
@@ -164,13 +161,9 @@ body {
     white-space: nowrap;
 }
 
-/* =========================================
-    AJUSTES PARA MÓVILES (Modo Bloque)
-========================================= */
 @media (max-width: 991px) {
-    #holiday-alert-bar {
-        display: block !important;
-        padding: 15px 15px 15px 15px;
+    #holiday-alert-bar.show {
+        padding: 15px;
     }
 
     #holiday-message {
@@ -200,9 +193,11 @@ body {
 .modal-body img {
     image-rendering: -webkit-optimize-contrast;
     image-rendering: crisp-edges;
+    
     transform: translateZ(0);
     -webkit-backface-visibility: hidden;
             backface-visibility: hidden;
+    
     -webkit-font-smoothing: subpixel-antialiased;
 }
 
