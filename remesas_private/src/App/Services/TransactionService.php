@@ -224,9 +224,10 @@ class TransactionService
             $porcentaje = $client['PorcentajeComision'] ?? 0;
             if ($porcentaje > 0) {
                 $ganancia = ($data['montoOrigen'] * $porcentaje) / 100;
-                if (method_exists($this->userRepository, 'addGanancia')) {
-                    $this->userRepository->addGanancia($client['UserID'], $ganancia);
-                }
+                // La comisión del revendedor se persiste por transacción en
+                // transacciones.ComisionRevendedor (ver TransactionRepository::create) y se
+                // reporta con getResellerStats. Se eliminó la llamada a addGanancia(): escribía
+                // en usuarios.SaldoGanancias, columna que NO existe → fallaba en cada orden.
             }
         }
 

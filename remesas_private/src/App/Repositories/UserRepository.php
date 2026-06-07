@@ -273,21 +273,20 @@ class UserRepository
         return $success;
     }
 
-    public function addGanancia(int $userId, float $monto): bool
-    {
-        $sql = "UPDATE usuarios SET SaldoGanancias = SaldoGanancias + ? WHERE UserID = ?";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("di", $monto, $userId);
-        $success = $stmt->execute();
-        $stmt->close();
-        return $success;
-    }
+    // Nota: se eliminó addGanancia(): actualizaba usuarios.SaldoGanancias, una columna que NO
+    // existe en la tabla, por lo que fallaba en cada orden de revendedor. La comisión del
+    // revendedor ahora se guarda por transacción (transacciones.ComisionRevendedor) y se
+    // consulta con TransactionRepository::getResellerStats.
 
     public function delete(int $userId): bool
     {
-        $sql = "UPDATE usuarios SET Eliminado = 1, Email = CONCAT(Email, '_deleted_', UNIX_TIMESTAMP()) WHERE UserID = ?";
+        $sql = "UPDATE usuarios
+                SET Eliminado = 1,
+                    Email = CONCAT(Email, '_deleted_', UNIX_TIMESTAMP()),
+                    NumeroDocumento = CONCAT('del_', ?, '_', UNIX_TIMESTAMP())
+                WHERE UserID = ?";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("i", $userId);
+        $stmt->bind_param("ii", $userId, $userId);
         $success = $stmt->execute();
         $stmt->close();
         return $success;
