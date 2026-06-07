@@ -190,7 +190,7 @@ $settings = $pricingService->getGlobalAdjustmentSettings();
                             <span class="badge bg-danger ms-3">RUTA DESACTIVADA</span>
                         <?php endif; ?>
                     </button>
-                    <div class="form-check form-switch me-3" style="min-width:140px;"
+                    <div class="form-check form-switch me-3 align-self-center" style="min-width:140px; font-size:1rem; line-height:1.4;"
                         title="Si está apagado, los usuarios siguen viendo la tasa pero no pueden enviar.">
                         <input class="form-check-input toggle-route-active" type="checkbox" role="switch"
                             id="toggle-route-<?= $rutaKey ?>" data-origen-id="<?= $ruta['origenId'] ?>"
