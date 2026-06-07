@@ -12,8 +12,73 @@ if (
 $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
 $estadosSQL = $isOperator ? "3, 6" : "2, 3, 6";
 
+// === Filtros (server-side, prepared statements) ===
+$f_id      = trim($_GET['f_id'] ?? '');
+$f_user    = trim($_GET['f_user'] ?? '');
+$f_estado  = trim($_GET['f_estado'] ?? '');
+$f_origen  = trim($_GET['f_origen'] ?? '');
+$f_destino = trim($_GET['f_destino'] ?? '');
+$f_desde   = trim($_GET['f_desde'] ?? '');   // fecha inicio (YYYY-MM-DD)
+$f_hasta   = trim($_GET['f_hasta'] ?? '');   // fecha fin (YYYY-MM-DD)
+
+$conds  = [];
+$params = [];
+$types  = "";
+
+if ($f_id !== '' && ctype_digit($f_id)) {
+    $conds[]  = "T.TransaccionID = ?";
+    $params[] = (int)$f_id;
+    $types   .= "i";
+}
+
+if ($f_user !== '') {
+    $conds[]  = "(U.PrimerNombre LIKE ? OR U.PrimerApellido LIKE ? OR CONCAT_WS(' ',U.PrimerNombre,U.PrimerApellido) LIKE ? OR T.BeneficiarioNombre LIKE ?)";
+    $like     = '%' . $f_user . '%';
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+    $types   .= "ssss";
+}
+
+if ($f_estado !== '' && ctype_digit($f_estado)) {
+    $allowed = array_map('intval', explode(',', $estadosSQL));
+    if (in_array((int)$f_estado, $allowed, true)) {
+        $conds[]  = "T.EstadoID = ?";
+        $params[] = (int)$f_estado;
+        $types   .= "i";
+    }
+}
+
+if ($f_origen !== '' && ctype_digit($f_origen)) {
+    $conds[]  = "TS.PaisOrigenID = ?";
+    $params[] = (int)$f_origen;
+    $types   .= "i";
+}
+
+if ($f_destino !== '' && ctype_digit($f_destino)) {
+    $conds[]  = "CB.PaisID = ?";
+    $params[] = (int)$f_destino;
+    $types   .= "i";
+}
+
+if ($f_desde !== '') {
+    $conds[]  = "DATE(T.FechaTransaccion) >= ?";
+    $params[] = $f_desde;
+    $types   .= "s";
+}
+
+if ($f_hasta !== '') {
+    $conds[]  = "DATE(T.FechaTransaccion) <= ?";
+    $params[] = $f_hasta;
+    $types   .= "s";
+}
+
+$whereSQL = "WHERE T.EstadoID IN ($estadosSQL)"
+    . (count($conds) ? " AND " . implode(" AND ", $conds) : "");
+
 $sql = "
-    SELECT T.*, 
+    SELECT T.*,
         U.PrimerNombre, U.PrimerApellido, U.Email,
         ET.NombreEstado AS EstadoNombre,
         T.BeneficiarioNombre, T.BeneficiarioDocumento, T.BeneficiarioBanco, 
@@ -37,11 +102,15 @@ $sql = "
     JOIN usuarios U ON T.UserID = U.UserID
     LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
     LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
-    WHERE T.EstadoID IN ($estadosSQL)
+    LEFT JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID
+    $whereSQL
     ORDER BY T.FechaTransaccion ASC
 ";
 
 $stmt = $conexion->prepare($sql);
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
 $stmt->execute();
 $transacciones = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
@@ -148,6 +217,10 @@ foreach ($transacciones as $tx):
 
         <td class="text-end">
             <div class="d-flex gap-1 justify-content-end">
+                <a href="../admin/orden.php?id=<?php echo $tx['TransaccionID']; ?>"
+                    class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
+                    <i class="bi bi-window-split"></i> Abrir
+                </a>
                 <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
                     class="btn btn-sm btn-outline-danger" title="Ver Orden PDF">
                     <i class="bi bi-file-earmark-pdf"></i>

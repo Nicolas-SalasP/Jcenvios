@@ -276,16 +276,38 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                         $textoCopiado_a .= "Monto: " . number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '');
 
                         $textoBase64_a = base64_encode($textoCopiado_a);
+
+                        $jsonData_a = htmlspecialchars(json_encode([
+                            'id'         => $tx['TransaccionID'],
+                            'banco'      => $tx['BeneficiarioBanco'] ?? '',
+                            'nombre'     => $tx['BeneficiarioNombre'] ?? '',
+                            'doc'        => $tx['BeneficiarioDocumento'] ?? '',
+                            'cuenta'     => $tx['BeneficiarioNumeroCuenta'] ?? '',
+                            'telefono'   => $tx['BeneficiarioTelefono'] ?? '',
+                            'hasCuenta'  => $hasCuenta_a,
+                            'hasTelefono'=> $hasTelefono_a,
+                            'monto'      => number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '')
+                        ]), ENT_QUOTES, 'UTF-8');
                     ?>
-                    <button class="btn btn-sm btn-outline-primary me-1"
-                        onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')"
-                        title="Copiar datos generales (incluye fecha)">
-                        <i class="bi bi-clipboard-check"></i>
-                    </button>
-                    <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
-                        class="btn btn-sm btn-info text-white" title="PDF">
-                        <i class="bi bi-file-earmark-pdf"></i>
-                    </a>
+                    <div class="d-flex flex-wrap gap-1 justify-content-center align-items-center">
+                        <button class="btn btn-sm btn-primary d-flex align-items-center gap-1"
+                            onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')"
+                            title="Copiar todos los datos">
+                            <i class="bi bi-clipboard-check"></i> <span>Copiar</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary copy-data-btn"
+                            data-datos="<?php echo $jsonData_a; ?>" title="Ver / copiar por partes">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>"
+                            class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
+                            <i class="bi bi-window-split"></i>
+                        </a>
+                        <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
+                            class="btn btn-sm btn-info text-white" title="PDF">
+                            <i class="bi bi-file-earmark-pdf"></i>
+                        </a>
+                    </div>
                 </td>
                 <td class="text-center">
                     <?php if (!empty($tx['ComprobanteURL'])): ?>
@@ -487,10 +509,55 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                 </div>
                             </td>
                             <td class="text-center">
-                                <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>"
-                                    target="_blank" class="btn btn-sm btn-info text-white" title="PDF">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>
+                                <?php
+                                    $hasCuenta_a   = !empty(trim($tx['BeneficiarioNumeroCuenta'] ?? ''));
+                                    $hasTelefono_a = !empty(trim($tx['BeneficiarioTelefono'] ?? ''));
+                                    $fechaGen_a    = !empty($tx['FechaTransaccion'])
+                                        ? date('d/m/Y H:i', strtotime($tx['FechaTransaccion']))
+                                        : '';
+
+                                    $textoCopiado_a  = "ORDEN #{$tx['TransaccionID']}\n";
+                                    if ($fechaGen_a) $textoCopiado_a .= "Fecha: {$fechaGen_a}\n";
+                                    $textoCopiado_a .= "Banco: " . ($tx['BeneficiarioBanco'] ?? '') . "\n";
+                                    $textoCopiado_a .= "Beneficiario: " . ($tx['BeneficiarioNombre'] ?? '') . "\n";
+                                    if ($hasCuenta_a)   $textoCopiado_a .= "Cuenta: {$tx['BeneficiarioNumeroCuenta']}\n";
+                                    if ($hasTelefono_a) $textoCopiado_a .= "Teléfono: {$tx['BeneficiarioTelefono']}\n";
+                                    $textoCopiado_a .= "Doc: " . ($tx['BeneficiarioDocumento'] ?? '') . "\n";
+                                    $textoCopiado_a .= "Monto: " . number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '');
+
+                                    $textoBase64_a = base64_encode($textoCopiado_a);
+
+                                    $jsonData_a = htmlspecialchars(json_encode([
+                                        'id'         => $tx['TransaccionID'],
+                                        'banco'      => $tx['BeneficiarioBanco'] ?? '',
+                                        'nombre'     => $tx['BeneficiarioNombre'] ?? '',
+                                        'doc'        => $tx['BeneficiarioDocumento'] ?? '',
+                                        'cuenta'     => $tx['BeneficiarioNumeroCuenta'] ?? '',
+                                        'telefono'   => $tx['BeneficiarioTelefono'] ?? '',
+                                        'hasCuenta'  => $hasCuenta_a,
+                                        'hasTelefono'=> $hasTelefono_a,
+                                        'monto'      => number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '')
+                                    ]), ENT_QUOTES, 'UTF-8');
+                                ?>
+                                <div class="d-flex flex-wrap gap-1 justify-content-center align-items-center">
+                                    <button class="btn btn-sm btn-primary d-flex align-items-center gap-1"
+                                        onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')"
+                                        title="Copiar todos los datos">
+                                        <i class="bi bi-clipboard-check"></i> <span>Copiar</span>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary copy-data-btn"
+                                        data-datos="<?php echo $jsonData_a; ?>" title="Ver / copiar por partes">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>"
+                                        class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
+                                        <i class="bi bi-window-split"></i>
+                                    </a>
+                                    <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>"
+                                        target="_blank" class="btn btn-sm btn-info text-white" title="PDF">
+                                        <i class="bi bi-file-earmark-pdf"></i>
+                                    </a>
+                                </div>
                             </td>
                             <td class="text-center">
                                 <?php if (!empty($tx['ComprobanteURL'])): ?>
@@ -792,6 +859,78 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <div class="modal-body" id="infoModalBody"></div>
             <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                     id="infoModalCloseBtn">Cerrar</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="copyDataModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Datos para Transferencia - Orden #<span id="copy-tx-id"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-light border d-flex justify-content-between align-items-center mb-4 shadow-sm">
+                    <strong class="fs-5 text-muted">Monto a Pagar:</strong>
+                    <div class="d-flex align-items-center">
+                        <span class="fs-3 fw-bold text-success me-3" id="copy-monto-display"></span>
+                        <button class="btn btn-outline-success btn-sm"
+                            onclick="copyToClipboard('copy-monto-value', this)"><i class="bi bi-clipboard"></i></button>
+                        <input type="hidden" id="copy-monto-value">
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="small text-muted fw-bold">Banco / Billetera</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control fw-bold" id="copy-banco" readonly>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i
+                                    class="bi bi-clipboard"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6" id="container-cuenta" style="display: none;">
+                        <label class="small text-muted fw-bold">Cuenta Bancaria</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control fw-bold" id="copy-cuenta" readonly>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i
+                                    class="bi bi-clipboard"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6" id="container-telefono" style="display: none;">
+                        <label class="small text-muted fw-bold">Teléfono (Pago Móvil/Billetera)</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control fw-bold" id="copy-telefono" readonly>
+                            <button class="btn btn-outline-secondary"
+                                onclick="copyToClipboard('copy-telefono', this)"><i
+                                    class="bi bi-clipboard"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="small text-muted fw-bold">Documento</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="copy-doc" readonly>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-doc', this)"><i
+                                    class="bi bi-clipboard"></i></button>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="small text-muted fw-bold">Beneficiario</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="copy-nombre" readonly>
+                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-nombre', this)"><i
+                                    class="bi bi-clipboard"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
     </div>
 </div>

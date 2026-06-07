@@ -24,6 +24,10 @@ $sqlCuentas = "
 ";
 $cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
 
+// === Listas para los filtros ===
+$estadosOperador = $conexion->query("SELECT EstadoID, NombreEstado FROM estados_transaccion WHERE EstadoID IN (2,3,6) ORDER BY NombreEstado")->fetch_all(MYSQLI_ASSOC);
+$listaPaises = $conexion->query("SELECT PaisID, NombrePais FROM paises WHERE Activo = 1 ORDER BY NombrePais ASC")->fetch_all(MYSQLI_ASSOC);
+
 $pageTitle = 'Órdenes por Pagar';
 $pageScript = 'admin.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
@@ -40,6 +44,68 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
         <button id="btnRefresh" class="btn btn-primary" onclick="cargarTablaPendientes()">
             <i class="bi bi-arrow-clockwise"></i> Actualizar Lista
         </button>
+    </div>
+
+    <div class="bg-light p-3 rounded mb-3 border">
+        <form id="op-filter-form" class="row g-2 align-items-end">
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">ID</label>
+                <input type="number" name="f_id" class="form-control form-control-sm" placeholder="ID">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-1">Cliente / Beneficiario</label>
+                <input type="text" name="f_user" class="form-control form-control-sm" placeholder="Nombre...">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">Estado</label>
+                <select name="f_estado" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <?php foreach ($estadosOperador as $est): ?>
+                        <option value="<?php echo (int)$est['EstadoID']; ?>">
+                            <?php echo htmlspecialchars($est['NombreEstado']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">Origen</label>
+                <select name="f_origen" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <?php foreach ($listaPaises as $pais): ?>
+                        <option value="<?php echo (int)$pais['PaisID']; ?>">
+                            <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">Destino</label>
+                <select name="f_destino" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <?php foreach ($listaPaises as $pais): ?>
+                        <option value="<?php echo (int)$pais['PaisID']; ?>">
+                            <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">Desde</label>
+                <input type="date" name="f_desde" class="form-control form-control-sm">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">Hasta</label>
+                <input type="date" name="f_hasta" class="form-control form-control-sm">
+            </div>
+            <div class="col-12 col-md-auto d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+                <button type="button" id="op-clear-filters" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-x-lg"></i> Limpiar
+                </button>
+            </div>
+        </form>
     </div>
 
     <div class="card shadow-sm">
@@ -333,23 +399,16 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
 <script>
     function cargarTablaPendientes() {
         const btn = document.getElementById('btnRefresh');
-        const icon = btn.querySelector('i');
-
-        icon.classList.add('spin-anim');
-        btn.disabled = true;
-
-        fetch('get_pendientes.php')
-            .then(response => response.text())
-            .then(html => {
-                document.getElementById('tablaPendientesBody').innerHTML = html;
-            })
-            .catch(error => {
-                console.error('Error recargando tabla:', error);
-            })
-            .finally(() => {
-                icon.classList.remove('spin-anim');
-                btn.disabled = false;
-            });
+        const icon = btn ? btn.querySelector('i') : null;
+        if (icon) icon.classList.add('spin-anim');
+        if (btn) btn.disabled = true;
+        const form = document.getElementById('op-filter-form');
+        const qs = form ? new URLSearchParams(new FormData(form)).toString() : '';
+        fetch('get_pendientes.php' + (qs ? ('?' + qs) : ''))
+            .then(r => r.text())
+            .then(html => { document.getElementById('tablaPendientesBody').innerHTML = html; })
+            .catch(e => console.error('Error recargando tabla:', e))
+            .finally(() => { if (icon) icon.classList.remove('spin-anim'); if (btn) btn.disabled = false; });
     }
 
     const style = document.createElement('style');
@@ -362,6 +421,21 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
     document.addEventListener('DOMContentLoaded', () => {
         cargarTablaPendientes();
         setInterval(cargarTablaPendientes, 10000);
+
+        const opForm = document.getElementById('op-filter-form');
+        if (opForm) {
+            opForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                cargarTablaPendientes();
+            });
+        }
+        const opClear = document.getElementById('op-clear-filters');
+        if (opClear && opForm) {
+            opClear.addEventListener('click', function () {
+                opForm.reset();
+                cargarTablaPendientes();
+            });
+        }
 
         document.body.addEventListener('click', function (e) {
             const btn = e.target.closest('.view-pause-reason-btn');

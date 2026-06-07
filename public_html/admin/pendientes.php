@@ -402,6 +402,8 @@ function renderTableRows($transacciones)
                 <?php endif; ?>
             </td>
             <td class="d-flex flex-wrap gap-1">
+                <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>" class="btn btn-sm btn-dark"
+                    title="Abrir orden (pantalla dividida)"><i class="bi bi-window-split"></i> Abrir</a>
                 <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
                     class="btn btn-sm btn-outline-dark" title="Ver Orden"><i class="bi bi-file-earmark-pdf"></i></a>
 
