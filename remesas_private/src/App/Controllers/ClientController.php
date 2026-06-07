@@ -654,11 +654,6 @@ class ClientController extends BaseController
         }
     }
 
-    public function subirComprobanteDetallado(): void
-    {
-        $this->uploadReceipt();
-    }
-
     // =========================================================================
     // MÉTODOS DE AUDITORÍA Y SEGURIDAD 
     // =========================================================================

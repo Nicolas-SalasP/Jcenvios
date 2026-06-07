@@ -227,7 +227,6 @@ try {
         'verify2fa' => [AuthController::class, 'verify2FACode', 'POST'],
         'send2faCode' => [AuthController::class, 'send2FACode', 'POST'],
         'resend2faCode' => [AuthController::class, 'send2FACode', 'POST'],
-        'update2faMethod' => [ClientController::class, 'update2faMethod', 'POST'],
 
         // Client - Utilidades y Datos
         'submitContactForm' => [ClientController::class, 'handleContactForm', 'POST'],
@@ -258,7 +257,6 @@ try {
 
         // Client - Transacciones
         'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
-        'subirComprobanteDetallado' => [DashboardController::class, 'subirComprobanteExpress', 'POST'],
         'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
         'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
         'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
