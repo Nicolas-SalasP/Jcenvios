@@ -41,6 +41,10 @@ class NotificationService
 
     public function sendOrderToClientWhatsApp(array $txData, string $pdfUrl): bool
     {
+        // Interruptor para desactivar WhatsApp (config: WHATSAPP_ENABLED=false).
+        if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED === false) {
+            return false;
+        }
         if (!defined('TWILIO_SID') || !defined('TWILIO_TOKEN') || !defined('TWILIO_WHATSAPP_FROM') || empty(TWILIO_SID)) {
             return false;
         }
@@ -83,6 +87,9 @@ class NotificationService
 
     public function sendPaymentConfirmationToClientWhatsApp(array $txData): bool
     {
+        // Interruptor para desactivar WhatsApp (config: WHATSAPP_ENABLED=false).
+        if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED === false)
+            return false;
         if (!defined('TWILIO_SID') || empty(TWILIO_SID))
             return false;
 

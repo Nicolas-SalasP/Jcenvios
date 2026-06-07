@@ -81,6 +81,10 @@ define('TWILIO_SID',            '');  // ej: 'ACxxxxxxxxxxxxxxxx'
 define('TWILIO_TOKEN',          '');
 define('TWILIO_WHATSAPP_FROM',  '');  // ej: 'whatsapp:+14155238886'
 
+// Interruptor general de notificaciones por WhatsApp (órdenes / confirmación de pago).
+// true = se intentan enviar; false = desactivado (no se envía ni se loguean errores).
+define('WHATSAPP_ENABLED', true);
+
 
 // ============================================================
 //  IMAP (lectura de correos para conciliación automática) - OPCIONAL
