@@ -17,11 +17,88 @@ $offset = ($paginaActual - 1) * $registrosPorPagina;
 
 // Incluir estado 6 (Pausado)
 $estadosVisibles = "3, 4, 5, 6";
+$visibles = array_map('intval', explode(',', $estadosVisibles));
 
-$sqlCount = "SELECT COUNT(*) as total FROM transacciones WHERE EstadoID IN ($estadosVisibles)";
-$totalRegistros = $conexion->query($sqlCount)->fetch_assoc()['total'];
+// === Lectura y saneo de filtros (GET) ===
+$f_id      = (isset($_GET['f_id']) && ctype_digit((string) $_GET['f_id'])) ? (int) $_GET['f_id'] : '';
+$f_user    = isset($_GET['f_user']) ? trim($_GET['f_user']) : '';
+$f_estado  = (isset($_GET['f_estado']) && ctype_digit((string) $_GET['f_estado'])) ? (int) $_GET['f_estado'] : '';
+$f_origen  = (isset($_GET['f_origen']) && ctype_digit((string) $_GET['f_origen'])) ? (int) $_GET['f_origen'] : '';
+$f_destino = (isset($_GET['f_destino']) && ctype_digit((string) $_GET['f_destino'])) ? (int) $_GET['f_destino'] : '';
+$f_desde   = (isset($_GET['f_desde']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['f_desde'])) ? $_GET['f_desde'] : '';
+$f_hasta   = (isset($_GET['f_hasta']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['f_hasta'])) ? $_GET['f_hasta'] : '';
+
+// === Construcción del WHERE dinámico ===
+$conds  = [];
+$params = [];
+$types  = '';
+
+if ($f_id !== '') {
+    $conds[]  = "T.TransaccionID = ?";
+    $params[] = $f_id;
+    $types   .= "i";
+}
+if ($f_user !== '') {
+    $like = '%' . $f_user . '%';
+    $conds[]  = "(U.PrimerNombre LIKE ? OR U.PrimerApellido LIKE ? OR CONCAT_WS(' ', U.PrimerNombre, U.PrimerApellido) LIKE ? OR T.BeneficiarioNombre LIKE ?)";
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+    $types   .= "ssss";
+}
+if ($f_estado !== '' && in_array($f_estado, $visibles, true)) {
+    $conds[]  = "T.EstadoID = ?";
+    $params[] = $f_estado;
+    $types   .= "i";
+}
+if ($f_origen !== '') {
+    $conds[]  = "TS.PaisOrigenID = ?";
+    $params[] = $f_origen;
+    $types   .= "i";
+}
+if ($f_destino !== '') {
+    $conds[]  = "CB.PaisID = ?";
+    $params[] = $f_destino;
+    $types   .= "i";
+}
+if ($f_desde !== '') {
+    $conds[]  = "DATE(T.FechaTransaccion) >= ?";
+    $params[] = $f_desde;
+    $types   .= "s";
+}
+if ($f_hasta !== '') {
+    $conds[]  = "DATE(T.FechaTransaccion) <= ?";
+    $params[] = $f_hasta;
+    $types   .= "s";
+}
+
+$whereClause = "WHERE T.EstadoID IN ($estadosVisibles)" . (count($conds) ? " AND " . implode(" AND ", $conds) : "");
+
+// === Listas para los selects de filtros ===
+$estadosOperador = $conexion->query("SELECT EstadoID, NombreEstado FROM estados_transaccion WHERE EstadoID IN (3,4,5,6) ORDER BY NombreEstado")->fetch_all(MYSQLI_ASSOC);
+$listaPaises = $conexion->query("SELECT PaisID, NombrePais FROM paises WHERE Activo = 1 ORDER BY NombrePais")->fetch_all(MYSQLI_ASSOC);
+
+// === COUNT (mismo WHERE+params) ===
+$sqlCount = "
+    SELECT COUNT(*) as total
+    FROM transacciones T
+    JOIN usuarios U ON T.UserID = U.UserID
+    LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
+    LEFT JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID
+    LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
+    $whereClause
+";
+$stmtCount = $conexion->prepare($sqlCount);
+if (count($params)) {
+    $stmtCount->bind_param($types, ...$params);
+}
+$stmtCount->execute();
+$totalRegistros = $stmtCount->get_result()->fetch_assoc()['total'];
+$stmtCount->close();
 $totalPaginas = ceil($totalRegistros / $registrosPorPagina);
 
+// === SELECT de datos (mismo WHERE+params + LIMIT/OFFSET) ===
 $sql = "
     SELECT T.*, U.PrimerNombre, U.PrimerApellido,
         T.BeneficiarioNombre AS BeneficiarioNombreCompleto,
@@ -29,16 +106,35 @@ $sql = "
     FROM transacciones T
     JOIN usuarios U ON T.UserID = U.UserID
     LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
-    WHERE T.EstadoID IN ($estadosVisibles)
+    LEFT JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID
+    LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
+    $whereClause
     ORDER BY T.FechaTransaccion DESC
     LIMIT ? OFFSET ?
 ";
 
+$dataParams = $params;
+$dataTypes  = $types;
+$dataParams[] = $registrosPorPagina;
+$dataParams[] = $offset;
+$dataTypes   .= "ii";
+
 $stmt = $conexion->prepare($sql);
-$stmt->bind_param("ii", $registrosPorPagina, $offset);
+$stmt->bind_param($dataTypes, ...$dataParams);
 $stmt->execute();
 $transacciones = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+
+// === Filtros para conservar en la paginación ===
+$filtros = [
+    'f_id'      => $f_id,
+    'f_user'    => $f_user,
+    'f_estado'  => $f_estado,
+    'f_origen'  => $f_origen,
+    'f_destino' => $f_destino,
+    'f_desde'   => $f_desde,
+    'f_hasta'   => $f_hasta,
+];
 
 function getStatusBadgeClass($statusName)
 {
@@ -58,6 +154,80 @@ function getStatusBadgeClass($statusName)
         <a href="pendientes.php" class="btn btn-primary">
             <i class="bi bi-list-task"></i> Ir a Pendientes
         </a>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="text-muted mb-3"><i class="bi bi-funnel"></i> Filtrar historial</h6>
+            <form method="GET" class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">N° de orden</label>
+                    <input type="number" name="f_id" class="form-control form-control-sm"
+                        placeholder="Ej: 2024"
+                        value="<?php echo htmlspecialchars((string) $f_id); ?>">
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label small mb-1">Cliente o beneficiario</label>
+                    <input type="text" name="f_user" class="form-control form-control-sm"
+                        placeholder="Nombre…"
+                        value="<?php echo htmlspecialchars($f_user); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Estado</label>
+                    <select name="f_estado" class="form-select form-select-sm">
+                        <option value="">Todos</option>
+                        <?php foreach ($estadosOperador as $est): ?>
+                            <option value="<?php echo (int) $est['EstadoID']; ?>"
+                                <?php echo ($f_estado !== '' && $f_estado == $est['EstadoID']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($est['NombreEstado']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">País de origen</label>
+                    <select name="f_origen" class="form-select form-select-sm">
+                        <option value="">Todos</option>
+                        <?php foreach ($listaPaises as $pais): ?>
+                            <option value="<?php echo (int) $pais['PaisID']; ?>"
+                                <?php echo ($f_origen !== '' && $f_origen == $pais['PaisID']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">País de destino</label>
+                    <select name="f_destino" class="form-select form-select-sm">
+                        <option value="">Todos</option>
+                        <?php foreach ($listaPaises as $pais): ?>
+                            <option value="<?php echo (int) $pais['PaisID']; ?>"
+                                <?php echo ($f_destino !== '' && $f_destino == $pais['PaisID']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($pais['NombrePais']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Fecha desde</label>
+                    <input type="date" name="f_desde" class="form-control form-control-sm"
+                        value="<?php echo htmlspecialchars($f_desde); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Fecha hasta</label>
+                    <input type="date" name="f_hasta" class="form-control form-control-sm"
+                        value="<?php echo htmlspecialchars($f_hasta); ?>">
+                </div>
+                <div class="col-12 col-md-auto d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                    <a href="index.php" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-x-lg"></i> Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="card shadow-sm">
@@ -154,15 +324,15 @@ function getStatusBadgeClass($statusName)
                 <nav class="mt-4">
                     <ul class="pagination justify-content-center">
                         <li class="page-item <?php echo ($paginaActual <= 1) ? 'disabled' : ''; ?>">
-                            <a class="page-link" href="?pagina=<?php echo $paginaActual - 1; ?>">Anterior</a>
+                            <a class="page-link" href="<?php echo '?' . http_build_query(array_merge($filtros, ['pagina' => $paginaActual - 1])); ?>">Anterior</a>
                         </li>
                         <?php for ($i = 1; $i <= $totalPaginas; $i++): ?>
                             <li class="page-item <?php echo ($i == $paginaActual) ? 'active' : ''; ?>">
-                                <a class="page-link" href="?pagina=<?php echo $i; ?>"><?php echo $i; ?></a>
+                                <a class="page-link" href="<?php echo '?' . http_build_query(array_merge($filtros, ['pagina' => $i])); ?>"><?php echo $i; ?></a>
                             </li>
                         <?php endfor; ?>
                         <li class="page-item <?php echo ($paginaActual >= $totalPaginas) ? 'disabled' : ''; ?>">
-                            <a class="page-link" href="?pagina=<?php echo $paginaActual + 1; ?>">Siguiente</a>
+                            <a class="page-link" href="<?php echo '?' . http_build_query(array_merge($filtros, ['pagina' => $paginaActual + 1])); ?>">Siguiente</a>
                         </li>
                     </ul>
                 </nav>

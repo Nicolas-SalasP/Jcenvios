@@ -47,14 +47,15 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
     </div>
 
     <div class="bg-light p-3 rounded mb-3 border">
+        <h6 class="text-muted mb-3"><i class="bi bi-funnel"></i> Filtrar órdenes</h6>
         <form id="op-filter-form" class="row g-2 align-items-end">
             <div class="col-6 col-md-2">
-                <label class="form-label small mb-1">ID</label>
-                <input type="number" name="f_id" class="form-control form-control-sm" placeholder="ID">
+                <label class="form-label small mb-1">N° de orden</label>
+                <input type="number" name="f_id" class="form-control form-control-sm" placeholder="Ej: 2024">
             </div>
             <div class="col-6 col-md-3">
-                <label class="form-label small mb-1">Cliente / Beneficiario</label>
-                <input type="text" name="f_user" class="form-control form-control-sm" placeholder="Nombre...">
+                <label class="form-label small mb-1">Cliente o beneficiario</label>
+                <input type="text" name="f_user" class="form-control form-control-sm" placeholder="Nombre…">
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small mb-1">Estado</label>
@@ -68,7 +69,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                 </select>
             </div>
             <div class="col-6 col-md-2">
-                <label class="form-label small mb-1">Origen</label>
+                <label class="form-label small mb-1">País de origen</label>
                 <select name="f_origen" class="form-select form-select-sm">
                     <option value="">Todos</option>
                     <?php foreach ($listaPaises as $pais): ?>
@@ -79,7 +80,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                 </select>
             </div>
             <div class="col-6 col-md-2">
-                <label class="form-label small mb-1">Destino</label>
+                <label class="form-label small mb-1">País de destino</label>
                 <select name="f_destino" class="form-select form-select-sm">
                     <option value="">Todos</option>
                     <?php foreach ($listaPaises as $pais): ?>
@@ -90,11 +91,11 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                 </select>
             </div>
             <div class="col-6 col-md-2">
-                <label class="form-label small mb-1">Desde</label>
+                <label class="form-label small mb-1">Fecha desde</label>
                 <input type="date" name="f_desde" class="form-control form-control-sm">
             </div>
             <div class="col-6 col-md-2">
-                <label class="form-label small mb-1">Hasta</label>
+                <label class="form-label small mb-1">Fecha hasta</label>
                 <input type="date" name="f_hasta" class="form-control form-control-sm">
             </div>
             <div class="col-12 col-md-auto d-flex gap-2">
