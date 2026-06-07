@@ -131,10 +131,11 @@ if (!$isAjax) {
                                     </td>
                                     <td><?php echo date("d/m/Y", strtotime($user['FechaRegistro'])); ?></td>
                                     <td>
+                                        <div class="d-flex gap-1 justify-content-end">
                                         <?php if ($tieneDocs): ?>
                                             <?php $cacheBuster = time(); ?>
                                             <button class="btn btn-primary btn-sm view-verification-btn" data-bs-toggle="modal"
-                                                data-bs-target="#verificationModal" 
+                                                data-bs-target="#verificationModal"
                                                 data-user-id="<?php echo $user['UserID']; ?>"
                                                 data-user-name="<?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?>"
                                                 data-img-frente="<?php echo htmlspecialchars($user['DocumentoImagenURL_Frente']); ?>?v=<?php echo $cacheBuster; ?>"
@@ -152,6 +153,8 @@ if (!$isAjax) {
                                                 Esperando...
                                             </button>
                                         <?php endif; ?>
+                                            <button class="btn btn-outline-danger btn-sm admin-delete-user-btn" data-user-id="<?php echo $user['UserID']; ?>" title="Eliminar cuenta (libera correo y documento para re-registro)"><i class="bi bi-trash"></i></button>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
