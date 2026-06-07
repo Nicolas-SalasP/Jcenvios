@@ -381,13 +381,13 @@ class UserService
         if ($newRoleId === 1) {
             $currentAdmins = $this->userRepository->countAdmins();
             if ($currentAdmins >= 3) {
-                throw new Exception("Limite alcanzado. Maximo 3 Admins permitidos.", 403);
+                throw new Exception("Límite alcanzado. Máximo 3 Admins permitidos.", 403);
             }
         }
         if ($newRoleId === 5) {
             $currentOperadores = $this->userRepository->countByRole(5);
             if ($currentOperadores >= 2) {
-                throw new Exception("Limite alcanzado. Maximo 2 Operadores permitidos.", 403);
+                throw new Exception("Límite alcanzado. Máximo 2 Operadores permitidos.", 403);
             }
         }
 

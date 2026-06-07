@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const errorMsg = result.error || 'Error desconocido';
                 if (window.showInfoModal) {
-                    window.showInfoModal('Error de Inicio de Sesion', errorMsg, false);
+                    window.showInfoModal('Error de Inicio de Sesión', errorMsg, false);
                 } else {
                     loginFeedback.textContent = errorMsg;
                 }
