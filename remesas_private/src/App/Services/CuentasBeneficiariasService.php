@@ -316,8 +316,6 @@ class CuentasBeneficiariasService
         if (!$success) {
             throw new Exception("No se pudo actualizar la cuenta en la base de datos.");
         }
-        
-        // $this->logService->logAction($adminId, "EDIT_BENEFICIARY", "Editó cuenta $cuentaId");
     }
 
     public function togglePermission(int $userId, int $cuentaId, int $newState): bool

@@ -599,7 +599,6 @@ class TransactionService
         $affected = $this->txRepository->updateStatus($txId, $newState, $estadoActual);
 
         if ($affected > 0) {
-            // $this->notificationService->logAdminAction(...)
             return true;
         }
 

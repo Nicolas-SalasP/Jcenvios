@@ -740,8 +740,6 @@ class AdminController extends BaseController
         }
 
         try {
-            // $this->notificationService->sendRequestAccess($userId, $cuentaId);
-            
             $this->sendJsonResponse(['success' => true, 'message' => 'Solicitud enviada al usuario.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
