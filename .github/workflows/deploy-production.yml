@@ -1,13 +1,15 @@
 name: Deploy a Producción (cPanel)
 
-# Despliegue a producción por SSH/rsync.
-# - Se dispara al hacer push a main (o manualmente desde la pestaña Actions).
-# - Espera APROBACIÓN MANUAL gracias al environment "production"
-#   (configura "Required reviewers" en Settings → Environments → production).
-# - NO usa --delete: nunca borra archivos que existan solo en el servidor
-#   (.htaccess, robots.txt, .well-known, cgi-bin, uploads, etc.).
-# - config.php / vendor / uploads / sessions están en .gitignore, así que NO
-#   forman parte del checkout y por tanto NUNCA se suben ni se sobreescriben.
+# Despliegue a producción por SSH/rsync, con UNA SOLA conexión SSH multiplexada.
+# - Se dispara al hacer push a main (o manualmente desde Actions).
+# - Espera APROBACIÓN MANUAL (environment "production" con Required reviewers).
+# - NO usa --delete: nunca borra archivos que existan solo en el servidor.
+# - config.php / vendor / uploads / sessions estan en .gitignore -> no viajan.
+#
+# IMPORTANTE (por que ControlMaster): el hosting cPanel bloquea la IP tras la
+# primera conexion SSH (anti-flood CSF/cPHulk), por eso el 2do rsync daba
+# "Connection timed out". Con ControlMaster abrimos UNA conexion maestra y
+# rsync x2 + composer la REUTILIZAN -> el firewall ve una sola conexion.
 
 on:
   push:
@@ -20,7 +22,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Sync a cPanel (SSH/rsync)
+    name: Sync a cPanel (SSH multiplexado)
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -33,27 +35,37 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Registrar host en known_hosts
+      - name: Configurar SSH multiplexado (una sola conexion)
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          echo "Host registrado."
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          cat > ~/.ssh/config <<EOF
+          Host deploy
+            HostName ${{ secrets.SSH_HOST }}
+            Port ${{ secrets.SSH_PORT || 22 }}
+            User ${{ secrets.SSH_USER }}
+            StrictHostKeyChecking accept-new
+            ControlMaster auto
+            ControlPath ~/.ssh/cm-deploy.sock
+            ControlPersist 10m
+            ServerAliveInterval 30
+          EOF
+          chmod 600 ~/.ssh/config
+          # Abrir la conexion maestra UNA sola vez. rsync y composer la reutilizan.
+          ssh -fN deploy
+          echo "Conexion maestra establecida."
 
       - name: Desplegar public_html/  (document root)
         run: |
           rsync -rltvz --no-perms --no-owner --no-group \
-            -e "ssh -p ${{ secrets.SSH_PORT || 22 }}" \
             --exclude '.git*' \
             --exclude 'uploads/' \
             --exclude '*.log' \
             --exclude 'error_log' \
-            public_html/ \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:public_html/"
+            public_html/ deploy:public_html/
 
-      - name: Desplegar remesas_private/  (lógica privada, fuera del docroot)
+      - name: Desplegar remesas_private/  (logica privada, fuera del docroot)
         run: |
           rsync -rltvz --no-perms --no-owner --no-group \
-            -e "ssh -p ${{ secrets.SSH_PORT || 22 }}" \
             --exclude '.git*' \
             --exclude 'config.php' \
             --exclude 'vendor/' \
@@ -63,19 +75,16 @@ jobs:
             --exclude 'phpunit.xml' \
             --exclude '.phpunit.result.cache' \
             --exclude '*.log' \
-            remesas_private/ \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:remesas_private/"
+            remesas_private/ deploy:remesas_private/
 
       - name: Instalar dependencias en el servidor (composer, sin dev)
         run: |
-          ssh -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            'cd ~/remesas_private && { command -v composer >/dev/null 2>&1 && composer install --no-dev --optimize-autoloader --no-interaction || php composer.phar install --no-dev --optimize-autoloader --no-interaction; }'
+          ssh deploy 'cd ~/remesas_private && { command -v composer >/dev/null 2>&1 && composer install --no-dev --optimize-autoloader --no-interaction || php composer.phar install --no-dev --optimize-autoloader --no-interaction; }'
 
-      # ── MIGRACIONES DE BD: NO se ejecutan automáticamente a propósito ──
-      # En una plataforma de dinero los cambios de esquema deben ser deliberados.
-      # Aplica las migraciones nuevas manualmente (phpMyAdmin o SSH), por ejemplo:
+      - name: Cerrar conexion maestra
+        if: always()
+        run: ssh -O exit deploy 2>/dev/null || true
+
+      # ── MIGRACIONES DE BD: NO se ejecutan automaticamente a proposito ──
+      # Aplica las migraciones nuevas a mano (phpMyAdmin o SSH). Ej.:
       #   mysql -u USUARIO -p NOMBRE_BD < migrations/003_drop_unused_user_columns.sql
-      # (Las migraciones del proyecto son idempotentes: usan IF EXISTS / INFORMATION_SCHEMA.)
-
-      - name: Resumen
-        run: echo "Deploy a producción completado."
