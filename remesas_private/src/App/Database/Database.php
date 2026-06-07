@@ -17,6 +17,11 @@ class Database
             if ($this->connection->connect_error) {
                 throw new Exception("Error de conexión: " . $this->connection->connect_error);
             }
+
+            // Fijar utf8mb4: sin esto la conexión queda en latin1 (default) y los datos
+            // acentuados (ej. "Perú") se devuelven como bytes latin1 inválidos en UTF-8,
+            // lo que hace fallar json_encode en el API (error "Malformed UTF-8").
+            $this->connection->set_charset('utf8mb4');
         } catch (\Throwable $e) {
             error_log("DB Connection Error: " . $e->getMessage());
             throw new Exception("Error interno de conexión a base de datos.");
