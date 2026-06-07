@@ -40,8 +40,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
 
     <style>
         .main-header {
-            background: 
-            border-bottom: 1px solid 
+            background: #fff;
+            border-bottom: 1px solid #f0f0f0;
         }
 
         .navbar-brand img {
@@ -55,20 +55,20 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
 
         .nav-link {
             font-weight: 500;
-            color: 
+            color: #555;
             transition: color 0.2s;
         }
 
         .nav-link:hover,
         .nav-link.active {
-            color: 
+            color: #0d6efd !important;
         }
 
         .user-avatar {
             width: 36px;
             height: 36px;
             object-fit: cover;
-            border: 2px solid 
+            border: 2px solid #e9ecef;
         }
 
         .dropdown-menu-custom {
@@ -83,12 +83,12 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             border-radius: 8px;
             padding: 8px 12px;
             font-size: 0.95rem;
-            color: 
+            color: #444;
         }
 
         .dropdown-item:hover {
-            background-color: 
-            color: 
+            background-color: #f8f9fa;
+            color: #0d6efd;
         }
 
         .dropdown-item i {
@@ -98,15 +98,15 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             display: inline-block;
         }
 
-        
+        /* --- ESTILOS PARA BADGES ANIMADOS --- */
         .badge-anim {
             transition: transform 0.3s ease-in-out;
         }
         .badge-anim.pulse {
             transform: scale(1.2);
         }
-        
-        
+
+        /* Contenedor flexible para alinear texto y badges sin que se rompan feo */
         .nav-link-badges {
             display: inline-flex;
             align-items: center;
@@ -114,16 +114,16 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             gap: 4px;
         }
 
-        
-        
-            background: linear-gradient(45deg, 
-            color: 
+        /* --- ALERTA INFORMATIVA GLOBAL --- */
+        #holiday-alert-bar {
+            background: linear-gradient(45deg, #ffc107, #ff9800);
+            color: #000;
             overflow: hidden;
             max-height: 0;
-            transition: max-height 0.6s cubic-bezier(0.19, 1, 0.22, 1); 
+            transition: max-height 0.6s cubic-bezier(0.19, 1, 0.22, 1);
         }
-        
-        
+        /* CORRECCIÓN MÓVIL: Aumentado de 100px a 400px para que el texto largo no se corte al hacer wrap */
+        #holiday-alert-bar.show { max-height: 400px; }
 
         @media (max-width: 991.98px) {
             .navbar-collapse {
@@ -133,17 +133,17 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 left: 0;
                 right: 0;
                 padding: 20px;
-                border-top: 1px solid 
+                border-top: 1px solid #eee;
                 box-shadow: 0 15px 30px rgba(0, 0, 0, 0.05);
                 z-index: 1050;
             }
 
             .nav-item {
                 padding: 8px 0;
-                border-bottom: 1px solid 
+                border-bottom: 1px solid #f8f9fa;
             }
 
-            
+            /* CORRECCIÓN MÓVIL: Alinear avatar y botón de sonido horizontalmente */
             .user-actions-mobile {
                 flex-direction: row !important;
                 justify-content: space-between !important;
@@ -151,15 +151,15 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 width: 100%;
                 margin-top: 15px;
                 padding-top: 15px;
-                border-top: 1px solid 
+                border-top: 1px solid #f8f9fa;
             }
 
             .dropdown-menu-custom {
                 box-shadow: none;
-                border: 1px solid 
-                background: 
+                border: 1px solid #eee;
+                background: #fdfdfd;
                 margin-top: 5px;
-                position: static !important; 
+                position: static !important; /* Despegar del absolute nativo en móviles */
                 transform: none !important;
             }
         }
