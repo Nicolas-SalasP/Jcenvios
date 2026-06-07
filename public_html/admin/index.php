@@ -63,14 +63,13 @@ if (!empty($f_confirm) && in_array($f_confirm, ['pendiente', 'recibido', 'no_rec
     $types .= "s";
 }
 
-$joinClauseCount = "JOIN usuarios U ON T.UserID = U.UserID";
-$joinClauseData = "JOIN usuarios U ON T.UserID = U.UserID LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID";
-
-if (!empty($f_origen) || !empty($f_destino)) {
-    $extraJoins = " LEFT JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID";
-    $joinClauseCount .= $extraJoins;
-    $joinClauseData .= $extraJoins;
-}
+// CB (cuenta beneficiaria -> país destino) y TS (tasa -> país origen) se unen SIEMPRE:
+// CB.PaisID es necesario para el botón "Pagar" (el modal filtra los bancos por país destino)
+// y ambos se usan en los filtros origen/destino. Son LEFT JOIN 1:1 por PK -> no multiplican
+// filas ni alteran el COUNT.
+$baseJoins = " LEFT JOIN tasas TS ON T.TasaID_Al_Momento = TS.TasaID LEFT JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID";
+$joinClauseCount = "JOIN usuarios U ON T.UserID = U.UserID" . $baseJoins;
+$joinClauseData = "JOIN usuarios U ON T.UserID = U.UserID LEFT JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID" . $baseJoins;
 
 if (!empty($f_origen)) {
     $whereClause .= " AND TS.PaisOrigenID = ?";
@@ -112,6 +111,7 @@ $sql = "
         T.BeneficiarioNombre AS BeneficiarioNombreCompleto,
         ET.NombreEstado AS EstadoNombre,
         U.NumeroDocumento AS UsuarioDocumento,
+        CB.PaisID AS PaisDestinoID,
         -- F3.1 ConfirmacionRecepcion ya viene en T.* gracias al ALTER TABLE
         -- F3.2: contar envíos exitosos previos de este usuario a la misma cuenta/teléfono
         (SELECT COUNT(*)
@@ -180,7 +180,7 @@ function getStatusBadgeClass($statusName)
 // --- MODO AJAX (SOLO TABLA) ---
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     if (empty($transacciones)) {
-        echo '<tr><td colspan="9" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>';
+        echo '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>';
     } else {
         foreach ($transacciones as $tx) {
             $nombreTitular = !empty($tx['NombreTitularOrigen']) ? $tx['NombreTitularOrigen'] : ($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']);
@@ -289,58 +289,68 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                             'monto'      => number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '')
                         ]), ENT_QUOTES, 'UTF-8');
                     ?>
-                    <div class="d-flex flex-wrap gap-1 justify-content-center align-items-center">
-                        <button class="btn btn-sm btn-primary d-flex align-items-center gap-1"
-                            onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')"
-                            title="Copiar todos los datos">
-                            <i class="bi bi-clipboard-check"></i> <span>Copiar</span>
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary copy-data-btn"
-                            data-datos="<?php echo $jsonData_a; ?>" title="Ver / copiar por partes">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>"
-                            class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
+                    <div class="d-flex gap-1 justify-content-center align-items-center">
+                        <!-- Primario: Abrir orden -->
+                        <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>" class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
                             <i class="bi bi-window-split"></i>
                         </a>
-                        <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank"
-                            class="btn btn-sm btn-info text-white" title="PDF">
-                            <i class="bi bi-file-earmark-pdf"></i>
-                        </a>
-                    </div>
-                </td>
-                <td class="text-center">
-                    <?php if (!empty($tx['ComprobanteURL'])): ?>
-                        <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
-                            data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                            data-nombre-titular="<?php echo htmlspecialchars($nombreTitular); ?>"
-                            data-rut-titular="<?php echo htmlspecialchars($rutTitular); ?>"
-                            data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
-                            data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>"
-                            data-start-type="user" title="Ver">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    <?php else: ?>
-                        <span class="text-muted">-</span>
-                    <?php endif; ?>
-                </td>
-                <td class="text-center">
-                    <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
-                        <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal"
-                            data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" title="Pagar">
-                            <i class="bi bi-currency-dollar"></i>
-                        </button>
-                    <?php endif; ?>
 
-                    <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
-                        <button class="btn btn-sm btn-success view-comprobante-btn-admin" data-bs-toggle="modal"
-                            data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                            data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']) : ''; ?>"
-                            data-envio-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
-                            data-start-type="admin" title="Ver Pago Admin">
-                            <i class="bi bi-receipt"></i>
-                        </button>
-                    <?php endif; ?>
+                        <!-- Primario contextual: Pagar (solo En Proceso) -->
+                        <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
+                            <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal" data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-monto-destino="<?php echo $tx['MontoDestino']; ?>" data-pais-id="<?php echo $tx['PaisDestinoID'] ?? ''; ?>" data-moneda-destino="<?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?>" title="Pagar">
+                                <i class="bi bi-currency-dollar"></i>
+                            </button>
+                        <?php endif; ?>
+
+                        <!-- Menú con el resto -->
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Más acciones">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                <li>
+                                    <button class="dropdown-item" type="button" onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')">
+                                        <i class="bi bi-clipboard-check me-2"></i> Copiar datos
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item copy-data-btn" type="button" data-datos="<?php echo $jsonData_a; ?>">
+                                        <i class="bi bi-eye me-2"></i> Copiar por partes
+                                    </button>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank">
+                                        <i class="bi bi-file-earmark-pdf me-2"></i> Descargar PDF
+                                    </a>
+                                </li>
+                                <?php if (!empty($tx['ComprobanteURL'])): ?>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button class="dropdown-item view-comprobante-btn-admin" type="button" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
+                                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                                        data-nombre-titular="<?php echo htmlspecialchars($nombreTitular); ?>"
+                                        data-rut-titular="<?php echo htmlspecialchars($rutTitular); ?>"
+                                        data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
+                                        data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>"
+                                        data-start-type="user">
+                                        <i class="bi bi-eye me-2"></i> Ver comprobante cliente
+                                    </button>
+                                </li>
+                                <?php endif; ?>
+                                <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
+                                <li>
+                                    <button class="dropdown-item view-comprobante-btn-admin" type="button" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
+                                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                                        data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']) : ''; ?>"
+                                        data-envio-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
+                                        data-start-type="admin">
+                                        <i class="bi bi-receipt me-2"></i> Ver comprobante envío
+                                    </button>
+                                </li>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
+                    </div>
                 </td>
             </tr>
             <?php
@@ -459,15 +469,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     <th>Beneficiario</th>
                     <th>Estado</th>
                     <th>Comisión</th>
-                    <th>Orden</th>
-                    <th>Comp. Usuario</th>
-                    <th>Acciones / Comp. Admin</th>
+                    <th class="text-center">Acciones</th>
                 </tr>
             </thead>
             <tbody id="transactionsTableBody">
                 <?php if (empty($transacciones)): ?>
                     <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">No se encontraron resultados.</td>
+                        <td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($transacciones as $tx):
@@ -539,61 +547,68 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                         'monto'      => number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '')
                                     ]), ENT_QUOTES, 'UTF-8');
                                 ?>
-                                <div class="d-flex flex-wrap gap-1 justify-content-center align-items-center">
-                                    <button class="btn btn-sm btn-primary d-flex align-items-center gap-1"
-                                        onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')"
-                                        title="Copiar todos los datos">
-                                        <i class="bi bi-clipboard-check"></i> <span>Copiar</span>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-secondary copy-data-btn"
-                                        data-datos="<?php echo $jsonData_a; ?>" title="Ver / copiar por partes">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>"
-                                        class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
+                                <div class="d-flex gap-1 justify-content-center align-items-center">
+                                    <!-- Primario: Abrir orden -->
+                                    <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>" class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
                                         <i class="bi bi-window-split"></i>
                                     </a>
-                                    <a href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>"
-                                        target="_blank" class="btn btn-sm btn-info text-white" title="PDF">
-                                        <i class="bi bi-file-earmark-pdf"></i>
-                                    </a>
-                                </div>
-                            </td>
-                            <td class="text-center">
-                                <?php if (!empty($tx['ComprobanteURL'])): ?>
-                                    <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
-                                        data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        data-nombre-titular="<?php echo htmlspecialchars($nombreTitular); ?>"
-                                        data-rut-titular="<?php echo htmlspecialchars($rutTitular); ?>"
-                                        data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
-                                        data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>"
-                                        data-start-type="user" title="Ver">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                <?php else: ?>
-                                    <span class="text-muted">-</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="text-center">
-                                <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
-                                    <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal"
-                                        data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        title="Pagar">
-                                        <i class="bi bi-currency-dollar"></i>
-                                    </button>
-                                <?php endif; ?>
 
-                                <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
-                                    <button class="btn btn-sm btn-success view-comprobante-btn-admin" data-bs-toggle="modal"
-                                        data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']) : ''; ?>"
-                                        data-envio-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
-                                        data-start-type="admin" title="Ver">
-                                        <i class="bi bi-receipt"></i>
-                                    </button>
-                                <?php elseif ($tx['EstadoNombre'] !== 'En Proceso'): ?>
-                                    <span class="text-muted">-</span>
-                                <?php endif; ?>
+                                    <!-- Primario contextual: Pagar (solo En Proceso) -->
+                                    <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
+                                        <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal" data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-monto-destino="<?php echo $tx['MontoDestino']; ?>" data-pais-id="<?php echo $tx['PaisDestinoID'] ?? ''; ?>" data-moneda-destino="<?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?>" title="Pagar">
+                                            <i class="bi bi-currency-dollar"></i>
+                                        </button>
+                                    <?php endif; ?>
+
+                                    <!-- Menú con el resto -->
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Más acciones">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                            <li>
+                                                <button class="dropdown-item" type="button" onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')">
+                                                    <i class="bi bi-clipboard-check me-2"></i> Copiar datos
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item copy-data-btn" type="button" data-datos="<?php echo $jsonData_a; ?>">
+                                                    <i class="bi bi-eye me-2"></i> Copiar por partes
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item" href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank">
+                                                    <i class="bi bi-file-earmark-pdf me-2"></i> Descargar PDF
+                                                </a>
+                                            </li>
+                                            <?php if (!empty($tx['ComprobanteURL'])): ?>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <button class="dropdown-item view-comprobante-btn-admin" type="button" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
+                                                    data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                                                    data-nombre-titular="<?php echo htmlspecialchars($nombreTitular); ?>"
+                                                    data-rut-titular="<?php echo htmlspecialchars($rutTitular); ?>"
+                                                    data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
+                                                    data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>"
+                                                    data-start-type="user">
+                                                    <i class="bi bi-eye me-2"></i> Ver comprobante cliente
+                                                </button>
+                                            </li>
+                                            <?php endif; ?>
+                                            <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
+                                            <li>
+                                                <button class="dropdown-item view-comprobante-btn-admin" type="button" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
+                                                    data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                                                    data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']) : ''; ?>"
+                                                    data-envio-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
+                                                    data-start-type="admin">
+                                                    <i class="bi bi-receipt me-2"></i> Ver comprobante envío
+                                                </button>
+                                            </li>
+                                            <?php endif; ?>
+                                        </ul>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
