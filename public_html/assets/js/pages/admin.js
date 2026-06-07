@@ -600,8 +600,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const target = e.target;
 
         // Paginación
+        // Solo interceptar para AJAX en páginas que tienen el contenedor #table-content
+        // (ej. usuarios.php). En páginas sin ese contenedor (ej. admin/index.php), dejar
+        // que el enlace navegue normalmente: así la paginación funciona y conserva los
+        // filtros que ya vienen en la query string (fix: la paginación dejaba de funcionar
+        // al filtrar porque se interceptaba el clic pero loadTableData abortaba sin #table-content).
         const pageLink = target.closest('.page-link');
-        if (pageLink && !pageLink.parentElement.classList.contains('disabled')) {
+        if (pageLink && tableContent && !pageLink.parentElement.classList.contains('disabled')) {
             const url = pageLink.getAttribute('href');
             if (url && url !== '#' && !url.startsWith('javascript')) {
                 e.preventDefault();
