@@ -60,7 +60,7 @@ class PricingService
 
     public function applyGlobalAdjustment(int $adminId, float $percentage): int
     {
-        // FIX B6: blindaje extra contra domingos.
+        // Blindaje extra contra domingos.
         // runScheduledAdjustment() ya filtra día semana, pero applyGlobalAdjustment
         // puede llamarse desde cualquier punto (cron mal configurado, llamada manual).
         // Política negocio: ajustes solo Lun-Sáb. Domingo (date('N') === 7) bloqueado.

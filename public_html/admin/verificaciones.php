@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin'
 $busqueda = isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
 $estadoFiltro = isset($_GET['estado']) ? $_GET['estado'] : '';
 
-// FIX B4: incluir estado Rechazado (4) para que esos usuarios no desaparezcan del listado.
+// Incluir estado Rechazado (4) para que esos usuarios no desaparezcan del listado.
 // Antes: WHERE U.VerificacionEstadoID IN (1, 2)
 $conditions = "U.VerificacionEstadoID IN (1, 2, 4) AND U.Eliminado = 0";
 $params = [];
@@ -103,7 +103,7 @@ if (!$isAjax) {
                         <?php else: ?>
                             <?php foreach ($usuariosPendientes as $user): ?>
                                 <?php 
-                                    // FIX B4: distinguir entre Pendiente (1), En Revisión (2) y Rechazado (4).
+                                    // Distinguir entre Pendiente (1), En Revisión (2) y Rechazado (4).
                                     $verifId   = (int) $user['VerificacionEstadoID'];
                                     $tieneDocs = ($verifId === 2 || $verifId === 4);
                                     $badgeClass = match($verifId) {

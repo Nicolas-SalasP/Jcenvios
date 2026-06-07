@@ -154,7 +154,7 @@ class CuentasAdminRepository
 
         if ($updateQr) {
             $stmt->bind_param(
-                // FIX B2 (QR Nequi no se guardaba): los dos últimos tipos estaban invertidos.
+                // QR Nequi no se guardaba: los dos últimos tipos estaban invertidos.
                 // Antes: "iiissssssssiis" → $qrCode (string) iba como int → BD recibía 0/null.
                 // Ahora: "iiissssssssisi" → $qrCode (s) y $id (i) bien tipados.
                 "iiissssssssisi",

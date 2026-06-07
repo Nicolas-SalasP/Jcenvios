@@ -436,8 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const pdfEl = document.getElementById('comprobante-pdf-full');
             const placeholder = document.getElementById('comprobante-placeholder');
             const downloadBtn = document.getElementById('download-comprobante-btn');
-            
-            // Reset
+
             imgEl.classList.add('d-none');
             pdfEl.classList.add('d-none');
             placeholder.classList.remove('d-none');
@@ -456,7 +455,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 extension = url.split('.').pop().toLowerCase();
             }
 
-            // Mostrar
             setTimeout(() => {
                 placeholder.classList.add('d-none');
                 

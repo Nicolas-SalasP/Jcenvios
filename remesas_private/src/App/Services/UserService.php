@@ -282,7 +282,7 @@ class UserService
             throw new Exception("La selfie en vivo es obligatoria para la verificación.", 400);
         }
 
-        // FIX B4: si el usuario ya estaba Rechazado (4), al re-subir documentos
+        // Si el usuario ya estaba Rechazado (4), al re-subir documentos
         // debe volver a la cola de revisión (estado "En Revisión" = ID 2), no a "Pendiente".
         // Lo mismo si llega como "Pendiente" (1) con documentos completos.
         // Buscamos el ID por nombre para no acoplarnos a un número mágico.

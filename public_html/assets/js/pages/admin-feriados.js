@@ -69,11 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 let color = '#3788d8'; 
 
                 if (now > end) {
-                    // Pasado
                     className = 'bg-secondary';
                     color = '#6c757d';
                 } else if (now >= start && now <= end) {
-                    // En curso
                     if (h.BloqueoSistema == 1) {
                         className = 'bg-danger animate__animated animate__pulse animate__infinite';
                         color = '#dc3545';
@@ -82,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         color = '#ffc107';
                     }
                 } else {
-                    // Futuro
                     if (h.BloqueoSistema == 1) {
                         className = 'bg-danger bg-opacity-75';
                         color = '#dc3545';

@@ -73,7 +73,6 @@ try {
     $conexion = $db->getConnection();
     $fileHandler = new FileHandlerService();
 
-    // Determinar columna
     $columnToSelect = ($type === 'admin') ? 'ComprobanteEnvioURL' : 'ComprobanteURL';
 
     // Buscar archivo en BD

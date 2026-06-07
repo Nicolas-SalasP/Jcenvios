@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             confirmBtn.onclick = () => {
                 const val = inputEl.value.trim();
-                // M3: validación del motivo es opcional según parámetro requireText.
+                // La validación del motivo es opcional según parámetro requireText.
                 // Antes era obligatorio (mín 5 chars) en TODOS los casos.
                 if (requireText && val.length < 5) {
                     window.showInfoModal('Faltan Datos', 'El motivo es obligatorio y debe tener al menos 5 caracteres', false);
@@ -888,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (txIdLabel) txIdLabel.textContent = txId;
 
             if (comisionInput) {
-                // FIX B5: comisión 0.3% aplica SOLO para Venezuela. Resto en 0.
+                // Comisión 0.3% aplica SOLO para Venezuela. Resto en 0.
                 // El ID de país se lee del data-pais-id del botón. Confirmar el ID en `paises`.
                 // Por seguridad chequeamos también el código de moneda (VES) si está disponible.
                 const ID_VENEZUELA = 3;
@@ -1103,7 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 5.7 RECHAZAR PAGO (MODAL) - CORREGIDO PARA FUNCIONAR SIEMPRE
+    // 5.7 RECHAZAR PAGO (MODAL)
     const rejectionModalEl = document.getElementById('rejectionModal');
     if (rejectionModalEl) {
         const rejectionModalInstance = new bootstrap.Modal(rejectionModalEl);
@@ -1155,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================================
-    // 5.8 VISOR DE COMPROBANTES (CORREGIDO: MÓVIL & SIN ALERTS)
+    // 5.8 VISOR DE COMPROBANTES
     // =========================================================
     const viewComprobanteModalEl = document.getElementById('viewComprobanteModal');
     if (viewComprobanteModalEl) {
@@ -1488,10 +1488,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Auditoría de Cambio', 
                     'Estás reemplazando un documento en la ficha del usuario. Si quieres, ingresa el motivo para el historial.',
                     'Ej: Actualización de documento vencido (opcional)',
-                    false  // M3: motivo NO obligatorio
+                    false  // Motivo NO obligatorio
                 );
                 
-                // M3: solo abortamos si el usuario CANCELA el modal (motivo === null).
+                // Solo abortamos si el usuario CANCELA el modal (motivo === null).
                 // Antes: cualquier valor falsy (incl. string vacío) abortaba, lo que hacía obligatorio el texto.
                 if (motivo === null) return;
 

@@ -74,7 +74,7 @@ class ClientController extends BaseController
 
             if ($feriado) {
                 if ($feriado['BloqueoSistema'] == 1) {
-                    // FIX B3: Admin y Operador deben poder seguir trabajando aunque haya feriado.
+                    // Admin y Operador deben poder seguir trabajando aunque haya feriado.
                     // Antes: marcaba active=false para todos, lo que bloqueaba el login del staff.
                     // Ahora: para staff devolvemos solo aviso informativo; el bloqueo solo aplica a clientes.
                     $isPrivileged = in_array($role, ['Admin', 'Operador'], true);

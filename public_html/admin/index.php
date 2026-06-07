@@ -259,7 +259,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 </td>
                 <td class="text-center">
                     <?php
-                        // M5: botón "Copiar datos generales" para admin (idéntico al de operador, con fecha).
+                        // Botón "Copiar datos generales" para admin (idéntico al de operador, con fecha).
                         $hasCuenta_a   = !empty(trim($tx['BeneficiarioNumeroCuenta'] ?? ''));
                         $hasTelefono_a = !empty(trim($tx['BeneficiarioTelefono'] ?? ''));
                         $fechaGen_a    = !empty($tx['FechaTransaccion'])
@@ -442,7 +442,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <input type="date" name="f_date" class="form-control form-control-sm"
                     value="<?php echo htmlspecialchars($f_date); ?>">
             </div>
-            <?php /* F3.1: filtro confirmación cliente */ ?>
+            <?php /* Filtro confirmación cliente */ ?>
             <div class="col-6 col-md-2">
                 <label class="form-label small fw-bold mb-1">Confirmación</label>
                 <select name="f_confirm" class="form-select form-select-sm">

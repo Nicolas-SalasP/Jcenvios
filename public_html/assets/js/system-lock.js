@@ -21,7 +21,7 @@ async function checkSystemStatus() {
         const data = await response.json();
         const alertBar = document.getElementById('holiday-alert-bar');
         if (alertBar) {
-            // FIX: el banner ahora se muestra para CUALQUIERA con feriado activo,
+            // El banner ahora se muestra para cualquiera con feriado activo,
             // logueado o no. Antes el flujo `!data.logged_in → return` cortaba
             // antes de llegar a este punto y solo se mostraba a usuarios con sesión.
             // Ahora mostramos:

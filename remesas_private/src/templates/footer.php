@@ -300,7 +300,7 @@ if (!empty($baseUrlPhp)) {
     }
   }, 60000);
 
-  // M5: helper global para copiar datos de orden al portapapeles.
+  // Helper global para copiar datos de orden al portapapeles.
   // Antes se llamaba en operador y admin via onclick="copiarDatosDirecto(...)"
   // pero la función NUNCA se definía → el botón no hacía nada (bug latente).
   window.copiarDatosDirecto = function (btn, textoB64) {

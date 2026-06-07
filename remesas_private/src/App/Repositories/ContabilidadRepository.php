@@ -76,7 +76,7 @@ class ContabilidadRepository
                 VALUES (?, ?, ?, (SELECT TipoMovimientoID FROM tipos_movimiento WHERE Codigo = ? LIMIT 1), ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
-        // CORREGIDO: iiisdsdd (La 's' es para la descripción)
+        // Tipos de bind: iiisdsdd (la 's' es para la descripción)
         $stmt->bind_param("iiisdsdd", $saldoId, $adminId, $txId, $tipoCodigo, $monto, $descripcion, $saldoAnterior, $saldoNuevo);
         return $stmt->execute();
     }
@@ -88,7 +88,7 @@ class ContabilidadRepository
                 VALUES (?, ?, ?, (SELECT TipoMovimientoID FROM tipos_movimiento WHERE Codigo = ? LIMIT 1), ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
-        // CORREGIDO: iiisdsdd (La 's' es para la descripción)
+        // Tipos de bind: iiisdsdd (la 's' es para la descripción)
         $stmt->bind_param("iiisdsdd", $cuentaAdminId, $adminId, $txId, $tipoCodigo, $monto, $descripcion, $saldoAnterior, $saldoNuevo);
         return $stmt->execute();
     }

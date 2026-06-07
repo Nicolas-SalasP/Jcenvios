@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Inicializar
     setupFieldVisibility('toggle-segundo-nombre', 'container-segundo-nombre', 'register-segundo-nombre');
     setupFieldVisibility('toggle-segundo-apellido', 'container-segundo-apellido', 'register-segundo-apellido');
 

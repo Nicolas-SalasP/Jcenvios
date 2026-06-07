@@ -122,7 +122,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
             max-height: 0;
             transition: max-height 0.6s cubic-bezier(0.19, 1, 0.22, 1);
         }
-        /* CORRECCIÓN MÓVIL: Aumentado de 100px a 400px para que el texto largo no se corte al hacer wrap */
+        /* Móvil: aumentado de 100px a 400px para que el texto largo no se corte al hacer wrap */
         #holiday-alert-bar.show { max-height: 400px; }
 
         @media (max-width: 991.98px) {
@@ -143,7 +143,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 border-bottom: 1px solid #f8f9fa;
             }
 
-            /* CORRECCIÓN MÓVIL: Alinear avatar y botón de sonido horizontalmente */
+            /* Móvil: alinear avatar y botón de sonido horizontalmente */
             .user-actions-mobile {
                 flex-direction: row !important;
                 justify-content: space-between !important;
@@ -335,7 +335,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
     </audio>
     <?php endif; ?>
 
-    <!-- FIX MÓVIL: el banner de feriado estaba DENTRO del <header sticky-top>.
+    <!-- Móvil: el banner de feriado estaba DENTRO del <header sticky-top>.
          En desktop no se nota, pero en móvil el texto ocupa más líneas y el banner
          alto quedaba "pegado" tapando el contenido al hacer scroll.
          Solución: sacarlo del header y ponerlo en el flujo normal del documento,

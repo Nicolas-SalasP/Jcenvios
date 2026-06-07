@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.insertAdjacentHTML('beforeend', formHtml);
 
         const form = document.getElementById('resume-order-form');
-        // FIX B1: el botón submit vive en modal-footer (FUERA del <form>) usando form="resume-order-form".
+        // El botón submit vive en modal-footer (FUERA del <form>) usando form="resume-order-form".
         // form.querySelector('button[type=submit]') devolvía null y reventaba en btn.innerHTML.
         // Buscamos el botón por el atributo form="..." que es como se conectan en HTML5.
         const submitBtn = document.querySelector('button[form="resume-order-form"][type="submit"]');
@@ -315,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (tx.ComprobanteURL) {
                 const ext = getFileExt(tx.ComprobanteURL);
-                // M2: Mostrar fecha y hora de subida del comprobante en el tooltip y como sub-texto
+                // Mostrar fecha y hora de subida del comprobante en el tooltip y como sub-texto
                 const fechaSubida = tx.FechaSubidaComprobante
                     ? new Date(tx.FechaSubidaComprobante.replace(' ', 'T')).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
                     : null;
@@ -647,7 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (previewContainer) previewContainer.classList.add('d-none');
             }
 
-            // FIX (race condition con click handler): la lógica del RUT debe ir DESPUÉS
+            // Race condition con click handler: la lógica del RUT debe ir DESPUÉS
             // del uploadForm.reset(), porque sino el reset borra el value='N/A' que se
             // pusiera antes. La moneda viene en uploadModalElement.dataset.monedaOrigen
             // (la setea el click handler antes de abrir el modal).
@@ -676,7 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const rutInput = document.getElementById('rutTitularOrigen');
             const nombreInput = document.getElementById('nombreTitularOrigen');
             const isRutRequired = rutInput && rutInput.required;
-            // FIX (defensa): si el RUT no es requerido (origen no Chile) y el value
+            // Defensa: si el RUT no es requerido (origen no Chile) y el value
             // está vacío por cualquier motivo, forzar 'N/A'. Esto evita que el backend
             // rechace con "RUT obligatorio" si algo en el flujo borra el value.
             if (rutInput && !isRutRequired && !rutInput.value.trim()) {

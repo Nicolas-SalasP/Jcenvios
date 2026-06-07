@@ -140,7 +140,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const configureModalForCountry = (paisId) => {
-        // RESET
         [containerBankSelect, containerBankInputText, containerOtherBank, containerCCI, containerBankInput, containerMobileInput, wrapperChecksType].forEach(el => el && el.classList.add('d-none'));
         
         if(benefBankSelect) benefBankSelect.innerHTML = '<option value="">Seleccione...</option>';
@@ -156,7 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(walletPhonePrefix) walletPhonePrefix.classList.add('d-none');
         if(selectPhoneCode) { selectPhoneCode.classList.add('d-none'); selectPhoneCode.innerHTML = ''; }
 
-        // LOGIC
         if (paisId === C_VENEZUELA) {
             containerBankInputText.classList.remove('d-none');
             wrapperChecksType.classList.remove('d-none');
