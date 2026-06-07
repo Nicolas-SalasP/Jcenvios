@@ -2,6 +2,7 @@
 /remesas_private/config.php
 # Carpeta de dependencias de Composer (se reinstala con "composer install")
 /remesas_private/vendor/
+/remesas_private/sessions/
 
 /public_html/uploads/receipts
 /public_html/uploads/verifications
@@ -11,3 +12,6 @@
 Thumbs.db
 .idea/
 .vscode/
+
+.claude
+CLAUDE.md
