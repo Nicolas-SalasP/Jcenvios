@@ -249,6 +249,16 @@ class FileHandlerService
         }
     }
     
+    public function saveEmailAsReceipt(string $htmlContent, int $txId): string
+    {
+        $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'banco_emails';
+        if (!is_dir($targetDir)) { @mkdir($targetDir, 0775, true); }
+        $filename = 'email_' . $txId . '_' . bin2hex(random_bytes(4)) . '.html';
+        $fullPath = $targetDir . DIRECTORY_SEPARATOR . $filename;
+        file_put_contents($fullPath, $htmlContent);
+        return 'banco_emails' . DIRECTORY_SEPARATOR . $filename;
+    }
+
     public function deleteOrderPdf(int $transactionId): void
     {
         $filename = 'orden_' . $transactionId . '.pdf';

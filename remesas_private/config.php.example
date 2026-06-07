@@ -80,3 +80,20 @@ define('SMTP_PORT',   587);
 define('TWILIO_SID',            '');  // ej: 'ACxxxxxxxxxxxxxxxx'
 define('TWILIO_TOKEN',          '');
 define('TWILIO_WHATSAPP_FROM',  '');  // ej: 'whatsapp:+14155238886'
+
+
+// ============================================================
+//  IMAP (lectura de correos para conciliación automática) - OPCIONAL
+//  Si no defines IMAP_HOST, el bot de correo simplemente no se ejecuta.
+// ============================================================
+define('IMAP_HOST', '');   // ej: 'imap.gmail.com'  (vacío = bot desactivado)
+define('IMAP_USER', '');   // ej: 'pagos@tudominio.com'
+define('IMAP_PASS', '');   // app password
+define('IMAP_PORT', 993);
+
+// Modo del bot de conciliación:
+//  false (recomendado) = SOLO SUGIERE: adjunta el comprobante del banco a la orden y avisa al admin, que confirma manualmente.
+//  true = AUTO-CONFIRMA: el bot confirma el pago (estado En Proceso + contabilidad) sin intervención. Úsalo solo si confías en el parseo.
+define('AUTO_CONFIRM_EMAIL', false);
+
+define('SYSTEM_ADMIN_ID', 1); // UserID admin usado por procesos automáticos (bot de conciliación)

@@ -26,19 +26,23 @@ class TransactionRepository
         $estadoInicialID = ($esRiesgoso == 1) ? 7 : 1;
 
         $sql = "INSERT INTO transacciones (
-            UserID, CuentaBeneficiariaID, TasaID_Al_Momento, TasaCapturada, 
-            MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino, 
-            EstadoID, FormaPagoID, 
-            BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco, 
-            BeneficiarioNumeroCuenta, BeneficiarioCCI, BeneficiarioTelefono
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            UserID, CuentaBeneficiariaID, TasaID_Al_Momento, TasaCapturada,
+            MontoOrigen, MonedaOrigen, MontoDestino, MonedaDestino,
+            EstadoID, FormaPagoID,
+            BeneficiarioNombre, BeneficiarioDocumento, BeneficiarioBanco,
+            BeneficiarioNumeroCuenta, BeneficiarioCCI, BeneficiarioTelefono,
+            ComisionRevendedor
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $this->db->prepare($sql);
 
         $beneficiarioCCI = $data['beneficiarioCCI'] ?? null;
         $tasaCapturada = $data['tasaCapturada'] ?? 0.0;
+        // Comisión del revendedor por esta transacción (0 si el cliente no es revendedor).
+        // Antes se calculaba pero nunca se persistía → getResellerStats (SUM ComisionRevendedor) daba 0.
+        $comisionRevendedor = (float) ($data['comisionRevendedor'] ?? 0);
         $stmt->bind_param(
-            "iiiddsdsiissssss",
+            "iiiddsdsiissssssd",
             $data['userID'],
             $data['cuentaID'],
             $data['tasaID'],
@@ -54,7 +58,8 @@ class TransactionRepository
             $data['beneficiarioBanco'],
             $data['beneficiarioNumeroCuenta'],
             $beneficiarioCCI,
-            $data['beneficiarioTelefono']
+            $data['beneficiarioTelefono'],
+            $comisionRevendedor
         );
 
         if (!$stmt->execute()) {
@@ -606,7 +611,7 @@ class TransactionRepository
 
     public function findPendingByAmount(float $monto, int $horasTolerancia): array
     {
-        $sql = "SELECT TransaccionID, UserID, MontoOrigen, Email, PrimerNombre, Telefono 
+        $sql = "SELECT t.TransaccionID, t.UserID, t.MontoOrigen, u.Email, u.PrimerNombre, u.Telefono, t.EstadoID
                 FROM transacciones t
                 JOIN usuarios u ON t.UserID = u.UserID
                 WHERE t.MontoOrigen = ? 
@@ -649,6 +654,19 @@ class TransactionRepository
         $stmt->close();
         return $success;
     }
+    public function attachBankProof(int $txId, string $proofPath, string $messageId): bool
+    {
+        $sql = "UPDATE transacciones
+                SET ComprobanteBancoURL = ?,
+                    EmailMessageID = ?
+                WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ssi", $proofPath, $messageId, $txId);
+        $ok = $stmt->execute();
+        $stmt->close();
+        return $ok;
+    }
+
     public function isAccountUsedInCompletedOrders(int $cuentaId): bool
     {
         $sql = "SELECT COUNT(*) as total FROM transacciones 

@@ -11,6 +11,7 @@ class EmailReconciliationService
     private TransactionRepository $txRepository;
     private NotificationService $notificationService;
     private FileHandlerService $fileHandler;
+    private ?\App\Services\TransactionService $transactionService;
     private $mailbox;
 
     private const TOLERANCIA_HORAS = 72;
@@ -18,16 +19,18 @@ class EmailReconciliationService
     public function __construct(
         TransactionRepository $txRepository,
         NotificationService $notificationService,
-        FileHandlerService $fileHandler
+        FileHandlerService $fileHandler,
+        ?\App\Services\TransactionService $transactionService = null
     ) {
         $this->txRepository = $txRepository;
         $this->notificationService = $notificationService;
         $this->fileHandler = $fileHandler;
+        $this->transactionService = $transactionService;
     }
 
     public function procesarCorreosNoLeidos()
     {
-        if (!defined('IMAP_HOST')) {
+        if (!defined('IMAP_HOST') || IMAP_HOST === '') {
             echo "Configuración IMAP faltante.\n";
             return;
         }
@@ -77,28 +80,34 @@ class EmailReconciliationService
         $cuerpoHTML = $this->getBody($emailId);
         $cuerpoTexto = strip_tags($cuerpoHTML);
 
-        $datos = $this->analizarContenido($cuerpoTexto, $asunto, $remitenteAddr);
+        try {
+            $datos = $this->analizarContenido($cuerpoTexto, $asunto, $remitenteAddr);
 
-        if ($datos['es_comprobante'] && $datos['monto'] > 0) {
-            echo " + Detectado: {$datos['banco']} | Monto: $ " . number_format($datos['monto'], 0, ',', '.') . "\n";
-            $match = $this->buscarOrdenCandidata($datos);
+            if ($datos['es_comprobante'] && $datos['monto'] > 0) {
+                echo " + Detectado: {$datos['banco']} | Monto: $ " . number_format($datos['monto'], 0, ',', '.') . "\n";
+                $match = $this->buscarOrdenCandidata($datos);
 
-            if ($match) {
-                echo "   -> ¡MATCH! Orden #{$match['TransaccionID']}\n";
-                $archivoPath = $this->fileHandler->saveEmailAsReceipt($cuerpoHTML, $match['TransaccionID']);
-                $this->conciliarOrden($match, $datos, $archivoPath, $messageId);
+                if ($match) {
+                    echo "   -> ¡MATCH! Orden #{$match['TransaccionID']}\n";
+                    $archivoPath = $this->fileHandler->saveEmailAsReceipt($cuerpoHTML, $match['TransaccionID']);
+                    $this->conciliarOrden($match, $datos, $archivoPath, $messageId);
 
-            } else {
-                echo "   -> Sin match automático. Alerta enviada al Admin.\n";
-                $this->notificationService->notifyAdminUnreconciledTransfer(
-                    $datos['banco'],
-                    $datos['monto'],
-                    $remitenteAddr,
-                    $cuerpoHTML
-                );
+                } else {
+                    echo "   -> Sin match automático. Alerta enviada al Admin.\n";
+                    // Guardar el cuerpo del correo en disco para que el admin pueda ubicarlo (txId=0 = sin orden asociada).
+                    $pathSinConciliar = $this->fileHandler->saveEmailAsReceipt($cuerpoHTML, 0);
+                    $this->notificationService->notifyAdminUnreconciledTransfer(
+                        $datos['banco'],
+                        $datos['monto'],
+                        $remitenteAddr,
+                        $pathSinConciliar
+                    );
+                }
             }
+        } finally {
+            // Garantizar SIEMPRE el marcado como leído, aunque conciliarOrden/notify lance, para evitar reprocesamiento.
+            imap_setflag_full($this->mailbox, $emailId, "\\Seen");
         }
-        imap_setflag_full($this->mailbox, $emailId, "\\Seen");
     }
 
     private function analizarContenido(string $texto, string $asunto, string $remitente): array
@@ -171,22 +180,32 @@ class EmailReconciliationService
 
     private function conciliarOrden(array $orden, array $datosEmail, string $comprobantePath, string $messageId)
     {
-        $estadoEnProcesoID = 3;
+        $txId = (int)$orden['TransaccionID'];
+        $autoConfirm = defined('AUTO_CONFIRM_EMAIL') && AUTO_CONFIRM_EMAIL === true;
+        $estadoActual = (int)($orden['EstadoID'] ?? 0);
 
-        $this->txRepository->updateStatusToProcessingWithProof(
-            $orden['TransaccionID'],
-            $estadoEnProcesoID,
-            $comprobantePath,
-            $messageId
-        );
+        // Siempre: adjuntar comprobante del banco + marcar email procesado (idempotente). No mueve dinero.
+        $this->txRepository->attachBankProof($txId, $comprobantePath, $messageId);
 
-        $this->notificationService->logAdminAction(
-            1,
-            'Auto-Conciliación (Bot)',
-            "Orden #{$orden['TransaccionID']} aprobada. Banco: {$datosEmail['banco']}. Monto: {$datosEmail['monto']}"
-        );
+        $systemAdminId = defined('SYSTEM_ADMIN_ID') ? SYSTEM_ADMIN_ID : 1;
 
-        $this->notificationService->sendPaymentConfirmationToClientWhatsApp($orden);
+        if ($autoConfirm && $this->transactionService !== null && $estadoActual === 2) {
+            // MODO AUTO: usa el MISMO camino que la confirmación manual del admin (estado 2->3 + contabilidad).
+            // adminId del sistema (configurable vía SYSTEM_ADMIN_ID) como autor de la acción.
+            try {
+                $this->transactionService->adminConfirmPayment($systemAdminId, $txId);
+                $this->notificationService->logAdminAction($systemAdminId, 'Auto-Conciliación (Bot) CONFIRMADA', "Orden #{$txId} confirmada automáticamente. Banco: {$datosEmail['banco']}. Monto: {$datosEmail['monto']}.");
+            } catch (\Throwable $e) {
+                // Si falla la confirmación automática, degradar a sugerencia (no perder el pago detectado).
+                $this->notificationService->logAdminAction($systemAdminId, 'Auto-Conciliación (Bot) FALLÓ -> sugerida', "Orden #{$txId}: " . $e->getMessage());
+            }
+        } else {
+            // MODO SUGERIR (default y seguro): solo deja constancia para que el admin confirme manualmente.
+            $motivo = $autoConfirm && $estadoActual !== 2
+                ? "Orden #{$txId} NO está 'En Verificación' (estado {$estadoActual}); se sugiere revisión manual."
+                : "Pago detectado por correo para la orden #{$txId}. Requiere confirmación del admin.";
+            $this->notificationService->logAdminAction($systemAdminId, 'Conciliación (Bot) SUGERIDA', "{$motivo} Banco: {$datosEmail['banco']}. Monto: {$datosEmail['monto']}.");
+        }
     }
 
     private function decodeHeader($text)

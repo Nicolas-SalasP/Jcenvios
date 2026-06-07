@@ -30,6 +30,13 @@ class NotificationService
         $this->logService->logAction($userId, $action, $details);
     }
 
+    public function notifyAdminUnreconciledTransfer(string $banco, float $monto, string $remitente, string $comprobantePath): void
+    {
+        $detalle = "Transferencia sin orden coincidente. Banco: {$banco}. Monto: {$monto}. Remitente/Ref: {$remitente}. Comprobante: {$comprobantePath}";
+        // Log visible en el panel de logs del admin
+        $this->logService->logAction(null, 'Transferencia bancaria sin conciliar', $detalle);
+    }
+
     // --- MÉTODOS DE NOTIFICACIÓN WHATSAPP (TWILIO) ---
 
     public function sendOrderToClientWhatsApp(array $txData, string $pdfUrl): bool
