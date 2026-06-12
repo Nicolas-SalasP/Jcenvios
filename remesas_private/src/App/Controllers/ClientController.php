@@ -603,7 +603,7 @@ class ClientController extends BaseController
 
     public function getResellerDashboard(): void
     {
-        $userId = $this->ensureLoggedIn();
+        $userId = $this->ensureReseller();
         $fechaInicio = $_GET['inicio'] ?? date('Y-m-01 00:00:00');
         $fechaFin = $_GET['fin'] ?? date('Y-m-t 23:59:59');
         $stats = $this->txService->getResellerStats($userId, $fechaInicio, $fechaFin);
@@ -791,14 +791,16 @@ class ClientController extends BaseController
 
     public function getResellerTransactions(): void
     {
-        $userId = $this->ensureLoggedIn();
+        $userId = $this->ensureReseller();
         $limit  = max(1, (int) ($_GET['limit'] ?? 20));
         $page   = max(1, (int) ($_GET['page']  ?? 1));
         $offset = ($page - 1) * $limit;
         $search = trim($_GET['search'] ?? '');
+        $desde  = trim($_GET['dateFrom'] ?? '');
+        $hasta  = trim($_GET['dateTo']   ?? '');
 
-        $txs     = $this->txRepository->getResellerTransactionsList($userId, $limit, $offset, $search);
-        $total   = $this->txRepository->countResellerTransactions($userId, $search);
+        $txs     = $this->txRepository->getResellerTransactionsList($userId, $limit, $offset, $search, $desde, $hasta);
+        $total   = $this->txRepository->countResellerTransactions($userId, $search, $desde, $hasta);
         $pending = $this->txRepository->getResellerPendingCommission($userId);
 
         $this->sendJsonResponse([
@@ -812,7 +814,7 @@ class ClientController extends BaseController
 
     public function getResellerSummary(): void
     {
-        $userId       = $this->ensureLoggedIn();
+        $userId       = $this->ensureReseller();
         $pending      = $this->txRepository->getResellerPendingCommission($userId);
         $liquidaciones = $this->liquidacionRepo->getByUser($userId);
         $pagado = array_sum(array_column(

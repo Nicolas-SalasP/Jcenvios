@@ -53,7 +53,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 
     <!-- Summary bar -->
-    <div class="alert alert-success border-0 shadow-sm d-flex justify-content-between align-items-center mb-4" id="summary-bar" style="display:none!important">
+    <div class="alert alert-success border-0 shadow-sm d-flex justify-content-between align-items-center mb-4" id="summary-bar" style="display:none">
         <span><i class="bi bi-info-circle me-2"></i> Total comisión en período: <strong id="period-total">—</strong></span>
         <span class="text-muted small" id="period-count"></span>
     </div>

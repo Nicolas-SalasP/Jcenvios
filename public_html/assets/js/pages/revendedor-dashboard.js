@@ -5,6 +5,14 @@
         return Number(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    function esc(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     async function loadSummary() {
         try {
             const res = await fetch('../api/?accion=getResellerSummary');
@@ -51,11 +59,11 @@
                 <tr>
                     <td><strong>#${tx.TransaccionID}</strong></td>
                     <td>${new Date(tx.FechaTransaccion).toLocaleDateString('es-CL')}</td>
-                    <td>${tx.BeneficiarioNombre}</td>
-                    <td class="text-end">${fmt(tx.MontoOrigen)} ${tx.MonedaOrigen}</td>
-                    <td class="text-end">${fmt(tx.MontoDestino)} ${tx.MonedaDestino}</td>
-                    <td class="text-end text-success fw-bold">${fmt(tx.ComisionRevendedor)} ${tx.MonedaOrigen}</td>
-                    <td><span class="badge bg-success">${tx.NombreEstado}</span></td>
+                    <td>${esc(tx.BeneficiarioNombre)}</td>
+                    <td class="text-end">${fmt(tx.MontoOrigen)} ${esc(tx.MonedaOrigen)}</td>
+                    <td class="text-end">${fmt(tx.MontoDestino)} ${esc(tx.MonedaDestino)}</td>
+                    <td class="text-end text-success fw-bold">${fmt(tx.ComisionRevendedor)} ${esc(tx.MonedaOrigen)}</td>
+                    <td><span class="badge bg-success">${esc(tx.NombreEstado)}</span></td>
                 </tr>
             `).join('');
         } catch (e) { console.error(e); }

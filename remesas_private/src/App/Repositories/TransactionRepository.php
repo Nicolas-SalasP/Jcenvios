@@ -879,7 +879,7 @@ class TransactionRepository
     /**
      * Lista transacciones con comisión para un revendedor (paginado).
      */
-    public function getResellerTransactionsList(int $userId, int $limit, int $offset, string $search = ''): array
+    public function getResellerTransactionsList(int $userId, int $limit, int $offset, string $search = '', string $desde = '', string $hasta = ''): array
     {
         $where = "T.UserID = ? AND T.EstadoID = 4";
         $params = [$userId];
@@ -891,6 +891,18 @@ class TransactionRepository
             $params[] = $like;
             $params[] = $like;
             $types .= "ss";
+        }
+
+        if ($desde !== '') {
+            $where .= " AND DATE(T.FechaTransaccion) >= ?";
+            $params[] = $desde;
+            $types .= "s";
+        }
+
+        if ($hasta !== '') {
+            $where .= " AND DATE(T.FechaTransaccion) <= ?";
+            $params[] = $hasta;
+            $types .= "s";
         }
 
         $params[] = $limit;
@@ -914,7 +926,7 @@ class TransactionRepository
         return $result;
     }
 
-    public function countResellerTransactions(int $userId, string $search = ''): int
+    public function countResellerTransactions(int $userId, string $search = '', string $desde = '', string $hasta = ''): int
     {
         $where = "T.UserID = ? AND T.EstadoID = 4";
         $params = [$userId];
@@ -926,6 +938,18 @@ class TransactionRepository
             $params[] = $like;
             $params[] = $like;
             $types .= "ss";
+        }
+
+        if ($desde !== '') {
+            $where .= " AND DATE(T.FechaTransaccion) >= ?";
+            $params[] = $desde;
+            $types .= "s";
+        }
+
+        if ($hasta !== '') {
+            $where .= " AND DATE(T.FechaTransaccion) <= ?";
+            $params[] = $hasta;
+            $types .= "s";
         }
 
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM transacciones T WHERE $where");

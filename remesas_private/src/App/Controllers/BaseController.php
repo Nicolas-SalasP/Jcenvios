@@ -68,4 +68,14 @@ abstract class BaseController
         }
         return $userId;
     }
+
+    protected function ensureReseller(): int
+    {
+        $userId = $this->ensureLoggedIn();
+        if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Revendedor') {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Acceso denegado. Se requiere rol de Revendedor.'], 403);
+            exit();
+        }
+        return $userId;
+    }
 }
