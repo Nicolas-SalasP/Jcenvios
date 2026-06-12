@@ -12,6 +12,8 @@ use App\Repositories\TipoDocumentoRepository;
 use App\Repositories\RolRepository;
 use App\Services\NotificationService;
 use App\Services\BeneficiaryAuditService;
+use App\Repositories\TransactionRepository;
+use App\Repositories\LiquidacionRepository;
 use Exception;
 
 class ClientController extends BaseController
@@ -27,6 +29,8 @@ class ClientController extends BaseController
     private NotificationService $notificationService;
     private SystemSettingsService $settingsService;
     private BeneficiaryAuditService $auditService;
+    private TransactionRepository $txRepository;
+    private LiquidacionRepository $liquidacionRepo;
 
     public function __construct(
         TransactionService $txService,
@@ -39,7 +43,9 @@ class ClientController extends BaseController
         RolRepository $rolRepo,
         NotificationService $notificationService,
         SystemSettingsService $settingsService,
-        BeneficiaryAuditService $auditService
+        BeneficiaryAuditService $auditService,
+        TransactionRepository $txRepository,
+        LiquidacionRepository $liquidacionRepo
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -52,6 +58,8 @@ class ClientController extends BaseController
         $this->notificationService = $notificationService;
         $this->settingsService = $settingsService;
         $this->auditService = $auditService;
+        $this->txRepository = $txRepository;
+        $this->liquidacionRepo = $liquidacionRepo;
     }
 
     // --- CHECKEO DE SISTEMA---
@@ -777,5 +785,46 @@ class ClientController extends BaseController
             $code = $e->getCode() >= 400 ? $e->getCode() : 400;
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
         }
+    }
+
+    // ─── REVENDEDOR ──────────────────────────────────────────────────────────
+
+    public function getResellerTransactions(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        $limit  = max(1, (int) ($_GET['limit'] ?? 20));
+        $page   = max(1, (int) ($_GET['page']  ?? 1));
+        $offset = ($page - 1) * $limit;
+        $search = trim($_GET['search'] ?? '');
+
+        $txs     = $this->txRepository->getResellerTransactionsList($userId, $limit, $offset, $search);
+        $total   = $this->txRepository->countResellerTransactions($userId, $search);
+        $pending = $this->txRepository->getResellerPendingCommission($userId);
+
+        $this->sendJsonResponse([
+            'success'           => true,
+            'data'              => $txs,
+            'total'             => $total,
+            'totalPages'        => (int) ceil($total / $limit),
+            'pendingCommission' => $pending,
+        ]);
+    }
+
+    public function getResellerSummary(): void
+    {
+        $userId       = $this->ensureLoggedIn();
+        $pending      = $this->txRepository->getResellerPendingCommission($userId);
+        $liquidaciones = $this->liquidacionRepo->getByUser($userId);
+        $pagado = array_sum(array_column(
+            array_filter($liquidaciones, fn($l) => $l['Estado'] === 'pagada'),
+            'Monto'
+        ));
+
+        $this->sendJsonResponse([
+            'success'      => true,
+            'pendiente'    => $pending,
+            'pagado'       => $pagado,
+            'liquidaciones' => $liquidaciones,
+        ]);
     }
 }

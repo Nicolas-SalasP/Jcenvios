@@ -832,13 +832,13 @@ class TransactionRepository
         return $res;
     }
 
-    public function updateTransactionAmounts(int $txId, float $newOrigen, float $newDestino, float $newComision): bool
+    public function updateTransactionAmounts(int $txId, float $newOrigen, float $newDestino, float $newComision, float $newComisionRevendedor = 0.0): bool
     {
-        $sql = "UPDATE transacciones SET 
-                MontoOrigen = ?, MontoDestino = ?, ComisionDestino = ?, PermitirEdicionMonto = 0 
+        $sql = "UPDATE transacciones SET
+                MontoOrigen = ?, MontoDestino = ?, ComisionDestino = ?, ComisionRevendedor = ?, PermitirEdicionMonto = 0
                 WHERE TransaccionID = ?";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("dddi", $newOrigen, $newDestino, $newComision, $txId);
+        $stmt->bind_param("ddddi", $newOrigen, $newDestino, $newComision, $newComisionRevendedor, $txId);
         $res = $stmt->execute();
         $stmt->close();
         return $res;
@@ -872,5 +872,235 @@ class TransactionRepository
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         return $row ?: null;
+    }
+
+    // ─── MÉTODOS REVENDEDOR ──────────────────────────────────────────────────
+
+    /**
+     * Lista transacciones con comisión para un revendedor (paginado).
+     */
+    public function getResellerTransactionsList(int $userId, int $limit, int $offset, string $search = ''): array
+    {
+        $where = "T.UserID = ? AND T.EstadoID = 4";
+        $params = [$userId];
+        $types = "i";
+
+        if ($search !== '') {
+            $where .= " AND (T.TransaccionID LIKE ? OR T.BeneficiarioNombre LIKE ?)";
+            $like = '%' . $search . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $types .= "ss";
+        }
+
+        $params[] = $limit;
+        $params[] = $offset;
+        $types .= "ii";
+
+        $sql = "SELECT T.TransaccionID, T.FechaTransaccion, T.MontoOrigen, T.MonedaOrigen,
+                       T.MontoDestino, T.MonedaDestino, T.ComisionRevendedor,
+                       T.BeneficiarioNombre, ET.NombreEstado
+                FROM transacciones T
+                JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
+                WHERE $where
+                ORDER BY T.FechaTransaccion DESC
+                LIMIT ? OFFSET ?";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
+    public function countResellerTransactions(int $userId, string $search = ''): int
+    {
+        $where = "T.UserID = ? AND T.EstadoID = 4";
+        $params = [$userId];
+        $types = "i";
+
+        if ($search !== '') {
+            $where .= " AND (T.TransaccionID LIKE ? OR T.BeneficiarioNombre LIKE ?)";
+            $like = '%' . $search . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $types .= "ss";
+        }
+
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM transacciones T WHERE $where");
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $count = (int) $stmt->get_result()->fetch_row()[0];
+        $stmt->close();
+        return $count;
+    }
+
+    /**
+     * Sum of pending commissions (not yet liquidated) for a reseller.
+     */
+    public function getResellerPendingCommission(int $userId): float
+    {
+        $sql = "SELECT COALESCE(SUM(ComisionRevendedor), 0) as total
+                FROM transacciones
+                WHERE UserID = ? AND EstadoID = 4
+                  AND (LiquidacionID IS NULL OR LiquidacionID = 0)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $total = (float) $stmt->get_result()->fetch_row()[0];
+        $stmt->close();
+        return $total;
+    }
+
+    /**
+     * Sum of commissions in a date range for liquidation preview.
+     */
+    public function getResellerCommissionInRange(int $userId, string $desde, string $hasta): array
+    {
+        $sql = "SELECT COALESCE(SUM(ComisionRevendedor), 0) as total, COUNT(*) as cantidad
+                FROM transacciones
+                WHERE UserID = ? AND EstadoID = 4
+                  AND DATE(FechaTransaccion) BETWEEN ? AND ?
+                  AND (LiquidacionID IS NULL OR LiquidacionID = 0)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iss", $userId, $desde, $hasta);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row;
+    }
+
+    /**
+     * Mark transactions in range as part of a liquidation.
+     */
+    public function assignLiquidacionToTransactions(int $userId, string $desde, string $hasta, int $liquidacionId): int
+    {
+        $sql = "UPDATE transacciones SET LiquidacionID = ?
+                WHERE UserID = ? AND EstadoID = 4
+                  AND DATE(FechaTransaccion) BETWEEN ? AND ?
+                  AND (LiquidacionID IS NULL OR LiquidacionID = 0)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iiss", $liquidacionId, $userId, $desde, $hasta);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+        return $affected;
+    }
+
+    /**
+     * All resellers with their total commissions and counts, including per-currency breakdown.
+     */
+    public function getResellersSummary(): array
+    {
+        $sql = "SELECT U.UserID, U.PrimerNombre, U.PrimerApellido, U.Email,
+                       U.PorcentajeComision,
+                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 THEN T.ComisionRevendedor ELSE 0 END), 0) as TotalGanado,
+                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 AND (T.LiquidacionID IS NULL OR T.LiquidacionID = 0) THEN T.ComisionRevendedor ELSE 0 END), 0) as PendienteCobro,
+                       COUNT(DISTINCT CASE WHEN T.EstadoID = 4 THEN T.TransaccionID END) as TotalOrdenes,
+                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 AND T.MonedaOrigen = 'CLP' AND (T.LiquidacionID IS NULL OR T.LiquidacionID = 0) THEN T.ComisionRevendedor ELSE 0 END), 0) as PendienteCLP,
+                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 AND T.MonedaOrigen = 'COP' AND (T.LiquidacionID IS NULL OR T.LiquidacionID = 0) THEN T.ComisionRevendedor ELSE 0 END), 0) as PendienteCOP,
+                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 AND T.MonedaOrigen = 'PEN' AND (T.LiquidacionID IS NULL OR T.LiquidacionID = 0) THEN T.ComisionRevendedor ELSE 0 END), 0) as PendientePEN
+                FROM usuarios U
+                LEFT JOIN transacciones T ON T.UserID = U.UserID
+                WHERE U.RolID = 4 AND U.Eliminado = 0
+                GROUP BY U.UserID
+                ORDER BY PendienteCobro DESC";
+        $result = $this->db->getConnection()->query($sql)->fetch_all(MYSQLI_ASSOC);
+        return $result;
+    }
+
+    /**
+     * Returns the effective commission rate for a reseller on a specific destination country.
+     * Checks revendedor_paises for a per-country override; falls back to the global rate.
+     */
+    public function getResellerCommissionRate(int $userId, int $paisDestinoId, float $globalPct): float
+    {
+        $stmt = $this->db->prepare(
+            "SELECT PorcentajeComision, Activo FROM revendedor_paises WHERE UserID = ? AND PaisDestinoID = ?"
+        );
+        $stmt->bind_param("ii", $userId, $paisDestinoId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($row === null) return $globalPct;         // no per-country entry: use global
+        if ((int)$row['Activo'] === 0) return 0.0;   // country disabled: 0 commission
+        return (float)$row['PorcentajeComision'];     // per-country override
+    }
+
+    /**
+     * Returns all active destination countries with per-country commission config for a reseller.
+     */
+    public function getResellerPaisesConfig(int $userId): array
+    {
+        // Get all active destination countries (excluding Chile as origin country ID=1 is also dest; keep all)
+        $sql = "SELECT PaisID, NombrePais, CodigoMoneda FROM paises WHERE Activo = 1 ORDER BY NombrePais";
+        $paises = $this->db->getConnection()->query($sql)->fetch_all(MYSQLI_ASSOC);
+
+        // Get per-country config for this reseller
+        $stmt = $this->db->prepare(
+            "SELECT PaisDestinoID, PorcentajeComision, Activo FROM revendedor_paises WHERE UserID = ?"
+        );
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $configs = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $configMap = [];
+        foreach ($configs as $c) {
+            $configMap[(int)$c['PaisDestinoID']] = $c;
+        }
+
+        $result = [];
+        foreach ($paises as $p) {
+            $config = $configMap[(int)$p['PaisID']] ?? null;
+            $result[] = [
+                'PaisID'             => (int)$p['PaisID'],
+                'NombrePais'         => $p['NombrePais'],
+                'CodigoMoneda'       => $p['CodigoMoneda'],
+                'PorcentajeComision' => $config ? (float)$config['PorcentajeComision'] : null,
+                'Activo'             => $config ? (bool)(int)$config['Activo'] : false,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Upserts per-country commission entries for a reseller.
+     * $paises = [{PaisID, PorcentajeComision, Activo}, ...]
+     */
+    public function upsertResellerPaises(int $userId, array $paises): void
+    {
+        $stmt = $this->db->prepare(
+            "INSERT INTO revendedor_paises (UserID, PaisDestinoID, PorcentajeComision, Activo)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE PorcentajeComision = VALUES(PorcentajeComision), Activo = VALUES(Activo)"
+        );
+        foreach ($paises as $p) {
+            $paisId = (int)($p['PaisID'] ?? 0);
+            $pct    = (float)($p['PorcentajeComision'] ?? 0);
+            $activo = (int)(bool)($p['Activo'] ?? false);
+            if ($paisId <= 0) continue;
+            $stmt->bind_param("iidi", $userId, $paisId, $pct, $activo);
+            $stmt->execute();
+        }
+        $stmt->close();
+    }
+
+    /**
+     * Updates the global commission percentage for a reseller (RolID = 4).
+     */
+    public function updateResellerCommissionPct(int $userId, float $porcentaje): bool
+    {
+        $stmt = $this->db->prepare(
+            "UPDATE usuarios SET PorcentajeComision = ? WHERE UserID = ? AND RolID = 4"
+        );
+        $stmt->bind_param("di", $porcentaje, $userId);
+        $stmt->execute();
+        $ok = $stmt->affected_rows > 0;
+        $stmt->close();
+        return $ok;
     }
 }

@@ -221,7 +221,12 @@ class TransactionService
 
         $ganancia = 0;
         if ((isset($client['Rol']) && $client['Rol'] === 'Revendedor') || (isset($client['RolID']) && $client['RolID'] == 4)) {
-            $porcentaje = $client['PorcentajeComision'] ?? 0;
+            $globalPct  = (float)($client['PorcentajeComision'] ?? 0);
+            $porcentaje = $this->txRepository->getResellerCommissionRate(
+                (int)$client['UserID'],
+                $paisDestinoID,
+                $globalPct
+            );
             if ($porcentaje > 0) {
                 $ganancia = ($data['montoOrigen'] * $porcentaje) / 100;
                 // La comisión del revendedor se persiste por transacción en
@@ -643,16 +648,19 @@ class TransactionService
         $montoOrigenOriginal = (float) $tx['MontoOrigen'];
         $montoDestinoOriginal = (float) $tx['MontoDestino'];
         $comisionOriginal = (float) ($tx['ComisionDestino'] ?? 0);
+        $comisionRevendedorOriginal = (float) ($tx['ComisionRevendedor'] ?? 0);
 
         if ($montoOrigenOriginal > 0) {
             $factorDestino = $montoDestinoOriginal / $montoOrigenOriginal;
             $factorComision = $comisionOriginal / $montoOrigenOriginal;
+            $factorComisionRevendedor = $comisionRevendedorOriginal / $montoOrigenOriginal;
         } else {
             throw new Exception("Error lógico en la base de datos: El monto original de la transacción es 0.");
         }
 
         $nuevoMontoDestino = round($nuevoMontoOrigen * $factorDestino, 2);
         $nuevaComision = round($nuevoMontoOrigen * $factorComision, 2);
+        $nuevaComisionRevendedor = round($nuevoMontoOrigen * $factorComisionRevendedor, 2);
         $adminId = 0;
         $this->txRepository->logMontoAudit(
             $txId,
@@ -665,7 +673,7 @@ class TransactionService
             $comisionOriginal,
             $nuevaComision
         );
-        $updated = $this->txRepository->updateTransactionAmounts($txId, $nuevoMontoOrigen, $nuevoMontoDestino, $nuevaComision);
+        $updated = $this->txRepository->updateTransactionAmounts($txId, $nuevoMontoOrigen, $nuevoMontoDestino, $nuevaComision, $nuevaComisionRevendedor);
 
         if (!$updated) {
             throw new Exception("Error al actualizar la base de datos.");

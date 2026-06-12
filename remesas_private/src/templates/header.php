@@ -262,6 +262,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                 </li>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/admin/contabilidad.php">Contabilidad</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/admin/revendedores.php">Revendedores</a></li>
 
                             <?php elseif ($is_operator): ?>
                                 <li class="nav-item">
@@ -274,6 +276,16 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                 </li>
                                 <li class="nav-item"><a class="nav-link text-primary"
                                         href="<?php echo BASE_URL; ?>/operador/pendientes.php">Pendientes</a></li>
+
+                            <?php elseif ($user_role === 'Revendedor'): ?>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/dashboard/index.php">Enviar Dinero</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/revendedor/index.php">Mi Panel</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/revendedor/historial.php">Mis Comisiones</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/dashboard/historial.php">Historial</a></li>
 
                             <?php else: ?>
                                 <li class="nav-item"><a class="nav-link"

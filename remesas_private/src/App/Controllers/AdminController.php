@@ -8,6 +8,8 @@ use App\Services\DashboardService;
 use App\Services\SystemSettingsService; 
 use App\Repositories\RolRepository;
 use App\Repositories\CuentasAdminRepository;
+use App\Repositories\TransactionRepository;
+use App\Repositories\LiquidacionRepository;
 use App\Services\FileHandlerService;
 use App\Services\CuentasBeneficiariasService;
 use Exception;
@@ -23,6 +25,8 @@ class AdminController extends BaseController
     private SystemSettingsService $settingsService;
     private FileHandlerService $fileHandler;
     private CuentasBeneficiariasService $cuentasService;
+    private TransactionRepository $txRepository;
+    private LiquidacionRepository $liquidacionRepo;
 
     public function __construct(
         TransactionService $txService,
@@ -33,7 +37,9 @@ class AdminController extends BaseController
         CuentasAdminRepository $cuentasAdminRepo,
         SystemSettingsService $settingsService,
         FileHandlerService $fileHandler,
-        CuentasBeneficiariasService $cuentasService
+        CuentasBeneficiariasService $cuentasService,
+        TransactionRepository $txRepository,
+        LiquidacionRepository $liquidacionRepo
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -44,6 +50,8 @@ class AdminController extends BaseController
         $this->settingsService = $settingsService;
         $this->fileHandler = $fileHandler;
         $this->cuentasService = $cuentasService;
+        $this->txRepository = $txRepository;
+        $this->liquidacionRepo = $liquidacionRepo;
     }
 
     // --- GESTIÓN DE VACACIONES ---
@@ -790,5 +798,156 @@ class AdminController extends BaseController
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    // ─── GESTIÓN DE REVENDEDORES ─────────────────────────────────────────────
+
+    public function getResellerList(): void
+    {
+        $this->ensureAdmin();
+        $data = $this->txRepository->getResellersSummary();
+        $this->sendJsonResponse(['success' => true, 'data' => $data]);
+    }
+
+    public function getResellerCommissionPreview(): void
+    {
+        $this->ensureAdmin();
+        $userId = (int) ($_GET['userId'] ?? 0);
+        $desde  = $_GET['desde'] ?? date('Y-m-01');
+        $hasta  = $_GET['hasta'] ?? date('Y-m-d');
+        $info   = $this->txRepository->getResellerCommissionInRange($userId, $desde, $hasta);
+        $this->sendJsonResponse(['success' => true, 'total' => $info['total'], 'cantidad' => $info['cantidad']]);
+    }
+
+    public function crearLiquidacion(): void
+    {
+        $this->ensureAdmin();
+        $data   = $this->getJsonInput();
+        $userId = (int) ($data['userId'] ?? 0);
+        $desde  = $data['desde'] ?? '';
+        $hasta  = $data['hasta'] ?? '';
+        $notas  = trim($data['notas'] ?? '');
+
+        if (!$userId || !$desde || !$hasta) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
+            return;
+        }
+
+        $info     = $this->txRepository->getResellerCommissionInRange($userId, $desde, $hasta);
+        $monto    = (float) $info['total'];
+        $cantidad = (int) $info['cantidad'];
+
+        if ($monto <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'No hay comisiones pendientes en ese período.'], 422);
+            return;
+        }
+
+        $conn = $this->liquidacionRepo->getConnection();
+        $conn->begin_transaction();
+        try {
+            $liqId = $this->liquidacionRepo->create($userId, $monto, $desde, $hasta, $cantidad, $notas ?: null);
+            $this->txRepository->assignLiquidacionToTransactions($userId, $desde, $hasta, $liqId);
+            $conn->commit();
+        } catch (\Throwable $e) {
+            $conn->rollback();
+            $this->sendJsonResponse(['success' => false, 'error' => 'Error al crear la liquidación.'], 500);
+            return;
+        }
+
+        $this->sendJsonResponse(['success' => true, 'liquidacionId' => $liqId, 'monto' => $monto]);
+    }
+
+    public function pagarLiquidacion(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int) $_SESSION['user_id'];
+        $liqId   = (int) ($_POST['liquidacionId'] ?? 0);
+
+        if (!$liqId) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'ID inválido.'], 400);
+            return;
+        }
+
+        $liq = $this->liquidacionRepo->findById($liqId);
+        if (!$liq || $liq['Estado'] === 'pagada') {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Liquidación no encontrada o ya pagada.'], 422);
+            return;
+        }
+
+        $comprobanteUrl = null;
+        if (isset($_FILES['comprobante']) && $_FILES['comprobante']['error'] === UPLOAD_ERR_OK) {
+            $ext     = strtolower(pathinfo($_FILES['comprobante']['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
+            if (!in_array($ext, $allowed, true)) {
+                $this->sendJsonResponse(['success' => false, 'error' => 'Tipo de archivo no permitido.'], 422);
+                return;
+            }
+            $filename = 'liquidacion_' . $liqId . '_' . time() . '.' . $ext;
+            $dest = __DIR__ . '/../../../../uploads/liquidaciones/' . $filename;
+            if (!is_dir(dirname($dest))) {
+                mkdir(dirname($dest), 0755, true);
+            }
+            move_uploaded_file($_FILES['comprobante']['tmp_name'], $dest);
+            $comprobanteUrl = 'liquidaciones/' . $filename;
+        }
+
+        $this->liquidacionRepo->markPaid($liqId, $comprobanteUrl, $adminId);
+        $this->sendJsonResponse(['success' => true]);
+    }
+
+    public function getLiquidacionesList(): void
+    {
+        $this->ensureAdmin();
+        $data = $this->liquidacionRepo->getAll();
+        $this->sendJsonResponse(['success' => true, 'data' => $data]);
+    }
+
+    // ─── FEATURE 1: Editar % comisión global de un revendedor ───────────────
+
+    public function updateResellerCommission(): void
+    {
+        $this->ensureAdmin();
+        $data       = $this->getJsonInput();
+        $userId     = (int)($data['userId'] ?? 0);
+        $porcentaje = (float)($data['porcentaje'] ?? 0);
+
+        if (!$userId || $porcentaje < 0 || $porcentaje > 100) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos.'], 400);
+            return;
+        }
+
+        $ok = $this->txRepository->updateResellerCommissionPct($userId, $porcentaje);
+        $this->sendJsonResponse(['success' => $ok]);
+    }
+
+    // ─── FEATURE 2: Configuración de comisión por país ──────────────────────
+
+    public function getResellerPaises(): void
+    {
+        $this->ensureAdmin();
+        $userId = (int)($_GET['userId'] ?? 0);
+        if (!$userId) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'userId requerido.'], 400);
+            return;
+        }
+
+        $result = $this->txRepository->getResellerPaisesConfig($userId);
+        $this->sendJsonResponse(['success' => true, 'data' => $result]);
+    }
+
+    public function updateResellerPaises(): void
+    {
+        $this->ensureAdmin();
+        $data   = $this->getJsonInput();
+        $userId = (int)($data['userId'] ?? 0);
+        $paises = $data['paises'] ?? [];
+
+        if (!$userId || !is_array($paises)) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
+            return;
+        }
+
+        $this->txRepository->upsertResellerPaises($userId, $paises);
+        $this->sendJsonResponse(['success' => true]);
     }
 }

@@ -19,7 +19,8 @@ use App\Repositories\{
     CuentasAdminRepository,
     HolidayRepository,
     SystemSettingsRepository,
-    BeneficiaryAuditRepository
+    BeneficiaryAuditRepository,
+    LiquidacionRepository
 };
 use App\Services\{
     LogService,
@@ -88,6 +89,7 @@ class Container
             SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
             HolidayRepository::class => new HolidayRepository($this->getDb()),
             BeneficiaryAuditRepository::class => new BeneficiaryAuditRepository($this->getDb()),
+            LiquidacionRepository::class => new LiquidacionRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -180,7 +182,9 @@ class Container
                 $this->get(RolRepository::class),
                 $this->get(NotificationService::class),
                 $this->get(SystemSettingsService::class),
-                $this->get(BeneficiaryAuditService::class)
+                $this->get(BeneficiaryAuditService::class),
+                $this->get(TransactionRepository::class),
+                $this->get(LiquidacionRepository::class)
             ),
 
             AdminController::class => new AdminController(
@@ -192,7 +196,9 @@ class Container
                 $this->get(CuentasAdminRepository::class),
                 $this->get(SystemSettingsService::class),
                 $this->get(FileHandlerService::class),
-                $this->get(CuentasBeneficiariasService::class) 
+                $this->get(CuentasBeneficiariasService::class),
+                $this->get(TransactionRepository::class),
+                $this->get(LiquidacionRepository::class)
             ),
 
             DashboardController::class => new DashboardController(
@@ -330,11 +336,26 @@ try {
         // Vista Cliente
         'getPendingBeneficiaryRequests' => [ClientController::class, 'getPendingBeneficiaryRequests', 'GET'],
         'respondBeneficiaryRequest' => [ClientController::class, 'respondBeneficiaryRequest', 'POST'],
-        
+
         // Vista Admin
         'requestBeneficiaryEdit' => [ClientController::class, 'requestBeneficiaryEdit', 'POST'],
         'executeBeneficiaryEdit' => [ClientController::class, 'executeBeneficiaryEdit', 'POST'],
         'getBeneficiaryHistory'  => [ClientController::class, 'getBeneficiaryHistory', 'GET'],
+
+        // Revendedor (cliente)
+        'getResellerDashboard'    => [ClientController::class, 'getResellerDashboard', 'GET'],
+        'getResellerTransactions' => [ClientController::class, 'getResellerTransactions', 'GET'],
+        'getResellerSummary'      => [ClientController::class, 'getResellerSummary', 'GET'],
+
+        // Admin - Revendedores
+        'getResellerList'              => [AdminController::class, 'getResellerList', 'GET'],
+        'getResellerCommissionPreview' => [AdminController::class, 'getResellerCommissionPreview', 'GET'],
+        'crearLiquidacion'             => [AdminController::class, 'crearLiquidacion', 'POST'],
+        'pagarLiquidacion'             => [AdminController::class, 'pagarLiquidacion', 'POST'],
+        'getLiquidacionesList'         => [AdminController::class, 'getLiquidacionesList', 'GET'],
+        'updateResellerCommission'     => [AdminController::class, 'updateResellerCommission', 'POST'],
+        'getResellerPaises'            => [AdminController::class, 'getResellerPaises', 'GET'],
+        'updateResellerPaises'         => [AdminController::class, 'updateResellerPaises', 'POST'],
     ];
 
     if (isset($routes[$accion])) {

@@ -150,6 +150,7 @@ class AuthController extends BaseController
         $_SESSION['twofa_enabled'] = $user['twofa_enabled'];
         $_SESSION['user_photo_url'] = $user['FotoPerfilURL'] ?? null;
         $_SESSION['ultima_actividad'] = time();
+        $_SESSION['user_porcentaje_comision'] = $user['PorcentajeComision'] ?? 0;
 
         $redirectUrl = BASE_URL . '/dashboard/';
 
