@@ -455,8 +455,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <label for="rut_titular_pago">Documento / RUT del Titular</label>
                                     </div>
 
-                                    <div id="container-nombre-titular" class="form-floating mb-3 text-start ${displayRutStyle}">
-                                        <input type="text" class="form-control" id="nombre_titular_pago" name="nombreTitularOrigen" ${requiredRut} placeholder="Nombre Completo">
+                                    <div id="container-nombre-titular" class="form-floating mb-3 text-start">
+                                        <input type="text" class="form-control" id="nombre_titular_pago" name="nombreTitularOrigen" required placeholder="Nombre Completo">
                                         <label for="nombre_titular_pago">Nombre del Titular (Quien transfirió)</label>
                                     </div>
 
@@ -525,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const fd = new FormData(this);
                         if (!requiereRut) {
                             fd.set('rutTitularOrigen', 'N/A');
-                            fd.set('nombreTitularOrigen', 'N/A');
                         }
 
                         try {
@@ -573,21 +572,49 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // Elemento helper-text para método de pago (se crea una sola vez).
+    let formaPagoHelper = document.getElementById('forma-pago-helper');
+    if (!formaPagoHelper) {
+        formaPagoHelper = document.createElement('small');
+        formaPagoHelper.id = 'forma-pago-helper';
+        formaPagoHelper.className = 'text-muted mt-1 d-block';
+        formaDePagoSelect.parentNode.appendChild(formaPagoHelper);
+    }
+
     const loadFormasDePago = async (origenId) => {
         try {
             const respF = await fetch(`../api/?accion=getFormasDePago&origenId=${origenId}`);
             const opts = await respF.json();
 
             if (Array.isArray(opts)) {
-                formaDePagoSelect.innerHTML = opts.length ? '<option value="">Selecciona...</option>' : '<option>Sin opciones</option>';
-                opts.forEach(op => formaDePagoSelect.innerHTML += `<option value="${op}">${op}</option>`);
+                if (opts.length === 1) {
+                    // Un solo método: auto-seleccionar, deshabilitar y ocultar la flecha.
+                    formaDePagoSelect.innerHTML = `<option value="${opts[0]}" selected>${opts[0]}</option>`;
+                    formaDePagoSelect.disabled = true;
+                    formaDePagoSelect.style.backgroundImage = 'none';
+                    formaPagoHelper.textContent = 'Único método de pago activo para este origen.';
+                } else {
+                    formaDePagoSelect.disabled = false;
+                    formaDePagoSelect.style.backgroundImage = '';
+                    formaDePagoSelect.innerHTML = opts.length
+                        ? '<option value="">Selecciona...</option>'
+                        : '<option value="">Sin opciones</option>';
+                    opts.forEach(op => formaDePagoSelect.innerHTML += `<option value="${op}">${op}</option>`);
+                    formaPagoHelper.textContent = '';
+                }
             } else {
                 console.warn('opts no es iterable', opts);
                 formaDePagoSelect.innerHTML = '<option value="">Error al cargar opciones</option>';
+                formaDePagoSelect.disabled = false;
+                formaDePagoSelect.style.backgroundImage = '';
+                formaPagoHelper.textContent = '';
             }
         } catch (e) {
             console.error(e);
             formaDePagoSelect.innerHTML = '<option value="">Error conexión</option>';
+            formaDePagoSelect.disabled = false;
+            formaDePagoSelect.style.backgroundImage = '';
+            formaPagoHelper.textContent = '';
         }
     };
 
