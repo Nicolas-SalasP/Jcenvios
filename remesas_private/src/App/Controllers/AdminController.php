@@ -791,7 +791,7 @@ class AdminController extends BaseController
 
     public function getAdminAlerts(): void
     {
-        $this->ensureAdmin();
+        $this->ensureAdminOrOperator();
         try {
             $data = $this->txService->getAdminAlerts();
             $this->sendJsonResponse(['success' => true, 'data' => $data]);
