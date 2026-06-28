@@ -1,8 +1,12 @@
 .env
 /remesas_private/config.php
-# Carpeta de dependencias de Composer (se reinstala con "composer install")
+# Dependencias Composer (se reinstala con "composer install")
 /remesas_private/vendor/
 /remesas_private/sessions/
+
+# Dependencias npm (se reinstala con "npm install", copia a public_html/assets/vendor/)
+/node_modules/
+/package-lock.json
 
 /public_html/uploads/receipts
 /public_html/uploads/verifications
