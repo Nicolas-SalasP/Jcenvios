@@ -721,6 +721,19 @@ class TransactionService
         ];
     }
 
+    /**
+     * Cancela automáticamente las órdenes que llevan más de 4 horas en
+     * "Pendiente de Pago" sin que el cliente haya subido un comprobante.
+     * Devuelve el número de transacciones canceladas.
+     */
+    public function autoCancelExpired(int $horasLimite = 4): int
+    {
+        $estadoPendienteID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
+        $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
+
+        return $this->txRepository->autoCancelExpired($estadoPendienteID, $estadoCanceladoID, $horasLimite);
+    }
+
     public function getAdminAlerts(): array
     {
         return $this->txRepository->getAdminAlertsData();

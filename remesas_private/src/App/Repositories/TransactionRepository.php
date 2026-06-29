@@ -100,6 +100,7 @@ class TransactionRepository
                     T.MontoDestino, T.MonedaDestino, T.ComprobanteURL, T.ComprobanteEnvioURL,
                     T.FechaSubidaComprobante,
                     T.ConfirmacionRecepcion, T.FechaConfirmacionRecepcion,
+                    T.AutoCancelado,
                     T.PermitirEdicionMonto,
                     T.BeneficiarioNombre, 
                     T.BeneficiarioNombre AS BeneficiarioAlias,
@@ -381,6 +382,28 @@ class TransactionRepository
         $stmt->close();
 
         return $affectedRows;
+    }
+
+    /**
+     * Cancela transacciones en estado "Pendiente de Pago" sin comprobante
+     * que lleven más de $horas horas sin actividad.
+     * Marca AutoCancelado = 1 para que el frontend pueda informar al cliente.
+     */
+    public function autoCancelExpired(int $estadoPendienteID, int $estadoCanceladoID, int $horas = 4): int
+    {
+        $sql = "UPDATE transacciones
+                SET EstadoID    = ?,
+                    AutoCancelado = 1
+                WHERE EstadoID  = ?
+                  AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
+                  AND FechaTransaccion <= NOW() - INTERVAL ? HOUR";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iii", $estadoCanceladoID, $estadoPendienteID, $horas);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+        return $affected;
     }
 
     public function findByHash(string $fileHash): ?array

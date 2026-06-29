@@ -258,6 +258,13 @@ document.addEventListener('DOMContentLoaded', () => {
             allTransactions = data.transacciones || [];
             filterData();
 
+            // Muestra modal si hay órdenes canceladas automáticamente
+            const hayAutoCancelados = allTransactions.some(tx => parseInt(tx.AutoCancelado, 10) === 1);
+            if (hayAutoCancelados) {
+                const modalEl = document.getElementById('autoCanceladoModal');
+                if (modalEl) new bootstrap.Modal(modalEl).show();
+            }
+
         } catch (error) {
             console.error(error);
             if (tableBody && allTransactions.length === 0) {

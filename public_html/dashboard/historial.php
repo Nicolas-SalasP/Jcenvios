@@ -221,4 +221,34 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
+<!-- Modal: orden cancelada automáticamente por tiempo expirado -->
+<div class="modal fade" id="autoCanceladoModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Orden cancelada por tiempo expirado
+                </h5>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Una o más de tus órdenes fueron <strong>canceladas automáticamente</strong> porque
+                    no se recibió el comprobante de pago dentro de las 4 horas siguientes a su creación.
+                </p>
+                <p class="mb-0 text-muted small">
+                    Si deseas continuar con el envío, puedes crear una nueva orden.
+                    Si crees que esto fue un error, contáctanos.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <a href="index.php" class="btn btn-primary">
+                    <i class="bi bi-plus-lg me-1"></i> Crear nueva orden
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Entendido</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>
