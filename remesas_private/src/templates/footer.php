@@ -217,6 +217,19 @@ $jsUtilsVersion = file_exists($jsUtilsFilePath) ? hash_file('md5', $jsUtilsFileP
 <script>
   const baseUrlJs = <?php echo defined('BASE_URL') ? json_encode(rtrim(BASE_URL, '/')) : '""'; ?>;
   const CSRF_TOKEN = '<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>';
+
+  // Interceptor global: agrega X-CSRF-Token a todos los fetch POST automáticamente
+  (function() {
+    const _fetch = window.fetch;
+    window.fetch = function(input, init) {
+      init = init || {};
+      const method = (init.method || 'GET').toUpperCase();
+      if (method === 'POST' && CSRF_TOKEN) {
+        init.headers = Object.assign({ 'X-CSRF-Token': CSRF_TOKEN }, init.headers || {});
+      }
+      return _fetch.call(this, input, init);
+    };
+  })();
 </script>
 <?php ?>
 

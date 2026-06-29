@@ -83,6 +83,30 @@ class UserRepository
         return $success;
     }
 
+    /**
+     * Incrementa atomicamente FailedLoginAttempts y opcionalmente setea LockoutUntil.
+     * Retorna el nuevo valor de FailedLoginAttempts tras el UPDATE.
+     */
+    public function atomicIncrementLoginAttempts(int $userId, int $maxIntentos, string $lockoutUntil): int
+    {
+        $sql = "UPDATE usuarios
+                SET FailedLoginAttempts = FailedLoginAttempts + 1,
+                    LockoutUntil = CASE WHEN FailedLoginAttempts + 1 >= ? THEN ? ELSE LockoutUntil END
+                WHERE UserID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("isi", $maxIntentos, $lockoutUntil, $userId);
+        $stmt->execute();
+        $stmt->close();
+
+        $stmt2 = $this->db->prepare("SELECT FailedLoginAttempts FROM usuarios WHERE UserID = ?");
+        $stmt2->bind_param("i", $userId);
+        $stmt2->execute();
+        $row = $stmt2->get_result()->fetch_assoc();
+        $stmt2->close();
+
+        return (int)($row['FailedLoginAttempts'] ?? 0);
+    }
+
     public function countAdmins(): int
     {
         return $this->countByRole(1);

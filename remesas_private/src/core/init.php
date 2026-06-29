@@ -59,6 +59,10 @@ header("Content-Security-Policy: " . implode('; ', $cspDirectives));
 
 session_start();
 
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 require_once __DIR__ . '/ErrorHandler.php';
 set_exception_handler('App\\Core\\exception_handler');
 

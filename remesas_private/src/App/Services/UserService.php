@@ -70,23 +70,18 @@ class UserService
         }
 
         if (!password_verify($password, $user['PasswordHash'])) {
-            $intentos = $user['FailedLoginAttempts'] + 1;
             $maxIntentos = 3;
-            $bloqueoHasta = null;
-            $mensajeError = "Credenciales incorrectas.";
+            $bloqueoHasta = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+            $intentos = $this->userRepository->atomicIncrementLoginAttempts($user['UserID'], $maxIntentos, $bloqueoHasta);
 
             if ($intentos >= $maxIntentos) {
-                $bloqueoHasta = date('Y-m-d H:i:s', strtotime('+15 minutes'));
                 $this->logService->logAction($user['UserID'], 'Cuenta Bloqueada', "Se excedieron los $maxIntentos intentos fallidos.");
-                $mensajeError = "Has excedido el número de intentos permitidos. Tu cuenta ha sido bloqueada por 15 minutos.";
-            } else {
-                $restantes = $maxIntentos - $intentos;
-                $this->logService->logAction($user['UserID'], 'Login Fallido', "Contraseña incorrecta. Intento $intentos de $maxIntentos.");
-                $mensajeError = "Credenciales incorrectas. Te quedan $restantes intentos.";
+                throw new Exception("Has excedido el número de intentos permitidos. Tu cuenta ha sido bloqueada por 15 minutos.", 403);
             }
 
-            $this->userRepository->updateLoginAttempts($user['UserID'], $intentos, $bloqueoHasta);
-            throw new Exception($mensajeError, 401);
+            $restantes = $maxIntentos - $intentos;
+            $this->logService->logAction($user['UserID'], 'Login Fallido', "Contraseña incorrecta. Intento $intentos de $maxIntentos.");
+            throw new Exception("Credenciales incorrectas. Te quedan $restantes intentos.", 401);
         }
         if ($user['FailedLoginAttempts'] > 0 || $user['LockoutUntil'] !== null) {
             $this->userRepository->updateLoginAttempts($user['UserID'], 0, null);

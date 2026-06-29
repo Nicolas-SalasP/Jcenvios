@@ -221,9 +221,31 @@ class Container
     }
 }
 
+// Endpoints públicos que no requieren sesión ni CSRF
+const PUBLIC_ACTIONS = [
+    'loginUser', 'registerUser', 'requestPasswordReset', 'performPasswordReset',
+    'verify2fa', 'send2faCode', 'resend2faCode',
+    'getTasa', 'getCurrentRate', 'getPaises', 'getDolarBcv',
+    'getActiveDestinationCountries', 'getFormasDePago', 'getBeneficiaryTypes',
+    'getDocumentTypes', 'checkSystemStatus', 'getBcvRate', 'botWebhook',
+    'submitContactForm',
+];
+
 try {
     $container = new Container();
     $accion = $_GET['accion'] ?? '';
+
+    // Validación CSRF para todas las peticiones POST no públicas
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($accion, PUBLIC_ACTIONS, true)) {
+        $clientToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        $sessionToken = $_SESSION['csrf_token'] ?? '';
+        if (empty($sessionToken) || !hash_equals($sessionToken, $clientToken)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Token de seguridad inválido. Recarga la página.']);
+            exit;
+        }
+    }
+
     $routes = [
         // Auth & 2FA
         'loginUser' => [AuthController::class, 'loginUser', 'POST'],
