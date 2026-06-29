@@ -364,8 +364,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!tx.ComprobanteURL && estadoId === 1) {
                 btns += ` <button class="btn btn-sm btn-warning upload-btn" data-id="${tx.TransaccionID}" data-moneda-origen="${tx.MonedaOrigen || ''}" title="Subir Comprobante"><i class="bi bi-upload"></i> Subir Pago</button>`;
-            } else if (tx.ComprobanteURL && ![4, 5, 6].includes(estadoId)) {
-                btns += ` <button class="btn btn-sm btn-secondary upload-btn" data-id="${tx.TransaccionID}" data-moneda-origen="${tx.MonedaOrigen || ''}" title="Modificar Pago"><i class="bi bi-pencil-square"></i> Modificar</button>`;
+            } else if (tx.ComprobanteURL && estadoId === 1) {
+                btns += ` <button class="btn btn-sm btn-secondary upload-btn" data-id="${tx.TransaccionID}" data-moneda-origen="${tx.MonedaOrigen || ''}" title="Reemplazar comprobante de pago"><i class="bi bi-pencil-square"></i> Reemplazar</button>`;
             }
 
             if (tx.ComprobanteURL) {
