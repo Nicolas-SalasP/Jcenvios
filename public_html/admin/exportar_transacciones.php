@@ -124,6 +124,6 @@ try {
 
 } catch (Exception $e) {
     error_log("Error al exportar transacciones XLSX: " . $e->getMessage());
-    die("Error interno al generar el reporte: " . $e->getMessage());
+    die("Error interno al generar el reporte. Por favor, contacte al administrador.");
 }
 ?>

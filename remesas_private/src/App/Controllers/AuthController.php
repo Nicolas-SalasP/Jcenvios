@@ -18,9 +18,7 @@ class AuthController extends BaseController
         try {
             $data = $this->getJsonInput();
             $result = $this->userService->loginUser($data['email'] ?? '', $data['password'] ?? '');
-            $isPrivileged = isset($result['Rol']) && in_array($result['Rol'], ['Admin', 'Operador']);
-
-            if ($result['twofa_enabled'] && !$isPrivileged) {
+            if ($result['twofa_enabled']) {
                 $_SESSION['2fa_user_id'] = $result['UserID'];
                 unset($_SESSION['user_id']);
                 unset($_SESSION['user_rol_name']);

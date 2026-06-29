@@ -21,15 +21,14 @@ if (!isset($_GET['file']) || empty($_GET['file'])) {
 $fileRequest = urldecode($_GET['file']);
 
 $fileRequest = str_replace([
-    'http://' . $_SERVER['HTTP_HOST'], 
+    'http://' . $_SERVER['HTTP_HOST'],
     'https://' . $_SERVER['HTTP_HOST'],
-    'http://', 
+    'http://',
     'https://',
     BASE_URL
 ], '', $fileRequest);
 
 $fileRequest = ltrim($fileRequest, '/\\');
-$fileRequest = str_replace(['../', '..\\'], '', $fileRequest);
 
 if (strpos($fileRequest, 'public_html/') === 0) {
     $fileRequest = substr($fileRequest, 12);

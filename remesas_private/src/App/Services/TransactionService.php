@@ -95,6 +95,11 @@ class TransactionService
     // --- REANUDAR CON CORRECCIÓN ---
     public function requestResume(int $txId, int $userId, string $mensaje, int $estadoId, ?array $beneficiaryData = null): bool
     {
+        $tx = $this->txRepository->getById($txId);
+        if (!$tx || (int)$tx['UserID'] !== $userId) {
+            throw new Exception("Transacción no encontrada o no tienes permiso.", 403);
+        }
+
         if ($beneficiaryData) {
             if (empty(trim($beneficiaryData['nombre']))) {
                 throw new Exception("El nombre del beneficiario es obligatorio para corregir la orden.");

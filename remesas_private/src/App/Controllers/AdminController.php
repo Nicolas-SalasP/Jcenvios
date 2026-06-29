@@ -452,6 +452,7 @@ class AdminController extends BaseController
 
     public function adminUpdateUser(): void
     {
+        $this->ensureAdmin();
         $adminId = $this->ensureLoggedIn();
         $data = $this->getJsonInput();
 
@@ -560,8 +561,10 @@ class AdminController extends BaseController
             $fileTmpPath = $_FILES['qrFile']['tmp_name'];
             $fileName = $_FILES['qrFile']['name'];
             $fileSize = $_FILES['qrFile']['size'];
-            $fileType = $_FILES['qrFile']['type'];
-            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $fileType = finfo_file($finfo, $_FILES['qrFile']['tmp_name']);
+            finfo_close($finfo);
+            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
             if (!in_array($fileType, $allowedMimeTypes)) {
                 echo json_encode(['success' => false, 'error' => 'Formato de imagen no válido (solo JPG, PNG, WEBP).']);
                 return;
@@ -877,12 +880,15 @@ class AdminController extends BaseController
 
         $comprobanteUrl = null;
         if (isset($_FILES['comprobante']) && $_FILES['comprobante']['error'] === UPLOAD_ERR_OK) {
-            $ext     = strtolower(pathinfo($_FILES['comprobante']['name'], PATHINFO_EXTENSION));
-            $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
-            if (!in_array($ext, $allowed, true)) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $realMime = finfo_file($finfo, $_FILES['comprobante']['tmp_name']);
+            finfo_close($finfo);
+            $mimeToExt = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'application/pdf' => 'pdf'];
+            if (!isset($mimeToExt[$realMime])) {
                 $this->sendJsonResponse(['success' => false, 'error' => 'Tipo de archivo no permitido.'], 422);
                 return;
             }
+            $ext = $mimeToExt[$realMime];
             $filename = 'liquidacion_' . $liqId . '_' . time() . '.' . $ext;
             $dest = __DIR__ . '/../../../../uploads/liquidaciones/' . $filename;
             if (!is_dir(dirname($dest))) {

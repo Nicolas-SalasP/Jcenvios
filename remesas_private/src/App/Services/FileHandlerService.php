@@ -54,13 +54,14 @@ class FileHandlerService
 
     public function savePdfTemporarily(string $pdfContent, int $transactionId): string
     {
-        $filename = 'orden_' . $transactionId . '.pdf';
+        $token = bin2hex(random_bytes(16));
+        $filename = 'orden_' . $transactionId . '_' . $token . '.pdf';
         $filePath = $this->publicTempDir . DIRECTORY_SEPARATOR . $filename;
         if (file_put_contents($filePath, $pdfContent) === false) {
             error_log("No se pudo guardar el archivo PDF temporal en: " . $filePath);
             throw new Exception("No se pudo generar el archivo de la orden.", 500);
         }
-        return $this->publicTempUrlBase . $filename . '?t=' . time();
+        return $this->publicTempUrlBase . $filename;
     }
 
     public function saveVerificationFile(array $fileData, int $userId, string $prefix): string
@@ -125,7 +126,14 @@ class FileHandlerService
             $cleanPath = substr($cleanPath, strlen($prefixToRemove));
         }
 
-        return $this->baseUploadPath . DIRECTORY_SEPARATOR . $cleanPath;
+        $fullPath = $this->baseUploadPath . DIRECTORY_SEPARATOR . $cleanPath;
+        $realPath = realpath($fullPath);
+
+        if ($realPath === false || strpos($realPath, $this->baseUploadPath) !== 0) {
+            throw new \Exception('Acceso denegado: ruta fuera del directorio permitido.', 403);
+        }
+
+        return $realPath;
     }
 
     private function handleUpload(array $fileData, string $targetDirectory, string $filenamePrefix, array $allowedMimeTypes, int $maxFileSize, ?int $quality = null): string
