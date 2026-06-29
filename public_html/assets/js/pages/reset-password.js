@@ -10,8 +10,8 @@ document.getElementById('reset-password-form').addEventListener('submit', async 
         feedback.className = 'alert alert-danger';
         return;
     }
-    if (newPassword.length < 6) {
-        feedback.textContent = 'La contraseña debe tener al menos 6 caracteres.';
+    if (newPassword.length < 8) {
+        feedback.textContent = 'La contraseña debe tener al menos 8 caracteres.';
         feedback.className = 'alert alert-danger';
         return;
     }

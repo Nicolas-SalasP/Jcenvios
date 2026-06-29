@@ -218,8 +218,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (password.length < 6) {
-            registerFeedback.textContent = 'La contraseña debe tener al menos 6 caracteres.';
+        if (password.length < 8) {
+            registerFeedback.textContent = 'La contraseña debe tener al menos 8 caracteres.';
             submitButton.disabled = false;
             submitButton.textContent = 'Registrar Cuenta';
             return;

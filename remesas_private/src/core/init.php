@@ -2,17 +2,17 @@
 require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/../../config.php';
 
-// --- CONFIGURACIÓN DE SESIONES (24 HORAS) ---
+// --- CONFIGURACIÓN DE SESIONES (4 HORAS) ---
 $session_path = __DIR__ . '/../../sessions';
 if (!is_dir($session_path)) {
     mkdir($session_path, 0700, true);
 }
 ini_set('session.save_path', $session_path);
 
-// Duración de la sesión: 24 horas = 86400 segundos
-$session_lifetime = 86400; 
+// Duración de la sesión: 4 horas = 14400 segundos
+$session_lifetime = 14400;
 
-// Garbage Collection (Limpieza del servidor) también a 24 horas
+// Garbage Collection también a 4 horas
 ini_set('session.gc_maxlifetime', $session_lifetime);
 
 session_set_cookie_params([
@@ -66,7 +66,7 @@ if (empty($_SESSION['csrf_token'])) {
 require_once __DIR__ . '/ErrorHandler.php';
 set_exception_handler('App\\Core\\exception_handler');
 
-$tiempo_limite = 86400; 
+$tiempo_limite = $session_lifetime;
 
 if (isset($_SESSION['user_id'])) {
     if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad'] > $tiempo_limite)) {

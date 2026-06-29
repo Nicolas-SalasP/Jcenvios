@@ -31,6 +31,7 @@ use App\Services\{
     PricingService,
     TransactionService,
     CuentasBeneficiariasService,
+    RateLimiterService,
     DashboardService,
     SystemSettingsService,
     ContabilidadService,
@@ -234,6 +235,16 @@ const PUBLIC_ACTIONS = [
 try {
     $container = new Container();
     $accion = $_GET['accion'] ?? '';
+
+    // Rate limiting por IP
+    try {
+        $rateLimiter = new RateLimiterService(Database::getInstance());
+        $rateLimiter->check($accion);
+    } catch (\Exception $e) {
+        http_response_code(429);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
 
     // Validación CSRF para todas las peticiones POST no públicas
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($accion, PUBLIC_ACTIONS, true)) {

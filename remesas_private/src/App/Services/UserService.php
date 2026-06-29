@@ -119,8 +119,8 @@ class UserService
         }
         $data['rolID'] = $rolID;
 
-        if (strlen($data['password']) < 6) {
-            throw new Exception("La contraseña debe tener al menos 6 caracteres.", 400);
+        if (strlen($data['password']) < 8) {
+            throw new Exception("La contraseña debe tener al menos 8 caracteres.", 400);
         }
         if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
             throw new Exception("El formato del correo electrónico no es válido.", 400);
@@ -183,8 +183,8 @@ class UserService
 
     public function performPasswordReset(string $token, string $newPassword): void
     {
-        if (strlen($newPassword) < 6) {
-            throw new Exception("La contraseña debe tener al menos 6 caracteres.", 400);
+        if (strlen($newPassword) < 8) {
+            throw new Exception("La contraseña debe tener al menos 8 caracteres.", 400);
         }
 
         $resetData = $this->userRepository->findValidResetToken($token);
@@ -512,6 +512,14 @@ class UserService
             }
         }
         return false;
+    }
+
+    public function verifyUserPassword(int $userId, string $password): bool
+    {
+        $user = $this->userRepository->findByEmail(
+            $this->userRepository->getEmailById($userId) ?? ''
+        );
+        return $user && password_verify($password, $user['PasswordHash']);
     }
 
     public function disable2FA(int $userId): bool

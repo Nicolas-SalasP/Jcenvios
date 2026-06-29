@@ -83,6 +83,16 @@ class UserRepository
         return $success;
     }
 
+    public function getEmailById(int $userId): ?string
+    {
+        $stmt = $this->db->prepare("SELECT Email FROM usuarios WHERE UserID = ? AND Eliminado = 0 LIMIT 1");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row['Email'] ?? null;
+    }
+
     /**
      * Incrementa atomicamente FailedLoginAttempts y opcionalmente setea LockoutUntil.
      * Retorna el nuevo valor de FailedLoginAttempts tras el UPDATE.

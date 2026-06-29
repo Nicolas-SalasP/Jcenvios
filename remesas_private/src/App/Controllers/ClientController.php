@@ -403,6 +403,18 @@ class ClientController extends BaseController
     public function disable2FA(): void
     {
         $userId = $this->ensureLoggedIn();
+        $data   = $this->getJsonInput();
+
+        if (empty($data['password'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Debes confirmar tu contraseña para desactivar el 2FA.'], 400);
+            return;
+        }
+
+        if (!$this->userService->verifyUserPassword($userId, $data['password'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Contraseña incorrecta.'], 403);
+            return;
+        }
+
         $success = $this->userService->disable2FA($userId);
         if ($success) {
             $_SESSION['twofa_enabled'] = false;

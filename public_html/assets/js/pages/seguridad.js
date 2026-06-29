@@ -136,6 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
+        const password = window.prompt('Confirma tu contraseña para continuar:');
+        if (!password) return;
+
         const confirmed = await window.showConfirmModal(
             'Confirmar Desactivación',
             '¿Estás seguro de que quieres desactivar 2FA? Tu cuenta será menos segura.'
@@ -144,12 +147,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         disableBtn.disabled = true;
         disableBtn.textContent = 'Desactivando...';
-        
+
         try {
-            const response = await fetch('../api/?accion=disable2FA', { 
+            const response = await fetch('../api/?accion=disable2FA', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: code })
+                body: JSON.stringify({ code: code, password: password })
             });
             
             const result = await response.json();
