@@ -70,40 +70,60 @@
             const res  = await fetch('../api/?accion=getResellerList');
             const data = await res.json();
             if (!data.success || !data.data.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted">No hay revendedores registrados.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No hay revendedores registrados.</td></tr>';
                 return;
             }
 
+            // Populate summary stats cards
+            const totalOrdenes = data.data.reduce((s, r) => s + Number(r.TotalOrdenes), 0);
+            const totalGanado  = data.data.reduce((s, r) => s + Number(r.TotalGanado),  0);
+            const totalPend    = data.data.reduce((s, r) => s + Number(r.PendienteCobro || 0), 0);
+            const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            setEl('stat-total-resellers', data.data.length);
+            setEl('stat-total-ordenes',   totalOrdenes.toLocaleString('es-CL'));
+            setEl('stat-pendiente-total', 'CLP ' + fmt(totalPend));
+            setEl('stat-total-ganado',    'CLP ' + fmt(totalGanado));
+            const countBadge = document.getElementById('badge-count-resellers');
+            if (countBadge) countBadge.textContent = data.data.length;
+
             tbody.innerHTML = data.data.map(r => `
                 <tr>
-                    <td><strong>${r.PrimerNombre} ${r.PrimerApellido}</strong></td>
-                    <td class="text-muted small">${r.Email}</td>
-                    <td class="text-center">${parseFloat(r.PorcentajeComision)}%</td>
-                    <td class="text-end text-muted">${fmt(r.TotalGanado)} <small class="text-muted" title="Suma de todas las monedas">*</small></td>
+                    <td>
+                        <div class="fw-semibold">${r.PrimerNombre} ${r.PrimerApellido}</div>
+                        <div class="text-muted small">${r.Email}</div>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold">${parseFloat(r.PorcentajeComision)}%</span>
+                    </td>
+                    <td class="text-end text-muted">${fmt(r.TotalGanado)} <small title="Suma de todas las monedas">*</small></td>
                     <td class="text-end" id="pendiente-cell-${r.UserID}">
                         <span class="spinner-border spinner-border-sm text-secondary"></span>
                     </td>
-                    <td class="text-center">${r.TotalOrdenes}</td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark border">${r.TotalOrdenes}</span>
+                    </td>
                     <td class="text-end">
+                        <div class="d-flex gap-1 justify-content-end flex-wrap">
                         ${Number(r.PendienteCobro) > 0 ? `
                         <button class="btn btn-sm btn-primary btn-crear-liq"
                             data-id="${r.UserID}"
                             data-nombre="${r.PrimerNombre} ${r.PrimerApellido}">
                             <i class="bi bi-cash-stack me-1"></i> Liquidar
-                        </button>` : '<span class="text-muted small">Sin pendiente</span>'}
-                        <button class="btn btn-sm btn-outline-secondary btn-edit-comision ms-1"
+                        </button>` : '<span class="text-muted small me-1">Sin pendiente</span>'}
+                        <button class="btn btn-sm btn-outline-secondary btn-edit-comision"
                             data-id="${r.UserID}"
                             data-nombre="${r.PrimerNombre} ${r.PrimerApellido}"
                             data-pct="${r.PorcentajeComision}"
                             title="Editar comisión global">
                             <i class="bi bi-percent"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-info btn-config-paises ms-1"
+                        <button class="btn btn-sm btn-outline-info btn-config-paises"
                             data-id="${r.UserID}"
                             data-nombre="${r.PrimerNombre} ${r.PrimerApellido}"
-                            title="Configurar comisión por país">
+                            title="Comisión por país">
                             <i class="bi bi-globe"></i>
                         </button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
@@ -144,6 +164,8 @@
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Sin liquidaciones creadas.</td></tr>';
                 return;
             }
+            const liqBadge = document.getElementById('badge-count-liq');
+            if (liqBadge) liqBadge.textContent = data.data.length;
             tbody.innerHTML = data.data.map(l => `
                 <tr>
                     <td><strong>${l.RevendedorNombre}</strong><br><small class="text-muted">${l.RevendedorEmail}</small></td>

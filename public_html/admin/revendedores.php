@@ -12,14 +12,79 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
 <div class="container-fluid mt-4">
+
+    <!-- Encabezado -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="mb-0 fw-bold">Revendedores</h1>
+        <div>
+            <h1 class="mb-0 fw-bold"><i class="bi bi-people-fill text-primary me-2"></i>Revendedores</h1>
+            <p class="text-muted mb-0 small">Gestiona comisiones, liquidaciones y configuración de cada revendedor.</p>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+        </button>
+    </div>
+
+    <!-- Tarjetas de resumen -->
+    <div class="row g-3 mb-4" id="stats-cards">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="bg-primary bg-opacity-10 rounded-3 p-3">
+                        <i class="bi bi-people-fill text-primary fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold" id="stat-total-resellers">—</div>
+                        <div class="text-muted small">Revendedores activos</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="bg-success bg-opacity-10 rounded-3 p-3">
+                        <i class="bi bi-receipt text-success fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold" id="stat-total-ordenes">—</div>
+                        <div class="text-muted small">Órdenes totales</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="bg-warning bg-opacity-10 rounded-3 p-3">
+                        <i class="bi bi-cash-stack text-warning fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold" id="stat-pendiente-total">—</div>
+                        <div class="text-muted small">Pendiente pago</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="bg-info bg-opacity-10 rounded-3 p-3">
+                        <i class="bi bi-graph-up text-info fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold" id="stat-total-ganado">—</div>
+                        <div class="text-muted small">Total ganado (CLP)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Tabla revendedores -->
     <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white border-0 pt-3 pb-0">
-            <h5 class="fw-bold mb-0">Resumen por revendedor</h5>
+        <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0">Revendedores activos</h5>
+            <span class="badge bg-primary rounded-pill" id="badge-count-resellers"></span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -27,7 +92,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     <thead class="table-light">
                         <tr>
                             <th>Revendedor</th>
-                            <th>Email</th>
                             <th class="text-center">Comisión %</th>
                             <th class="text-end">Total ganado</th>
                             <th class="text-end text-warning fw-bold">Pendiente cobro</th>
@@ -36,7 +100,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         </tr>
                     </thead>
                     <tbody id="resellers-body">
-                        <tr><td colspan="7" class="text-center py-5">
+                        <tr><td colspan="6" class="text-center py-5">
                             <div class="spinner-border text-primary" role="status"></div>
                             <p class="mt-2 text-muted">Cargando revendedores…</p>
                         </td></tr>
@@ -48,8 +112,9 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
     <!-- Historial de liquidaciones -->
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0 pt-3 pb-0">
-            <h5 class="fw-bold mb-0">Historial de pagos</h5>
+        <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-secondary"></i>Historial de liquidaciones</h5>
+            <span class="badge bg-secondary rounded-pill" id="badge-count-liq"></span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
