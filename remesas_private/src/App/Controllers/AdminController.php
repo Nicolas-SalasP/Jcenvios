@@ -9,6 +9,7 @@ use App\Services\SystemSettingsService;
 use App\Repositories\RolRepository;
 use App\Repositories\CuentasAdminRepository;
 use App\Repositories\TransactionRepository;
+use App\Repositories\TransactionProofRepository;
 use App\Repositories\LiquidacionRepository;
 use App\Services\FileHandlerService;
 use App\Services\CuentasBeneficiariasService;
@@ -949,5 +950,38 @@ class AdminController extends BaseController
 
         $this->txRepository->upsertResellerPaises($userId, $paises);
         $this->sendJsonResponse(['success' => true]);
+    }
+
+    /**
+     * GET ?accion=canReplaceAdminProof&txId=N
+     * Devuelve si aún es posible reemplazar el comprobante de pago del admin
+     * (solo dentro de la primera hora desde la subida).
+     */
+    public function canReplaceAdminProof(): void
+    {
+        $this->ensureAdminOrOperator();
+        $txId = (int) ($_GET['txId'] ?? 0);
+        if ($txId <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'ID inválido.'], 400);
+            return;
+        }
+
+        $proofRepo = new TransactionProofRepository();
+        $proofs = $proofRepo->getProofs($txId, TransactionProofRepository::TIPO_ADMIN);
+
+        if (empty($proofs)) {
+            $this->sendJsonResponse(['success' => true, 'can_replace' => true, 'seconds_remaining' => null]);
+            return;
+        }
+
+        $lastProof = end($proofs);
+        $elapsed = time() - strtotime($lastProof['FechaSubida']);
+        $remaining = max(0, 3600 - $elapsed);
+
+        $this->sendJsonResponse([
+            'success'           => true,
+            'can_replace'       => $remaining > 0,
+            'seconds_remaining' => $remaining,
+        ]);
     }
 }

@@ -305,6 +305,7 @@ try {
         'processTransaction' => [AdminController::class, 'processTransaction', 'POST'],
         'rejectTransaction' => [AdminController::class, 'rejectTransaction', 'POST'],
         'adminUploadProof' => [AdminController::class, 'adminUploadProof', 'POST'],
+        'canReplaceAdminProof' => [AdminController::class, 'canReplaceAdminProof', 'GET'],
         'updateTxCommission' => [AdminController::class, 'updateTxCommission', 'POST'],
         'pauseTransaction' => [AdminController::class, 'pauseTransaction', 'POST'],
         'resumeTransactionAdmin' => [AdminController::class, 'resumeTransactionAdmin', 'POST'],

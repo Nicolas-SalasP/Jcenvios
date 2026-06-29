@@ -863,6 +863,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <input type="number" step="0.01" class="form-control" id="adminComisionDestino"
                             name="comisionDestino" value="0">
                     </div>
+                    <div id="replace-proof-warning" class="alert alert-warning d-none mb-2" role="alert"></div>
                     <button type="submit" class="btn btn-success w-100">Confirmar y Finalizar</button>
                 </form>
             </div>

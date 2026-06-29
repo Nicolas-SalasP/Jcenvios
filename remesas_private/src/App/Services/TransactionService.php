@@ -489,6 +489,16 @@ class TransactionService
             throw new Exception("Transacción no encontrada.", 404);
         }
 
+        // Si ya existe un comprobante de admin, sólo puede reemplazarse dentro de 1 hora.
+        $adminProofs = $this->proofRepository->getProofs($txId, TransactionProofRepository::TIPO_ADMIN);
+        if (!empty($adminProofs)) {
+            $lastProof = end($adminProofs);
+            $uploadedAt = strtotime($lastProof['FechaSubida']);
+            if ((time() - $uploadedAt) > 3600) {
+                throw new Exception("Solo puedes reemplazar el comprobante dentro de la primera hora después de haberlo subido. Contacta a soporte si necesitas hacer cambios.", 403);
+            }
+        }
+
         $cuentaAdmin = null;
         if ($cuentaSalidaId) {
             $cuentaAdmin = $this->cuentasAdminRepo->getById($cuentaSalidaId);

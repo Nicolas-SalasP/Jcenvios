@@ -887,6 +887,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (txIdField) txIdField.value = txId;
             if (txIdLabel) txIdLabel.textContent = txId;
 
+            // Verificar si aún puede reemplazar comprobante (ventana de 1 hora)
+            const submitBtn = uploadForm?.querySelector('button[type="submit"]');
+            const replaceWarning = document.getElementById('replace-proof-warning');
+            if (submitBtn) {
+                fetch(`../api/?accion=canReplaceAdminProof&txId=${txId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success && !data.can_replace) {
+                            submitBtn.disabled = true;
+                            submitBtn.title = 'El plazo de 1 hora para reemplazar el comprobante ha vencido.';
+                            if (replaceWarning) {
+                                replaceWarning.textContent = 'El comprobante ya no puede reemplazarse (venció el plazo de 1 hora).';
+                                replaceWarning.classList.remove('d-none');
+                            }
+                        } else {
+                            submitBtn.disabled = false;
+                            if (replaceWarning) replaceWarning.classList.add('d-none');
+                        }
+                    })
+                    .catch(() => {});
+            }
+
             if (comisionInput) {
                 // Comisión 0.3% aplica SOLO para Venezuela. Resto en 0.
                 // El ID de país se lee del data-pais-id del botón. Confirmar el ID en `paises`.
