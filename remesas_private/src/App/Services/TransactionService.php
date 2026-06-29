@@ -8,6 +8,7 @@ use App\Repositories\FormaPagoRepository;
 use App\Repositories\CuentasBeneficiariasRepository;
 use App\Repositories\CuentasAdminRepository;
 use App\Repositories\RateRepository;
+use App\Repositories\TransactionProofRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -27,6 +28,7 @@ class TransactionService
     private ContabilidadService $contabilidadService;
     private CuentasAdminRepository $cuentasAdminRepo;
     private RateRepository $rateRepository;
+    private TransactionProofRepository $proofRepository;
 
     private const ESTADO_PENDIENTE_PAGO = 'Pendiente de Pago';
     private const ESTADO_EN_VERIFICACION = 'En Verificación';
@@ -60,6 +62,7 @@ class TransactionService
         $this->cuentasRepo = $cuentasRepo;
         $this->cuentasAdminRepo = $cuentasAdminRepo;
         $this->rateRepository = $rateRepository;
+        $this->proofRepository = new TransactionProofRepository();
     }
 
     public function getEstadoIdByName(string $nombreEstado): int
@@ -355,9 +358,19 @@ class TransactionService
             throw new Exception("El RUT y Nombre del titular de la cuenta origen son obligatorios.", 400);
         }
 
+        $current = $this->proofRepository->countProofs($txId, TransactionProofRepository::TIPO_CLIENT);
+        if ($current >= TransactionProofRepository::MAX_PROOFS) {
+            throw new Exception("Ya alcanzaste el límite de " . TransactionProofRepository::MAX_PROOFS . " comprobantes por orden.", 400);
+        }
+
         $fileHash = hash_file('sha256', $fileData['tmp_name']);
         if ($fileHash === false) {
             throw new Exception("Error al analizar el archivo del comprobante.", 500);
+        }
+
+        $existingProof = $this->proofRepository->findByHash($fileHash);
+        if ($existingProof) {
+            throw new Exception("Este comprobante ya fue subido anteriormente.", 409);
         }
 
         $existingTx = $this->txRepository->findByHash($fileHash);
@@ -376,6 +389,8 @@ class TransactionService
             @unlink($this->fileHandler->getAbsolutePath($relativePath));
             throw new Exception("No se pudo actualizar la transacción. Verifique que sea suya y esté en estado pendiente.", 409);
         }
+
+        $this->proofRepository->addProof($txId, TransactionProofRepository::TIPO_CLIENT, $relativePath, $fileHash, $userId);
 
         $this->notificationService->logAdminAction($userId, 'Subida de Comprobante', "TX ID: $txId. Archivo: $relativePath. Titular Origen: $nombreTitular ($rutTitular)");
         return true;
@@ -452,6 +467,12 @@ class TransactionService
         if (empty($fileData) || $fileData['error'] === UPLOAD_ERR_NO_FILE) {
             throw new Exception("No se recibió ningún archivo.", 400);
         }
+
+        $currentAdminProofs = $this->proofRepository->countProofs($txId, TransactionProofRepository::TIPO_ADMIN);
+        if ($currentAdminProofs >= TransactionProofRepository::MAX_PROOFS) {
+            throw new Exception("Ya se alcanzó el límite de " . TransactionProofRepository::MAX_PROOFS . " comprobantes de pago para esta orden.", 400);
+        }
+
         $fileHash = hash_file('sha256', $fileData['tmp_name']);
         if ($fileHash === false) {
             throw new Exception("Error de seguridad: No se pudo verificar la integridad del archivo.", 500);
@@ -529,6 +550,8 @@ class TransactionService
                 );
             }
         }
+
+        $this->proofRepository->addProof($txId, TransactionProofRepository::TIPO_ADMIN, $relativePath, $fileHash, $adminId);
 
         $this->notificationService->sendPaymentConfirmationToClientWhatsApp($txData);
         $this->notificationService->logAdminAction($adminId, 'Admin completó transacción', "TX ID: $txId. Estado: Exitoso. Comprobante actualizado.");
