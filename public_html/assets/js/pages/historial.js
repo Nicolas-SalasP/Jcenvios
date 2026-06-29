@@ -66,6 +66,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function handleConfirmReceiptById(txId, received) {
+        try {
+            const resp = await fetch('../api/?accion=confirmReceipt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactionId: txId, received })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                loadHistorial();
+            }
+        } catch (err) {
+            console.error('confirmReceipt error:', err);
+        }
+    }
+
     const getStatusBadge = (statusId, statusName) => {
         const id = parseInt(statusId);
         if (id === 6) return `<span class="badge bg-warning text-dark"><i class="bi bi-pause-circle-fill"></i> Pausado</span>`;
@@ -263,6 +279,38 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hayAutoCancelados) {
                 const modalEl = document.getElementById('autoCanceladoModal');
                 if (modalEl) new bootstrap.Modal(modalEl).show();
+            }
+
+            // Muestra modal de confirmación de recepción 2h después del pago
+            if (!hayAutoCancelados) {
+                const now = Date.now();
+                const pendienteConf = allTransactions.find(tx =>
+                    tx.EstadoNombre === 'Exitoso' &&
+                    tx.ConfirmacionRecepcion === 'pendiente' &&
+                    tx.FechaPago &&
+                    (now - new Date(tx.FechaPago.replace(' ', 'T')).getTime()) >= 2 * 60 * 60 * 1000
+                );
+                if (pendienteConf) {
+                    const modalEl = document.getElementById('confirmRecepcionModal');
+                    if (modalEl) {
+                        const txIdLabel = document.getElementById('confirm-modal-tx-id');
+                        if (txIdLabel) txIdLabel.textContent = `#${pendienteConf.TransaccionID}`;
+
+                        const bsModal = new bootstrap.Modal(modalEl);
+
+                        document.getElementById('confirm-received-yes')?.addEventListener('click', async () => {
+                            await handleConfirmReceiptById(pendienteConf.TransaccionID, true);
+                            bsModal.hide();
+                        }, { once: true });
+
+                        document.getElementById('confirm-received-no')?.addEventListener('click', async () => {
+                            await handleConfirmReceiptById(pendienteConf.TransaccionID, false);
+                            bsModal.hide();
+                        }, { once: true });
+
+                        bsModal.show();
+                    }
+                }
             }
 
         } catch (error) {

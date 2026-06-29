@@ -221,6 +221,38 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
+<!-- Modal: confirmar recepción del dinero (2 h después del pago del admin) -->
+<div class="modal fade" id="confirmRecepcionModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-success">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-cash-stack me-2"></i>
+                    ¿Recibiste el dinero?
+                </h5>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Tu orden <strong id="confirm-modal-tx-id">#—</strong> fue marcada como pagada hace más de 2 horas.
+                    ¿Confirmás que el destinatario ya recibió el dinero?
+                </p>
+                <p class="text-muted small mb-0">
+                    Si no confirmas ahora, podrás hacerlo más tarde desde el historial.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="confirm-received-yes">
+                    <i class="bi bi-check2-circle me-1"></i> Sí, lo recibió
+                </button>
+                <button type="button" class="btn btn-outline-danger" id="confirm-received-no">
+                    <i class="bi bi-x-circle me-1"></i> No lo recibió
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Más tarde</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: orden cancelada automáticamente por tiempo expirado -->
 <div class="modal fade" id="autoCanceladoModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">

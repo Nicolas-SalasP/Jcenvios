@@ -101,6 +101,7 @@ class TransactionRepository
                     T.FechaSubidaComprobante,
                     T.ConfirmacionRecepcion, T.FechaConfirmacionRecepcion,
                     T.AutoCancelado,
+                    T.FechaPago,
                     T.PermitirEdicionMonto,
                     T.BeneficiarioNombre, 
                     T.BeneficiarioNombre AS BeneficiarioAlias,
@@ -309,8 +310,8 @@ class TransactionRepository
 
     public function uploadAdminProof(int $transactionId, string $dbPath, string $fileHash, int $estadoPagadoID, int $estadoEnProcesoID, float $comisionDestino): int
     {
-        $sql = "UPDATE transacciones 
-            SET ComprobanteEnvioURL = ?, ComprobanteEnvioHash = ?, EstadoID = ?, ComisionDestino = ?
+        $sql = "UPDATE transacciones
+            SET ComprobanteEnvioURL = ?, ComprobanteEnvioHash = ?, EstadoID = ?, ComisionDestino = ?, FechaPago = NOW()
             WHERE TransaccionID = ? AND EstadoID = ?";
 
         $stmt = $this->db->prepare($sql);
