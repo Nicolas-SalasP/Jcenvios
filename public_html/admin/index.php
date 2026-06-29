@@ -223,21 +223,27 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     <?php endif; ?>
                     <?php
                         $conf = $tx['ConfirmacionRecepcion'] ?? 'pendiente';
-                        if (($tx['EstadoNombre'] ?? '') === 'Exitoso' && $conf !== 'pendiente'):
+                        if (($tx['EstadoNombre'] ?? '') === 'Exitoso'):
                             $fechaConf = !empty($tx['FechaConfirmacionRecepcion'])
                                 ? date('d/m/Y H:i', strtotime($tx['FechaConfirmacionRecepcion']))
                                 : '';
                             if ($conf === 'recibido'):
                     ?>
                         <div class="mt-1">
-                            <span class="badge bg-success" title="Cliente confirmó recepción el <?php echo $fechaConf; ?>">
+                            <span class="badge bg-success" title="Cliente confirmó recepción<?php echo $fechaConf ? ' el ' . $fechaConf : ''; ?>">
                                 <i class="bi bi-check2-all"></i> Cliente recibió
                             </span>
                         </div>
                     <?php elseif ($conf === 'no_recibido'): ?>
                         <div class="mt-1">
-                            <span class="badge bg-danger" title="¡Atención! Cliente reportó no recibir el <?php echo $fechaConf; ?>">
+                            <span class="badge bg-danger" title="¡Atención! Cliente reportó no recibir<?php echo $fechaConf ? ' el ' . $fechaConf : ''; ?>">
                                 <i class="bi bi-exclamation-triangle-fill"></i> Cliente NO recibió
+                            </span>
+                        </div>
+                    <?php else: ?>
+                        <div class="mt-1">
+                            <span class="badge bg-secondary opacity-75" title="El cliente aún no ha confirmado la recepción">
+                                <i class="bi bi-hourglass-split"></i> Sin confirmar
                             </span>
                         </div>
                     <?php
