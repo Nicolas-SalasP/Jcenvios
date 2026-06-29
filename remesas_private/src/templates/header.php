@@ -33,8 +33,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $pageTitleDisplay; ?></title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="<?php echo BASE_URL; ?>/assets/vendor/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/vendor/bootstrap-icons.min.css">
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/style.css?v=<?php echo $cssVersion; ?>">
     <link rel="icon" href="<?php echo BASE_URL; ?>/assets/img/SoloLogoNegroSinFondo.png">
 
@@ -258,6 +258,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/tasas.php"><i class="bi bi-currency-exchange text-warning me-2"></i> Tasas</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/feriados.php"><i class="bi bi-calendar-event text-danger me-2"></i> Feriados</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/logs.php"><i class="bi bi-clipboard-data text-secondary me-2"></i> Bitácora</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/manuales.php"><i class="bi bi-book text-primary me-2"></i> Manuales</a></li>
                                     </ul>
                                 </li>
                                 <li class="nav-item"><a class="nav-link"

@@ -15,8 +15,6 @@ class NotificationService
     public function __construct(LogService $logService)
     {
         $this->logService = $logService;
-        // El email del admin debe venir SIEMPRE de config.php (constante ADMIN_EMAIL).
-        // Antes había un fallback hardcoded a un correo personal, lo cual filtra el correo en GitHub.
         if (!defined('ADMIN_EMAIL') || !filter_var(ADMIN_EMAIL, FILTER_VALIDATE_EMAIL)) {
             error_log("ADMIN_EMAIL no está definido o es inválido en config.php — las notificaciones admin no se enviarán.");
             $this->adminEmail = '';
@@ -33,7 +31,6 @@ class NotificationService
     public function notifyAdminUnreconciledTransfer(string $banco, float $monto, string $remitente, string $comprobantePath): void
     {
         $detalle = "Transferencia sin orden coincidente. Banco: {$banco}. Monto: {$monto}. Remitente/Ref: {$remitente}. Comprobante: {$comprobantePath}";
-        // Log visible en el panel de logs del admin
         $this->logService->logAction(null, 'Transferencia bancaria sin conciliar', $detalle);
     }
 
@@ -41,7 +38,6 @@ class NotificationService
 
     public function sendOrderToClientWhatsApp(array $txData, string $pdfUrl): bool
     {
-        // Interruptor para desactivar WhatsApp (config: WHATSAPP_ENABLED=false).
         if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED === false) {
             return false;
         }
@@ -87,7 +83,6 @@ class NotificationService
 
     public function sendPaymentConfirmationToClientWhatsApp(array $txData): bool
     {
-        // Interruptor para desactivar WhatsApp (config: WHATSAPP_ENABLED=false).
         if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED === false)
             return false;
         if (!defined('TWILIO_SID') || empty(TWILIO_SID))
@@ -194,15 +189,11 @@ class NotificationService
             $mail->addAddress($email, $nombre);
             $mail->Subject = "¡Bienvenido a JC Envíos!";
 
-            $videoTutorialLink = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-
             $mail->Body = "
             <html>
             <body>
                 <p>Hola " . htmlspecialchars($nombre) . ",</p>
                 <p>¡Te damos la bienvenida a <strong>JC Envíos</strong>! Estamos felices de tenerte con nosotros.</p>
-                <p>Para ayudarte a comenzar, hemos preparado un breve video tutorial:</p>
-                <p><a href='" . $videoTutorialLink . "'>Ver Video Tutorial</a></p>
                 <p>Recuerda verificar tu identidad para comenzar a operar.</p>
                 <p>Gracias por tu confianza,<br>El equipo de JC Envíos</p>
             </body>
