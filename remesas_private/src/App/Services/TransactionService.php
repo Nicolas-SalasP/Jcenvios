@@ -383,6 +383,12 @@ class TransactionService
             throw new Exception("Este comprobante ya fue subido para la transacción #" . $existingTx['TransaccionID'] . ".", 409);
         }
 
+        // Verify ownership before writing the file to disk, preventing orphaned uploads.
+        $txCheck = $this->txRepository->getById($txId);
+        if (!$txCheck || (int)$txCheck['UserID'] !== $userId) {
+            throw new Exception("No se pudo actualizar la transacción. Verifique que sea suya y esté en estado pendiente.", 409);
+        }
+
         $relativePath = $this->fileHandler->saveReceiptFile($fileData, $txId);
 
         $estadoEnVerificacionID = $this->getEstadoId(self::ESTADO_EN_VERIFICACION);
@@ -678,10 +684,11 @@ class TransactionService
         }
 
         if ($nuevoMontoOrigen <= 0) {
-            if ($tx['MonedaOrigen'] !== 'USD') {
-                $nuevoMontoOrigen = floor($nuevoMontoOrigen);
-            }
             throw new Exception("El monto a enviar debe ser mayor a 0.");
+        }
+
+        if ($nuevoMontoOrigen > 50000) {
+            throw new Exception("El monto máximo permitido por orden es 50.000.");
         }
         $montoOrigenOriginal = (float) $tx['MontoOrigen'];
         $montoDestinoOriginal = (float) $tx['MontoDestino'];
