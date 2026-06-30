@@ -793,6 +793,20 @@ class TransactionRepository
         return (int) ($res['total'] ?? 0);
     }
 
+    public function findRecentActiveByUserAndBeneficiary(int $userId, int $cuentaId, int $seconds = 60): ?array
+    {
+        $sql = "SELECT TransaccionID FROM transacciones
+                WHERE UserID = ? AND CuentaBeneficiariaID = ? AND EstadoID IN (1, 7)
+                AND FechaCreacion >= (NOW() - INTERVAL ? SECOND)
+                LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iii", $userId, $cuentaId, $seconds);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
+    }
+
     public function clearComprobanteHash(int $txId): void
     {
         $sql = "UPDATE transacciones SET ComprobanteHash = NULL WHERE TransaccionID = ?";

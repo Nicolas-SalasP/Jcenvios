@@ -263,6 +263,15 @@ class TransactionService
         }
         $data['formaPagoID'] = $formaPagoID;
 
+        $duplicate = $this->txRepository->findRecentActiveByUserAndBeneficiary(
+            (int) $data['userID'],
+            (int) $data['cuentaID'],
+            60
+        );
+        if ($duplicate) {
+            throw new Exception("Ya tienes una orden activa reciente para este beneficiario. Espera un momento antes de crear otra.", 409);
+        }
+
         try {
             $transactionId = $this->txRepository->create($data);
 
