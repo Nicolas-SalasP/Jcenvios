@@ -85,11 +85,11 @@
 
         const liquidarBtn = Number(r.PendienteCobro) > 0
             ? `<button class="btn btn-sm btn-primary btn-crear-liq"
-                   data-id="${r.UserID}" data-nombre="${nombre}">
+                   data-id="${r.UserID}" data-nombre="${nombre}" title="Crear liquidación">
                    <i class="bi bi-cash-stack me-1"></i>Liquidar
                </button>`
             : `<button class="btn btn-sm btn-outline-secondary" disabled title="Sin comisión pendiente">
-                   <i class="bi bi-cash-stack me-1"></i>Liquidar
+                   <i class="bi bi-cash-stack"></i>
                </button>`;
 
         return `
@@ -97,46 +97,45 @@
                 <td>
                     <div class="d-flex align-items-center gap-2">
                         <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold text-white"
-                             style="width:38px;height:38px;font-size:.85rem;background:${color}">
+                             style="width:32px;height:32px;font-size:.75rem;background:${color}">
                             ${inits}
                         </div>
                         <div>
                             <div class="fw-semibold lh-sm">${nombre}</div>
-                            <div class="d-flex flex-column gap-0 mt-1">
-                                <small class="text-muted"><i class="bi bi-envelope me-1"></i>${r.Email || '—'}</small>
-                                ${r.Telefono ? `<small class="text-muted"><i class="bi bi-whatsapp me-1 text-success"></i>${r.Telefono}</small>` : ''}
-                            </div>
-                            ${regDate ? `<div class="text-muted" style="font-size:.72rem">Desde ${regDate}</div>` : ''}
+                            <small class="text-muted"><i class="bi bi-envelope me-1"></i>${r.Email || '—'}</small>
+                            ${r.Telefono ? `<br><small class="text-muted"><i class="bi bi-whatsapp me-1 text-success"></i>${r.Telefono}</small>` : ''}
+                            ${regDate ? `<br><span class="text-muted" style="font-size:.7rem">Desde ${regDate}</span>` : ''}
                         </div>
                     </div>
                 </td>
                 <td class="text-center">
-                    <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold fs-6"
-                          style="font-size:.8rem!important">${parseFloat(r.PorcentajeComision)}%</span>
+                    <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold">${parseFloat(r.PorcentajeComision)}%</span>
                 </td>
                 <td class="text-end">
-                    <span class="fw-semibold">CLP ${fmt(r.TotalGanado)}</span>
-                    <div class="text-muted" style="font-size:.72rem">acumulado</div>
+                    <span class="fw-semibold small">CLP ${fmt(r.TotalGanado)}</span>
                 </td>
                 <td class="text-end" id="pendiente-cell-${r.UserID}">
                     <span class="spinner-border spinner-border-sm text-secondary"></span>
                 </td>
                 <td class="text-center">
-                    <span class="badge bg-light text-dark border fs-6" style="font-size:.8rem!important">${r.TotalOrdenes}</span>
+                    <span class="badge bg-light text-dark border">${r.TotalOrdenes}</span>
                 </td>
                 <td>
                     <div class="d-flex gap-1 justify-content-end flex-wrap">
                         ${liquidarBtn}
                         <button class="btn btn-sm btn-outline-secondary btn-edit-comision"
-                            data-id="${r.UserID}" data-nombre="${nombre}" data-pct="${r.PorcentajeComision}">
-                            <i class="bi bi-percent me-1"></i>Comisión
+                            data-id="${r.UserID}" data-nombre="${nombre}" data-pct="${r.PorcentajeComision}"
+                            title="Editar comisión">
+                            <i class="bi bi-percent"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-info btn-config-paises"
-                            data-id="${r.UserID}" data-nombre="${nombre}">
-                            <i class="bi bi-globe me-1"></i>Países
+                            data-id="${r.UserID}" data-nombre="${nombre}"
+                            title="Comisión por país">
+                            <i class="bi bi-globe"></i>
                         </button>
-                        <a href="transacciones.php?revendedorId=${r.UserID}" class="btn btn-sm btn-outline-dark">
-                            <i class="bi bi-receipt me-1"></i>Ver órdenes
+                        <a href="transacciones.php?revendedorId=${r.UserID}" class="btn btn-sm btn-outline-dark"
+                           title="Ver órdenes">
+                            <i class="bi bi-receipt"></i>
                         </a>
                     </div>
                 </td>

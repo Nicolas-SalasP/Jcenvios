@@ -15,12 +15,12 @@ $pageScript = 'admin-revendedores.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
-<div class="container-fluid mt-4">
+<div class="container mt-4">
 
     <!-- Encabezado -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h1 class="mb-0 fw-bold"><i class="bi bi-people-fill text-primary me-2"></i>Revendedores</h1>
+            <h1 class="mb-0 fw-bold h3"><i class="bi bi-people-fill text-primary me-2"></i>Revendedores</h1>
             <p class="text-muted mb-0 small">Gestiona comisiones, liquidaciones y configuración de cada revendedor.</p>
         </div>
         <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
@@ -29,72 +29,72 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 
     <!-- Barra de búsqueda -->
-    <div class="card border-0 shadow-sm mb-4 bg-light">
+    <div class="card border-0 shadow-sm mb-3 bg-light">
         <div class="card-body py-2">
             <div class="row g-2 align-items-center">
                 <div class="col-md-5">
-                    <input type="text" id="reseller-search" class="form-control" placeholder="Buscar por nombre o email…">
+                    <input type="text" id="reseller-search" class="form-control form-control-sm" placeholder="Buscar por nombre o email…">
                 </div>
                 <div class="col-auto">
-                    <button class="btn btn-primary" id="btn-reseller-search">
+                    <button class="btn btn-primary btn-sm" id="btn-reseller-search">
                         <i class="bi bi-search me-1"></i> Filtrar
                     </button>
-                    <button class="btn btn-outline-secondary ms-1" id="btn-reseller-clear">Limpiar</button>
+                    <button class="btn btn-outline-secondary btn-sm ms-1" id="btn-reseller-clear">Limpiar</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Tarjetas de resumen -->
-    <div class="row g-3 mb-4" id="stats-cards">
+    <div class="row g-2 mb-3" id="stats-cards">
         <div class="col-6 col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center gap-3">
-                    <div class="bg-primary bg-opacity-10 rounded-3 p-3">
-                        <i class="bi bi-people-fill text-primary fs-4"></i>
+                <div class="card-body d-flex align-items-center gap-2 py-2">
+                    <div class="bg-primary bg-opacity-10 rounded-2 p-2 flex-shrink-0">
+                        <i class="bi bi-people-fill text-primary"></i>
                     </div>
                     <div>
-                        <div class="fs-4 fw-bold" id="stat-total-resellers">—</div>
-                        <div class="text-muted small">Revendedores activos</div>
+                        <div class="fw-bold" id="stat-total-resellers">—</div>
+                        <div class="text-muted" style="font-size:.75rem">Revendedores activos</div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center gap-3">
-                    <div class="bg-success bg-opacity-10 rounded-3 p-3">
-                        <i class="bi bi-receipt text-success fs-4"></i>
+                <div class="card-body d-flex align-items-center gap-2 py-2">
+                    <div class="bg-success bg-opacity-10 rounded-2 p-2 flex-shrink-0">
+                        <i class="bi bi-receipt text-success"></i>
                     </div>
                     <div>
-                        <div class="fs-4 fw-bold" id="stat-total-ordenes">—</div>
-                        <div class="text-muted small">Órdenes totales</div>
+                        <div class="fw-bold" id="stat-total-ordenes">—</div>
+                        <div class="text-muted" style="font-size:.75rem">Órdenes totales</div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center gap-3">
-                    <div class="bg-warning bg-opacity-10 rounded-3 p-3">
-                        <i class="bi bi-cash-stack text-warning fs-4"></i>
+                <div class="card-body d-flex align-items-center gap-2 py-2">
+                    <div class="bg-warning bg-opacity-10 rounded-2 p-2 flex-shrink-0">
+                        <i class="bi bi-cash-stack text-warning"></i>
                     </div>
                     <div>
-                        <div class="fs-4 fw-bold" id="stat-pendiente-total">—</div>
-                        <div class="text-muted small">Pendiente pago</div>
+                        <div class="fw-bold" id="stat-pendiente-total">—</div>
+                        <div class="text-muted" style="font-size:.75rem">Pendiente pago</div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center gap-3">
-                    <div class="bg-info bg-opacity-10 rounded-3 p-3">
-                        <i class="bi bi-graph-up text-info fs-4"></i>
+                <div class="card-body d-flex align-items-center gap-2 py-2">
+                    <div class="bg-info bg-opacity-10 rounded-2 p-2 flex-shrink-0">
+                        <i class="bi bi-graph-up text-info"></i>
                     </div>
                     <div>
-                        <div class="fs-4 fw-bold" id="stat-total-ganado">—</div>
-                        <div class="text-muted small">Total ganado (CLP)</div>
+                        <div class="fw-bold" id="stat-total-ganado">—</div>
+                        <div class="text-muted" style="font-size:.75rem">Total ganado (CLP)</div>
                     </div>
                 </div>
             </div>
@@ -102,9 +102,9 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 
     <!-- Tabla revendedores -->
-    <div class="card border-0 shadow-sm mb-4">
+    <div class="card border-0 shadow-sm mb-3">
         <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
-            <h5 class="fw-bold mb-0">Revendedores activos</h5>
+            <h6 class="fw-bold mb-0">Revendedores activos</h6>
             <span class="badge bg-primary rounded-pill" id="badge-count-resellers"></span>
         </div>
         <div class="card-body p-0">
@@ -134,7 +134,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     <!-- Historial de liquidaciones -->
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
-            <h5 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-secondary"></i>Historial de liquidaciones</h5>
+            <h6 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-secondary"></i>Historial de liquidaciones</h6>
             <span class="badge bg-secondary rounded-pill" id="badge-count-liq"></span>
         </div>
         <div class="card-body p-0">
