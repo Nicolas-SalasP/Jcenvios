@@ -28,6 +28,23 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </button>
     </div>
 
+    <!-- Barra de búsqueda -->
+    <div class="card border-0 shadow-sm mb-4 bg-light">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-5">
+                    <input type="text" id="reseller-search" class="form-control" placeholder="Buscar por nombre o email…">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary" id="btn-reseller-search">
+                        <i class="bi bi-search me-1"></i> Filtrar
+                    </button>
+                    <button class="btn btn-outline-secondary ms-1" id="btn-reseller-clear">Limpiar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Tarjetas de resumen -->
     <div class="row g-3 mb-4" id="stats-cards">
         <div class="col-6 col-md-3">
