@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programa AML/PLD | JC Envíos — USO INTERNO</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 900px; margin: 0 auto; padding: 2rem 1rem; color: #333; line-height: 1.7; }
+        h1 { color: #dc3545; border-bottom: 2px solid #dc3545; padding-bottom: .5rem; }
+        h2 { color: #1a1a2e; margin-top: 2rem; }
+        h3 { color: #0d6efd; }
+        .updated { color: #666; font-size: .9rem; margin-bottom: 1rem; }
+        .interno { background: #f8d7da; border: 1px solid #f5c6cb; padding: .8rem 1rem; border-radius: 4px; margin-bottom: 2rem; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .95rem; }
+        th, td { border: 1px solid #ddd; padding: .6rem .9rem; text-align: left; vertical-align: top; }
+        th { background: #f0f4ff; }
+        .riesgo-alto { background: #f8d7da; }
+        .riesgo-medio { background: #fff3cd; }
+        .riesgo-bajo { background: #d4edda; }
+        .disclaimer { background: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin-top: 3rem; border-radius: 4px; font-size: .85rem; }
+        .checkbox-list { list-style: none; padding: 0; }
+        .checkbox-list li::before { content: "☐ "; }
+    </style>
+</head>
+<body>
+
+<h1>Programa de Prevención de Lavado de Activos y Financiamiento del Terrorismo (AML/PLD)</h1>
+<p class="updated">Versión 1.0 · Fecha: [FECHA] · BORRADOR SUJETO A REVISIÓN JURÍDICA</p>
+
+<div class="interno">🔒 DOCUMENTO DE USO INTERNO — No publicar en el sitio web. Solo presentar ante reguladores o en proceso de revisión de App Stores cuando sea requerido.</div>
+
+<h2>1. Propósito y alcance</h2>
+<p>Este programa establece las políticas, procedimientos y controles implementados por <strong>JC Envíos</strong> para prevenir que sus servicios de transferencia de fondos sean utilizados para lavar activos, financiar el terrorismo o evadir sanciones internacionales.</p>
+<p>Aplica a:</p>
+<ul>
+    <li>Todos los empleados, operadores y administradores de la plataforma.</li>
+    <li>Todas las transacciones procesadas, independientemente del monto.</li>
+    <li>Todos los países donde JC Envíos opera (Chile, Colombia, Perú, Ecuador, Venezuela como destino).</li>
+</ul>
+
+<h2>2. Marco regulatorio</h2>
+<table>
+    <tr><th>País</th><th>Ley / Regulación</th><th>Organismo supervisor</th></tr>
+    <tr><td>Chile</td><td>Ley N° 19.913 (Unidad de Análisis Financiero)</td><td>UAF — Unidad de Análisis Financiero</td></tr>
+    <tr><td>Colombia</td><td>Ley 526/1999, Circular 007/1996 SFC</td><td>UIAF — Unidad de Información y Análisis Financiero</td></tr>
+    <tr><td>Perú</td><td>Ley N° 27693 y modificatorias</td><td>UIF-Perú — SBS</td></tr>
+    <tr><td>Ecuador</td><td>Ley de Prevención de Lavado de Activos</td><td>UAFE — UAF Ecuador</td></tr>
+    <tr><td>Internacional</td><td>Recomendaciones GAFI/FATF</td><td>GAFI</td></tr>
+</table>
+
+<h2>3. Oficial de Cumplimiento</h2>
+<p>JC Envíos designa un <strong>Oficial de Cumplimiento AML</strong> responsable de:</p>
+<ul>
+    <li>Supervisar la implementación y actualización de este programa.</li>
+    <li>Recibir y analizar reportes internos de operaciones sospechosas.</li>
+    <li>Presentar reportes de operaciones sospechosas (ROS) y reportes de operaciones en efectivo (ROE) ante los organismos reguladores.</li>
+    <li>Asegurar la capacitación periódica del personal.</li>
+    <li>Mantener actualizadas las listas de verificación de sanciones.</li>
+</ul>
+<p><strong>Oficial de Cumplimiento designado:</strong> [NOMBRE COMPLETO]<br>
+<strong>Cargo:</strong> [CARGO]<br>
+<strong>Email:</strong> [EMAIL]<br>
+<strong>Teléfono:</strong> [TELÉFONO]</p>
+
+<h2>4. Política de Conocimiento del Cliente (KYC)</h2>
+
+<h3>4.1 Verificación de identidad</h3>
+<p>Ningún usuario puede realizar transacciones sin haber completado el proceso KYC. El sistema implementa los siguientes controles técnicos:</p>
+<ul>
+    <li>Recolección de documento de identidad (cédula nacional o pasaporte) con imagen del frente y reverso.</li>
+    <li>Selfie de verificación con liveness check.</li>
+    <li>Verificación de número de teléfono.</li>
+    <li>Almacenamiento seguro de imágenes KYC con acceso restringido al equipo autorizado.</li>
+    <li>Revisión manual por parte del equipo de cumplimiento antes de aprobar cada cuenta.</li>
+</ul>
+
+<h3>4.2 Perfil de riesgo del cliente</h3>
+<table>
+    <tr><th>Factor</th><th>Bajo riesgo</th><th>Riesgo elevado</th></tr>
+    <tr><td>País de residencia</td><td>Chile, Colombia, Perú, Ecuador</td><td>Países en lista GAFI</td></tr>
+    <tr><td>Monto promedio de envíos</td><td>Hasta [UMBRAL] mensual</td><td>Supera [UMBRAL] mensual</td></tr>
+    <tr><td>Frecuencia de envíos</td><td>Ocasional o regular predecible</td><td>Picos inusuales sin justificación</td></tr>
+    <tr><td>Coherencia ocupación/montos</td><td>Coherente</td><td>Incoherente o no declarada</td></tr>
+    <tr><td>País de destino del beneficiario</td><td>Venezuela (operación habitual)</td><td>Países sancionados</td></tr>
+</table>
+
+<h3>4.3 Debida diligencia reforzada</h3>
+<p>Se aplica debida diligencia reforzada (DDR) cuando:</p>
+<ul>
+    <li>El cliente es Persona Expuesta Políticamente (PEP) o familiar directo de PEP.</li>
+    <li>El origen de los fondos no es claro o es inconsistente con el perfil del cliente.</li>
+    <li>La transacción supera los umbrales definidos sin justificación.</li>
+    <li>El sistema marca la transacción como "riesgosa" (tier de riesgo elevado).</li>
+</ul>
+
+<h2>5. Monitoreo de transacciones</h2>
+
+<h3>5.1 Controles automáticos implementados</h3>
+<table>
+    <tr><th>Control</th><th>Implementación técnica</th></tr>
+    <tr><td>Bloqueo de duplicados</td><td>Verificación de hash SHA-256 del comprobante de pago. Rechazo de comprobantes ya utilizados.</td></tr>
+    <tr><td>Prevención de doble envío</td><td>Bloqueo de órdenes duplicadas para el mismo usuario+beneficiario en ventana de 60 segundos.</td></tr>
+    <tr><td>Límite de monto por orden</td><td>Monto máximo de 50.000 por transacción. Configurable por administrador.</td></tr>
+    <tr><td>Tier de riesgo</td><td>Transacciones que superan umbrales de riesgo requieren aprobación manual de administrador antes de proceder.</td></tr>
+    <tr><td>Registro de auditoría</td><td>Todas las acciones de usuarios y administradores quedan registradas con timestamp e IP.</td></tr>
+    <tr><td>Historial de estado</td><td>Cada cambio de estado de una transacción queda registrado con usuario responsable y comentario.</td></tr>
+</table>
+
+<h3>5.2 Señales de alerta (red flags)</h3>
+<p>El equipo debe reportar internamente si detecta:</p>
+<ul>
+    <li>Cliente que realiza múltiples transacciones de monto similar en poco tiempo (estructuración / smurfing).</li>
+    <li>Comprobantes de pago con signos de alteración.</li>
+    <li>Beneficiarios inusuales o inconsistentes con el perfil del remitente.</li>
+    <li>Solicitud de cancelación inmediata después de transferir fondos.</li>
+    <li>Cliente que evita proporcionar información o documentación adicional.</li>
+    <li>Transacciones sin relación aparente con las actividades declaradas del cliente.</li>
+    <li>Fondos que aparentan provenir de múltiples fuentes no relacionadas.</li>
+    <li>Presión para procesar una transacción urgentemente sin justificación.</li>
+</ul>
+
+<h2>6. Reporte de Operaciones Sospechosas (ROS)</h2>
+<p>Cuando un miembro del equipo detecta una señal de alerta:</p>
+<ol>
+    <li>Reporta internamente al Oficial de Cumplimiento dentro de las 24 horas.</li>
+    <li>El Oficial evalúa si la situación califica como operación sospechosa.</li>
+    <li>Si califica: se presenta el ROS ante la UAF (o equivalente del país) dentro de los plazos legales establecidos.</li>
+    <li>No se alerta al cliente sobre el reporte (tipping off prohibido por ley).</li>
+    <li>Se documentan todos los pasos en el registro interno de cumplimiento.</li>
+</ol>
+
+<h3>6.1 Umbrales de reporte obligatorio</h3>
+<table>
+    <tr><th>País</th><th>Umbral en efectivo</th><th>Operación sospechosa</th></tr>
+    <tr><td>Chile</td><td>Operaciones ≥ USD 10.000 o equivalente</td><td>Sin umbral mínimo</td></tr>
+    <tr><td>Colombia</td><td>≥ USD 10.000 o equivalente</td><td>Sin umbral mínimo</td></tr>
+    <tr><td>Perú</td><td>≥ USD 10.000 o equivalente</td><td>Sin umbral mínimo</td></tr>
+    <tr><td>Ecuador</td><td>≥ USD 10.000 o equivalente</td><td>Sin umbral mínimo</td></tr>
+</table>
+
+<h2>7. Verificación de listas de sanciones</h2>
+<p>Antes de procesar cualquier transacción, se verifica que el remitente y el beneficiario no estén incluidos en:</p>
+<ul>
+    <li>Lista OFAC (Office of Foreign Assets Control — EEUU)</li>
+    <li>Lista de sanciones del Consejo de Seguridad de la ONU</li>
+    <li>Lista de sanciones de la Unión Europea</li>
+    <li>Listas locales de cada país de operación</li>
+</ul>
+<p><strong>Herramienta utilizada:</strong> [INSERTAR NOMBRE DEL SERVICIO O PROCESO MANUAL DE VERIFICACIÓN]<br>
+<strong>Frecuencia de actualización de listas:</strong> [DIARIA / SEMANAL]</p>
+
+<h2>8. Capacitación del personal</h2>
+<table>
+    <tr><th>Actividad</th><th>Frecuencia</th><th>Responsable</th></tr>
+    <tr><td>Inducción AML para nuevos empleados</td><td>Al incorporarse</td><td>Oficial de Cumplimiento</td></tr>
+    <tr><td>Capacitación anual en AML/PLD</td><td>Anual</td><td>Oficial de Cumplimiento</td></tr>
+    <tr><td>Actualización por cambio regulatorio</td><td>Cuando aplique</td><td>Oficial de Cumplimiento</td></tr>
+    <tr><td>Simulacros de detección de señales de alerta</td><td>Semestral</td><td>Oficial de Cumplimiento</td></tr>
+</table>
+
+<h2>9. Conservación de registros</h2>
+<p>Conforme a la normativa AML aplicable, se conservan:</p>
+<ul>
+    <li>Documentos KYC de cada cliente: <strong>mínimo 10 años</strong> desde el cierre de la relación comercial.</li>
+    <li>Registros de transacciones (monto, fecha, beneficiario, comprobantes): <strong>mínimo 10 años</strong>.</li>
+    <li>ROS presentados y documentación de soporte: <strong>mínimo 10 años</strong>.</li>
+    <li>Registros de capacitación del personal: <strong>mínimo 5 años</strong>.</li>
+</ul>
+
+<h2>10. Auditoría y revisión del programa</h2>
+<ul>
+    <li>Este programa se revisa y actualiza <strong>anualmente</strong> o cuando haya cambios regulatorios relevantes.</li>
+    <li>Se realizan revisiones internas <strong>semestrales</strong> de la efectividad de los controles.</li>
+    <li>Los hallazgos de auditoría se documentan y las acciones correctivas se implementan dentro de 30 días.</li>
+</ul>
+
+<h2>11. Checklist de cumplimiento para App Stores</h2>
+<p>Para el proceso de revisión en Google Play y Apple App Store:</p>
+<ul class="checkbox-list">
+    <li>Política de Privacidad publicada en URL accesible públicamente.</li>
+    <li>Términos de Servicio publicados en URL accesible públicamente.</li>
+    <li>Proceso KYC implementado y funcional en la app.</li>
+    <li>Oficial de Cumplimiento AML designado formalmente (nombre + cargo).</li>
+    <li>Número de registro o licencia ante la UAF u organismo equivalente (si aplica).</li>
+    <li>Declaración de cumplimiento con regulaciones financieras locales.</li>
+    <li>Política de no aceptación de usuarios menores de 18 años.</li>
+    <li>Mecanismo de reporte de fraude disponible para usuarios.</li>
+</ul>
+
+<div class="disclaimer">
+    <strong>⚠️ AVISO:</strong> Este documento es un borrador interno generado para fines de referencia. Debe ser revisado y validado por un abogado especializado en cumplimiento AML y regulación de servicios financieros antes de ser considerado operativo. Los campos entre [CORCHETES] deben completarse con información real. Este documento no reemplaza el registro formal ante los organismos reguladores competentes.
+</div>
+
+</body>
+</html>
