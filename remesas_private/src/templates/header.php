@@ -37,6 +37,13 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/vendor/bootstrap-icons.min.css">
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/style.css?v=<?php echo $cssVersion; ?>">
     <link rel="icon" href="<?php echo BASE_URL; ?>/assets/img/SoloLogoNegroSinFondo.png">
+    <link rel="apple-touch-icon" href="<?php echo BASE_URL; ?>/assets/img/SoloLogoNegroSinFondo.png">
+    <link rel="manifest" href="<?php echo BASE_URL; ?>/manifest.json">
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="JC Envíos">
 
     <style>
         .main-header {
