@@ -1,7 +1,12 @@
 <?php
 require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ' . BASE_URL . '/login.php?expired=1');
+    exit();
+}
 if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
+    http_response_code(403);
     die("Acceso denegado.");
 }
 if (!isset($_SESSION['twofa_enabled']) || $_SESSION['twofa_enabled'] === false) {

@@ -85,6 +85,9 @@ async function checkSystemStatus() {
 
         if (!data.logged_in) {
             cleanupLockState();
+            if (isInSubfolder) {
+                window.location.href = '../login.php?expired=1';
+            }
             return;
         }
 

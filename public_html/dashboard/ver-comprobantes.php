@@ -12,8 +12,8 @@ use App\Database\Database;
 use App\Services\FileHandlerService;
 
 if (!isset($_SESSION['user_id'])) {
-    http_response_code(403);
-    exit;
+    header('Location: ' . BASE_URL . '/login.php?expired=1');
+    exit();
 }
 
 $loggedInUserId = (int) $_SESSION['user_id'];

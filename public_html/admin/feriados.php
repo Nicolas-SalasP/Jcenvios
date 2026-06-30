@@ -3,7 +3,11 @@ require_once __DIR__ . '/../../remesas_private/src/core/init.php';
 
 header("Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;");
 
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ' . BASE_URL . '/login.php?expired=1');
+    exit();
+}
+if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin') {
     header('Location: ' . BASE_URL . '/login.php');
     exit();
 }

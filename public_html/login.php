@@ -18,6 +18,21 @@ $pageScripts = [
 require_once __DIR__ . '/../remesas_private/src/templates/header.php';
 ?>
 
+<?php if (!empty($_GET['expired'])): ?>
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="alert alert-warning d-flex align-items-center gap-2 mb-0 rounded-3 shadow-sm">
+                <i class="bi bi-clock-history fs-5"></i>
+                <div>
+                    <strong>Tu sesión expiró.</strong> Por seguridad, las sesiones se cierran automáticamente después de un período de inactividad. Inicia sesión nuevamente para continuar.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="container mt-5">
     <div class="row justify-content-center">
         <div class="col-lg-10">
