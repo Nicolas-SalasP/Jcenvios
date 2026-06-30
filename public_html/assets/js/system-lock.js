@@ -91,7 +91,7 @@ async function checkSystemStatus() {
             return;
         }
 
-        if (data.role === 'Admin' || data.role === 'Operador') {
+        if (data.is_staff === true) {
             cleanupLockState();
             return;
         }

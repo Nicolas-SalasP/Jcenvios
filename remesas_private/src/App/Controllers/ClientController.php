@@ -72,21 +72,18 @@ class ClientController extends BaseController
             }
             $loggedIn = isset($_SESSION['user_id']);
             $role = $_SESSION['user_rol_name'] ?? '';
+            $isStaff = in_array($role, ['Admin', 'Operador'], true);
             $response = [
-                'active' => true,
-                'logged_in' => $loggedIn,
-                'role' => $role
+                'active'     => true,
+                'logged_in'  => $loggedIn,
+                'is_staff'   => $loggedIn && $isStaff,
             ];
 
             $feriado = $this->settingsService->getActiveHoliday();
 
             if ($feriado) {
                 if ($feriado['BloqueoSistema'] == 1) {
-                    // Admin y Operador deben poder seguir trabajando aunque haya feriado.
-                    // Antes: marcaba active=false para todos, lo que bloqueaba el login del staff.
-                    // Ahora: para staff devolvemos solo aviso informativo; el bloqueo solo aplica a clientes.
-                    $isPrivileged = in_array($role, ['Admin', 'Operador'], true);
-                    if ($isPrivileged) {
+                    if ($isStaff) {
                         $response['holiday_warning'] = [
                             'title'   => 'FERIADO ACTIVO (acceso staff)',
                             'message' => $feriado['Motivo'],
@@ -96,7 +93,7 @@ class ClientController extends BaseController
                         $response['active']  = false;
                         $response['reason']  = 'holiday';
                         $response['message'] = $feriado['Motivo'];
-                        $response['ends_at'] = $feriado['FechaFin'];
+                        $response['ends_at'] = $feriado['FechaFin'] ?? null;
                     }
                 } else {
                     $response['holiday_warning'] = [
@@ -779,6 +776,11 @@ class ClientController extends BaseController
     public function updatePausedTransactionAmount(): void
     {
         $this->ensureLoggedIn();
+        $sysStatus = $this->settingsService->checkSystemAvailability();
+        if (!$sysStatus['available']) {
+            $this->sendJsonResponse(['success' => false, 'error' => "El sistema está cerrado por feriado: " . $sysStatus['message']], 403);
+            return;
+        }
         $data = $this->getJsonInput();
         
         $txId = (int)($data['txId'] ?? 0);
