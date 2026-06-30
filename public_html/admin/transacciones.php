@@ -58,7 +58,7 @@ $sql = "
            U.PrimerNombre, U.PrimerApellido, U.Email,
            T.BeneficiarioNombre, ET.NombreEstado, ET.EstadoID,
            P.NombrePais AS PaisDestino,
-           CB.CodigoMoneda
+           P.CodigoMoneda
     FROM transacciones T
     JOIN usuarios U ON T.UserID = U.UserID
     JOIN estados_transaccion ET ON T.EstadoID = ET.EstadoID
