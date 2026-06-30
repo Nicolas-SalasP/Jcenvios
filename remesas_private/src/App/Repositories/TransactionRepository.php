@@ -797,7 +797,7 @@ class TransactionRepository
     {
         $sql = "SELECT TransaccionID FROM transacciones
                 WHERE UserID = ? AND CuentaBeneficiariaID = ? AND EstadoID IN (1, 7)
-                AND FechaCreacion >= (NOW() - INTERVAL ? SECOND)
+                AND FechaTransaccion >= (NOW() - INTERVAL ? SECOND)
                 LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("iii", $userId, $cuentaId, $seconds);
