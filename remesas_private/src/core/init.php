@@ -2,17 +2,17 @@
 require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/../../config.php';
 
-// --- CONFIGURACIÓN DE SESIONES (4 HORAS) ---
+// --- CONFIGURACIÓN DE SESIONES (24 HORAS) ---
 $session_path = __DIR__ . '/../../sessions';
 if (!is_dir($session_path)) {
     mkdir($session_path, 0700, true);
 }
 ini_set('session.save_path', $session_path);
 
-// Duración de la sesión: 4 horas = 14400 segundos
-$session_lifetime = 14400;
+// Duración de la sesión: 24 horas = 86400 segundos
+$session_lifetime = 86400;
 
-// Garbage Collection también a 4 horas
+// Garbage Collection también a 24 horas
 ini_set('session.gc_maxlifetime', $session_lifetime);
 
 session_set_cookie_params([
