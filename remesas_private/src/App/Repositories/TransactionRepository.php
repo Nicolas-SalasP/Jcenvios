@@ -393,8 +393,9 @@ class TransactionRepository
     public function autoCancelExpired(int $estadoPendienteID, int $estadoCanceladoID, int $horas = 4): int
     {
         $sql = "UPDATE transacciones
-                SET EstadoID    = ?,
-                    AutoCancelado = 1
+                SET EstadoID       = ?,
+                    AutoCancelado  = 1,
+                    ComprobanteHash = NULL
                 WHERE EstadoID  = ?
                   AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
                   AND FechaTransaccion <= NOW() - INTERVAL ? HOUR";
