@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let fetchRateTimer = null;
     let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
+    let documentTypesFetchPromise = null;
     let calculationMode = 'multiply';
 
     // --- VARIABLES DE CONTROL ---
@@ -773,9 +774,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!benefDocTypeSelect) return;
         try {
             if (allDocumentTypes.length === 0) {
-                const responseD = await fetch(`../api/?accion=getDocumentTypes`);
-                allDocumentTypes = await responseD.json();
+                // Evita disparar múltiples fetch concurrentes (p.ej. la precarga al cargar
+                // la página y la del evento show.bs.modal). Sin esto, la respuesta que
+                // llega en último lugar reconstruye el <select> y descarta la selección
+                // que el usuario ya haya hecho mientras esperaba la otra respuesta.
+                if (!documentTypesFetchPromise) {
+                    documentTypesFetchPromise = fetch(`../api/?accion=getDocumentTypes`)
+                        .then(r => r.json())
+                        .catch(err => { documentTypesFetchPromise = null; throw err; });
+                }
+                allDocumentTypes = await documentTypesFetchPromise;
             }
+            // Conserva la selección actual del usuario (si sigue siendo válida) al
+            // reconstruir las opciones, para no perderla ante una reconstrucción tardía.
+            const previousValue = benefDocTypeSelect.value;
             benefDocTypeSelect.innerHTML = '<option value="">Seleccione...</option>';
             const destId = parseInt(paisDestinoSelect.value);
             const isVenezuela = (destId === C_VENEZUELA);
@@ -816,6 +828,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (show) benefDocTypeSelect.innerHTML += `<option value="${doc.TipoDocumentoID || doc.id}">${nombreDoc}</option>`;
             });
+            if (previousValue && Array.from(benefDocTypeSelect.options).some(opt => opt.value === previousValue)) {
+                benefDocTypeSelect.value = previousValue;
+            }
             updateDocumentValidation();
         } catch (e) { console.error(e); }
     };
