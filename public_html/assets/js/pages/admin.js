@@ -11,7 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     tbody.innerHTML = await response.text();
                 }
             } catch (e) { console.warn(e); }
-        } else {
+        } else if (!document.querySelector('.modal.show:not(#infoModal)')) {
+            // Solo forzar recarga completa si no hay un modal de trabajo abierto
+            // (ej. "Subir Comprobante"). Recargar con un modal abierto le hace
+            // perder al usuario el archivo/datos que estaba ingresando.
             window.location.reload();
         }
     };
@@ -247,6 +250,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     const lastSeenId = parseInt(localStorage.getItem('lastSeenTxId') || '0');
 
                     if (currentMaxId > lastSeenId) {
+                        // No interrumpir si el operador tiene un modal de trabajo abierto
+                        // (ej. pago en curso o confirmación). Se difiere el aviso al
+                        // próximo ciclo de polling (10s) sin marcarlo como "visto".
+                        const hayModalActivo = document.querySelector('.modal.show:not(#infoModal)');
+                        if (hayModalActivo) {
+                            // IMPORTANTE: No llamar a window.refreshAdminTable() aquí. En páginas sin
+                            // #transactionsTableBody (admin/orden.php y operador/pendientes.php),
+                            // refreshAdminTable() cae a window.location.reload(), lo que recargaba
+                            // la página completa mientras el usuario tenía el modal de "Subir
+                            // Comprobante" abierto, perdiendo el archivo seleccionado. Nos limitamos
+                            // a actualizar los badges (ya hecho arriba) y diferimos todo lo demás.
+                            return;
+                        }
+
                         localStorage.setItem('lastSeenTxId', currentMaxId);
 
                         if (soundEnabled && audioEl) {
