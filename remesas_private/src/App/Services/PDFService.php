@@ -32,6 +32,21 @@ class PDFService
         return mb_convert_encoding(html_entity_decode($text, ENT_QUOTES, 'UTF-8'), 'ISO-8859-1', 'UTF-8');
     }
 
+    // Dibuja una celda cuyo tamaño de fuente se reduce si el texto no entra en el ancho dado
+    private function fittedCell($pdf, $width, $height, $text, $border, $ln, $align, $fill, $bold, $baseSize = 9, $minSize = 6)
+    {
+        $style = $bold ? 'B' : '';
+        $size = $baseSize;
+        $pdf->SetFont('Arial', $style, $size);
+        $maxWidth = $width - 2; // margen interno aproximado de FPDF (cMargin)
+        while ($size > $minSize && $pdf->GetStringWidth($text) > $maxWidth) {
+            $size -= 0.5;
+            $pdf->SetFont('Arial', $style, $size);
+        }
+        $pdf->Cell($width, $height, $text, $border, $ln, $align, $fill);
+        $pdf->SetFont('Arial', $style, $baseSize);
+    }
+
     private function formatDocumentNumber($doc)
     {
         if (empty($doc))
@@ -122,16 +137,13 @@ class PDFService
         $printDataRow = function ($labelRem, $valueRem, $labelBen, $valueBen, $isLast = false) use ($pdf, $border, $fill) {
             $currentBorder = $border . ($isLast ? 'B' : '');
 
-            $pdf->SetFont('Arial', 'B', 9);
-            $pdf->Cell(25, 6, $this->cleanText($labelRem), $currentBorder, 0, 'L', $fill);
-            $pdf->SetFont('Arial', '', 9);
-            // IMPORTANTE: Aquí se limpia el valor del usuario para acentos y comas
-            $pdf->Cell(65, 6, $this->cleanText($valueRem), $currentBorder, 0, 'L', $fill);
+            // Nota: labels largos (ej. "Carnet de Extranjería:") y valores largos se
+            // encogen automáticamente para no salirse de su columna ni tapar la celda siguiente.
+            $this->fittedCell($pdf, 25, 6, $this->cleanText($labelRem), $currentBorder, 0, 'L', $fill, true);
+            $this->fittedCell($pdf, 65, 6, $this->cleanText($valueRem), $currentBorder, 0, 'L', $fill, false);
 
-            $pdf->SetFont('Arial', 'B', 9);
-            $pdf->Cell(25, 6, $this->cleanText($labelBen), $currentBorder, 0, 'L', $fill);
-            $pdf->SetFont('Arial', '', 9);
-            $pdf->Cell(65, 6, $this->cleanText($valueBen), $currentBorder, 1, 'L', $fill);
+            $this->fittedCell($pdf, 25, 6, $this->cleanText($labelBen), $currentBorder, 0, 'L', $fill, true);
+            $this->fittedCell($pdf, 65, 6, $this->cleanText($valueBen), $currentBorder, 1, 'L', $fill, false);
         };
 
         $lblDocRem = !empty($tx['UsuarioTipoDocumentoNombre'])
