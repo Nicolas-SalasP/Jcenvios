@@ -139,6 +139,7 @@ class TransactionService
         }
 
         $this->txRepository->clearComprobanteHash($txId);
+        $this->proofRepository->clearHashesForTransaction($txId);
 
         $this->notificationService->logAdminAction($userId, 'Usuario canceló transacción', "TX ID: $txId");
         return true;
@@ -469,6 +470,11 @@ class TransactionService
         }
 
         $this->txRepository->clearComprobanteHash($txId);
+        if (!$isSoftReject) {
+            // Cancelación definitiva: libera el hash para permitir resubir el mismo archivo en otra orden.
+            // En soft-reject (retry) la orden sigue activa, así que el mismo archivo debe seguir bloqueado.
+            $this->proofRepository->clearHashesForTransaction($txId);
+        }
 
         if ($isSoftReject) {
             $this->notificationService->sendCorrectionRequestEmail($txData['Email'], $txData['PrimerNombre'], $txId, $reason);

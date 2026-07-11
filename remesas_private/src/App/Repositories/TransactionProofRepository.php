@@ -67,4 +67,17 @@ class TransactionProofRepository
         $stmt->close();
         return $row ?: null;
     }
+
+    // Libera los hashes de los comprobantes de una transacción cancelada, permitiendo
+    // reutilizar el mismo archivo en una orden nueva. Conserva el registro de auditoría
+    // (FilePath, SubidoPor, FechaSubida), solo se limpia FileHash.
+    public function clearHashesForTransaction(int $txId): void
+    {
+        $stmt = $this->db->prepare(
+            "UPDATE transaction_proofs SET FileHash = NULL WHERE TransaccionID = ?"
+        );
+        $stmt->bind_param("i", $txId);
+        $stmt->execute();
+        $stmt->close();
+    }
 }
