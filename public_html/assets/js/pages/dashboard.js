@@ -959,7 +959,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (phoneCodeSelect) {
                     phoneCodeSelect.style.display = 'block';
                     phoneCodeSelect.innerHTML = '';
-                    ['0412', '0414', '0416', '0424', '0426'].forEach(p => phoneCodeSelect.add(new Option(p, p)));
+                    ['0412', '0414', '0416', '0422', '0424', '0426'].forEach(p => phoneCodeSelect.add(new Option(p, p)));
                 }
                 if (wrapperCheckMobile) {
                     wrapperCheckMobile.classList.remove('d-none');
