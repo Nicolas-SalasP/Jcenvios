@@ -54,7 +54,7 @@ $imagenUrl = $imagenDisponible ? (rtrim(BASE_URL, '/') . '/tasas_imagen_stream.p
         <?php endif; ?>
     </div>
 
-    <p class="footer-link"><a href="<?php echo BASE_URL; ?>/index.php">Volver a JC Envíos</a></p>
+    <p class="footer-link"><a href="<?php echo BASE_URL; ?>/normas.php">Ver Normas de Uso</a> · <a href="<?php echo BASE_URL; ?>/index.php">Volver a JC Envíos</a></p>
 </div>
 </body>
 </html>

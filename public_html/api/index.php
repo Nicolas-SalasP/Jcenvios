@@ -25,7 +25,8 @@ use App\Repositories\{
     TutorialRepository,
     TasasImagenRepository,
     ResellerAccountsRepository,
-    ReferralConfigRepository
+    ReferralConfigRepository,
+    NormasRepository
 };
 use App\Services\{
     LogService,
@@ -50,7 +51,8 @@ use App\Controllers\{
     ContabilidadController,
     BotController,
     TutorialController,
-    TasasImagenController
+    TasasImagenController,
+    NormasController
 };
 
 header('Content-Type: application/json');
@@ -103,6 +105,7 @@ class Container
             TasasImagenRepository::class => new TasasImagenRepository($this->getDb()),
             ResellerAccountsRepository::class => new ResellerAccountsRepository($this->getDb()),
             ReferralConfigRepository::class => new ReferralConfigRepository($this->getDb()),
+            NormasRepository::class => new NormasRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -245,6 +248,10 @@ class Container
                 $this->get(FileHandlerService::class)
             ),
 
+            NormasController::class => new NormasController(
+                $this->get(NormasRepository::class)
+            ),
+
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")
         };
     }
@@ -258,6 +265,7 @@ const PUBLIC_ACTIONS = [
     'getActiveDestinationCountries', 'getFormasDePago', 'getBeneficiaryTypes',
     'getDocumentTypes', 'checkSystemStatus', 'getBcvRate', 'botWebhook',
     'submitContactForm', 'getTasaImagenPublica', 'getReferralSettingsPublic',
+    'getNormasPublicas',
 ];
 
 try {
@@ -453,6 +461,13 @@ try {
         // Tasas Imagen (admin)
         'getTasasImagenAdmin'   => [TasasImagenController::class, 'getTasasImagenAdmin', 'GET'],
         'saveTasaImagen'        => [TasasImagenController::class, 'saveTasaImagen', 'POST'],
+
+        // Normas (público)
+        'getNormasPublicas'     => [NormasController::class, 'getNormasPublicas', 'GET'],
+
+        // Normas (admin)
+        'getNormasAdmin'        => [NormasController::class, 'getNormasAdmin', 'GET'],
+        'saveNormas'            => [NormasController::class, 'saveNormas', 'POST'],
     ];
 
     if (isset($routes[$accion])) {

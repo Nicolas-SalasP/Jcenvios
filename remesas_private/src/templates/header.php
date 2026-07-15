@@ -268,6 +268,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/logs.php"><i class="bi bi-clipboard-data text-secondary me-2"></i> Bitácora</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/manuales.php"><i class="bi bi-book text-primary me-2"></i> Manuales</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/tutoriales.php"><i class="bi bi-camera-video text-primary me-2"></i> Tutoriales</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/normas.php"><i class="bi bi-file-earmark-text text-secondary me-2"></i> Normas</a></li>
                                     </ul>
                                 </li>
                                 <li class="nav-item"><a class="nav-link"
