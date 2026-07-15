@@ -101,6 +101,8 @@ class TransactionRepository
                     T.FechaSubidaComprobante,
                     T.ConfirmacionRecepcion, T.FechaConfirmacionRecepcion,
                     T.AutoCancelado,
+                    T.PlazoExtendidoHasta,
+                    T.ExtensionesPlazoUsadas,
                     T.FechaPago,
                     T.PermitirEdicionMonto,
                     T.BeneficiarioNombre, 
@@ -392,13 +394,19 @@ class TransactionRepository
      */
     public function autoCancelExpired(int $estadoPendienteID, int $estadoCanceladoID, int $horas = 4): int
     {
+        // Respeta la extensión de plazo del cliente: si PlazoExtendidoHasta es
+        // NULL, se cancela con la regla normal de $horas. Si tiene un valor,
+        // la orden sólo se cancela una vez que esa fecha/hora ya pasó.
         $sql = "UPDATE transacciones
                 SET EstadoID       = ?,
                     AutoCancelado  = 1,
                     ComprobanteHash = NULL
                 WHERE EstadoID  = ?
                   AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
-                  AND FechaTransaccion <= NOW() - INTERVAL ? HOUR";
+                  AND (
+                        (PlazoExtendidoHasta IS NULL AND FechaTransaccion <= NOW() - INTERVAL ? HOUR)
+                        OR (PlazoExtendidoHasta IS NOT NULL AND PlazoExtendidoHasta <= NOW())
+                      )";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("iii", $estadoCanceladoID, $estadoPendienteID, $horas);
@@ -406,6 +414,54 @@ class TransactionRepository
         $affected = $stmt->affected_rows;
         $stmt->close();
         return $affected;
+    }
+
+    /**
+     * Extiende el plazo de pago de una orden en 4 horas (u otro valor) a
+     * pedido del cliente. Sólo aplica si la orden pertenece al usuario,
+     * está en el estado indicado (Pendiente de Pago), aún no tiene
+     * comprobante subido, y no ha superado el tope de extensiones.
+     */
+    public function extendPaymentDeadline(int $txId, int $userId, int $estadoPendienteID, int $horas, int $maxExtensiones): array
+    {
+        $sql = "SELECT TransaccionID, ExtensionesPlazoUsadas, PlazoExtendidoHasta
+                FROM transacciones
+                WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?
+                  AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
+                LIMIT 1
+                FOR UPDATE";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iii", $txId, $userId, $estadoPendienteID);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            return ['success' => false, 'reason' => 'not_found'];
+        }
+
+        if ((int) $row['ExtensionesPlazoUsadas'] >= $maxExtensiones) {
+            return ['success' => false, 'reason' => 'limit_reached'];
+        }
+
+        $update = "UPDATE transacciones
+                    SET PlazoExtendidoHasta = NOW() + INTERVAL ? HOUR,
+                        ExtensionesPlazoUsadas = ExtensionesPlazoUsadas + 1
+                    WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?";
+        $stmtU = $this->db->prepare($update);
+        $stmtU->bind_param("iiii", $horas, $txId, $userId, $estadoPendienteID);
+        $stmtU->execute();
+        $affected = $stmtU->affected_rows;
+        $stmtU->close();
+
+        if ($affected === 0) {
+            return ['success' => false, 'reason' => 'not_found'];
+        }
+
+        return [
+            'success' => true,
+            'extensionesUsadas' => (int) $row['ExtensionesPlazoUsadas'] + 1,
+        ];
     }
 
     public function findByHash(string $fileHash): ?array

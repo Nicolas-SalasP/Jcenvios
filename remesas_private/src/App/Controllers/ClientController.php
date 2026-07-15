@@ -286,6 +286,24 @@ class ClientController extends BaseController
         $this->sendJsonResponse(['success' => true]);
     }
 
+    public function extendPaymentDeadline(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        $data = $this->getJsonInput();
+        $txId = (int) ($data['transactionId'] ?? 0);
+
+        try {
+            $result = $this->txService->extendPaymentDeadline($txId, $userId);
+            $this->sendJsonResponse([
+                'success' => true,
+                'message' => 'Plazo de pago extendido por 4 horas más.',
+                'extensionesUsadas' => $result['extensionesUsadas'],
+            ]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
+        }
+    }
+
     public function uploadReceipt(): void
     {
         $userId = $this->ensureLoggedIn();

@@ -38,6 +38,11 @@ class TransactionService
     private const ESTADO_PENDIENTE_APROBACION = 'Pendiente de Aprobación';
     private const ESTADO_PAUSADO = 'Pausado';
 
+    // Extensión de plazo de pago: horas otorgadas por cada extensión y tope
+    // de veces que un cliente puede solicitarla para la misma orden.
+    private const PLAZO_EXTENSION_HORAS = 4;
+    private const PLAZO_EXTENSION_MAX = 2;
+
     public function __construct(
         TransactionRepository $txRepository,
         UserRepository $userRepository,
@@ -784,6 +789,44 @@ class TransactionService
         $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
 
         return $this->txRepository->autoCancelExpired($estadoPendienteID, $estadoCanceladoID, $horasLimite);
+    }
+
+    /**
+     * El cliente confirma "sí, voy a pagar" antes de que se cumpla el plazo
+     * de 4 horas en Pendiente de Pago, obteniendo 4 horas adicionales.
+     * Limitado a self::PLAZO_EXTENSION_MAX usos por orden para evitar que
+     * quede pendiente indefinidamente.
+     */
+    public function extendPaymentDeadline(int $txId, int $userId): array
+    {
+        if ($txId <= 0) {
+            throw new Exception("Identificador de transacción inválido.", 400);
+        }
+
+        $estadoPendienteID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
+
+        $result = $this->txRepository->extendPaymentDeadline(
+            $txId,
+            $userId,
+            $estadoPendienteID,
+            self::PLAZO_EXTENSION_HORAS,
+            self::PLAZO_EXTENSION_MAX
+        );
+
+        if (!$result['success']) {
+            if ($result['reason'] === 'limit_reached') {
+                throw new Exception("Ya utilizaste el máximo de extensiones de plazo para esta orden.", 409);
+            }
+            throw new Exception("No se puede extender el plazo de esta orden (no existe, no te pertenece, ya tiene comprobante o no está Pendiente de Pago).", 404);
+        }
+
+        $this->notificationService->logAdminAction(
+            $userId,
+            'Usuario extendió plazo de pago',
+            "TX ID: $txId — extensión #{$result['extensionesUsadas']} de " . self::PLAZO_EXTENSION_MAX
+        );
+
+        return $result;
     }
 
     public function getAdminAlerts(): array

@@ -297,6 +297,7 @@ try {
         // Client - Transacciones
         'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
         'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
+        'extendPaymentDeadline' => [ClientController::class, 'extendPaymentDeadline', 'POST'],
         'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
         'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
         'confirmReceipt' => [ClientController::class, 'confirmReceipt', 'POST'],
