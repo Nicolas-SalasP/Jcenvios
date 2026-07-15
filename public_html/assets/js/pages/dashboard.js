@@ -344,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!checkBusinessHours()) {
-            if (!await confirmActionWithModal('Aviso de Horario', 'Estás operando fuera de horario. Tu orden será procesada el próximo día hábil. ¿Deseas continuar?')) return;
+            if (!await confirmActionWithModal('Aviso de Horario', 'Tu orden será procesada en horario laboral. ¿Deseas continuar?')) return;
         }
 
         if (isRiskyRoute) {

@@ -99,7 +99,7 @@ class NotificationService
         }
         $formattedClientNumber = 'whatsapp:' . $clientPhoneNumber;
 
-        $mensaje = "¡Buenas noticias {$txData['PrimerNombre']}! 🎉\n\nTu remesa *#{$txData['TransaccionID']}* ha sido **PAGADA**.\n\nPuedes ver el comprobante de envío directamente en tu historial de transacciones en JCenvios.cl.\n\n¡Gracias por preferirnos!";
+        $mensaje = "Tu orden *#{$txData['TransaccionID']}* fue marcada como pagada.\n\n¿Confirmas que el destinatario ya recibió el dinero?\n\nIMPORTANTE: Tienes 24 horas para confirmar. También puedes hacerlo desde tu historial en JCenvios.cl.";
 
         try {
             $twilio = new TwilioClient(TWILIO_SID, TWILIO_TOKEN);
