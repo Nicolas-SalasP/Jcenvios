@@ -18,6 +18,7 @@ use App\Repositories\{
     TasasHistoricoRepository,
     CuentasAdminRepository,
     HolidayRepository,
+    HorarioOverrideRepository,
     SystemSettingsRepository,
     BeneficiaryAuditRepository,
     LiquidacionRepository
@@ -89,6 +90,7 @@ class Container
             CuentasAdminRepository::class => new CuentasAdminRepository($this->getDb()),
             SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
             HolidayRepository::class => new HolidayRepository($this->getDb()),
+            HorarioOverrideRepository::class => new HorarioOverrideRepository($this->getDb()),
             BeneficiaryAuditRepository::class => new BeneficiaryAuditRepository($this->getDb()),
             LiquidacionRepository::class => new LiquidacionRepository($this->getDb()),
 
@@ -150,6 +152,7 @@ class Container
             SystemSettingsService::class => new SystemSettingsService(
                 $this->get(SystemSettingsRepository::class),
                 $this->get(HolidayRepository::class),
+                $this->get(HorarioOverrideRepository::class),
                 $this->get(LogService::class)
             ),
 
@@ -314,6 +317,9 @@ try {
         'getHolidays' => [AdminController::class, 'getHolidays', 'GET'],
         'addHoliday' => [AdminController::class, 'addHoliday', 'POST'],
         'deleteHoliday' => [AdminController::class, 'deleteHoliday', 'POST'],
+        'getHorarioOverrideStatusAdmin' => [AdminController::class, 'getHorarioOverrideStatusAdmin', 'GET'],
+        'toggleHorarioOverride' => [AdminController::class, 'toggleHorarioOverride', 'POST'],
+        'clearHorarioOverride' => [AdminController::class, 'clearHorarioOverride', 'POST'],
 
         // Admin - Tasas
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],

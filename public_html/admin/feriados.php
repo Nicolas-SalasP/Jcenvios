@@ -26,6 +26,34 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
         <div class="col-lg-4 order-2 order-lg-1">
 
+            <div class="card border-0 shadow-sm mb-4" id="card-horario-override">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-clock-history me-2"></i>Aviso de Horario</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        Fuerza o suprime manualmente el aviso de "fuera de horario" que ven
+                        los clientes al crear una orden, sin importar el horario laboral normal.
+                    </p>
+                    <div class="d-flex align-items-center justify-content-between p-3 border rounded bg-light mb-2">
+                        <div>
+                            <span id="horarioOverrideBadge" class="badge bg-secondary mb-1">Cargando...</span>
+                            <small class="text-muted d-block" id="horarioOverrideDesc">Consultando estado...</small>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="horarioOverrideSwitch"
+                                style="transform: scale(1.4); cursor: pointer;" disabled>
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLimpiarOverrideHorario">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Volver a automático
+                        </button>
+                    </div>
+                    <small class="text-muted d-block mt-2" id="horarioOverrideExpira"></small>
+                </div>
+            </div>
+
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3 border-bottom">
                     <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-calendar-plus me-2"></i>Nuevo Evento</h5>

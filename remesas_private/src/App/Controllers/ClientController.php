@@ -79,6 +79,9 @@ class ClientController extends BaseController
                 'is_staff'   => $loggedIn && $isStaff,
             ];
 
+            $horarioOverride = $this->settingsService->getHorarioOverrideStatus();
+            $response['horario_override'] = $horarioOverride['active'];
+
             $feriado = $this->settingsService->getActiveHoliday();
 
             if ($feriado) {

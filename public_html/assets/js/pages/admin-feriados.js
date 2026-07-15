@@ -240,4 +240,103 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // --- OVERRIDE MANUAL DE HORARIO LABORAL ---
+    const horarioBadge = document.getElementById('horarioOverrideBadge');
+    const horarioDesc = document.getElementById('horarioOverrideDesc');
+    const horarioSwitch = document.getElementById('horarioOverrideSwitch');
+    const horarioExpira = document.getElementById('horarioOverrideExpira');
+    const btnLimpiarOverride = document.getElementById('btnLimpiarOverrideHorario');
+
+    const renderHorarioOverride = (status) => {
+        if (!horarioBadge || !horarioSwitch) return;
+
+        horarioSwitch.disabled = false;
+
+        if (status.active === true) {
+            horarioBadge.textContent = 'AVISO FORZADO';
+            horarioBadge.className = 'badge bg-danger mb-1';
+            horarioDesc.textContent = 'El aviso de fuera de horario se muestra siempre a los clientes.';
+            horarioSwitch.checked = true;
+        } else if (status.active === false) {
+            horarioBadge.textContent = 'AVISO SUPRIMIDO';
+            horarioBadge.className = 'badge bg-success mb-1';
+            horarioDesc.textContent = 'El aviso está oculto temporalmente, aunque esté fuera de horario.';
+            horarioSwitch.checked = false;
+        } else {
+            horarioBadge.textContent = 'AUTOMÁTICO';
+            horarioBadge.className = 'badge bg-secondary mb-1';
+            horarioDesc.textContent = 'Se usa el horario laboral normal (Lun-Vie 10:00-19:30, Sáb 10:00-16:00).';
+            horarioSwitch.checked = false;
+        }
+
+        if (status.expira_en && status.active !== null) {
+            const expira = new Date(status.expira_en.replace(' ', 'T'));
+            horarioExpira.textContent = 'Vuelve a automático: ' + expira.toLocaleString('es-CL', {
+                weekday: 'long', hour: '2-digit', minute: '2-digit'
+            });
+        } else {
+            horarioExpira.textContent = '';
+        }
+    };
+
+    const fetchHorarioOverrideStatus = async () => {
+        try {
+            const res = await fetch('../api/?accion=getHorarioOverrideStatusAdmin');
+            const data = await res.json();
+            if (data.success) renderHorarioOverride(data);
+        } catch (err) {
+            console.error('Error al consultar el override de horario:', err);
+        }
+    };
+
+    if (horarioSwitch) {
+        horarioSwitch.addEventListener('change', async () => {
+            horarioSwitch.disabled = true;
+            try {
+                const res = await fetch('../api/?accion=toggleHorarioOverride', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ activo: horarioSwitch.checked })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    renderHorarioOverride(data);
+                } else {
+                    alert('Error: ' + data.error);
+                    fetchHorarioOverrideStatus();
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error de conexión.');
+                fetchHorarioOverrideStatus();
+            }
+        });
+    }
+
+    if (btnLimpiarOverride) {
+        btnLimpiarOverride.addEventListener('click', async () => {
+            btnLimpiarOverride.disabled = true;
+            try {
+                const res = await fetch('../api/?accion=clearHorarioOverride', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    renderHorarioOverride({ active: null });
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error de conexión.');
+            } finally {
+                btnLimpiarOverride.disabled = false;
+            }
+        });
+    }
+
+    fetchHorarioOverrideStatus();
 });

@@ -64,6 +64,52 @@ class AdminController extends BaseController
         $this->sendJsonResponse(['success' => true, 'holidays' => $holidays]);
     }
 
+    // --- OVERRIDE MANUAL DE HORARIO LABORAL ---
+
+    public function getHorarioOverrideStatusAdmin(): void
+    {
+        $this->ensureAdmin();
+        $status = $this->settingsService->getHorarioOverrideStatus();
+        $this->sendJsonResponse(['success' => true] + $status);
+    }
+
+    public function toggleHorarioOverride(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int)$_SESSION['user_id'];
+
+        $data = $this->getJsonInput();
+        if (!isset($data['activo'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Falta el parámetro "activo".'], 400);
+            return;
+        }
+        $activo = filter_var($data['activo'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($activo === null) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Valor inválido para "activo".'], 400);
+            return;
+        }
+
+        try {
+            $status = $this->settingsService->toggleHorarioOverride($adminId, $activo);
+            $this->sendJsonResponse(['success' => true] + $status);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function clearHorarioOverride(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int)$_SESSION['user_id'];
+
+        try {
+            $this->settingsService->clearHorarioOverride($adminId);
+            $this->sendJsonResponse(['success' => true, 'active' => null]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
     public function addHoliday(): void
     {
         $this->ensureLoggedIn();

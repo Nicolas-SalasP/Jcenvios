@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeInputId = 'monto-origen';
     let allDocumentTypes = [];
     let calculationMode = 'multiply';
+    let horarioOverrideActive = null; // null = sin override, true = forzar aviso, false = suprimir aviso
 
     // --- VARIABLES DE CONTROL ---
     let isRiskyRoute = false;
@@ -1225,7 +1226,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 7. STEPPER NAVEGACIÓN
     // =========================================================
 
-    const checkBusinessHours = () => {
+    const checkBusinessHoursSchedule = () => {
         const now = new Date();
         const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
         const day = chileTime.getDay();
@@ -1245,6 +1246,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return false;
     };
+
+    // Combina el horario laboral normal con el override manual del admin
+    // (panel de "Feriados/Bloqueos" -> toggle de horario). El override
+    // "true" fuerza el aviso de fuera de horario aunque técnicamente esté
+    // dentro del horario laboral; el override "false" lo suprime hasta que
+    // el backend detecta que terminó el horario laboral del día (ExpiraEn),
+    // momento en el cual vuelve a null y se usa la lógica normal.
+    const checkBusinessHours = () => {
+        if (horarioOverrideActive === true) return false;  // forzar aviso
+        if (horarioOverrideActive === false) return true;  // suprimir aviso
+        return checkBusinessHoursSchedule();
+    };
+
+    const refreshHorarioOverride = async () => {
+        try {
+            const isInSubfolder = window.location.pathname.includes('/dashboard/');
+            const basePath = isInSubfolder ? '../api/' : 'api/';
+            const res = await fetch(basePath + '?accion=checkSystemStatus&_=' + Date.now());
+            if (!res.ok) return;
+            const data = await res.json();
+            horarioOverrideActive = (typeof data.horario_override === 'boolean') ? data.horario_override : null;
+        } catch (e) {
+            // Silencioso: si falla, se sigue usando el último valor conocido (o null).
+        }
+    };
+    refreshHorarioOverride();
+    setInterval(refreshHorarioOverride, 45000);
 
     const updateView = () => {
         formSteps.forEach((step, index) => { step.classList.toggle('active', (index + 1) === currentStep); });
