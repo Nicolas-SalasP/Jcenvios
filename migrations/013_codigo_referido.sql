@@ -8,10 +8,17 @@
 --   Forma 2 (link):   el cliente llega con ?ref=CODIGO en la URL de registro.
 -- ============================================================================
 
-ALTER TABLE `usuarios`
-    ADD COLUMN `CodigoReferido` VARCHAR(10) NULL UNIQUE AFTER `MaxCuentasRevendedor`,
-    ADD COLUMN `ReferidoPor` INT(11) NULL AFTER `CodigoReferido`,
-    ADD CONSTRAINT `fk_usuarios_referido_por` FOREIGN KEY (`ReferidoPor`) REFERENCES `usuarios` (`UserID`) ON DELETE SET NULL;
+SET @col_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usuarios' AND COLUMN_NAME = 'CodigoReferido'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE usuarios
+        ADD COLUMN CodigoReferido VARCHAR(10) NULL UNIQUE AFTER MaxCuentasRevendedor,
+        ADD COLUMN ReferidoPor INT(11) NULL AFTER CodigoReferido,
+        ADD CONSTRAINT fk_usuarios_referido_por FOREIGN KEY (ReferidoPor) REFERENCES usuarios (UserID) ON DELETE SET NULL',
+    'SELECT "CodigoReferido ya existe — skip" AS info');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Config global (singleton, Id=1) para activar/desactivar cada forma de referido.
 CREATE TABLE IF NOT EXISTS `referido_config` (

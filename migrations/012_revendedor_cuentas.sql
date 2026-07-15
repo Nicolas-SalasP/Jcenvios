@@ -24,10 +24,23 @@ CREATE TABLE IF NOT EXISTS `revendedor_cuentas` (
 
 -- Límite de cuentas que puede registrar cada revendedor (el admin puede bajarlo
 -- para revendedores en los que confía menos). Default 6.
-ALTER TABLE `usuarios`
-    ADD COLUMN `MaxCuentasRevendedor` INT(11) NOT NULL DEFAULT 6 AFTER `PorcentajeComision`;
+SET @col_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usuarios' AND COLUMN_NAME = 'MaxCuentasRevendedor'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE usuarios ADD COLUMN MaxCuentasRevendedor INT(11) NOT NULL DEFAULT 6 AFTER PorcentajeComision',
+    'SELECT "MaxCuentasRevendedor ya existe — skip" AS info');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Registro de a cuál cuenta del revendedor se le indicó pagar al cliente (si aplica).
-ALTER TABLE `transacciones`
-    ADD COLUMN `CuentaRevendedorID` INT(11) NULL,
-    ADD CONSTRAINT `fk_transacciones_cuenta_revendedor` FOREIGN KEY (`CuentaRevendedorID`) REFERENCES `revendedor_cuentas` (`CuentaID`) ON DELETE SET NULL;
+SET @col_exists2 := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transacciones' AND COLUMN_NAME = 'CuentaRevendedorID'
+);
+SET @ddl2 := IF(@col_exists2 = 0,
+    'ALTER TABLE transacciones
+        ADD COLUMN CuentaRevendedorID INT(11) NULL,
+        ADD CONSTRAINT fk_transacciones_cuenta_revendedor FOREIGN KEY (CuentaRevendedorID) REFERENCES revendedor_cuentas (CuentaID) ON DELETE SET NULL',
+    'SELECT "CuentaRevendedorID ya existe — skip" AS info');
+PREPARE stmt2 FROM @ddl2; EXECUTE stmt2; DEALLOCATE PREPARE stmt2;
