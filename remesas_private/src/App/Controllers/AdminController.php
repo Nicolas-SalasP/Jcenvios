@@ -11,6 +11,8 @@ use App\Repositories\CuentasAdminRepository;
 use App\Repositories\TransactionRepository;
 use App\Repositories\TransactionProofRepository;
 use App\Repositories\LiquidacionRepository;
+use App\Repositories\ResellerAccountsRepository;
+use App\Repositories\ReferralConfigRepository;
 use App\Services\FileHandlerService;
 use App\Services\CuentasBeneficiariasService;
 use Exception;
@@ -28,6 +30,8 @@ class AdminController extends BaseController
     private CuentasBeneficiariasService $cuentasService;
     private TransactionRepository $txRepository;
     private LiquidacionRepository $liquidacionRepo;
+    private ResellerAccountsRepository $resellerAccountsRepo;
+    private ReferralConfigRepository $referralConfigRepo;
 
     public function __construct(
         TransactionService $txService,
@@ -40,7 +44,9 @@ class AdminController extends BaseController
         FileHandlerService $fileHandler,
         CuentasBeneficiariasService $cuentasService,
         TransactionRepository $txRepository,
-        LiquidacionRepository $liquidacionRepo
+        LiquidacionRepository $liquidacionRepo,
+        ResellerAccountsRepository $resellerAccountsRepo,
+        ReferralConfigRepository $referralConfigRepo
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -53,6 +59,8 @@ class AdminController extends BaseController
         $this->cuentasService = $cuentasService;
         $this->txRepository = $txRepository;
         $this->liquidacionRepo = $liquidacionRepo;
+        $this->resellerAccountsRepo = $resellerAccountsRepo;
+        $this->referralConfigRepo = $referralConfigRepo;
     }
 
     // --- GESTIÓN DE VACACIONES ---
@@ -1002,6 +1010,62 @@ class AdminController extends BaseController
 
         $this->txRepository->upsertResellerPaises($userId, $paises);
         $this->sendJsonResponse(['success' => true]);
+    }
+
+    // ─── FEATURE 3: Límite de cuentas bancarias propias del revendedor ──────
+
+    public function getResellerMaxCuentas(): void
+    {
+        $this->ensureAdmin();
+        $userId = (int) ($_GET['userId'] ?? 0);
+        if (!$userId) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'userId requerido.'], 400);
+            return;
+        }
+        $max = $this->resellerAccountsRepo->getMaxCuentas($userId);
+        $actual = $this->resellerAccountsRepo->countByUser($userId);
+        $this->sendJsonResponse(['success' => true, 'max' => $max, 'actual' => $actual]);
+    }
+
+    public function updateResellerMaxCuentas(): void
+    {
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        $userId = (int) ($data['userId'] ?? 0);
+        $max = (int) ($data['max'] ?? 0);
+
+        if (!$userId || $max < 0 || $max > 50) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos.'], 400);
+            return;
+        }
+
+        $ok = $this->resellerAccountsRepo->updateMaxCuentas($userId, $max);
+        $this->sendJsonResponse(['success' => $ok]);
+    }
+
+    // ─── CONFIG GLOBAL DE REFERIDOS (forma manual / forma link) ─────────────
+
+    public function getReferralSettings(): void
+    {
+        $this->ensureAdmin();
+        $config = $this->referralConfigRepo->getConfig();
+        $this->sendJsonResponse([
+            'success' => true,
+            'formaManualActiva' => (bool) $config['FormaManualActiva'],
+            'formaLinkActiva' => (bool) $config['FormaLinkActiva'],
+        ]);
+    }
+
+    public function updateReferralSettings(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int) $_SESSION['user_id'];
+        $data = $this->getJsonInput();
+        $manual = (bool) ($data['formaManualActiva'] ?? false);
+        $link = (bool) ($data['formaLinkActiva'] ?? false);
+
+        $ok = $this->referralConfigRepo->setConfig($manual, $link, $adminId);
+        $this->sendJsonResponse(['success' => $ok]);
     }
 
     /**

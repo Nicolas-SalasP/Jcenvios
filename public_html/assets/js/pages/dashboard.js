@@ -20,6 +20,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const formaDePagoSelect = document.getElementById('forma-pago');
     const beneficiaryListDiv = document.getElementById('beneficiary-list');
 
+    // =========================================================
+    // 2.b CUENTAS DEL REVENDEDOR (si el cliente fue referido)
+    // =========================================================
+    let resellerAccounts = [];
+    let resellerAccountSelect = null;
+
+    async function initResellerAccountSelector() {
+        try {
+            const res = await fetch('../api/?accion=getReferrerAccounts');
+            const data = await res.json();
+            if (!data.success || !data.referred || !data.data.length) return;
+
+            resellerAccounts = data.data;
+
+            const wrapper = document.createElement('div');
+            wrapper.id = 'reseller-account-wrapper';
+            wrapper.className = 'mt-3';
+            wrapper.innerHTML = `
+                <label class="form-label small fw-semibold">
+                    <i class="bi bi-bank text-primary"></i> Pagar directamente a tu asesor (opcional)
+                </label>
+                <select id="reseller-account-select" class="form-select">
+                    <option value="">Usar cuenta del negocio (por defecto)</option>
+                    ${resellerAccounts.map(c => `<option value="${c.CuentaID}">${c.Banco} - ${c.TipoCuenta} - ${c.NumeroCuenta}</option>`).join('')}
+                </select>
+            `;
+            formaDePagoSelect.parentNode.appendChild(wrapper);
+            resellerAccountSelect = document.getElementById('reseller-account-select');
+        } catch (e) {
+            console.error('No se pudieron cargar las cuentas del revendedor:', e);
+        }
+    }
+
+    initResellerAccountSelector();
+
     // Inputs y Display
     const montoOrigenInput = document.getElementById('monto-origen');
     const montoDestinoInput = document.getElementById('monto-destino');
@@ -371,6 +406,10 @@ document.addEventListener('DOMContentLoaded', () => {
             paisOrigenID: parseInt(paisOrigenSelect.value)
         };
 
+        if (resellerAccountSelect && resellerAccountSelect.value) {
+            data.cuentaRevendedorId = parseInt(resellerAccountSelect.value, 10);
+        }
+
         try {
             const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             const textResp = await resp.text();
@@ -421,8 +460,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const displayRutStyle = requiereRut ? '' : 'd-none';
                     const requiredRut = requiereRut ? 'required' : '';
 
+                    let htmlCuentaRevendedor = '';
+                    if (res.cuentaRevendedor) {
+                        const cr = res.cuentaRevendedor;
+                        htmlCuentaRevendedor = `
+                            <div class="text-center mb-4 p-3 bg-white rounded border border-primary shadow-sm">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-bank"></i> Deposita directamente a tu asesor: ${cr.Banco}</h6>
+                                <div class="small text-muted">Tipo de cuenta: <strong>${cr.TipoCuenta}</strong></div>
+                                <div class="small text-muted">Número: <strong>${cr.NumeroCuenta}</strong></div>
+                                <div class="small text-muted">Titular: <strong>${cr.TitularNombre}</strong> (${cr.TitularDocumento})</div>
+                                ${cr.Instrucciones ? `<div class="small text-muted mt-2">${cr.Instrucciones}</div>` : ''}
+                            </div>
+                        `;
+                    }
+
                     let htmlQR = '';
-                    if (res.cuentaAdmin && res.cuentaAdmin.QrCodeURL) {
+                    if (!res.cuentaRevendedor && res.cuentaAdmin && res.cuentaAdmin.QrCodeURL) {
                         htmlQR = `
                             <div class="text-center mb-4 p-3 bg-white rounded border shadow-sm animate__animated animate__fadeInDown">
                                 <h6 class="fw-bold text-primary mb-2"><i class="bi bi-qr-code-scan"></i> Escanea para pagar con ${res.cuentaAdmin.Banco}</h6>
@@ -443,6 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <h3 class="mb-3 text-success">¡Orden #${finalId} Creada!</h3>
                             
+                            ${htmlCuentaRevendedor}
                             ${htmlQR}
 
                             <p class="text-muted mb-4">Para procesar tu envío rápidamente, por favor sube el comprobante de la transferencia ahora.</p>

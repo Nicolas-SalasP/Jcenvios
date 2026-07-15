@@ -779,6 +779,20 @@ class TransactionRepository
         return $success;
     }
 
+    /**
+     * Registra a cuál cuenta bancaria del revendedor se le indicó pagar al cliente
+     * (cuando el cliente que crea la orden fue referido por un revendedor).
+     */
+    public function updateCuentaRevendedor(int $txId, int $cuentaRevendedorId): bool
+    {
+        $sql = "UPDATE transacciones SET CuentaRevendedorID = ? WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("ii", $cuentaRevendedorId, $txId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
     public function getPendingTransactionsByAccountId(int $cuentaBeneficiariaId): array
     {
         $sql = "SELECT TransaccionID FROM transacciones 

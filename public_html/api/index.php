@@ -23,7 +23,9 @@ use App\Repositories\{
     BeneficiaryAuditRepository,
     LiquidacionRepository,
     TutorialRepository,
-    TasasImagenRepository
+    TasasImagenRepository,
+    ResellerAccountsRepository,
+    ReferralConfigRepository
 };
 use App\Services\{
     LogService,
@@ -99,6 +101,8 @@ class Container
             LiquidacionRepository::class => new LiquidacionRepository($this->getDb()),
             TutorialRepository::class => new TutorialRepository($this->getDb()),
             TasasImagenRepository::class => new TasasImagenRepository($this->getDb()),
+            ResellerAccountsRepository::class => new ResellerAccountsRepository($this->getDb()),
+            ReferralConfigRepository::class => new ReferralConfigRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -152,7 +156,8 @@ class Container
                 $this->get(ContabilidadService::class),
                 $this->get(CuentasBeneficiariasRepository::class),
                 $this->get(CuentasAdminRepository::class),
-                $this->get(RateRepository::class)
+                $this->get(RateRepository::class),
+                $this->get(ResellerAccountsRepository::class)
             ),
 
             SystemSettingsService::class => new SystemSettingsService(
@@ -194,7 +199,9 @@ class Container
                 $this->get(SystemSettingsService::class),
                 $this->get(BeneficiaryAuditService::class),
                 $this->get(TransactionRepository::class),
-                $this->get(LiquidacionRepository::class)
+                $this->get(LiquidacionRepository::class),
+                $this->get(ResellerAccountsRepository::class),
+                $this->get(ReferralConfigRepository::class)
             ),
 
             AdminController::class => new AdminController(
@@ -208,7 +215,9 @@ class Container
                 $this->get(FileHandlerService::class),
                 $this->get(CuentasBeneficiariasService::class),
                 $this->get(TransactionRepository::class),
-                $this->get(LiquidacionRepository::class)
+                $this->get(LiquidacionRepository::class),
+                $this->get(ResellerAccountsRepository::class),
+                $this->get(ReferralConfigRepository::class)
             ),
 
             DashboardController::class => new DashboardController(
@@ -248,7 +257,7 @@ const PUBLIC_ACTIONS = [
     'getTasa', 'getCurrentRate', 'getPaises', 'getDolarBcv',
     'getActiveDestinationCountries', 'getFormasDePago', 'getBeneficiaryTypes',
     'getDocumentTypes', 'checkSystemStatus', 'getBcvRate', 'botWebhook',
-    'submitContactForm', 'getTasaImagenPublica',
+    'submitContactForm', 'getTasaImagenPublica', 'getReferralSettingsPublic',
 ];
 
 try {
@@ -413,6 +422,20 @@ try {
         'updateResellerCommission'     => [AdminController::class, 'updateResellerCommission', 'POST'],
         'getResellerPaises'            => [AdminController::class, 'getResellerPaises', 'GET'],
         'updateResellerPaises'         => [AdminController::class, 'updateResellerPaises', 'POST'],
+        'getResellerMaxCuentas'        => [AdminController::class, 'getResellerMaxCuentas', 'GET'],
+        'updateResellerMaxCuentas'     => [AdminController::class, 'updateResellerMaxCuentas', 'POST'],
+        'getReferralSettings'          => [AdminController::class, 'getReferralSettings', 'GET'],
+        'updateReferralSettings'       => [AdminController::class, 'updateReferralSettings', 'POST'],
+
+        // Revendedor (cliente) - Cuentas bancarias propias
+        'getResellerAccounts'      => [ClientController::class, 'getResellerAccounts', 'GET'],
+        'addResellerAccount'       => [ClientController::class, 'addResellerAccount', 'POST'],
+        'updateResellerAccount'    => [ClientController::class, 'updateResellerAccount', 'POST'],
+        'toggleResellerAccount'    => [ClientController::class, 'toggleResellerAccount', 'POST'],
+        'deleteResellerAccount'    => [ClientController::class, 'deleteResellerAccount', 'POST'],
+        'getResellerReferralCode'  => [ClientController::class, 'getResellerReferralCode', 'GET'],
+        'getReferrerAccounts'      => [ClientController::class, 'getReferrerAccounts', 'GET'],
+        'getReferralSettingsPublic' => [ClientController::class, 'getReferralSettingsPublic', 'GET'],
 
         // Tutoriales (cliente)
         'getTutorialesActivos'  => [TutorialController::class, 'getTutorialesActivos', 'GET'],

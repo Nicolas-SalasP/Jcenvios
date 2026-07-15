@@ -148,6 +148,20 @@ class UserService
             throw new Exception($e->getMessage(), $e->getCode() ?: 500);
         }
 
+        // Vinculación con revendedor mediante código de referido (forma 1 manual y/o forma 2 link),
+        // según la configuración global; ambos flujos llegan al mismo campo 'codigoReferido'.
+        $codigoReferido = trim($data['codigoReferido'] ?? '');
+        if ($codigoReferido !== '') {
+            try {
+                $referrerId = $this->userRepository->findResellerIdByCode(strtoupper($codigoReferido));
+                if ($referrerId && $referrerId !== $userId) {
+                    $this->userRepository->setReferidoPor($userId, $referrerId);
+                }
+            } catch (Exception $e) {
+                error_log("Fallo al vincular código de referido para UserID {$userId}: " . $e->getMessage());
+            }
+        }
+
         try {
             $this->notificationService->sendWelcomeEmail($data['email'], $data['primerNombre']);
         } catch (Exception $e) {
@@ -161,6 +175,38 @@ class UserService
         if (!$newUser)
             throw new Exception("Error al obtener datos del usuario recién registrado.", 500);
         return $newUser;
+    }
+
+    /**
+     * Devuelve el código de referido del revendedor, generándolo (8 caracteres
+     * alfanuméricos en mayúsculas, único) si aún no tiene uno. Concepto portado
+     * de V2 (ResellerService::generateReferralCode).
+     */
+    public function getOrCreateReferralCode(int $userId): string
+    {
+        $existing = $this->userRepository->getReferralCode($userId);
+        if (!empty($existing)) {
+            return $existing;
+        }
+
+        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin caracteres ambiguos (0/O, 1/I)
+        do {
+            $code = '';
+            for ($i = 0; $i < 8; $i++) {
+                $code .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+            }
+        } while ($this->userRepository->codeExists($code));
+
+        if (!$this->userRepository->setReferralCode($userId, $code)) {
+            throw new Exception("No se pudo generar el código de referido.", 500);
+        }
+
+        return $code;
+    }
+
+    public function getReferidoPor(int $userId): ?int
+    {
+        return $this->userRepository->getReferidoPor($userId);
     }
 
     public function requestPasswordReset(string $email): void
