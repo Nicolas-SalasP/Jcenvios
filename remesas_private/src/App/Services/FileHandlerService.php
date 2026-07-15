@@ -36,6 +36,7 @@ class FileHandlerService
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'verifications');
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'profile_pics');
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'tutoriales');
+        $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'tasas_imagen');
         $this->ensureDirectoryIsWritable($this->publicTempDir);
     }
 
@@ -138,6 +139,29 @@ class FileHandlerService
             }
         } catch (Exception $e) {
             error_log("No se pudo eliminar el video de tutorial: " . $relativePath . " - " . $e->getMessage());
+        }
+    }
+
+    public function saveTasaImagen(array $fileData, string $tipoFuente, int $adminId): string
+    {
+        $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'tasas_imagen';
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        $maxSize = 10 * 1024 * 1024; // 10MB
+        $filenamePrefix = 'tasa_' . $tipoFuente . '_' . $adminId . '_' . time();
+        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize, null);
+
+        return 'tasas_imagen' . DIRECTORY_SEPARATOR . $savedFilename;
+    }
+
+    public function deleteTasaImagen(string $relativePath): void
+    {
+        try {
+            $fullPath = $this->getAbsolutePath($relativePath);
+            if (is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+        } catch (Exception $e) {
+            error_log("No se pudo eliminar la imagen de tasa: " . $relativePath . " - " . $e->getMessage());
         }
     }
 

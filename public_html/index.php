@@ -114,6 +114,11 @@ require_once __DIR__ . '/../remesas_private/src/templates/header.php';
                     <div class="mt-3 text-center">
                         <small id="rate-ultima-actualizacion" class="text-muted"></small>
                     </div>
+                    <div class="mt-2 text-center">
+                        <a href="<?php echo BASE_URL; ?>/tasas-web.php" class="small text-decoration-none">
+                            <i class="bi bi-image me-1"></i>Ver tabla de tasas
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

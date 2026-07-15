@@ -22,7 +22,8 @@ use App\Repositories\{
     SystemSettingsRepository,
     BeneficiaryAuditRepository,
     LiquidacionRepository,
-    TutorialRepository
+    TutorialRepository,
+    TasasImagenRepository
 };
 use App\Services\{
     LogService,
@@ -46,7 +47,8 @@ use App\Controllers\{
     DashboardController,
     ContabilidadController,
     BotController,
-    TutorialController
+    TutorialController,
+    TasasImagenController
 };
 
 header('Content-Type: application/json');
@@ -96,6 +98,7 @@ class Container
             BeneficiaryAuditRepository::class => new BeneficiaryAuditRepository($this->getDb()),
             LiquidacionRepository::class => new LiquidacionRepository($this->getDb()),
             TutorialRepository::class => new TutorialRepository($this->getDb()),
+            TasasImagenRepository::class => new TasasImagenRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -228,6 +231,11 @@ class Container
                 $this->get(FileHandlerService::class)
             ),
 
+            TasasImagenController::class => new TasasImagenController(
+                $this->get(TasasImagenRepository::class),
+                $this->get(FileHandlerService::class)
+            ),
+
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")
         };
     }
@@ -240,7 +248,7 @@ const PUBLIC_ACTIONS = [
     'getTasa', 'getCurrentRate', 'getPaises', 'getDolarBcv',
     'getActiveDestinationCountries', 'getFormasDePago', 'getBeneficiaryTypes',
     'getDocumentTypes', 'checkSystemStatus', 'getBcvRate', 'botWebhook',
-    'submitContactForm',
+    'submitContactForm', 'getTasaImagenPublica',
 ];
 
 try {
@@ -415,6 +423,13 @@ try {
         'deleteTutorial'        => [TutorialController::class, 'deleteTutorial', 'POST'],
         'toggleTutorialStatus'  => [TutorialController::class, 'toggleTutorialStatus', 'POST'],
         'reorderTutoriales'     => [TutorialController::class, 'reorderTutoriales', 'POST'],
+
+        // Tasas Imagen (público)
+        'getTasaImagenPublica'  => [TasasImagenController::class, 'getTasaImagenPublica', 'GET'],
+
+        // Tasas Imagen (admin)
+        'getTasasImagenAdmin'   => [TasasImagenController::class, 'getTasasImagenAdmin', 'GET'],
+        'saveTasaImagen'        => [TasasImagenController::class, 'saveTasaImagen', 'POST'],
     ];
 
     if (isset($routes[$accion])) {
