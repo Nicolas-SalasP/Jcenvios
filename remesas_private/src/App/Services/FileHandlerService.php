@@ -35,6 +35,7 @@ class FileHandlerService
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'proof_of_sending');
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'verifications');
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'profile_pics');
+        $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'tutoriales');
         $this->ensureDirectoryIsWritable($this->publicTempDir);
     }
 
@@ -117,6 +118,29 @@ class FileHandlerService
         return $this->saveVerificationFile($fileData, $userId, 'doc_' . $side);
     }
 
+    public function saveTutorialVideo(array $fileData, int $adminId): string
+    {
+        $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'tutoriales';
+        $allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+        $maxSize = 100 * 1024 * 1024; // 100MB
+        $filenamePrefix = 'tutorial_' . $adminId;
+        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize, null);
+
+        return 'tutoriales' . DIRECTORY_SEPARATOR . $savedFilename;
+    }
+
+    public function deleteTutorialVideo(string $relativePath): void
+    {
+        try {
+            $fullPath = $this->getAbsolutePath($relativePath);
+            if (is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+        } catch (Exception $e) {
+            error_log("No se pudo eliminar el video de tutorial: " . $relativePath . " - " . $e->getMessage());
+        }
+    }
+
     public function getAbsolutePath(string $relativePath): string
     {
         $cleanPath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath), DIRECTORY_SEPARATOR);
@@ -164,7 +188,10 @@ class FileHandlerService
                 'image/jpeg' => 'jpg',
                 'image/png' => 'png',
                 'application/pdf' => 'pdf',
-                'image/webp' => 'webp'
+                'image/webp' => 'webp',
+                'video/mp4' => 'mp4',
+                'video/webm' => 'webm',
+                'video/quicktime' => 'mov'
             ];
             $extension = $extensionMap[$fileType] ?? 'tmp';
         }

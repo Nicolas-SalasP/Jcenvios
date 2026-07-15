@@ -266,6 +266,7 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/feriados.php"><i class="bi bi-calendar-event text-danger me-2"></i> Feriados</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/logs.php"><i class="bi bi-clipboard-data text-secondary me-2"></i> Bitácora</a></li>
                                         <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/manuales.php"><i class="bi bi-book text-primary me-2"></i> Manuales</a></li>
+                                        <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/tutoriales.php"><i class="bi bi-camera-video text-primary me-2"></i> Tutoriales</a></li>
                                     </ul>
                                 </li>
                                 <li class="nav-item"><a class="nav-link"
@@ -294,12 +295,16 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         href="<?php echo BASE_URL; ?>/revendedor/historial.php">Mis Comisiones</a></li>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/historial.php">Historial</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/dashboard/tutoriales.php">Tutoriales</a></li>
 
                             <?php else: ?>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/index.php">Enviar Dinero</a></li>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/historial.php">Historial</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/dashboard/tutoriales.php">Tutoriales</a></li>
                             <?php endif; ?>
 
                         <?php else: ?>

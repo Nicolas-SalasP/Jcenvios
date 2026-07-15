@@ -21,7 +21,8 @@ use App\Repositories\{
     HorarioOverrideRepository,
     SystemSettingsRepository,
     BeneficiaryAuditRepository,
-    LiquidacionRepository
+    LiquidacionRepository,
+    TutorialRepository
 };
 use App\Services\{
     LogService,
@@ -44,7 +45,8 @@ use App\Controllers\{
     AdminController,
     DashboardController,
     ContabilidadController,
-    BotController
+    BotController,
+    TutorialController
 };
 
 header('Content-Type: application/json');
@@ -93,6 +95,7 @@ class Container
             HorarioOverrideRepository::class => new HorarioOverrideRepository($this->getDb()),
             BeneficiaryAuditRepository::class => new BeneficiaryAuditRepository($this->getDb()),
             LiquidacionRepository::class => new LiquidacionRepository($this->getDb()),
+            TutorialRepository::class => new TutorialRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -218,6 +221,11 @@ class Container
                 $this->get(PricingService::class),
                 $this->get(CuentasAdminRepository::class),
                 $this->get(NotificationService::class)
+            ),
+
+            TutorialController::class => new TutorialController(
+                $this->get(TutorialRepository::class),
+                $this->get(FileHandlerService::class)
             ),
 
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")
@@ -397,6 +405,16 @@ try {
         'updateResellerCommission'     => [AdminController::class, 'updateResellerCommission', 'POST'],
         'getResellerPaises'            => [AdminController::class, 'getResellerPaises', 'GET'],
         'updateResellerPaises'         => [AdminController::class, 'updateResellerPaises', 'POST'],
+
+        // Tutoriales (cliente)
+        'getTutorialesActivos'  => [TutorialController::class, 'getTutorialesActivos', 'GET'],
+
+        // Tutoriales (admin)
+        'getTutorialesAdmin'    => [TutorialController::class, 'getTutorialesAdmin', 'GET'],
+        'saveTutorial'          => [TutorialController::class, 'saveTutorial', 'POST'],
+        'deleteTutorial'        => [TutorialController::class, 'deleteTutorial', 'POST'],
+        'toggleTutorialStatus'  => [TutorialController::class, 'toggleTutorialStatus', 'POST'],
+        'reorderTutoriales'     => [TutorialController::class, 'reorderTutoriales', 'POST'],
     ];
 
     if (isset($routes[$accion])) {
