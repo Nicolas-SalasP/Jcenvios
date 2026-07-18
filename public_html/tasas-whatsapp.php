@@ -32,12 +32,15 @@ $imagenUrl = $imagenDisponible ? (rtrim(BASE_URL, '/') . '/tasas_imagen_stream.p
         .empty { padding: 3rem 1rem; color: #888; }
         .empty i { display: block; font-size: 2rem; margin-bottom: .5rem; }
         .fecha { margin-top: 1rem; font-size: .8rem; color: #999; }
-        .footer-link { margin-top: 2rem; font-size: .85rem; }
-        .footer-link a { color: #0d6efd; text-decoration: none; }
+        .btn-volver { display: inline-block; margin-top: .5rem; padding: .5rem 1.25rem; background: #0d6efd; color: #fff; border-radius: 8px; text-decoration: none; font-size: .9rem; font-weight: 600; }
+        .btn-volver:hover { background: #0b5ed7; }
+        .back-top { margin-bottom: 1.25rem; }
+        .back-bottom { margin-top: 2rem; }
     </style>
 </head>
 <body>
 <div class="wrap">
+    <p class="back-top"><a class="btn-volver" href="<?php echo BASE_URL; ?>/index.php">&larr; Volver a JC Envíos</a></p>
     <img class="logo" src="<?php echo BASE_URL; ?>/assets/img/LogoNegroSinFondo.png" alt="JC Envíos">
     <h1>Tasas de Cambio — WhatsApp</h1>
     <p class="subtitle">Tasa vigente publicada por nuestro equipo para envíos vía WhatsApp.</p>
@@ -54,7 +57,7 @@ $imagenUrl = $imagenDisponible ? (rtrim(BASE_URL, '/') . '/tasas_imagen_stream.p
         <?php endif; ?>
     </div>
 
-    <p class="footer-link"><a href="<?php echo BASE_URL; ?>/normas.php">Ver Normas de Uso</a> · <a href="<?php echo BASE_URL; ?>/index.php">Volver a JC Envíos</a></p>
+    <p class="back-bottom"><a class="btn-volver" href="<?php echo BASE_URL; ?>/index.php">&larr; Volver a JC Envíos</a></p>
 </div>
 </body>
 </html>

@@ -298,6 +298,10 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/historial.php">Historial</a></li>
                                 <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/tasas-web.php">Tasas</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/normas.php">Normas</a></li>
+                                <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/tutoriales.php">Tutoriales</a></li>
 
                             <?php else: ?>
@@ -306,11 +310,17 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/historial.php">Historial</a></li>
                                 <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/tasas-web.php">Tasas</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/normas.php">Normas</a></li>
+                                <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/tutoriales.php">Tutoriales</a></li>
                             <?php endif; ?>
 
                         <?php else: ?>
                             <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/index.php">Inicio</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/tasas-web.php">Tasas</a></li>
+                            <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/normas.php">Normas</a></li>
                             <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/quienes-somos.php">Nosotros</a></li>
                             <li class="nav-item"><a class="nav-link" href="<?php echo BASE_URL; ?>/contacto.php">Contacto</a></li>
                         <?php endif; ?>
