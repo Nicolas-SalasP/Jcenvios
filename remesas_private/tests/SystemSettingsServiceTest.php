@@ -328,4 +328,38 @@ class SystemSettingsServiceTest extends TestCase
 
         $this->assertEquals('Mensaje actualizado', $result['mensaje']);
     }
+
+    // --- getHolidays / getActiveHoliday (passthrough simples) ---
+
+    public function testGetHolidaysRetornaLoDelRepo()
+    {
+        $holidayRepo = $this->createMock(HolidayRepository::class);
+        $holidayRepo->method('getAllFutureAndCurrent')->willReturn([['HolidayID' => 1], ['HolidayID' => 2]]);
+
+        $service = $this->buildService(['holidayRepo' => $holidayRepo]);
+
+        $this->assertCount(2, $service->getHolidays());
+    }
+
+    public function testGetActiveHolidayRetornaElFeriadoActivo()
+    {
+        $holidayRepo = $this->createMock(HolidayRepository::class);
+        $holidayRepo->method('getActiveHoliday')->willReturn(['HolidayID' => 5, 'Motivo' => 'Vacaciones']);
+
+        $service = $this->buildService(['holidayRepo' => $holidayRepo]);
+
+        $result = $service->getActiveHoliday();
+
+        $this->assertEquals(5, $result['HolidayID']);
+    }
+
+    public function testGetActiveHolidayRetornaNullSiNoHayNinguno()
+    {
+        $holidayRepo = $this->createMock(HolidayRepository::class);
+        $holidayRepo->method('getActiveHoliday')->willReturn(null);
+
+        $service = $this->buildService(['holidayRepo' => $holidayRepo]);
+
+        $this->assertNull($service->getActiveHoliday());
+    }
 }

@@ -63,11 +63,14 @@ class TransactionServiceTest extends TestCase
             'CuentaID' => 5,
             'PaisID' => 3,
             'TitularPrimerNombre' => 'Juan',
+            'TitularSegundoNombre' => null,
             'TitularPrimerApellido' => 'Perez',
+            'TitularSegundoApellido' => null,
             'NombreBanco' => 'Banco Test',
             'NumeroCuenta' => '123',
             'TitularNumeroDocumento' => '111',
-            'NumeroTelefono' => '555'
+            'NumeroTelefono' => '555',
+            'CCI' => null,
         ];
     }
 
@@ -819,5 +822,428 @@ class TransactionServiceTest extends TestCase
         $result = $service->getAdminAlerts();
 
         $this->assertEquals(['alertas' => 3], $result);
+    }
+
+    // --- getEstadoIdByName ---
+
+    public function testGetEstadoIdByNameRetornaIdSiExiste()
+    {
+        $estadoTxRepo = $this->createMock(EstadoTransaccionRepository::class);
+        $estadoTxRepo->method('findIdByName')->willReturn(5);
+
+        $service = $this->buildService(['estadoTxRepo' => $estadoTxRepo]);
+
+        $this->assertEquals(5, $service->getEstadoIdByName('Cancelado'));
+    }
+
+    public function testGetEstadoIdByNameFallaSiNoExiste()
+    {
+        $estadoTxRepo = $this->createMock(EstadoTransaccionRepository::class);
+        $estadoTxRepo->method('findIdByName')->willReturn(null);
+
+        $service = $this->buildService(['estadoTxRepo' => $estadoTxRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("no encontrado");
+
+        $service->getEstadoIdByName('EstadoInventado');
+    }
+
+    public function testGetEstadoIdByNameFallbackParaPendienteAprobacion()
+    {
+        $estadoTxRepo = $this->createMock(EstadoTransaccionRepository::class);
+        $estadoTxRepo->method('findIdByName')->willReturn(null);
+
+        $service = $this->buildService(['estadoTxRepo' => $estadoTxRepo]);
+
+        $this->assertEquals(7, $service->getEstadoIdByName('Pendiente de Aprobación'));
+    }
+
+    // --- adminUpdateCommission ---
+
+    public function testAdminUpdateCommissionFallaSiTransaccionNoExiste()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(null);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Transacción no encontrada");
+
+        $service->adminUpdateCommission(1, 999, 100);
+    }
+
+    public function testAdminUpdateCommissionNoHaceNadaSiComisionEsIgual()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['ComisionDestino' => 100.0]);
+        $txRepo->expects($this->never())->method('updateCommission');
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $service->adminUpdateCommission(1, 5, 100.0);
+        $this->assertTrue(true);
+    }
+
+    public function testAdminUpdateCommissionFallaSiNoActualiza()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['ComisionDestino' => 100.0]);
+        $txRepo->method('updateCommission')->willReturn(false);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Error al actualizar la comisión");
+
+        $service->adminUpdateCommission(1, 5, 150.0);
+    }
+
+    public function testAdminUpdateCommissionExitosoCorrigeGastoEnContabilidad()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn([
+            'ComisionDestino' => 100.0,
+            'PaisDestinoID' => 3,
+        ]);
+        $txRepo->method('updateCommission')->willReturn(true);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->once())->method('corregirGastoComision')
+            ->with(3, 100.0, 150.0, 1, 5);
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('logAdminAction');
+
+        $service = $this->buildService([
+            'txRepo' => $txRepo,
+            'contabService' => $contabService,
+            'notifService' => $notifService,
+        ]);
+
+        $service->adminUpdateCommission(1, 5, 150.0);
+        $this->assertTrue(true);
+    }
+
+    // --- adminResumeTransaction ---
+
+    public function testAdminResumeTransactionExitoso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('updateStatus')->willReturn(1);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 5]);
+
+        $pdfService = $this->createMock(PDFService::class);
+        $pdfService->method('generateOrder')->willReturn('contenido-pdf');
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('logAdminAction');
+
+        $service = $this->buildService([
+            'txRepo' => $txRepo,
+            'pdfService' => $pdfService,
+            'notifService' => $notifService,
+        ]);
+
+        $this->assertTrue($service->adminResumeTransaction(5, 1, 'nota de prueba'));
+    }
+
+    public function testAdminResumeTransactionFallaSiNoActualiza()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('updateStatus')->willReturn(0);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->assertFalse($service->adminResumeTransaction(5, 1));
+    }
+
+    // --- getResellerStats ---
+
+    public function testGetResellerStatsRetornaLoDelRepo()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getResellerStats')->willReturn(['total' => 5000]);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $result = $service->getResellerStats(10, '2026-01-01', '2026-01-31');
+
+        $this->assertEquals(['total' => 5000], $result);
+    }
+
+    // --- forceUpdateState ---
+
+    public function testForceUpdateStateFallaSiTransaccionNoExiste()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(null);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Transacción no encontrada");
+
+        $service->forceUpdateState(999, 3);
+    }
+
+    public function testForceUpdateStateExitoso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(['EstadoID' => 2]);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->assertTrue($service->forceUpdateState(5, 3));
+    }
+
+    public function testForceUpdateStateFallaSiNoActualiza()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(['EstadoID' => 2]);
+        $txRepo->method('updateStatus')->willReturn(0);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->assertFalse($service->forceUpdateState(5, 3));
+    }
+
+    // --- getPreviousSendsToSameAccount ---
+
+    public function testGetPreviousSendsFallaSiTransaccionNoExiste()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(null);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Transacción no encontrada");
+
+        $service->getPreviousSendsToSameAccount(999);
+    }
+
+    public function testGetPreviousSendsExitoso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn([
+            'UserID' => 10,
+            'BeneficiarioNumeroCuenta' => '123456',
+            'BeneficiarioTelefono' => null,
+        ]);
+        $txRepo->method('getPreviousSendsToSameAccount')->willReturn([['TransaccionID' => 1]]);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $result = $service->getPreviousSendsToSameAccount(5);
+
+        $this->assertCount(1, $result);
+    }
+
+    // --- createTransaction: más validaciones y ramas de éxito ---
+
+    private function mocksParaCreateExitoso(array $tasaOverrides = []): array
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn([
+            'UserID' => 1,
+            'VerificacionEstado' => 'Verificado',
+            'Telefono' => '+5690000000',
+            'PaisID' => 1,
+        ]);
+        $userRepo->method('getReferidoPor')->willReturn(null);
+
+        $estadoTxRepo = $this->createMock(EstadoTransaccionRepository::class);
+        $estadoTxRepo->method('findIdByName')->willReturn(1);
+
+        $cuentasRepo = $this->createMock(CuentasBeneficiariasRepository::class);
+        $cuentasRepo->method('findByIdAndUserId')->willReturn($this->beneficiarioValido());
+
+        $rateRepo = $this->createMock(RateRepository::class);
+        $rateRepo->method('findCurrentRate')->willReturn(array_merge([
+            'TasaID' => 1,
+            'ValorTasa' => 3.8,
+        ], $tasaOverrides));
+
+        $formaPagoRepo = $this->createMock(FormaPagoRepository::class);
+        $formaPagoRepo->method('findIdByName')->willReturn(1);
+
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('findRecentActiveByUserAndBeneficiary')->willReturn(null);
+        $txRepo->method('create')->willReturn(999);
+        $txRepo->method('getFullTransactionDetails')->willReturn([
+            'TransaccionID' => 999,
+            'FormaPagoID' => 1,
+            'PaisOrigenID' => 1,
+        ]);
+
+        $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
+        $cuentasAdminRepo->method('findActiveByFormaPagoAndPais')->willReturn(null);
+
+        $pdfService = $this->createMock(PDFService::class);
+        $pdfService->method('generateOrder')->willReturn('contenido-pdf');
+
+        $fileHandler = $this->createMock(FileHandlerService::class);
+        $fileHandler->method('savePdfTemporarily')->willReturn('http://x/orden.pdf');
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->method('sendOrderToClientWhatsApp')->willReturn(true);
+
+        return [
+            'userRepo' => $userRepo,
+            'estadoTxRepo' => $estadoTxRepo,
+            'cuentasRepo' => $cuentasRepo,
+            'rateRepo' => $rateRepo,
+            'formaPagoRepo' => $formaPagoRepo,
+            'txRepo' => $txRepo,
+            'cuentasAdminRepo' => $cuentasAdminRepo,
+            'pdfService' => $pdfService,
+            'fileHandler' => $fileHandler,
+            'notifService' => $notifService,
+        ];
+    }
+
+    public function testCreateTransactionFallaSiFormaPagoInvalida()
+    {
+        $mocks = $this->mocksParaCreateExitoso();
+        $formaPagoRepo = $this->createMock(FormaPagoRepository::class);
+        $formaPagoRepo->method('findIdByName')->willReturn(null);
+        $mocks['formaPagoRepo'] = $formaPagoRepo;
+
+        $service = $this->buildService($mocks);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("no válida");
+
+        $service->createTransaction($this->datosTransaccionBase());
+    }
+
+    public function testCreateTransactionFallaSiHayOrdenDuplicadaReciente()
+    {
+        $mocks = $this->mocksParaCreateExitoso();
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('findRecentActiveByUserAndBeneficiary')->willReturn(['TransaccionID' => 111]);
+        $mocks['txRepo'] = $txRepo;
+
+        $service = $this->buildService($mocks);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("orden activa reciente");
+
+        $service->createTransaction($this->datosTransaccionBase());
+    }
+
+    public function testCreateTransactionExitosoRutaRiesgosaQuedaPendienteAprobacion()
+    {
+        $mocks = $this->mocksParaCreateExitoso(['EsRiesgoso' => 1]);
+        // En ruta riesgosa no debe llegar a generar PDF ni enviar WhatsApp/Email.
+        $pdfService = $this->createMock(PDFService::class);
+        $pdfService->expects($this->never())->method('generateOrder');
+        $mocks['pdfService'] = $pdfService;
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('logAdminAction');
+        $notifService->expects($this->never())->method('sendNewOrderEmail');
+        $mocks['notifService'] = $notifService;
+
+        $service = $this->buildService($mocks);
+
+        $result = $service->createTransaction($this->datosTransaccionBase());
+
+        $this->assertEquals('requires_approval', $result['status']);
+        $this->assertEquals(999, $result['id']);
+    }
+
+    public function testCreateTransactionExitosoRutaNormalCalculaMontoPorMultiplicacion()
+    {
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $capturedData = null;
+        $txRepo = $mocks['txRepo'];
+        $txRepo->method('create')->willReturnCallback(function ($data) use (&$capturedData) {
+            $capturedData = $data;
+            return 999;
+        });
+
+        $service = $this->buildService($mocks);
+
+        $datos = $this->datosTransaccionBase();
+        $datos['montoOrigen'] = 10000;
+        $result = $service->createTransaction($datos);
+
+        $this->assertEquals('created', $result['status']);
+        $this->assertEquals(38000.0, $capturedData['montoDestino']); // 10000 * 3.8, ruta normal (no inversa)
+    }
+
+    public function testCreateTransactionExitosoRutaInversaCalculaMontoPorDivision()
+    {
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $capturedData = null;
+        $txRepo = $mocks['txRepo'];
+        $txRepo->method('create')->willReturnCallback(function ($data) use (&$capturedData) {
+            $capturedData = $data;
+            return 999;
+        });
+
+        $service = $this->buildService($mocks);
+
+        $datos = $this->datosTransaccionBase();
+        $datos['paisOrigenID'] = 2; // ruta "2-3" (Col -> Ven) está en $inverseRoutes
+        $datos['montoOrigen'] = 3800;
+        $result = $service->createTransaction($datos);
+
+        $this->assertEquals('created', $result['status']);
+        $this->assertEquals(1000.0, $capturedData['montoDestino']); // 3800 / 3.8, ruta inversa
+    }
+
+    public function testCreateTransactionExitosoCalculaComisionRevendedor()
+    {
+        $mocks = $this->mocksParaCreateExitoso();
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn([
+            'UserID' => 1,
+            'VerificacionEstado' => 'Verificado',
+            'Telefono' => '+5690000000',
+            'PaisID' => 1,
+            'Rol' => 'Revendedor',
+            'RolID' => 4,
+            'PorcentajeComision' => 2,
+        ]);
+        $userRepo->method('getReferidoPor')->willReturn(null);
+        $mocks['userRepo'] = $userRepo;
+
+        $txRepo = $mocks['txRepo'];
+        $txRepo->method('getResellerCommissionRate')->willReturn(2.0);
+        $capturedData = null;
+        $txRepo->method('create')->willReturnCallback(function ($data) use (&$capturedData) {
+            $capturedData = $data;
+            return 999;
+        });
+
+        $service = $this->buildService($mocks);
+
+        $datos = $this->datosTransaccionBase();
+        $datos['montoOrigen'] = 10000;
+        $service->createTransaction($datos);
+
+        $this->assertEquals(200.0, $capturedData['comisionRevendedor']); // 10000 * 2%
+    }
+
+    // --- pause (passthrough simple) ---
+
+    public function testPauseLlamaAlRepoConLosParametrosCorrectos()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->expects($this->once())
+            ->method('pauseTransaction')
+            ->with(5, 'motivo de prueba', 6)
+            ->willReturn(true);
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->assertTrue($service->pause(5, 'motivo de prueba'));
     }
 }

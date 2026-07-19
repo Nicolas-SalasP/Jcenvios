@@ -282,6 +282,20 @@ class UserServiceTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function testToggleUserBlockDesbloqueoExitoso()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->expects($this->once())->method('updateLoginAttempts')->with(10, 0, null)->willReturn(true);
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('logAdminAction');
+
+        $service = $this->buildService(['userRepo' => $userRepo, 'notifService' => $notifService]);
+
+        $service->toggleUserBlock(5, 10, 'active');
+        $this->assertTrue(true);
+    }
+
     // --- adminUpdateUserRole ---
 
     public function testAdminUpdateUserRoleFallaSiCambiaPropioRol()
@@ -960,6 +974,218 @@ class UserServiceTest extends TestCase
         $service = $this->buildService(['userRepo' => $userRepo]);
 
         $service->updateVerificationDocPath(10, 'frente', 'verifications/doc.jpg');
+        $this->assertTrue(true);
+    }
+
+    // --- registerUser: vinculación de código de referido ---
+
+    public function testRegisterUserVinculaCodigoReferidoSiValido()
+    {
+        $rolRepo = $this->createMock(RolRepository::class);
+        $rolRepo->method('findIdByName')->willReturn(2);
+        $tipoDocRepo = $this->createMock(TipoDocumentoRepository::class);
+        $tipoDocRepo->method('findIdByName')->willReturn(1);
+        $estadoRepo = $this->createMock(EstadoVerificacionRepository::class);
+        $estadoRepo->method('findIdByName')->willReturn(1);
+
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('create')->willReturn(42);
+        $userRepo->method('findByEmail')->willReturn(['UserID' => 42, 'Email' => 'juan@test.com']);
+        $userRepo->method('findResellerIdByCode')->willReturn(7); // referrer distinto del nuevo usuario
+        $userRepo->expects($this->once())->method('setReferidoPor')->with(42, 7);
+
+        $service = $this->buildService([
+            'rolRepo' => $rolRepo,
+            'tipoDocRepo' => $tipoDocRepo,
+            'estadoRepo' => $estadoRepo,
+            'userRepo' => $userRepo,
+        ]);
+
+        $datos = $this->datosRegistroValidos();
+        $datos['codigoReferido'] = 'abc12345';
+        $service->registerUser($datos);
+    }
+
+    public function testRegisterUserNoVinculaSiCodigoReferidoEsPropio()
+    {
+        $rolRepo = $this->createMock(RolRepository::class);
+        $rolRepo->method('findIdByName')->willReturn(2);
+        $tipoDocRepo = $this->createMock(TipoDocumentoRepository::class);
+        $tipoDocRepo->method('findIdByName')->willReturn(1);
+        $estadoRepo = $this->createMock(EstadoVerificacionRepository::class);
+        $estadoRepo->method('findIdByName')->willReturn(1);
+
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('create')->willReturn(42);
+        $userRepo->method('findByEmail')->willReturn(['UserID' => 42, 'Email' => 'juan@test.com']);
+        $userRepo->method('findResellerIdByCode')->willReturn(42); // mismo usuario recién creado
+        $userRepo->expects($this->never())->method('setReferidoPor');
+
+        $service = $this->buildService([
+            'rolRepo' => $rolRepo,
+            'tipoDocRepo' => $tipoDocRepo,
+            'estadoRepo' => $estadoRepo,
+            'userRepo' => $userRepo,
+        ]);
+
+        $datos = $this->datosRegistroValidos();
+        $datos['codigoReferido'] = 'ABC12345';
+        $service->registerUser($datos);
+    }
+
+    public function testRegisterUserSinCodigoReferidoNoIntentaVincular()
+    {
+        $rolRepo = $this->createMock(RolRepository::class);
+        $rolRepo->method('findIdByName')->willReturn(2);
+        $tipoDocRepo = $this->createMock(TipoDocumentoRepository::class);
+        $tipoDocRepo->method('findIdByName')->willReturn(1);
+        $estadoRepo = $this->createMock(EstadoVerificacionRepository::class);
+        $estadoRepo->method('findIdByName')->willReturn(1);
+
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('create')->willReturn(42);
+        $userRepo->method('findByEmail')->willReturn(['UserID' => 42, 'Email' => 'juan@test.com']);
+        $userRepo->expects($this->never())->method('findResellerIdByCode');
+        $userRepo->expects($this->never())->method('setReferidoPor');
+
+        $service = $this->buildService([
+            'rolRepo' => $rolRepo,
+            'tipoDocRepo' => $tipoDocRepo,
+            'estadoRepo' => $estadoRepo,
+            'userRepo' => $userRepo,
+        ]);
+
+        $service->registerUser($this->datosRegistroValidos());
+    }
+
+    // --- verifyBackupCode (round-trip real de cifrado, sin mocks de crypto) ---
+
+    private function invokePrivate(object $obj, string $method, array $args)
+    {
+        $ref = new ReflectionMethod(get_class($obj), $method);
+        $ref->setAccessible(true);
+        return $ref->invokeArgs($obj, $args);
+    }
+
+    public function testVerifyBackupCodeValidoLoConsumeYaNoSirveDosVeces()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $codigos = ['AAAA1111', 'BBBB2222', 'CCCC3333'];
+        $encriptado = $this->invokePrivate($service, 'encryptData', [json_encode($codigos)]);
+
+        $userRepo->method('getBackupCodes')->willReturn($encriptado);
+        $userRepo->expects($this->once())->method('updateBackupCodes');
+
+        $this->assertTrue($service->verifyBackupCode(10, 'BBBB2222'));
+    }
+
+    public function testVerifyBackupCodeInvalidoNoConsume()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $codigos = ['AAAA1111', 'BBBB2222'];
+        $encriptado = $this->invokePrivate($service, 'encryptData', [json_encode($codigos)]);
+
+        $userRepo->method('getBackupCodes')->willReturn($encriptado);
+        $userRepo->expects($this->never())->method('updateBackupCodes');
+
+        $this->assertFalse($service->verifyBackupCode(10, 'CODIGO-NO-EXISTE'));
+    }
+
+    // --- generateUser2FASecret / verifyAndEnable2FA / verifyUser2FACode (con Google2FA real) ---
+
+    public function testGenerateUser2FASecretRetornaSecretYQrCodeUrl()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->expects($this->once())->method('update2FASecret');
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $result = $service->generateUser2FASecret(10, 'juan@test.com');
+
+        $this->assertArrayHasKey('secret', $result);
+        $this->assertArrayHasKey('qrCodeUrl', $result);
+        $this->assertNotEmpty($result['secret']);
+    }
+
+    public function testVerifyAndEnable2FAExitosoConCodigoValido()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $google2fa = new \PragmaRX\Google2FA\Google2FA();
+        $secretKey = $google2fa->generateSecretKey();
+        $encriptado = $this->invokePrivate($service, 'encryptData', [$secretKey]);
+        $codigoValido = $google2fa->getCurrentOtp($secretKey);
+
+        $userRepo->method('get2FASecret')->willReturn($encriptado);
+        $userRepo->method('enable2FA')->willReturn(true);
+
+        $this->assertTrue($service->verifyAndEnable2FA(10, $codigoValido));
+    }
+
+    public function testVerifyAndEnable2FAFallaConCodigoInvalido()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $google2fa = new \PragmaRX\Google2FA\Google2FA();
+        $secretKey = $google2fa->generateSecretKey();
+        $encriptado = $this->invokePrivate($service, 'encryptData', [$secretKey]);
+
+        $userRepo->method('get2FASecret')->willReturn($encriptado);
+
+        $this->assertFalse($service->verifyAndEnable2FA(10, '000000'));
+    }
+
+    public function testVerifyUser2FACodeExitosoConCodigoValido()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $google2fa = new \PragmaRX\Google2FA\Google2FA();
+        $secretKey = $google2fa->generateSecretKey();
+        $encriptado = $this->invokePrivate($service, 'encryptData', [$secretKey]);
+        $codigoValido = $google2fa->getCurrentOtp($secretKey);
+
+        $userRepo->method('get2FASecret')->willReturn($encriptado);
+
+        $this->assertTrue($service->verifyUser2FACode(10, $codigoValido));
+    }
+
+    public function testVerifyUser2FACodeFallaConCodigoInvalido()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $google2fa = new \PragmaRX\Google2FA\Google2FA();
+        $secretKey = $google2fa->generateSecretKey();
+        $encriptado = $this->invokePrivate($service, 'encryptData', [$secretKey]);
+
+        $userRepo->method('get2FASecret')->willReturn($encriptado);
+
+        $this->assertFalse($service->verifyUser2FACode(10, '000000'));
+    }
+
+    public function testAdminUpdateUserDataExitoso()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('updateGeneralData')->willReturn(true);
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('logAdminAction');
+
+        $service = $this->buildService(['userRepo' => $userRepo, 'notifService' => $notifService]);
+
+        $service->adminUpdateUserData(1, [
+            'userId' => 10,
+            'primerNombre' => 'Juan',
+            'primerApellido' => 'Perez',
+            'telefono' => '+56911111111',
+        ]);
         $this->assertTrue(true);
     }
 }
