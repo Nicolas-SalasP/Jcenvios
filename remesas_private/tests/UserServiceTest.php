@@ -9,6 +9,7 @@ use App\Repositories\RolRepository;
 use App\Repositories\TipoDocumentoRepository;
 use App\Services\NotificationService;
 use App\Services\FileHandlerService;
+use App\Services\LogService;
 
 class UserServiceTest extends TestCase
 {
@@ -26,11 +27,12 @@ class UserServiceTest extends TestCase
         $estadoRepo = $this->createMock(EstadoVerificacionRepository::class);
         $rolRepo = $this->createMock(RolRepository::class);
         $tipoDocRepo = $this->createMock(TipoDocumentoRepository::class);
+        $logService = $this->createMock(LogService::class);
 
-        $service = new UserService($userRepo, $notifService, $fileHandler, $estadoRepo, $rolRepo, $tipoDocRepo);
+        $service = new UserService($userRepo, $notifService, $fileHandler, $estadoRepo, $rolRepo, $tipoDocRepo, $logService);
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage("no válidos"); 
+        $this->expectExceptionMessage("Credenciales incorrectas");
 
         $service->loginUser('usuario@test.com', 'contrasena_mala');
     }

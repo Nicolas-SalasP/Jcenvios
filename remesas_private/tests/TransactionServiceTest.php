@@ -7,6 +7,9 @@ use App\Repositories\UserRepository;
 use App\Repositories\CuentasBeneficiariasRepository;
 use App\Repositories\FormaPagoRepository;
 use App\Repositories\EstadoTransaccionRepository;
+use App\Repositories\CuentasAdminRepository;
+use App\Repositories\RateRepository;
+use App\Repositories\ResellerAccountsRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -32,11 +35,14 @@ class TransactionServiceTest extends TestCase
         $estadoTxRepo = $this->createMock(EstadoTransaccionRepository::class);
         $formaPagoRepo = $this->createMock(FormaPagoRepository::class);
         $contabService = $this->createMock(ContabilidadService::class);
+        $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
+        $rateRepo = $this->createMock(RateRepository::class);
+        $resellerAccountsRepo = $this->createMock(ResellerAccountsRepository::class);
 
         $service = new TransactionService(
-            $txRepo, $userRepo, $notifService, $pdfService, 
-            $fileHandler, $estadoTxRepo, $formaPagoRepo, 
-            $contabService, $cuentasRepo
+            $txRepo, $userRepo, $notifService, $pdfService,
+            $fileHandler, $estadoTxRepo, $formaPagoRepo,
+            $contabService, $cuentasRepo, $cuentasAdminRepo, $rateRepo, $resellerAccountsRepo
         );
 
         $this->expectException(Exception::class);
@@ -77,11 +83,14 @@ class TransactionServiceTest extends TestCase
         $fileHandler = $this->createMock(FileHandlerService::class);
         $estadoTxRepo = $this->createMock(EstadoTransaccionRepository::class);
         $contabService = $this->createMock(ContabilidadService::class);
+        $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
+        $rateRepo = $this->createMock(RateRepository::class);
+        $resellerAccountsRepo = $this->createMock(ResellerAccountsRepository::class);
 
         $service = new TransactionService(
-            $txRepo, $userRepo, $notifService, $pdfService, 
-            $fileHandler, $estadoTxRepo, $formaPagoRepo, 
-            $contabService, $cuentasRepo
+            $txRepo, $userRepo, $notifService, $pdfService,
+            $fileHandler, $estadoTxRepo, $formaPagoRepo,
+            $contabService, $cuentasRepo, $cuentasAdminRepo, $rateRepo, $resellerAccountsRepo
         );
 
         $this->expectException(Exception::class);

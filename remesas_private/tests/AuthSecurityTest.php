@@ -10,6 +10,7 @@ use App\Repositories\RolRepository;
 use App\Repositories\TipoDocumentoRepository;
 use App\Services\NotificationService;
 use App\Services\FileHandlerService;
+use App\Services\LogService;
 
 class AuthSecurityTest extends TestCase
 {
@@ -27,14 +28,16 @@ class AuthSecurityTest extends TestCase
         $estadoRepo = $this->createMock(EstadoVerificacionRepository::class);
         $rolRepo = $this->createMock(RolRepository::class);
         $tipoDocRepo = $this->createMock(TipoDocumentoRepository::class);
-        
+        $logService = $this->createMock(LogService::class);
+
         $service = new UserService(
-            $userRepo, 
-            $notifService, 
-            $fileHandler, 
-            $estadoRepo, 
-            $rolRepo, 
-            $tipoDocRepo
+            $userRepo,
+            $notifService,
+            $fileHandler,
+            $estadoRepo,
+            $rolRepo,
+            $tipoDocRepo,
+            $logService
         );
 
         $this->expectException(Exception::class);
