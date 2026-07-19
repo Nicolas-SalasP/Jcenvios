@@ -4,8 +4,9 @@
  * Cancela las transacciones en "Pendiente de Pago" que llevan más de 4 horas
  * sin que el cliente haya subido un comprobante de pago.
  *
- * Ejecutar cada 30 minutos con crontab:
- *   */30 * * * * php /ruta/remesas_private/cron_auto_cancelacion.php >> /var/log/jcenvios_cancel.log 2>&1
+ * Ejecutar cada 30 minutos con crontab (NO usar "*_/30": corta este mismo
+ * comentario de bloque; se usa la forma equivalente "0,30"):
+ *   0,30 * * * * php /ruta/remesas_private/cron_auto_cancelacion.php >> /var/log/jcenvios_cancel.log 2>&1
  */
 
 date_default_timezone_set('America/Santiago');

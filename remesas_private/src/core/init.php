@@ -184,6 +184,29 @@ $container = new class($conexion) {
                     $systemService
                 );
             }
+
+            if ($class === \App\Services\TransactionService::class) {
+                $logService = new \App\Services\LogService($db);
+                return new \App\Services\TransactionService(
+                    new \App\Repositories\TransactionRepository($db),
+                    new \App\Repositories\UserRepository($db),
+                    new \App\Services\NotificationService($logService),
+                    new \App\Services\PDFService(),
+                    new \App\Services\FileHandlerService(),
+                    new \App\Repositories\EstadoTransaccionRepository($db),
+                    new \App\Repositories\FormaPagoRepository($db),
+                    new \App\Services\ContabilidadService(
+                        new \App\Repositories\ContabilidadRepository($db),
+                        new \App\Repositories\CountryRepository($db),
+                        $logService,
+                        $db
+                    ),
+                    new \App\Repositories\CuentasBeneficiariasRepository($db),
+                    new \App\Repositories\CuentasAdminRepository($db),
+                    new \App\Repositories\RateRepository($db),
+                    new \App\Repositories\ResellerAccountsRepository($db)
+                );
+            }
         } catch (Throwable $e) {
             error_log("Error en el contenedor de servicios (init.php): " . $e->getMessage());
         }
