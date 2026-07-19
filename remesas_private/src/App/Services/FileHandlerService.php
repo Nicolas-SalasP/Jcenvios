@@ -21,13 +21,13 @@ class FileHandlerService
             }
         }
 
-        $this->publicTempDir = realpath(__DIR__ . '/../../../public_html/temp_orders');
+        $this->publicTempDir = realpath(__DIR__ . '/../../../../public_html/temp_orders');
         if ($this->publicTempDir === false || !is_dir($this->publicTempDir)) {
-            if (!@mkdir(__DIR__ . '/../../../public_html/temp_orders', 0755, true)) {
-                error_log("Error crítico: No se pudo crear el directorio público temporal: " . __DIR__ . '/../../../public_html/temp_orders');
+            if (!@mkdir(__DIR__ . '/../../../../public_html/temp_orders', 0755, true)) {
+                error_log("Error crítico: No se pudo crear el directorio público temporal: " . __DIR__ . '/../../../../public_html/temp_orders');
                 throw new Exception("Error interno del servidor [FH02].", 500);
             }
-            $this->publicTempDir = realpath(__DIR__ . '/../../../public_html/temp_orders');
+            $this->publicTempDir = realpath(__DIR__ . '/../../../../public_html/temp_orders');
         }
         $this->publicTempUrlBase = rtrim(BASE_URL, '/') . '/temp_orders/';
 

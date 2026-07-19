@@ -11,8 +11,14 @@
 /public_html/uploads/receipts
 /public_html/uploads/verifications
 /public_html/uploads/documents
+/public_html/temp_orders/
 /remesas_private/uploads/
 *.log
+
+# Playwright (job e2e-smoke del pipeline)
+/test-results/
+/playwright-report/
+/blob-report/
 .DS_Store
 Thumbs.db
 .idea/

@@ -1,17 +1,21 @@
-name: Deploy a Producción (cPanel)
+name: CI/CD (tests + deploy a cPanel)
 
-# Despliegue a producción por SSH/rsync, con UNA SOLA conexión SSH multiplexada.
-# - Se dispara al hacer push a main (o manualmente desde Actions).
-# - Espera APROBACIÓN MANUAL (environment "production" con Required reviewers).
+# Pipeline completo: push a main dispara 3 jobs de verificación en paralelo
+# (backend-tests, php-lint) -> si ambos pasan, corre e2e-smoke (Playwright,
+# contra un servidor real + BD migrada/sembrada) -> si eso pasa, recién ahí
+# el job de deploy pide aprobación manual (environment "production") y
+# sincroniza a cPanel por SSH/rsync.
+#
 # - NO usa --delete: nunca borra archivos que existan solo en el servidor.
 # - config.php / vendor / uploads / sessions estan en .gitignore -> no viajan.
 # - migrations/*.sql pendientes se corren solas via remesas_private/scripts/migrate.php
 #   (tabla de control _migrations_applied, cada migración se aplica una sola vez).
 #
-# IMPORTANTE (por que ControlMaster): el hosting cPanel bloquea la IP tras la
-# primera conexion SSH (anti-flood CSF/cPHulk), por eso el 2do rsync daba
-# "Connection timed out". Con ControlMaster abrimos UNA conexion maestra y
-# rsync x2 + composer la REUTILIZAN -> el firewall ve una sola conexion.
+# IMPORTANTE (por que ControlMaster en el job deploy): el hosting cPanel
+# bloquea la IP tras la primera conexion SSH (anti-flood CSF/cPHulk), por eso
+# el 2do rsync daba "Connection timed out". Con ControlMaster abrimos UNA
+# conexion maestra y rsync x2 + composer la REUTILIZAN -> el firewall ve una
+# sola conexion.
 
 on:
   push:
@@ -23,8 +27,193 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # JOB 1: Tests de backend (PHPUnit) contra MySQL real.
+  # TransactionServiceTest necesita una conexión real (TransactionProofRepository
+  # se instancia directo en el constructor de TransactionService, no es
+  # mockeable) — por eso hace falta el servicio MySQL, no alcanza con PHP solo.
+  # ─────────────────────────────────────────────────────────────────────────
+  backend-tests:
+    name: Backend (PHPUnit)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: jcenvios_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, mysqli, gd, zip, curl, openssl
+          coverage: none
+
+      - name: Composer install (con dev, incluye PHPUnit)
+        run: cd remesas_private && composer install --optimize-autoloader --no-interaction
+
+      - name: Cargar esquema + catálogo base
+        run: |
+          mysql -h127.0.0.1 -uroot -proot jcenvios_test < database/schema.sql
+          mysql -h127.0.0.1 -uroot -proot jcenvios_test < database/catalog_seed.sql
+
+      - name: Generar config.php de test
+        run: |
+          cat > remesas_private/config.php <<'EOF'
+          <?php
+          define('BASE_URL', 'http://127.0.0.1:8899');
+          define('SESSION_DOMAIN', '127.0.0.1');
+          define('IS_HTTPS', false);
+          define('DB_HOST', '127.0.0.1');
+          define('DB_USER', 'root');
+          define('DB_PASS', 'root');
+          define('DB_NAME', 'jcenvios_test');
+          define('APP_ENCRYPTION_KEY', '01234567890123456789012345678901');
+          define('ADMIN_EMAIL', 'ci@example.test');
+          EOF
+
+      - name: Correr PHPUnit (200 tests)
+        run: cd remesas_private && vendor/bin/phpunit --colors=always
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # JOB 2: Barrido de sintaxis PHP en todo el repo. No corre PHPUnit ni
+  # necesita BD — solo confirma que cada .php parsea. Atrapa exactamente el
+  # tipo de bug encontrado en esta sesión (comentario de crontab con "*/N"
+  # que rompía el parseo de un cron entero y nunca lo detectó nada más).
+  # ─────────────────────────────────────────────────────────────────────────
+  php-lint:
+    name: Lint de sintaxis PHP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: php -l en todos los archivos .php del repo
+        run: |
+          find . -name "*.php" \
+            -not -path "./remesas_private/vendor/*" \
+            -not -path "./node_modules/*" \
+            -print0 \
+          | xargs -0 -n1 -P4 php -l
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # JOB 3: Smoke + flujo de negocio crítico con Playwright, contra un
+  # servidor PHP real y una BD recién migrada + sembrada (schema + catálogo
+  # + usuarios/tasa/beneficiario de prueba en database/ci_test_seed.sql).
+  # ─────────────────────────────────────────────────────────────────────────
+  e2e-smoke:
+    name: E2E smoke (Playwright)
+    needs: [backend-tests, php-lint]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: jcenvios_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, mysqli, gd, zip, curl, openssl
+          coverage: none
+
+      - name: Composer install (sin dev, como en producción)
+        run: cd remesas_private && composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Cargar esquema + catálogo + seed de datos de prueba
+        run: |
+          mysql -h127.0.0.1 -uroot -proot jcenvios_test < database/schema.sql
+          mysql -h127.0.0.1 -uroot -proot jcenvios_test < database/catalog_seed.sql
+          mysql -h127.0.0.1 -uroot -proot jcenvios_test < database/ci_test_seed.sql
+
+      - name: Generar config.php apuntando al servidor de prueba
+        run: |
+          cat > remesas_private/config.php <<'EOF'
+          <?php
+          define('BASE_URL', 'http://127.0.0.1:8899');
+          define('SESSION_DOMAIN', '127.0.0.1');
+          define('IS_HTTPS', false);
+          define('DB_HOST', '127.0.0.1');
+          define('DB_USER', 'root');
+          define('DB_PASS', 'root');
+          define('DB_NAME', 'jcenvios_test');
+          define('APP_ENCRYPTION_KEY', '01234567890123456789012345678901');
+          define('ADMIN_EMAIL', 'ci@example.test');
+          EOF
+
+      - name: Levantar servidor PHP de prueba
+        run: |
+          php -S 127.0.0.1:8899 -t public_html > /tmp/php-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://127.0.0.1:8899/login.php && break
+            sleep 1
+          done
+          curl -sf -o /dev/null http://127.0.0.1:8899/login.php || (cat /tmp/php-server.log && exit 1)
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias de test e2e
+        run: npm install
+
+      - name: Instalar navegadores de Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Correr tests e2e
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8899
+        run: npx playwright test
+
+      - name: Subir reporte de Playwright (si falló)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Log del servidor PHP (si falló)
+        if: failure()
+        run: cat /tmp/php-server.log || true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # JOB 4: Deploy a producción — solo si los 3 jobs anteriores pasaron.
+  # Espera además APROBACIÓN MANUAL (environment "production").
+  # ─────────────────────────────────────────────────────────────────────────
   deploy:
     name: Sync a cPanel (SSH multiplexado)
+    needs: e2e-smoke
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -61,6 +250,7 @@ jobs:
           rsync -rltvz --no-perms --no-owner --no-group \
             --exclude '.git*' \
             --exclude 'uploads/' \
+            --exclude 'temp_orders/' \
             --exclude '*.log' \
             --exclude 'error_log' \
             public_html/ deploy:public_html/

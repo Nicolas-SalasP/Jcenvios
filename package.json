@@ -2,10 +2,14 @@
   "name": "jcenvios-v1",
   "private": true,
   "scripts": {
-    "postinstall": "node scripts/copy-vendor.js"
+    "postinstall": "node scripts/copy-vendor.js",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }
