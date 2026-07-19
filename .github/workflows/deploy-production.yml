@@ -5,6 +5,8 @@ name: Deploy a Producción (cPanel)
 # - Espera APROBACIÓN MANUAL (environment "production" con Required reviewers).
 # - NO usa --delete: nunca borra archivos que existan solo en el servidor.
 # - config.php / vendor / uploads / sessions estan en .gitignore -> no viajan.
+# - migrations/*.sql pendientes se corren solas via remesas_private/scripts/migrate.php
+#   (tabla de control _migrations_applied, cada migración se aplica una sola vez).
 #
 # IMPORTANTE (por que ControlMaster): el hosting cPanel bloquea la IP tras la
 # primera conexion SSH (anti-flood CSF/cPHulk), por eso el 2do rsync daba
@@ -81,10 +83,20 @@ jobs:
         run: |
           ssh deploy 'cd ~/remesas_private && { command -v composer >/dev/null 2>&1 && composer install --no-dev --optimize-autoloader --no-interaction || php composer.phar install --no-dev --optimize-autoloader --no-interaction; }'
 
+      - name: Desplegar migrations/  (para que migrate.php las encuentre)
+        run: |
+          rsync -rltvz --no-perms --no-owner --no-group \
+            --exclude '.git*' \
+            migrations/ deploy:migrations/
+
+      # Corre migrations/*.sql pendientes contra la BD de prod, en orden, cada
+      # una una sola vez (tabla de control _migrations_applied). Usa las
+      # credenciales de remesas_private/config.php ya presentes en el
+      # servidor (no viajan secretos de BD por este pipeline). Si una
+      # migración falla, el step (y el deploy) falla — revisar el log.
+      - name: Correr migraciones de BD pendientes
+        run: ssh deploy 'php ~/remesas_private/scripts/migrate.php'
+
       - name: Cerrar conexion maestra
         if: always()
         run: ssh -O exit deploy 2>/dev/null || true
-
-      # ── MIGRACIONES DE BD: NO se ejecutan automaticamente a proposito ──
-      # Aplica las migraciones nuevas a mano (phpMyAdmin o SSH). Ej.:
-      #   mysql -u USUARIO -p NOMBRE_BD < migrations/003_drop_unused_user_columns.sql
