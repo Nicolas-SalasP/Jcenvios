@@ -353,6 +353,7 @@ try {
         'getHorarioOverrideStatusAdmin' => [AdminController::class, 'getHorarioOverrideStatusAdmin', 'GET'],
         'toggleHorarioOverride' => [AdminController::class, 'toggleHorarioOverride', 'POST'],
         'clearHorarioOverride' => [AdminController::class, 'clearHorarioOverride', 'POST'],
+        'updateMensajeHorario' => [AdminController::class, 'updateMensajeHorario', 'POST'],
 
         // Admin - Tasas
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],

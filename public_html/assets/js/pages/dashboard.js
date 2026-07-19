@@ -86,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allDocumentTypes = [];
     let calculationMode = 'multiply';
     let horarioOverrideActive = null; // null = sin override, true = forzar aviso, false = suprimir aviso
+    let horarioOverrideMensaje = 'Tu orden será procesada en horario laboral. ¿Deseas continuar?'; // editable por el admin
 
     // --- VARIABLES DE CONTROL ---
     let isRiskyRoute = false;
@@ -380,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!checkBusinessHours()) {
-            if (!await confirmActionWithModal('Aviso de Horario', 'Tu orden será procesada en horario laboral. ¿Deseas continuar?')) return;
+            if (!await confirmActionWithModal('Aviso de Horario', horarioOverrideMensaje)) return;
         }
 
         if (isRiskyRoute) {
@@ -1321,6 +1322,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) return;
             const data = await res.json();
             horarioOverrideActive = (typeof data.horario_override === 'boolean') ? data.horario_override : null;
+            if (typeof data.horario_mensaje === 'string' && data.horario_mensaje.trim() !== '') {
+                horarioOverrideMensaje = data.horario_mensaje;
+            }
         } catch (e) {
             // Silencioso: si falla, se sigue usando el último valor conocido (o null).
         }

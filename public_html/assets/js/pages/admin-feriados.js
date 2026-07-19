@@ -247,9 +247,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const horarioSwitch = document.getElementById('horarioOverrideSwitch');
     const horarioExpira = document.getElementById('horarioOverrideExpira');
     const btnLimpiarOverride = document.getElementById('btnLimpiarOverrideHorario');
+    const horarioMensajeInput = document.getElementById('horarioMensajeInput');
+    const btnGuardarMensajeHorario = document.getElementById('btnGuardarMensajeHorario');
 
     const renderHorarioOverride = (status) => {
         if (!horarioBadge || !horarioSwitch) return;
+
+        if (horarioMensajeInput && typeof status.mensaje === 'string' && document.activeElement !== horarioMensajeInput) {
+            horarioMensajeInput.value = status.mensaje;
+        }
 
         horarioSwitch.disabled = false;
 
@@ -334,6 +340,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Error de conexión.');
             } finally {
                 btnLimpiarOverride.disabled = false;
+            }
+        });
+    }
+
+    if (btnGuardarMensajeHorario && horarioMensajeInput) {
+        btnGuardarMensajeHorario.addEventListener('click', async () => {
+            const mensaje = horarioMensajeInput.value.trim();
+            if (!mensaje) {
+                alert('El mensaje no puede estar vacío.');
+                return;
+            }
+            btnGuardarMensajeHorario.disabled = true;
+            try {
+                const res = await fetch('../api/?accion=updateMensajeHorario', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mensaje })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    renderHorarioOverride(data);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error de conexión.');
+            } finally {
+                btnGuardarMensajeHorario.disabled = false;
             }
         });
     }

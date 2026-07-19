@@ -89,6 +89,7 @@ class ClientController extends BaseController
 
             $horarioOverride = $this->settingsService->getHorarioOverrideStatus();
             $response['horario_override'] = $horarioOverride['active'];
+            $response['horario_mensaje'] = $horarioOverride['mensaje'];
 
             $feriado = $this->settingsService->getActiveHoliday();
 

@@ -118,6 +118,22 @@ class AdminController extends BaseController
         }
     }
 
+    public function updateMensajeHorario(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int)$_SESSION['user_id'];
+
+        $data = $this->getJsonInput();
+        $mensaje = (string)($data['mensaje'] ?? '');
+
+        try {
+            $status = $this->settingsService->updateMensajeHorario($adminId, $mensaje);
+            $this->sendJsonResponse(['success' => true] + $status);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
     public function addHoliday(): void
     {
         $this->ensureLoggedIn();

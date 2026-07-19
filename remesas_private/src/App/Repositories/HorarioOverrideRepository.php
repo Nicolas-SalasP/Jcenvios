@@ -14,7 +14,7 @@ class HorarioOverrideRepository
 
     public function getStatus(): ?array
     {
-        $sql = "SELECT Activo, ForzadoPor, FechaActivacion, ExpiraEn FROM horario_override WHERE Id = 1 LIMIT 1";
+        $sql = "SELECT Activo, ForzadoPor, FechaActivacion, ExpiraEn, Mensaje FROM horario_override WHERE Id = 1 LIMIT 1";
         $stmt = $this->db->prepare($sql);
         if (!$stmt) {
             error_log("Error DB en HorarioOverrideRepository::getStatus - Posiblemente la tabla no existe.");
@@ -49,11 +49,27 @@ class HorarioOverrideRepository
 
     public function clear(): bool
     {
+        // No toca Mensaje: el texto del aviso lo edita el admin aparte y no
+        // debe borrarse al volver el horario a modo automático.
         $sql = "UPDATE horario_override SET Activo = 0, ForzadoPor = NULL, FechaActivacion = NULL, ExpiraEn = NULL WHERE Id = 1";
         $stmt = $this->db->prepare($sql);
         if (!$stmt) {
             return false;
         }
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
+    }
+
+    public function updateMensaje(string $mensaje): bool
+    {
+        $sql = "INSERT INTO horario_override (Id, Activo, Mensaje) VALUES (1, 0, ?)
+                ON DUPLICATE KEY UPDATE Mensaje = VALUES(Mensaje)";
+        $stmt = $this->db->prepare($sql);
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param("s", $mensaje);
         $res = $stmt->execute();
         $stmt->close();
         return $res;

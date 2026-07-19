@@ -17,6 +17,7 @@ class SystemSettingsService
     private LogService $logService;
 
     private const TZ = 'America/Santiago';
+    private const DEFAULT_MENSAJE_HORARIO = 'Tu orden será procesada en horario laboral. ¿Deseas continuar?';
 
     public function __construct(
         SystemSettingsRepository $settingsRepo,
@@ -194,15 +195,19 @@ class SystemSettingsService
     {
         $row = $this->horarioOverrideRepo->getStatus();
 
+        // El mensaje lo edita el admin aparte y no expira con el override
+        // (Activo/ExpiraEn) — se devuelve siempre, sin importar el estado.
+        $mensaje = ($row && !empty($row['Mensaje'])) ? $row['Mensaje'] : self::DEFAULT_MENSAJE_HORARIO;
+
         if (!$row || $row['ExpiraEn'] === null) {
-            return ['active' => null];
+            return ['active' => null, 'mensaje' => $mensaje];
         }
 
         $now = new DateTime('now', new DateTimeZone(self::TZ));
         $expiraEn = DateTime::createFromFormat('Y-m-d H:i:s', $row['ExpiraEn'], new DateTimeZone(self::TZ));
 
         if (!$expiraEn || $now >= $expiraEn) {
-            return ['active' => null];
+            return ['active' => null, 'mensaje' => $mensaje];
         }
 
         return [
@@ -210,6 +215,31 @@ class SystemSettingsService
             'forzado_por' => $row['ForzadoPor'] !== null ? (int)$row['ForzadoPor'] : null,
             'fecha_activacion' => $row['FechaActivacion'],
             'expira_en' => $row['ExpiraEn'],
+            'mensaje' => $mensaje,
         ];
+    }
+
+    /**
+     * Actualiza el texto del aviso de horario que ve el cliente al crear una
+     * orden fuera de horario. Editable en cualquier momento, sin relación
+     * con el estado del override (Activo/ExpiraEn).
+     */
+    public function updateMensajeHorario(int $adminId, string $mensaje): array
+    {
+        $mensaje = trim($mensaje);
+        if ($mensaje === '') {
+            throw new Exception("El mensaje no puede estar vacío.");
+        }
+        if (mb_strlen($mensaje) > 500) {
+            throw new Exception("El mensaje no puede superar los 500 caracteres.");
+        }
+
+        if (!$this->horarioOverrideRepo->updateMensaje($mensaje)) {
+            throw new Exception("Error al guardar el mensaje en la base de datos.");
+        }
+
+        $this->logService->logAction($adminId, "Modificó Override de Horario", "Actualizó el mensaje del aviso: \"$mensaje\"");
+
+        return $this->getHorarioOverrideStatus();
     }
 }

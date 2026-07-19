@@ -51,6 +51,16 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         </button>
                     </div>
                     <small class="text-muted d-block mt-2" id="horarioOverrideExpira"></small>
+
+                    <hr class="my-3">
+                    <label for="horarioMensajeInput" class="form-label small fw-bold mb-1">Mensaje del aviso</label>
+                    <p class="small text-muted mb-2">Texto que ve el cliente al crear una orden fuera de horario.</p>
+                    <textarea class="form-control form-control-sm mb-2" id="horarioMensajeInput" rows="3" maxlength="500"></textarea>
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-primary btn-sm" id="btnGuardarMensajeHorario">
+                            <i class="bi bi-save me-1"></i> Guardar mensaje
+                        </button>
+                    </div>
                 </div>
             </div>
 
