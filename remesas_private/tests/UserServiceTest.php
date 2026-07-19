@@ -645,4 +645,321 @@ class UserServiceTest extends TestCase
 
         $service->adminUpdateUserData(1, ['userId' => 10, 'primerNombre' => 'Juan']);
     }
+
+    // --- updateUserProfile ---
+
+    public function testUpdateUserProfileSinFotoNuevaMantieneLaActual()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn([
+            'UserID' => 10,
+            'Telefono' => '+56911111111',
+            'FotoPerfilURL' => 'profile_pics/foto_vieja.jpg',
+        ]);
+        $userRepo->expects($this->never())->method('updateProfileInfo');
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $result = $service->updateUserProfile(10, [], null);
+
+        $this->assertEquals('profile_pics/foto_vieja.jpg', $result['fotoPerfilUrl']);
+    }
+
+    public function testUpdateUserProfileConFotoNuevaActualiza()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn([
+            'UserID' => 10,
+            'Telefono' => '+56911111111',
+            'FotoPerfilURL' => 'profile_pics/foto_vieja.jpg',
+        ]);
+        $userRepo->expects($this->once())->method('updateProfileInfo');
+
+        $fileHandler = $this->createMock(FileHandlerService::class);
+        $fileHandler->method('saveProfilePicture')->willReturn('profile_pics/foto_nueva.jpg');
+
+        $service = $this->buildService(['userRepo' => $userRepo, 'fileHandler' => $fileHandler]);
+
+        $result = $service->updateUserProfile(10, [], ['error' => UPLOAD_ERR_OK, 'tmp_name' => '/tmp/x']);
+
+        $this->assertEquals('profile_pics/foto_nueva.jpg', $result['fotoPerfilUrl']);
+    }
+
+    // --- processVerificationRequest ---
+
+    public function testProcessVerificationRequestFallaSiFaltanDocumentos()
+    {
+        $service = $this->buildService();
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("ambos lados del documento");
+
+        $service->processVerificationRequest(10, [], ['selfie' => ['error' => UPLOAD_ERR_OK]]);
+    }
+
+    public function testProcessVerificationRequestFallaSiFaltaSelfie()
+    {
+        $service = $this->buildService();
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("selfie en vivo es obligatoria");
+
+        $service->processVerificationRequest(10, [], [
+            'docFrente' => ['error' => UPLOAD_ERR_OK],
+            'docReverso' => ['error' => UPLOAD_ERR_OK],
+        ]);
+    }
+
+    public function testProcessVerificationRequestExitoso()
+    {
+        $estadoRepo = $this->createMock(EstadoVerificacionRepository::class);
+        $estadoRepo->method('findIdByName')->willReturn(2);
+
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn(['UserID' => 10, 'Telefono' => '+56911111111']);
+        $userRepo->method('updateVerificationDocuments')->willReturn(true);
+
+        $fileHandler = $this->createMock(FileHandlerService::class);
+        $fileHandler->method('saveProfilePicture')->willReturn('profile_pics/selfie.jpg');
+        $fileHandler->method('saveVerificationFile')->willReturn('verifications/doc.jpg');
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('logAdminAction');
+
+        $service = $this->buildService([
+            'estadoRepo' => $estadoRepo,
+            'userRepo' => $userRepo,
+            'fileHandler' => $fileHandler,
+            'notifService' => $notifService,
+        ]);
+
+        $service->processVerificationRequest(10, [], [
+            'docFrente' => ['error' => UPLOAD_ERR_OK],
+            'docReverso' => ['error' => UPLOAD_ERR_OK],
+            'selfie' => ['error' => UPLOAD_ERR_OK],
+        ]);
+        $this->assertTrue(true);
+    }
+
+    // --- generateAndSend2FACode ---
+
+    public function testGenerateAndSend2FACodeFallaSiConfigNoExiste()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('get2FAConfig')->willReturn(null);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->assertFalse($service->generateAndSend2FACode(10));
+    }
+
+    public function testGenerateAndSend2FACodeUsaSmsSiMetodoEsSms()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('get2FAConfig')->willReturn(['twofa_method' => 'sms', 'Telefono' => '+56900000000']);
+        $userRepo->method('saveTemp2FACode')->willReturn(true);
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('send2FACodeTwilio')
+            ->with('+56900000000', $this->anything(), 'sms')
+            ->willReturn(true);
+
+        $service = $this->buildService(['userRepo' => $userRepo, 'notifService' => $notifService]);
+
+        $this->assertTrue($service->generateAndSend2FACode(10));
+    }
+
+    public function testGenerateAndSend2FACodeUsaEmailPorDefecto()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('get2FAConfig')->willReturn(['Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $userRepo->method('saveTemp2FACode')->willReturn(true);
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('send2FACodeEmail')->willReturn(true);
+
+        $service = $this->buildService(['userRepo' => $userRepo, 'notifService' => $notifService]);
+
+        $this->assertTrue($service->generateAndSend2FACode(10));
+    }
+
+    public function testGenerateAndSend2FACodeFallaSiNoGuardaCodigo()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('get2FAConfig')->willReturn(['Email' => 'a@a.com']);
+        $userRepo->method('saveTemp2FACode')->willReturn(false);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->assertFalse($service->generateAndSend2FACode(10));
+    }
+
+    // --- verifyTemp2FACode ---
+
+    public function testVerifyTemp2FACodeValido()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('verifyAndClearTempCode')->willReturn(true);
+
+        $logService = $this->createMock(LogService::class);
+        $logService->expects($this->once())->method('logAction');
+
+        $service = $this->buildService(['userRepo' => $userRepo, 'logService' => $logService]);
+
+        $this->assertTrue($service->verifyTemp2FACode(10, '123456'));
+    }
+
+    public function testVerifyTemp2FACodeInvalido()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('verifyAndClearTempCode')->willReturn(false);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->assertFalse($service->verifyTemp2FACode(10, '000000'));
+    }
+
+    // --- verifyAndEnable2FA / verifyUser2FACode ---
+
+    public function testVerifyAndEnable2FAFallaSiNoHaySecreto()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('get2FASecret')->willReturn(null);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("No se encontró secreto 2FA");
+
+        $service->verifyAndEnable2FA(10, '123456');
+    }
+
+    public function testVerifyUser2FACodeFalseSiNoHaySecreto()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('get2FASecret')->willReturn(null);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->assertFalse($service->verifyUser2FACode(10, '123456'));
+    }
+
+    // --- getReferidoPor ---
+
+    public function testGetReferidoPorRetornaLoDelRepo()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('getReferidoPor')->willReturn(55);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->assertEquals(55, $service->getReferidoPor(10));
+    }
+
+    // --- requestPasswordReset ---
+
+    public function testRequestPasswordResetNoHaceNadaSiUsuarioNoExiste()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findByEmail')->willReturn(null);
+        $userRepo->expects($this->never())->method('createResetToken');
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->never())->method('sendPasswordResetEmail');
+
+        $service = $this->buildService(['userRepo' => $userRepo, 'notifService' => $notifService]);
+
+        $service->requestPasswordReset('noexiste@test.com');
+        $this->assertTrue(true);
+    }
+
+    public function testRequestPasswordResetEnviaEmailSiUsuarioExiste()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findByEmail')->willReturn(['UserID' => 10]);
+        $userRepo->method('createResetToken')->willReturn(true);
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->once())->method('sendPasswordResetEmail');
+
+        $service = $this->buildService(['userRepo' => $userRepo, 'notifService' => $notifService]);
+
+        $service->requestPasswordReset('existe@test.com');
+        $this->assertTrue(true);
+    }
+
+    // --- updateProfilePicPath / updateVerificationDocPath ---
+
+    public function testUpdateProfilePicPathFallaSiUsuarioNoExiste()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn(null);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Usuario no encontrado");
+
+        $service->updateProfilePicPath(999, 'profile_pics/nueva.jpg');
+    }
+
+    public function testUpdateProfilePicPathExitoso()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn(['UserID' => 10, 'Telefono' => '+56900000000']);
+        $userRepo->method('updateProfileInfo')->willReturn(true);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $service->updateProfilePicPath(10, 'profile_pics/nueva.jpg');
+        $this->assertTrue(true);
+    }
+
+    public function testUpdateVerificationDocPathFallaSiUsuarioNoExiste()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn(null);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Usuario no encontrado");
+
+        $service->updateVerificationDocPath(999, 'frente', 'verifications/doc.jpg');
+    }
+
+    public function testUpdateVerificationDocPathFallaSiTipoDesconocido()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn([
+            'UserID' => 10,
+            'DocumentoImagenURL_Frente' => '',
+            'DocumentoImagenURL_Reverso' => '',
+            'VerificacionEstadoID' => 1,
+        ]);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Tipo de documento desconocido");
+
+        $service->updateVerificationDocPath(10, 'lateral', 'verifications/doc.jpg');
+    }
+
+    public function testUpdateVerificationDocPathExitoso()
+    {
+        $userRepo = $this->createMock(UserRepository::class);
+        $userRepo->method('findUserById')->willReturn([
+            'UserID' => 10,
+            'DocumentoImagenURL_Frente' => '',
+            'DocumentoImagenURL_Reverso' => '',
+            'VerificacionEstadoID' => 1,
+        ]);
+        $userRepo->method('updateVerificationDocuments')->willReturn(true);
+
+        $service = $this->buildService(['userRepo' => $userRepo]);
+
+        $service->updateVerificationDocPath(10, 'frente', 'verifications/doc.jpg');
+        $this->assertTrue(true);
+    }
 }

@@ -108,4 +108,38 @@ class ContabilidadTest extends TestCase
 
         $service->registrarGasto(3, 200000, 0, 1, 100);
     }
+
+    public function testAgregarFondosBancoFallaSiMontoNoPositivo()
+    {
+        $contabRepo = $this->createMock(ContabilidadRepository::class);
+        $countryRepo = $this->createMock(CountryRepository::class);
+        $logService = $this->createMock(LogService::class);
+        $db = $this->createMock(Database::class);
+        $mysqli = $this->createMock(mysqli::class);
+        $db->method('getConnection')->willReturn($mysqli);
+
+        $service = new ContabilidadService($contabRepo, $countryRepo, $logService, $db);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("El monto debe ser positivo");
+
+        $service->agregarFondosBanco(1, 0, 1);
+    }
+
+    public function testRegistrarRetiroBancoFallaSiMontoNoPositivo()
+    {
+        $contabRepo = $this->createMock(ContabilidadRepository::class);
+        $countryRepo = $this->createMock(CountryRepository::class);
+        $logService = $this->createMock(LogService::class);
+        $db = $this->createMock(Database::class);
+        $mysqli = $this->createMock(mysqli::class);
+        $db->method('getConnection')->willReturn($mysqli);
+
+        $service = new ContabilidadService($contabRepo, $countryRepo, $logService, $db);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("El monto debe ser positivo");
+
+        $service->registrarRetiroBanco(1, -50, 'motivo', 1);
+    }
 }
