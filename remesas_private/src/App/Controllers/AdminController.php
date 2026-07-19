@@ -960,7 +960,7 @@ class AdminController extends BaseController
             }
             $ext = $mimeToExt[$realMime];
             $filename = 'liquidacion_' . $liqId . '_' . time() . '.' . $ext;
-            $dest = __DIR__ . '/../../../../uploads/liquidaciones/' . $filename;
+            $dest = __DIR__ . '/../../../uploads/liquidaciones/' . $filename;
             if (!is_dir(dirname($dest))) {
                 mkdir(dirname($dest), 0755, true);
             }
