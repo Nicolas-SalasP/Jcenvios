@@ -3,12 +3,20 @@ require_once __DIR__ . '/../remesas_private/src/core/init.php';
 
 use App\Database\Database;
 
-$db = Database::getInstance();
-$stmt = $db->prepare("SELECT Contenido, FechaActualizacion FROM normas WHERE Id = 1 LIMIT 1");
-$stmt->execute();
-$result = $stmt->get_result();
-$row = $result ? $result->fetch_assoc() : null;
-$stmt->close();
+// Si falta correr las migraciones (tabla inexistente) u otro error de BD,
+// no debe explotar en blanco antes de imprimir el HTML: se degrada a
+// "Próximamente" en vez de dejar la página vacía.
+$row = null;
+try {
+    $db = Database::getInstance();
+    $stmt = $db->prepare("SELECT Contenido, FechaActualizacion FROM normas WHERE Id = 1 LIMIT 1");
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+} catch (\Throwable $e) {
+    error_log('normas.php: ' . $e->getMessage());
+}
 
 $contenido = $row['Contenido'] ?? '';
 $fechaActualizacion = $row['FechaActualizacion'] ?? null;

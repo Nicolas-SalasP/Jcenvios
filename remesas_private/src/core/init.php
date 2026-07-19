@@ -167,11 +167,13 @@ $container = new class($conexion) {
                 $countryRepo  = new \App\Repositories\CountryRepository($db);
                 $settingsRepo = new \App\Repositories\SystemSettingsRepository($db);
                 $holidayRepo  = new \App\Repositories\HolidayRepository($db);
+                $horarioOverrideRepo = new \App\Repositories\HorarioOverrideRepository($db);
                 $logService   = new \App\Services\LogService($db);
                 $notifService = new \App\Services\NotificationService($logService);
                 $systemService = new \App\Services\SystemSettingsService(
                     $settingsRepo,
                     $holidayRepo,
+                    $horarioOverrideRepo,
                     $logService
                 );
                 return new \App\Services\PricingService(
