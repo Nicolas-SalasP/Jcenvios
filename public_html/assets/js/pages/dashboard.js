@@ -1155,6 +1155,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const isBank = (checkBank && checkBank.checked);
             const isMobile = (checkMobile && checkMobile.checked);
 
+            // El backend exige 'nombreBanco' para cualquier país (validateCommonFields en
+            // CuentasBeneficiariasService), pero el input no tiene "required" en el HTML.
+            // Sin este chequeo, el usuario podía dejarlo vacío y el submit fallaba recién
+            // en el servidor con un 400 poco claro (visto repetido en el error_log real).
+            const nombreBancoActual = (paisId === C_PERU || paisId === C_COLOMBIA)
+                ? (benefBankSelect && benefBankSelect.value === 'Otro Banco' && inputOtherBank
+                    ? inputOtherBank.value.trim()
+                    : (benefBankSelect ? benefBankSelect.value : ''))
+                : (inputBankName ? inputBankName.value.trim() : '');
+            if (!nombreBancoActual) {
+                window.showInfoModal('Error', 'El nombre del banco es obligatorio.', false);
+                if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                return;
+            }
+
             if (isBank) {
                 if (paisId === C_VENEZUELA) {
                     if (accNum.length !== 20) {

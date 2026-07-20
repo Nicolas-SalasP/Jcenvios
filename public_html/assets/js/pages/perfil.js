@@ -493,6 +493,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const acc = fd.get('numeroCuenta');
         const phone = fd.get('phoneNumber');
 
+        // El backend exige 'nombreBanco' para cualquier país (validateCommonFields en
+        // CuentasBeneficiariasService), pero el input no tiene "required" en el HTML.
+        // Sin este chequeo, el submit fallaba recién en el servidor con un 400 poco
+        // claro (visto repetido en el error_log real).
+        if (!banco || !banco.trim()) {
+            window.showInfoModal('Error', 'El nombre del banco es obligatorio.', false);
+            btn.disabled = false; btn.textContent = txt; return;
+        }
+
         let isCta = false;
         let isMov = false;
 
