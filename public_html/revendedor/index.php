@@ -23,9 +23,14 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <h1 class="mb-0 fw-bold">Panel de Revendedor</h1>
             <p class="text-muted mb-0">Bienvenido, <?php echo htmlspecialchars($_SESSION['user_name'] ?? ''); ?></p>
         </div>
-        <a href="<?php echo BASE_URL; ?>/dashboard/index.php" class="btn btn-primary">
-            <i class="bi bi-send-fill me-1"></i> Nuevo Envío
-        </a>
+        <div class="d-flex gap-2">
+            <a href="cuentas.php" class="btn btn-outline-primary">
+                <i class="bi bi-bank me-1"></i> Mis cuentas y referidos
+            </a>
+            <a href="<?php echo BASE_URL; ?>/dashboard/index.php" class="btn btn-primary">
+                <i class="bi bi-send-fill me-1"></i> Nuevo Envío
+            </a>
+        </div>
     </div>
 
     <!-- Tarjetas resumen -->

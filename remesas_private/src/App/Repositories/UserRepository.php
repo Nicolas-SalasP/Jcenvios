@@ -543,4 +543,67 @@ class UserRepository
         $stmt->close();
         return $success;
     }
+
+    // ─── CÓDIGO DE REFERIDO ──────────────────────────────────────────────────
+
+    public function getReferralCode(int $userId): ?string
+    {
+        $stmt = $this->db->prepare("SELECT CodigoReferido FROM usuarios WHERE UserID = ?");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row['CodigoReferido'] ?? null;
+    }
+
+    public function codeExists(string $code): bool
+    {
+        $stmt = $this->db->prepare("SELECT UserID FROM usuarios WHERE CodigoReferido = ?");
+        $stmt->bind_param("s", $code);
+        $stmt->execute();
+        $exists = $stmt->get_result()->fetch_assoc() !== null;
+        $stmt->close();
+        return $exists;
+    }
+
+    public function setReferralCode(int $userId, string $code): bool
+    {
+        $stmt = $this->db->prepare("UPDATE usuarios SET CodigoReferido = ? WHERE UserID = ? AND RolID = 4");
+        $stmt->bind_param("si", $code, $userId);
+        $ok = $stmt->execute() && $stmt->affected_rows > 0;
+        $stmt->close();
+        return $ok;
+    }
+
+    /**
+     * Busca el UserID del revendedor dueño de un código de referido (case-insensitive).
+     */
+    public function findResellerIdByCode(string $code): ?int
+    {
+        $stmt = $this->db->prepare("SELECT UserID FROM usuarios WHERE CodigoReferido = ? AND RolID = 4 AND Eliminado = 0 LIMIT 1");
+        $stmt->bind_param("s", $code);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ? (int) $row['UserID'] : null;
+    }
+
+    public function setReferidoPor(int $userId, int $referrerId): bool
+    {
+        $stmt = $this->db->prepare("UPDATE usuarios SET ReferidoPor = ? WHERE UserID = ?");
+        $stmt->bind_param("ii", $referrerId, $userId);
+        $ok = $stmt->execute();
+        $stmt->close();
+        return $ok;
+    }
+
+    public function getReferidoPor(int $userId): ?int
+    {
+        $stmt = $this->db->prepare("SELECT ReferidoPor FROM usuarios WHERE UserID = ?");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return isset($row['ReferidoPor']) && $row['ReferidoPor'] !== null ? (int) $row['ReferidoPor'] : null;
+    }
 }

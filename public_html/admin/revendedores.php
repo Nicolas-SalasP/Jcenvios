@@ -28,6 +28,28 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </button>
     </div>
 
+    <!-- Config global de referidos -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                    <h6 class="fw-bold mb-1"><i class="bi bi-link-45deg text-primary me-1"></i> Vinculación de clientes por código de referido</h6>
+                    <p class="text-muted small mb-0">Activa una o ambas formas para que los clientes nuevos queden vinculados a un revendedor.</p>
+                </div>
+                <div class="d-flex gap-4">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="toggle-referido-manual">
+                        <label class="form-check-label small fw-semibold" for="toggle-referido-manual">Forma 1: Código manual</label>
+                    </div>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="toggle-referido-link">
+                        <label class="form-check-label small fw-semibold" for="toggle-referido-link">Forma 2: Link automático (?ref=)</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Barra de búsqueda -->
     <div class="card border-0 shadow-sm mb-3 bg-light">
         <div class="card-body py-2">
@@ -277,6 +299,31 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <button type="button" class="btn btn-primary" id="btnSavePaises">
                     <i class="bi bi-save me-1"></i> Guardar configuración
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Límite de cuentas bancarias -->
+<div class="modal fade" id="limiteCuentasModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">Límite de cuentas bancarias</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="limite-user-id">
+                <p class="text-muted mb-2">Revendedor: <strong id="limite-user-nombre"></strong></p>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Máximo de cuentas que puede registrar</label>
+                    <input type="number" id="limite-cuentas-input" class="form-control" min="0" max="50" step="1">
+                </div>
+                <p class="text-muted small mb-0" id="limite-actual-info"></p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSaveLimiteCuentas">Guardar</button>
             </div>
         </div>
     </div>

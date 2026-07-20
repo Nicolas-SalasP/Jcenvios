@@ -32,6 +32,39 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFieldVisibility('toggle-segundo-nombre', 'container-segundo-nombre', 'register-segundo-nombre');
     setupFieldVisibility('toggle-segundo-apellido', 'container-segundo-apellido', 'register-segundo-apellido');
 
+    // Código de referido: forma 1 (manual) y forma 2 (link ?ref=), activables
+    // independientemente por el admin. Se detecta el query param y, si la forma
+    // link está activa, se precompleta el código y se muestra el tab de registro.
+    (async () => {
+        const container = document.getElementById('container-codigo-referido');
+        const input = document.getElementById('register-codigo-referido');
+        if (!container || !input) return;
+
+        const params = new URLSearchParams(window.location.search);
+        const refCode = params.get('ref');
+
+        try {
+            const res = await fetch('api/?accion=getReferralSettingsPublic');
+            const data = await res.json();
+            const manualActiva = data.success ? data.formaManualActiva : true;
+            const linkActiva = data.success ? data.formaLinkActiva : true;
+
+            if (manualActiva) {
+                container.classList.remove('d-none');
+            }
+            if (linkActiva && refCode) {
+                input.value = refCode.toUpperCase();
+                container.classList.remove('d-none');
+                const registerTab = document.getElementById('register-tab');
+                if (registerTab) {
+                    new bootstrap.Tab(registerTab).show();
+                }
+            }
+        } catch (e) {
+            console.error('No se pudo cargar la configuración de referidos:', e);
+        }
+    })();
+
     const countryPhoneCodes = [
         { code: '+49', name: 'Alemania', flag: '🇩🇪' },
         { code: '+54', name: 'Argentina', flag: '🇦🇷' },

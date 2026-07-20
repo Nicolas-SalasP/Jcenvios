@@ -361,6 +361,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (estadoId === 1) {
                 btns += `<button class="btn btn-sm btn-outline-danger cancel-btn" data-tx-id="${tx.TransaccionID}" title="Cancelar Orden"><i class="bi bi-x-circle"></i> Cancelar</button>`;
+
+                const extensionesUsadas = parseInt(tx.ExtensionesPlazoUsadas || 0);
+                if (extensionesUsadas < 2) {
+                    btns += ` <button class="btn btn-sm btn-outline-success extend-deadline-btn" data-tx-id="${tx.TransaccionID}" title="Confirmar que vas a pagar y obtener 4 horas más de plazo"><i class="bi bi-clock-history"></i> Sí, voy a pagar</button>`;
+                }
             }
             if (!tx.ComprobanteURL && estadoId === 1) {
                 btns += ` <button class="btn btn-sm btn-warning upload-btn" data-id="${tx.TransaccionID}" data-moneda-origen="${tx.MonedaOrigen || ''}" title="Subir Comprobante"><i class="bi bi-upload"></i> Subir Pago</button>`;
@@ -815,6 +820,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.success) window.showInfoModal('Cancelada', 'Orden cancelada.', true, loadHistorial);
                 else throw new Error(result.error);
             } catch (err) { alert(err.message || 'Error conexión'); }
+        }
+    });
+
+    // --- EXTENDER PLAZO DE PAGO ("Sí, voy a pagar") ---
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.extend-deadline-btn');
+        if (!btn) return;
+        const txId = btn.getAttribute('data-tx-id');
+        if (await window.showConfirmModal('Extender plazo', `¿Confirmas que vas a pagar la orden #${txId}? Tendrás 4 horas más para subir el comprobante.`)) {
+            try {
+                const res = await fetch('../api/?accion=extendPaymentDeadline', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactionId: txId })
+                });
+                const result = await res.json();
+                if (result.success) window.showInfoModal('Plazo extendido', result.message || 'Tienes 4 horas más para pagar.', true, loadHistorial);
+                else throw new Error(result.error);
+            } catch (err) { alert(err.message || 'Error de conexión'); }
         }
     });
 

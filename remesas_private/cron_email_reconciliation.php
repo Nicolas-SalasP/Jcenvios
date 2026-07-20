@@ -15,6 +15,7 @@ use App\Repositories\FormaPagoRepository;
 use App\Repositories\CuentasBeneficiariasRepository;
 use App\Repositories\CuentasAdminRepository;
 use App\Repositories\RateRepository;
+use App\Repositories\ResellerAccountsRepository;
 use App\Repositories\ContabilidadRepository;
 use App\Repositories\CountryRepository;
 use App\Services\LogService;
@@ -57,7 +58,8 @@ try {
             $contabilidadService,
             new CuentasBeneficiariasRepository($db),
             new CuentasAdminRepository($db),
-            new RateRepository($db)
+            new RateRepository($db),
+            new ResellerAccountsRepository($db)
         );
     } catch (\Throwable $e) {
         error_log("CRON RECON: no se pudo construir TransactionService, degradando a modo sugerir: " . $e->getMessage());

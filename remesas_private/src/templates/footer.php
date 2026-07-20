@@ -1,7 +1,7 @@
 <?php ?>
 </main> <?php ?>
 
-<footer class="main-footer bg-dark text-white pt-3 pb-1 mt-auto mt-5">
+<footer class="main-footer bg-dark text-white pt-5 pb-1 mt-auto">
   <div class="container text-center text-md-start">
     <div class="row">
       <div class="col-md-3 col-lg-4 col-xl-3 mx-auto mb-4">

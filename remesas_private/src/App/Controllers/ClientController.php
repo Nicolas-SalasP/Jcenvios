@@ -14,6 +14,8 @@ use App\Services\NotificationService;
 use App\Services\BeneficiaryAuditService;
 use App\Repositories\TransactionRepository;
 use App\Repositories\LiquidacionRepository;
+use App\Repositories\ResellerAccountsRepository;
+use App\Repositories\ReferralConfigRepository;
 use Exception;
 
 class ClientController extends BaseController
@@ -31,6 +33,8 @@ class ClientController extends BaseController
     private BeneficiaryAuditService $auditService;
     private TransactionRepository $txRepository;
     private LiquidacionRepository $liquidacionRepo;
+    private ResellerAccountsRepository $resellerAccountsRepo;
+    private ReferralConfigRepository $referralConfigRepo;
 
     public function __construct(
         TransactionService $txService,
@@ -45,7 +49,9 @@ class ClientController extends BaseController
         SystemSettingsService $settingsService,
         BeneficiaryAuditService $auditService,
         TransactionRepository $txRepository,
-        LiquidacionRepository $liquidacionRepo
+        LiquidacionRepository $liquidacionRepo,
+        ResellerAccountsRepository $resellerAccountsRepo,
+        ReferralConfigRepository $referralConfigRepo
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -60,6 +66,8 @@ class ClientController extends BaseController
         $this->auditService = $auditService;
         $this->txRepository = $txRepository;
         $this->liquidacionRepo = $liquidacionRepo;
+        $this->resellerAccountsRepo = $resellerAccountsRepo;
+        $this->referralConfigRepo = $referralConfigRepo;
     }
 
     // --- CHECKEO DE SISTEMA---
@@ -78,6 +86,10 @@ class ClientController extends BaseController
                 'logged_in'  => $loggedIn,
                 'is_staff'   => $loggedIn && $isStaff,
             ];
+
+            $horarioOverride = $this->settingsService->getHorarioOverrideStatus();
+            $response['horario_override'] = $horarioOverride['active'];
+            $response['horario_mensaje'] = $horarioOverride['mensaje'];
 
             $feriado = $this->settingsService->getActiveHoliday();
 
@@ -284,6 +296,24 @@ class ClientController extends BaseController
         $data = $this->getJsonInput();
         $this->txService->cancelTransaction($data['transactionId'] ?? 0, $userId);
         $this->sendJsonResponse(['success' => true]);
+    }
+
+    public function extendPaymentDeadline(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        $data = $this->getJsonInput();
+        $txId = (int) ($data['transactionId'] ?? 0);
+
+        try {
+            $result = $this->txService->extendPaymentDeadline($txId, $userId);
+            $this->sendJsonResponse([
+                'success' => true,
+                'message' => 'Plazo de pago extendido por 4 horas más.',
+                'extensionesUsadas' => $result['extensionesUsadas'],
+            ]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
+        }
     }
 
     public function uploadReceipt(): void
@@ -842,5 +872,137 @@ class ClientController extends BaseController
             'pagado'       => $pagado,
             'liquidaciones' => $liquidaciones,
         ]);
+    }
+
+    // ─── CUENTAS BANCARIAS PROPIAS DEL REVENDEDOR ───────────────────────────
+
+    public function getResellerAccounts(): void
+    {
+        $userId = $this->ensureReseller();
+        $cuentas = $this->resellerAccountsRepo->getAllByUser($userId);
+        $max = $this->resellerAccountsRepo->getMaxCuentas($userId);
+        $this->sendJsonResponse(['success' => true, 'data' => $cuentas, 'max' => $max]);
+    }
+
+    public function addResellerAccount(): void
+    {
+        $userId = $this->ensureReseller();
+        $data = $this->getJsonInput();
+
+        $banco = trim($data['banco'] ?? '');
+        $tipoCuenta = trim($data['tipoCuenta'] ?? '');
+        $numeroCuenta = trim($data['numeroCuenta'] ?? '');
+        $titularNombre = trim($data['titularNombre'] ?? '');
+        $titularDocumento = trim($data['titularDocumento'] ?? '');
+        $instrucciones = trim($data['instrucciones'] ?? '') ?: null;
+
+        if ($banco === '' || $tipoCuenta === '' || $numeroCuenta === '' || $titularNombre === '' || $titularDocumento === '') {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Todos los campos son obligatorios (excepto instrucciones).'], 400);
+            return;
+        }
+
+        $max = $this->resellerAccountsRepo->getMaxCuentas($userId);
+        $actual = $this->resellerAccountsRepo->countByUser($userId);
+        if ($actual >= $max) {
+            $this->sendJsonResponse(['success' => false, 'error' => "Alcanzaste el límite de {$max} cuentas bancarias."], 422);
+            return;
+        }
+
+        $cuentaId = $this->resellerAccountsRepo->create($userId, $banco, $tipoCuenta, $numeroCuenta, $titularNombre, $titularDocumento, $instrucciones);
+        $this->sendJsonResponse(['success' => true, 'cuentaId' => $cuentaId]);
+    }
+
+    public function updateResellerAccount(): void
+    {
+        $userId = $this->ensureReseller();
+        $data = $this->getJsonInput();
+        $cuentaId = (int) ($data['cuentaId'] ?? 0);
+
+        $banco = trim($data['banco'] ?? '');
+        $tipoCuenta = trim($data['tipoCuenta'] ?? '');
+        $numeroCuenta = trim($data['numeroCuenta'] ?? '');
+        $titularNombre = trim($data['titularNombre'] ?? '');
+        $titularDocumento = trim($data['titularDocumento'] ?? '');
+        $instrucciones = trim($data['instrucciones'] ?? '') ?: null;
+
+        if (!$cuentaId || $banco === '' || $tipoCuenta === '' || $numeroCuenta === '' || $titularNombre === '' || $titularDocumento === '') {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
+            return;
+        }
+
+        $ok = $this->resellerAccountsRepo->update($cuentaId, $userId, $banco, $tipoCuenta, $numeroCuenta, $titularNombre, $titularDocumento, $instrucciones);
+        if (!$ok) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Cuenta no encontrada o no te pertenece.'], 404);
+            return;
+        }
+        $this->sendJsonResponse(['success' => true]);
+    }
+
+    public function toggleResellerAccount(): void
+    {
+        $userId = $this->ensureReseller();
+        $data = $this->getJsonInput();
+        $cuentaId = (int) ($data['cuentaId'] ?? 0);
+        $activo = (bool) ($data['activo'] ?? false);
+
+        if (!$cuentaId) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'ID inválido.'], 400);
+            return;
+        }
+
+        $ok = $this->resellerAccountsRepo->setActive($cuentaId, $userId, $activo);
+        $this->sendJsonResponse(['success' => $ok]);
+    }
+
+    public function deleteResellerAccount(): void
+    {
+        $userId = $this->ensureReseller();
+        $data = $this->getJsonInput();
+        $cuentaId = (int) ($data['cuentaId'] ?? 0);
+
+        if (!$cuentaId) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'ID inválido.'], 400);
+            return;
+        }
+
+        $ok = $this->resellerAccountsRepo->delete($cuentaId, $userId);
+        $this->sendJsonResponse(['success' => $ok]);
+    }
+
+    // ─── CÓDIGO DE REFERIDO DEL REVENDEDOR ──────────────────────────────────
+
+    public function getResellerReferralCode(): void
+    {
+        $userId = $this->ensureReseller();
+        $code = $this->userService->getOrCreateReferralCode($userId);
+        $this->sendJsonResponse(['success' => true, 'codigo' => $code]);
+    }
+
+    // ─── CONFIG PÚBLICA DE REFERIDOS (para el formulario de registro) ──────
+
+    public function getReferralSettingsPublic(): void
+    {
+        $config = $this->referralConfigRepo->getConfig();
+        $this->sendJsonResponse([
+            'success' => true,
+            'formaManualActiva' => (bool) $config['FormaManualActiva'],
+            'formaLinkActiva' => (bool) $config['FormaLinkActiva'],
+        ]);
+    }
+
+    /**
+     * Devuelve las cuentas bancarias activas del revendedor que refirió al cliente
+     * logueado, para que pueda elegir dónde depositar en el flujo de creación de orden.
+     */
+    public function getReferrerAccounts(): void
+    {
+        $userId = $this->ensureLoggedIn();
+        $referrerId = $this->userService->getReferidoPor($userId);
+        if (!$referrerId) {
+            $this->sendJsonResponse(['success' => true, 'referred' => false, 'data' => []]);
+            return;
+        }
+        $cuentas = $this->resellerAccountsRepo->getAllByUser($referrerId, true);
+        $this->sendJsonResponse(['success' => true, 'referred' => true, 'data' => $cuentas]);
     }
 }

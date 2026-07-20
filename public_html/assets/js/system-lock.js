@@ -8,9 +8,10 @@ let countdownInterval = null;
 
 async function checkSystemStatus() {
     try {
-        const isInSubfolder = window.location.pathname.includes('/dashboard/') || 
-                              window.location.pathname.includes('/admin/') || 
-                              window.location.pathname.includes('/operador/');
+        const isInSubfolder = window.location.pathname.includes('/dashboard/') ||
+                              window.location.pathname.includes('/admin/') ||
+                              window.location.pathname.includes('/operador/') ||
+                              window.location.pathname.includes('/revendedor/');
         
         const basePath = isInSubfolder ? '../api/' : 'api/';
         const apiUrl = basePath + '?accion=checkSystemStatus&_=' + new Date().getTime();

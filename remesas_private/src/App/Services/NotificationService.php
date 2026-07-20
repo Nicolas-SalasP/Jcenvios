@@ -36,6 +36,18 @@ class NotificationService
 
     // --- MÉTODOS DE NOTIFICACIÓN WHATSAPP (TWILIO) ---
 
+    /**
+     * Deja el número en formato E.164 (solo dígitos con un "+" al inicio).
+     * Sin esto, números guardados con espacios/guiones (ej. "+58 412 - 985 5451",
+     * visto repetido en el error_log real) llegan tal cual a Twilio y siempre
+     * fallan con "not a valid phone number".
+     */
+    private function normalizePhoneForTwilio(string $phone): string
+    {
+        $digits = preg_replace('/[^0-9]/', '', $phone);
+        return '+' . $digits;
+    }
+
     public function sendOrderToClientWhatsApp(array $txData, string $pdfUrl): bool
     {
         if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED === false) {
@@ -49,11 +61,7 @@ class NotificationService
             return false;
         }
 
-        $clientPhoneNumber = $txData['TelefonoCliente'];
-        if (strpos($clientPhoneNumber, '+') !== 0) {
-            $clientPhoneNumber = '+' . $clientPhoneNumber;
-        }
-        $formattedClientNumber = 'whatsapp:' . $clientPhoneNumber;
+        $formattedClientNumber = 'whatsapp:' . $this->normalizePhoneForTwilio($txData['TelefonoCliente']);
 
         $mensaje = "¡Hola {$txData['PrimerNombre']}! 👋\n\nTu orden de envío *#{$txData['TransaccionID']}* ha sido registrada con éxito en JCenvios.cl.\n\nAdjuntamos el detalle de tu orden en PDF.\n\nPor favor, realiza el pago según las instrucciones y sube tu comprobante en la sección 'Mi Historial' de nuestra web.\n\n¡Gracias por tu confianza!";
 
@@ -93,13 +101,9 @@ class NotificationService
             return false;
         }
 
-        $clientPhoneNumber = $txData['TelefonoCliente'];
-        if (strpos($clientPhoneNumber, '+') !== 0) {
-            $clientPhoneNumber = '+' . $clientPhoneNumber;
-        }
-        $formattedClientNumber = 'whatsapp:' . $clientPhoneNumber;
+        $formattedClientNumber = 'whatsapp:' . $this->normalizePhoneForTwilio($txData['TelefonoCliente']);
 
-        $mensaje = "¡Buenas noticias {$txData['PrimerNombre']}! 🎉\n\nTu remesa *#{$txData['TransaccionID']}* ha sido **PAGADA**.\n\nPuedes ver el comprobante de envío directamente en tu historial de transacciones en JCenvios.cl.\n\n¡Gracias por preferirnos!";
+        $mensaje = "Tu orden *#{$txData['TransaccionID']}* fue marcada como pagada.\n\n¿Confirmas que el destinatario ya recibió el dinero?\n\nIMPORTANTE: Tienes 24 horas para confirmar. También puedes hacerlo desde tu historial en JCenvios.cl.";
 
         try {
             $twilio = new TwilioClient(TWILIO_SID, TWILIO_TOKEN);
@@ -130,10 +134,11 @@ class NotificationService
 
             $twilio = new TwilioClient(TWILIO_SID, TWILIO_TOKEN);
             $from = ($channel === 'whatsapp') ? TWILIO_WHATSAPP_FROM : str_replace('whatsapp:', '', TWILIO_WHATSAPP_FROM);
-            $to = ($channel === 'whatsapp') ? "whatsapp:" . $phone : $phone;
-
-            if (strpos($to, '+') === -1 && $channel === 'sms')
-                $to = '+' . $to;
+            // Antes: strpos($to, '+') === -1 nunca es true (strpos devuelve false, no -1,
+            // cuando no encuentra el caracter) -> el "+" nunca se agregaba para SMS.
+            // Se normaliza siempre (quita espacios/guiones también), para SMS y WhatsApp.
+            $normalizedPhone = $this->normalizePhoneForTwilio($phone);
+            $to = ($channel === 'whatsapp') ? "whatsapp:" . $normalizedPhone : $normalizedPhone;
 
             $twilio->messages->create($to, [
                 'from' => $from,

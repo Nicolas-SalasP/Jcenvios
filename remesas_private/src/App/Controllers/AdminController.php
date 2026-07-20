@@ -11,6 +11,8 @@ use App\Repositories\CuentasAdminRepository;
 use App\Repositories\TransactionRepository;
 use App\Repositories\TransactionProofRepository;
 use App\Repositories\LiquidacionRepository;
+use App\Repositories\ResellerAccountsRepository;
+use App\Repositories\ReferralConfigRepository;
 use App\Services\FileHandlerService;
 use App\Services\CuentasBeneficiariasService;
 use Exception;
@@ -28,6 +30,8 @@ class AdminController extends BaseController
     private CuentasBeneficiariasService $cuentasService;
     private TransactionRepository $txRepository;
     private LiquidacionRepository $liquidacionRepo;
+    private ResellerAccountsRepository $resellerAccountsRepo;
+    private ReferralConfigRepository $referralConfigRepo;
 
     public function __construct(
         TransactionService $txService,
@@ -40,7 +44,9 @@ class AdminController extends BaseController
         FileHandlerService $fileHandler,
         CuentasBeneficiariasService $cuentasService,
         TransactionRepository $txRepository,
-        LiquidacionRepository $liquidacionRepo
+        LiquidacionRepository $liquidacionRepo,
+        ResellerAccountsRepository $resellerAccountsRepo,
+        ReferralConfigRepository $referralConfigRepo
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -53,6 +59,8 @@ class AdminController extends BaseController
         $this->cuentasService = $cuentasService;
         $this->txRepository = $txRepository;
         $this->liquidacionRepo = $liquidacionRepo;
+        $this->resellerAccountsRepo = $resellerAccountsRepo;
+        $this->referralConfigRepo = $referralConfigRepo;
     }
 
     // --- GESTIÓN DE VACACIONES ---
@@ -62,6 +70,68 @@ class AdminController extends BaseController
         $this->ensureAdmin();
         $holidays = $this->settingsService->getHolidays();
         $this->sendJsonResponse(['success' => true, 'holidays' => $holidays]);
+    }
+
+    // --- OVERRIDE MANUAL DE HORARIO LABORAL ---
+
+    public function getHorarioOverrideStatusAdmin(): void
+    {
+        $this->ensureAdmin();
+        $status = $this->settingsService->getHorarioOverrideStatus();
+        $this->sendJsonResponse(['success' => true] + $status);
+    }
+
+    public function toggleHorarioOverride(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int)$_SESSION['user_id'];
+
+        $data = $this->getJsonInput();
+        if (!isset($data['activo'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Falta el parámetro "activo".'], 400);
+            return;
+        }
+        $activo = filter_var($data['activo'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($activo === null) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Valor inválido para "activo".'], 400);
+            return;
+        }
+
+        try {
+            $status = $this->settingsService->toggleHorarioOverride($adminId, $activo);
+            $this->sendJsonResponse(['success' => true] + $status);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function clearHorarioOverride(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int)$_SESSION['user_id'];
+
+        try {
+            $this->settingsService->clearHorarioOverride($adminId);
+            $this->sendJsonResponse(['success' => true, 'active' => null]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMensajeHorario(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int)$_SESSION['user_id'];
+
+        $data = $this->getJsonInput();
+        $mensaje = (string)($data['mensaje'] ?? '');
+
+        try {
+            $status = $this->settingsService->updateMensajeHorario($adminId, $mensaje);
+            $this->sendJsonResponse(['success' => true] + $status);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
     }
 
     public function addHoliday(): void
@@ -890,7 +960,7 @@ class AdminController extends BaseController
             }
             $ext = $mimeToExt[$realMime];
             $filename = 'liquidacion_' . $liqId . '_' . time() . '.' . $ext;
-            $dest = __DIR__ . '/../../../../uploads/liquidaciones/' . $filename;
+            $dest = __DIR__ . '/../../../uploads/liquidaciones/' . $filename;
             if (!is_dir(dirname($dest))) {
                 mkdir(dirname($dest), 0755, true);
             }
@@ -956,6 +1026,62 @@ class AdminController extends BaseController
 
         $this->txRepository->upsertResellerPaises($userId, $paises);
         $this->sendJsonResponse(['success' => true]);
+    }
+
+    // ─── FEATURE 3: Límite de cuentas bancarias propias del revendedor ──────
+
+    public function getResellerMaxCuentas(): void
+    {
+        $this->ensureAdmin();
+        $userId = (int) ($_GET['userId'] ?? 0);
+        if (!$userId) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'userId requerido.'], 400);
+            return;
+        }
+        $max = $this->resellerAccountsRepo->getMaxCuentas($userId);
+        $actual = $this->resellerAccountsRepo->countByUser($userId);
+        $this->sendJsonResponse(['success' => true, 'max' => $max, 'actual' => $actual]);
+    }
+
+    public function updateResellerMaxCuentas(): void
+    {
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        $userId = (int) ($data['userId'] ?? 0);
+        $max = (int) ($data['max'] ?? 0);
+
+        if (!$userId || $max < 0 || $max > 50) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos inválidos.'], 400);
+            return;
+        }
+
+        $ok = $this->resellerAccountsRepo->updateMaxCuentas($userId, $max);
+        $this->sendJsonResponse(['success' => $ok]);
+    }
+
+    // ─── CONFIG GLOBAL DE REFERIDOS (forma manual / forma link) ─────────────
+
+    public function getReferralSettings(): void
+    {
+        $this->ensureAdmin();
+        $config = $this->referralConfigRepo->getConfig();
+        $this->sendJsonResponse([
+            'success' => true,
+            'formaManualActiva' => (bool) $config['FormaManualActiva'],
+            'formaLinkActiva' => (bool) $config['FormaLinkActiva'],
+        ]);
+    }
+
+    public function updateReferralSettings(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int) $_SESSION['user_id'];
+        $data = $this->getJsonInput();
+        $manual = (bool) ($data['formaManualActiva'] ?? false);
+        $link = (bool) ($data['formaLinkActiva'] ?? false);
+
+        $ok = $this->referralConfigRepo->setConfig($manual, $link, $adminId);
+        $this->sendJsonResponse(['success' => $ok]);
     }
 
     /**

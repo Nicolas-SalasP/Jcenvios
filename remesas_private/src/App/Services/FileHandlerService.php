@@ -21,13 +21,13 @@ class FileHandlerService
             }
         }
 
-        $this->publicTempDir = realpath(__DIR__ . '/../../../public_html/temp_orders');
+        $this->publicTempDir = realpath(__DIR__ . '/../../../../public_html/temp_orders');
         if ($this->publicTempDir === false || !is_dir($this->publicTempDir)) {
-            if (!@mkdir(__DIR__ . '/../../../public_html/temp_orders', 0755, true)) {
-                error_log("Error crítico: No se pudo crear el directorio público temporal: " . __DIR__ . '/../../../public_html/temp_orders');
+            if (!@mkdir(__DIR__ . '/../../../../public_html/temp_orders', 0755, true)) {
+                error_log("Error crítico: No se pudo crear el directorio público temporal: " . __DIR__ . '/../../../../public_html/temp_orders');
                 throw new Exception("Error interno del servidor [FH02].", 500);
             }
-            $this->publicTempDir = realpath(__DIR__ . '/../../../public_html/temp_orders');
+            $this->publicTempDir = realpath(__DIR__ . '/../../../../public_html/temp_orders');
         }
         $this->publicTempUrlBase = rtrim(BASE_URL, '/') . '/temp_orders/';
 
@@ -35,6 +35,8 @@ class FileHandlerService
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'proof_of_sending');
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'verifications');
         $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'profile_pics');
+        $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'tutoriales');
+        $this->ensureDirectoryIsWritable($this->baseUploadPath . DIRECTORY_SEPARATOR . 'tasas_imagen');
         $this->ensureDirectoryIsWritable($this->publicTempDir);
     }
 
@@ -117,6 +119,52 @@ class FileHandlerService
         return $this->saveVerificationFile($fileData, $userId, 'doc_' . $side);
     }
 
+    public function saveTutorialVideo(array $fileData, int $adminId): string
+    {
+        $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'tutoriales';
+        $allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+        $maxSize = 100 * 1024 * 1024; // 100MB
+        $filenamePrefix = 'tutorial_' . $adminId;
+        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize, null);
+
+        return 'tutoriales' . DIRECTORY_SEPARATOR . $savedFilename;
+    }
+
+    public function deleteTutorialVideo(string $relativePath): void
+    {
+        try {
+            $fullPath = $this->getAbsolutePath($relativePath);
+            if (is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+        } catch (Exception $e) {
+            error_log("No se pudo eliminar el video de tutorial: " . $relativePath . " - " . $e->getMessage());
+        }
+    }
+
+    public function saveTasaImagen(array $fileData, string $tipoFuente, int $adminId): string
+    {
+        $targetDir = $this->baseUploadPath . DIRECTORY_SEPARATOR . 'tasas_imagen';
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        $maxSize = 10 * 1024 * 1024; // 10MB
+        $filenamePrefix = 'tasa_' . $tipoFuente . '_' . $adminId . '_' . time();
+        $savedFilename = $this->handleUpload($fileData, $targetDir, $filenamePrefix, $allowedTypes, $maxSize, null);
+
+        return 'tasas_imagen' . DIRECTORY_SEPARATOR . $savedFilename;
+    }
+
+    public function deleteTasaImagen(string $relativePath): void
+    {
+        try {
+            $fullPath = $this->getAbsolutePath($relativePath);
+            if (is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+        } catch (Exception $e) {
+            error_log("No se pudo eliminar la imagen de tasa: " . $relativePath . " - " . $e->getMessage());
+        }
+    }
+
     public function getAbsolutePath(string $relativePath): string
     {
         $cleanPath = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath), DIRECTORY_SEPARATOR);
@@ -164,7 +212,10 @@ class FileHandlerService
                 'image/jpeg' => 'jpg',
                 'image/png' => 'png',
                 'application/pdf' => 'pdf',
-                'image/webp' => 'webp'
+                'image/webp' => 'webp',
+                'video/mp4' => 'mp4',
+                'video/webm' => 'webm',
+                'video/quicktime' => 'mov'
             ];
             $extension = $extensionMap[$fileType] ?? 'tmp';
         }

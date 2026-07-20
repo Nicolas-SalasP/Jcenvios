@@ -18,9 +18,15 @@ use App\Repositories\{
     TasasHistoricoRepository,
     CuentasAdminRepository,
     HolidayRepository,
+    HorarioOverrideRepository,
     SystemSettingsRepository,
     BeneficiaryAuditRepository,
-    LiquidacionRepository
+    LiquidacionRepository,
+    TutorialRepository,
+    TasasImagenRepository,
+    ResellerAccountsRepository,
+    ReferralConfigRepository,
+    NormasRepository
 };
 use App\Services\{
     LogService,
@@ -43,7 +49,10 @@ use App\Controllers\{
     AdminController,
     DashboardController,
     ContabilidadController,
-    BotController
+    BotController,
+    TutorialController,
+    TasasImagenController,
+    NormasController
 };
 
 header('Content-Type: application/json');
@@ -89,8 +98,14 @@ class Container
             CuentasAdminRepository::class => new CuentasAdminRepository($this->getDb()),
             SystemSettingsRepository::class => new SystemSettingsRepository($this->getDb()),
             HolidayRepository::class => new HolidayRepository($this->getDb()),
+            HorarioOverrideRepository::class => new HorarioOverrideRepository($this->getDb()),
             BeneficiaryAuditRepository::class => new BeneficiaryAuditRepository($this->getDb()),
             LiquidacionRepository::class => new LiquidacionRepository($this->getDb()),
+            TutorialRepository::class => new TutorialRepository($this->getDb()),
+            TasasImagenRepository::class => new TasasImagenRepository($this->getDb()),
+            ResellerAccountsRepository::class => new ResellerAccountsRepository($this->getDb()),
+            ReferralConfigRepository::class => new ReferralConfigRepository($this->getDb()),
+            NormasRepository::class => new NormasRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -144,12 +159,14 @@ class Container
                 $this->get(ContabilidadService::class),
                 $this->get(CuentasBeneficiariasRepository::class),
                 $this->get(CuentasAdminRepository::class),
-                $this->get(RateRepository::class)
+                $this->get(RateRepository::class),
+                $this->get(ResellerAccountsRepository::class)
             ),
 
             SystemSettingsService::class => new SystemSettingsService(
                 $this->get(SystemSettingsRepository::class),
                 $this->get(HolidayRepository::class),
+                $this->get(HorarioOverrideRepository::class),
                 $this->get(LogService::class)
             ),
 
@@ -185,7 +202,9 @@ class Container
                 $this->get(SystemSettingsService::class),
                 $this->get(BeneficiaryAuditService::class),
                 $this->get(TransactionRepository::class),
-                $this->get(LiquidacionRepository::class)
+                $this->get(LiquidacionRepository::class),
+                $this->get(ResellerAccountsRepository::class),
+                $this->get(ReferralConfigRepository::class)
             ),
 
             AdminController::class => new AdminController(
@@ -199,7 +218,9 @@ class Container
                 $this->get(FileHandlerService::class),
                 $this->get(CuentasBeneficiariasService::class),
                 $this->get(TransactionRepository::class),
-                $this->get(LiquidacionRepository::class)
+                $this->get(LiquidacionRepository::class),
+                $this->get(ResellerAccountsRepository::class),
+                $this->get(ReferralConfigRepository::class)
             ),
 
             DashboardController::class => new DashboardController(
@@ -217,6 +238,20 @@ class Container
                 $this->get(NotificationService::class)
             ),
 
+            TutorialController::class => new TutorialController(
+                $this->get(TutorialRepository::class),
+                $this->get(FileHandlerService::class)
+            ),
+
+            TasasImagenController::class => new TasasImagenController(
+                $this->get(TasasImagenRepository::class),
+                $this->get(FileHandlerService::class)
+            ),
+
+            NormasController::class => new NormasController(
+                $this->get(NormasRepository::class)
+            ),
+
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")
         };
     }
@@ -229,7 +264,8 @@ const PUBLIC_ACTIONS = [
     'getTasa', 'getCurrentRate', 'getPaises', 'getDolarBcv',
     'getActiveDestinationCountries', 'getFormasDePago', 'getBeneficiaryTypes',
     'getDocumentTypes', 'checkSystemStatus', 'getBcvRate', 'botWebhook',
-    'submitContactForm',
+    'submitContactForm', 'getTasaImagenPublica', 'getReferralSettingsPublic',
+    'getNormasPublicas',
 ];
 
 try {
@@ -297,6 +333,7 @@ try {
         // Client - Transacciones
         'createTransaccion' => [ClientController::class, 'createTransaccion', 'POST'],
         'cancelTransaction' => [ClientController::class, 'cancelTransaction', 'POST'],
+        'extendPaymentDeadline' => [ClientController::class, 'extendPaymentDeadline', 'POST'],
         'uploadReceipt' => [ClientController::class, 'uploadReceipt', 'POST'],
         'resumeOrder' => [ClientController::class, 'resumeOrder', 'POST'],
         'confirmReceipt' => [ClientController::class, 'confirmReceipt', 'POST'],
@@ -313,6 +350,10 @@ try {
         'getHolidays' => [AdminController::class, 'getHolidays', 'GET'],
         'addHoliday' => [AdminController::class, 'addHoliday', 'POST'],
         'deleteHoliday' => [AdminController::class, 'deleteHoliday', 'POST'],
+        'getHorarioOverrideStatusAdmin' => [AdminController::class, 'getHorarioOverrideStatusAdmin', 'GET'],
+        'toggleHorarioOverride' => [AdminController::class, 'toggleHorarioOverride', 'POST'],
+        'clearHorarioOverride' => [AdminController::class, 'clearHorarioOverride', 'POST'],
+        'updateMensajeHorario' => [AdminController::class, 'updateMensajeHorario', 'POST'],
 
         // Admin - Tasas
         'updateRate' => [AdminController::class, 'upsertRate', 'POST'],
@@ -390,6 +431,44 @@ try {
         'updateResellerCommission'     => [AdminController::class, 'updateResellerCommission', 'POST'],
         'getResellerPaises'            => [AdminController::class, 'getResellerPaises', 'GET'],
         'updateResellerPaises'         => [AdminController::class, 'updateResellerPaises', 'POST'],
+        'getResellerMaxCuentas'        => [AdminController::class, 'getResellerMaxCuentas', 'GET'],
+        'updateResellerMaxCuentas'     => [AdminController::class, 'updateResellerMaxCuentas', 'POST'],
+        'getReferralSettings'          => [AdminController::class, 'getReferralSettings', 'GET'],
+        'updateReferralSettings'       => [AdminController::class, 'updateReferralSettings', 'POST'],
+
+        // Revendedor (cliente) - Cuentas bancarias propias
+        'getResellerAccounts'      => [ClientController::class, 'getResellerAccounts', 'GET'],
+        'addResellerAccount'       => [ClientController::class, 'addResellerAccount', 'POST'],
+        'updateResellerAccount'    => [ClientController::class, 'updateResellerAccount', 'POST'],
+        'toggleResellerAccount'    => [ClientController::class, 'toggleResellerAccount', 'POST'],
+        'deleteResellerAccount'    => [ClientController::class, 'deleteResellerAccount', 'POST'],
+        'getResellerReferralCode'  => [ClientController::class, 'getResellerReferralCode', 'GET'],
+        'getReferrerAccounts'      => [ClientController::class, 'getReferrerAccounts', 'GET'],
+        'getReferralSettingsPublic' => [ClientController::class, 'getReferralSettingsPublic', 'GET'],
+
+        // Tutoriales (cliente)
+        'getTutorialesActivos'  => [TutorialController::class, 'getTutorialesActivos', 'GET'],
+
+        // Tutoriales (admin)
+        'getTutorialesAdmin'    => [TutorialController::class, 'getTutorialesAdmin', 'GET'],
+        'saveTutorial'          => [TutorialController::class, 'saveTutorial', 'POST'],
+        'deleteTutorial'        => [TutorialController::class, 'deleteTutorial', 'POST'],
+        'toggleTutorialStatus'  => [TutorialController::class, 'toggleTutorialStatus', 'POST'],
+        'reorderTutoriales'     => [TutorialController::class, 'reorderTutoriales', 'POST'],
+
+        // Tasas Imagen (público)
+        'getTasaImagenPublica'  => [TasasImagenController::class, 'getTasaImagenPublica', 'GET'],
+
+        // Tasas Imagen (admin)
+        'getTasasImagenAdmin'   => [TasasImagenController::class, 'getTasasImagenAdmin', 'GET'],
+        'saveTasaImagen'        => [TasasImagenController::class, 'saveTasaImagen', 'POST'],
+
+        // Normas (público)
+        'getNormasPublicas'     => [NormasController::class, 'getNormasPublicas', 'GET'],
+
+        // Normas (admin)
+        'getNormasAdmin'        => [NormasController::class, 'getNormasAdmin', 'GET'],
+        'saveNormas'            => [NormasController::class, 'saveNormas', 'POST'],
     ];
 
     if (isset($routes[$accion])) {

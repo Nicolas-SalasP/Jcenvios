@@ -40,7 +40,18 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Páginas HTML: network-first (para que las sesiones siempre sean frescas).
+  // Si falla la red Y no hay nada en caché, caches.match resuelve undefined,
+  // y respondWith(undefined) rompe con "Failed to convert value to 'Response'"
+  // (se ve en el navegador como "Este contenido está bloqueado"). Por eso
+  // siempre debe resolver a un Response real, con fallback final incluido.
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(async () => {
+      const cached = await caches.match(event.request);
+      return cached || new Response('Sin conexión.', {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+      });
+    })
   );
 });

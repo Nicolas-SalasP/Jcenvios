@@ -20,6 +20,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const formaDePagoSelect = document.getElementById('forma-pago');
     const beneficiaryListDiv = document.getElementById('beneficiary-list');
 
+    // =========================================================
+    // 2.b CUENTAS DEL REVENDEDOR (si el cliente fue referido)
+    // =========================================================
+    let resellerAccounts = [];
+    let resellerAccountSelect = null;
+
+    async function initResellerAccountSelector() {
+        try {
+            const res = await fetch('../api/?accion=getReferrerAccounts');
+            const data = await res.json();
+            if (!data.success || !data.referred || !data.data.length) return;
+
+            resellerAccounts = data.data;
+
+            const wrapper = document.createElement('div');
+            wrapper.id = 'reseller-account-wrapper';
+            wrapper.className = 'mt-3';
+            wrapper.innerHTML = `
+                <label class="form-label small fw-semibold">
+                    <i class="bi bi-bank text-primary"></i> Pagar directamente a tu asesor (opcional)
+                </label>
+                <select id="reseller-account-select" class="form-select">
+                    <option value="">Usar cuenta del negocio (por defecto)</option>
+                    ${resellerAccounts.map(c => `<option value="${c.CuentaID}">${c.Banco} - ${c.TipoCuenta} - ${c.NumeroCuenta}</option>`).join('')}
+                </select>
+            `;
+            formaDePagoSelect.parentNode.appendChild(wrapper);
+            resellerAccountSelect = document.getElementById('reseller-account-select');
+        } catch (e) {
+            console.error('No se pudieron cargar las cuentas del revendedor:', e);
+        }
+    }
+
+    initResellerAccountSelector();
+
     // Inputs y Display
     const montoOrigenInput = document.getElementById('monto-origen');
     const montoDestinoInput = document.getElementById('monto-destino');
@@ -51,6 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let allDocumentTypes = [];
     let documentTypesFetchPromise = null;
     let calculationMode = 'multiply';
+    let horarioOverrideActive = null; // null = sin override, true = forzar aviso, false = suprimir aviso
+    let horarioOverrideMensaje = 'Tu orden será procesada en horario laboral. ¿Deseas continuar?'; // editable por el admin
 
     // --- VARIABLES DE CONTROL ---
     let isRiskyRoute = false;
@@ -345,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!checkBusinessHours()) {
-            if (!await confirmActionWithModal('Aviso de Horario', 'Estás operando fuera de horario. Tu orden será procesada el próximo día hábil. ¿Deseas continuar?')) return;
+            if (!await confirmActionWithModal('Aviso de Horario', horarioOverrideMensaje)) return;
         }
 
         if (isRiskyRoute) {
@@ -370,6 +407,10 @@ document.addEventListener('DOMContentLoaded', () => {
             formaDePago: formaDePagoSelect.value,
             paisOrigenID: parseInt(paisOrigenSelect.value)
         };
+
+        if (resellerAccountSelect && resellerAccountSelect.value) {
+            data.cuentaRevendedorId = parseInt(resellerAccountSelect.value, 10);
+        }
 
         try {
             const resp = await fetch('../api/?accion=createTransaccion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
@@ -421,8 +462,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const displayRutStyle = requiereRut ? '' : 'd-none';
                     const requiredRut = requiereRut ? 'required' : '';
 
+                    let htmlCuentaRevendedor = '';
+                    if (res.cuentaRevendedor) {
+                        const cr = res.cuentaRevendedor;
+                        htmlCuentaRevendedor = `
+                            <div class="text-center mb-4 p-3 bg-white rounded border border-primary shadow-sm">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-bank"></i> Deposita directamente a tu asesor: ${cr.Banco}</h6>
+                                <div class="small text-muted">Tipo de cuenta: <strong>${cr.TipoCuenta}</strong></div>
+                                <div class="small text-muted">Número: <strong>${cr.NumeroCuenta}</strong></div>
+                                <div class="small text-muted">Titular: <strong>${cr.TitularNombre}</strong> (${cr.TitularDocumento})</div>
+                                ${cr.Instrucciones ? `<div class="small text-muted mt-2">${cr.Instrucciones}</div>` : ''}
+                            </div>
+                        `;
+                    }
+
                     let htmlQR = '';
-                    if (res.cuentaAdmin && res.cuentaAdmin.QrCodeURL) {
+                    if (!res.cuentaRevendedor && res.cuentaAdmin && res.cuentaAdmin.QrCodeURL) {
                         htmlQR = `
                             <div class="text-center mb-4 p-3 bg-white rounded border shadow-sm animate__animated animate__fadeInDown">
                                 <h6 class="fw-bold text-primary mb-2"><i class="bi bi-qr-code-scan"></i> Escanea para pagar con ${res.cuentaAdmin.Banco}</h6>
@@ -443,6 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <h3 class="mb-3 text-success">¡Orden #${finalId} Creada!</h3>
                             
+                            ${htmlCuentaRevendedor}
                             ${htmlQR}
 
                             <p class="text-muted mb-4">Para procesar tu envío rápidamente, por favor sube el comprobante de la transferencia ahora.</p>
@@ -1114,6 +1170,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const isBank = (checkBank && checkBank.checked);
             const isMobile = (checkMobile && checkMobile.checked);
 
+            // El backend exige 'nombreBanco' para cualquier país (validateCommonFields en
+            // CuentasBeneficiariasService), pero el input no tiene "required" en el HTML.
+            // Sin este chequeo, el usuario podía dejarlo vacío y el submit fallaba recién
+            // en el servidor con un 400 poco claro (visto repetido en el error_log real).
+            const nombreBancoActual = (paisId === C_PERU || paisId === C_COLOMBIA)
+                ? (benefBankSelect && benefBankSelect.value === 'Otro Banco' && inputOtherBank
+                    ? inputOtherBank.value.trim()
+                    : (benefBankSelect ? benefBankSelect.value : ''))
+                : (inputBankName ? inputBankName.value.trim() : '');
+            if (!nombreBancoActual) {
+                window.showInfoModal('Error', 'El nombre del banco es obligatorio.', false);
+                if (btn) { btn.disabled = false; btn.textContent = originalText; }
+                return;
+            }
+
             if (isBank) {
                 if (paisId === C_VENEZUELA) {
                     if (accNum.length !== 20) {
@@ -1240,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 7. STEPPER NAVEGACIÓN
     // =========================================================
 
-    const checkBusinessHours = () => {
+    const checkBusinessHoursSchedule = () => {
         const now = new Date();
         const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
         const day = chileTime.getDay();
@@ -1260,6 +1331,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return false;
     };
+
+    // Combina el horario laboral normal con el override manual del admin
+    // (panel de "Feriados/Bloqueos" -> toggle de horario). El override
+    // "true" fuerza el aviso de fuera de horario aunque técnicamente esté
+    // dentro del horario laboral; el override "false" lo suprime hasta que
+    // el backend detecta que terminó el horario laboral del día (ExpiraEn),
+    // momento en el cual vuelve a null y se usa la lógica normal.
+    const checkBusinessHours = () => {
+        if (horarioOverrideActive === true) return false;  // forzar aviso
+        if (horarioOverrideActive === false) return true;  // suprimir aviso
+        return checkBusinessHoursSchedule();
+    };
+
+    const refreshHorarioOverride = async () => {
+        try {
+            const isInSubfolder = window.location.pathname.includes('/dashboard/');
+            const basePath = isInSubfolder ? '../api/' : 'api/';
+            const res = await fetch(basePath + '?accion=checkSystemStatus&_=' + Date.now());
+            if (!res.ok) return;
+            const data = await res.json();
+            horarioOverrideActive = (typeof data.horario_override === 'boolean') ? data.horario_override : null;
+            if (typeof data.horario_mensaje === 'string' && data.horario_mensaje.trim() !== '') {
+                horarioOverrideMensaje = data.horario_mensaje;
+            }
+        } catch (e) {
+            // Silencioso: si falla, se sigue usando el último valor conocido (o null).
+        }
+    };
+    refreshHorarioOverride();
+    setInterval(refreshHorarioOverride, 45000);
 
     const updateView = () => {
         formSteps.forEach((step, index) => { step.classList.toggle('active', (index + 1) === currentStep); });

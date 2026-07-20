@@ -9,6 +9,7 @@ use App\Repositories\CuentasBeneficiariasRepository;
 use App\Repositories\CuentasAdminRepository;
 use App\Repositories\RateRepository;
 use App\Repositories\TransactionProofRepository;
+use App\Repositories\ResellerAccountsRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -29,6 +30,7 @@ class TransactionService
     private CuentasAdminRepository $cuentasAdminRepo;
     private RateRepository $rateRepository;
     private TransactionProofRepository $proofRepository;
+    private ResellerAccountsRepository $resellerAccountsRepo;
 
     private const ESTADO_PENDIENTE_PAGO = 'Pendiente de Pago';
     private const ESTADO_EN_VERIFICACION = 'En Verificación';
@@ -37,6 +39,11 @@ class TransactionService
     private const ESTADO_CANCELADO = 'Cancelado';
     private const ESTADO_PENDIENTE_APROBACION = 'Pendiente de Aprobación';
     private const ESTADO_PAUSADO = 'Pausado';
+
+    // Extensión de plazo de pago: horas otorgadas por cada extensión y tope
+    // de veces que un cliente puede solicitarla para la misma orden.
+    private const PLAZO_EXTENSION_HORAS = 4;
+    private const PLAZO_EXTENSION_MAX = 2;
 
     public function __construct(
         TransactionRepository $txRepository,
@@ -49,7 +56,8 @@ class TransactionService
         ContabilidadService $contabilidadService,
         CuentasBeneficiariasRepository $cuentasRepo,
         CuentasAdminRepository $cuentasAdminRepo,
-        RateRepository $rateRepository
+        RateRepository $rateRepository,
+        ResellerAccountsRepository $resellerAccountsRepo
     ) {
         $this->txRepository = $txRepository;
         $this->userRepository = $userRepository;
@@ -63,6 +71,7 @@ class TransactionService
         $this->cuentasAdminRepo = $cuentasAdminRepo;
         $this->rateRepository = $rateRepository;
         $this->proofRepository = new TransactionProofRepository();
+        $this->resellerAccountsRepo = $resellerAccountsRepo;
     }
 
     public function getEstadoIdByName(string $nombreEstado): int
@@ -290,6 +299,28 @@ class TransactionService
 
             $txData['TelefonoCliente'] = $client['Telefono'];
 
+            // Si el cliente fue referido por un revendedor y eligió una de sus cuentas para
+            // depositar, registramos el vínculo (CuentaRevendedorID) y la devolvemos junto al
+            // resto de las opciones de pago para que el front la muestre en vez de/además de
+            // la cuenta del negocio.
+            $cuentaRevendedorData = null;
+            $referidoPorId = $this->userRepository->getReferidoPor((int) $data['userID']);
+            if ($referidoPorId && !empty($data['cuentaRevendedorId'])) {
+                $cuentaRevendedor = $this->resellerAccountsRepo->findById((int) $data['cuentaRevendedorId']);
+                if ($cuentaRevendedor && (int) $cuentaRevendedor['UserID'] === $referidoPorId && (int) $cuentaRevendedor['Activo'] === 1) {
+                    $this->txRepository->updateCuentaRevendedor($transactionId, (int) $cuentaRevendedor['CuentaID']);
+                    $cuentaRevendedorData = [
+                        'CuentaID' => (int) $cuentaRevendedor['CuentaID'],
+                        'Banco' => $cuentaRevendedor['Banco'],
+                        'TipoCuenta' => $cuentaRevendedor['TipoCuenta'],
+                        'NumeroCuenta' => $cuentaRevendedor['NumeroCuenta'],
+                        'TitularNombre' => $cuentaRevendedor['TitularNombre'],
+                        'TitularDocumento' => $cuentaRevendedor['TitularDocumento'],
+                        'Instrucciones' => $cuentaRevendedor['Instrucciones'],
+                    ];
+                }
+            }
+
             // Obtener cuenta admin para el QR
             $cuentaAdminData = null;
             if (isset($txData['FormaPagoID']) && isset($txData['PaisOrigenID'])) {
@@ -321,7 +352,8 @@ class TransactionService
             return [
                 'id' => $transactionId,
                 'status' => 'created',
-                'cuentaAdmin' => $cuentaAdminData
+                'cuentaAdmin' => $cuentaAdminData,
+                'cuentaRevendedor' => $cuentaRevendedorData
             ];
 
         } catch (Exception $e) {
@@ -790,6 +822,44 @@ class TransactionService
         $estadoCanceladoID = $this->getEstadoId(self::ESTADO_CANCELADO);
 
         return $this->txRepository->autoCancelExpired($estadoPendienteID, $estadoCanceladoID, $horasLimite);
+    }
+
+    /**
+     * El cliente confirma "sí, voy a pagar" antes de que se cumpla el plazo
+     * de 4 horas en Pendiente de Pago, obteniendo 4 horas adicionales.
+     * Limitado a self::PLAZO_EXTENSION_MAX usos por orden para evitar que
+     * quede pendiente indefinidamente.
+     */
+    public function extendPaymentDeadline(int $txId, int $userId): array
+    {
+        if ($txId <= 0) {
+            throw new Exception("Identificador de transacción inválido.", 400);
+        }
+
+        $estadoPendienteID = $this->getEstadoId(self::ESTADO_PENDIENTE_PAGO);
+
+        $result = $this->txRepository->extendPaymentDeadline(
+            $txId,
+            $userId,
+            $estadoPendienteID,
+            self::PLAZO_EXTENSION_HORAS,
+            self::PLAZO_EXTENSION_MAX
+        );
+
+        if (!$result['success']) {
+            if ($result['reason'] === 'limit_reached') {
+                throw new Exception("Ya utilizaste el máximo de extensiones de plazo para esta orden.", 409);
+            }
+            throw new Exception("No se puede extender el plazo de esta orden (no existe, no te pertenece, ya tiene comprobante o no está Pendiente de Pago).", 404);
+        }
+
+        $this->notificationService->logAdminAction(
+            $userId,
+            'Usuario extendió plazo de pago',
+            "TX ID: $txId — extensión #{$result['extensionesUsadas']} de " . self::PLAZO_EXTENSION_MAX
+        );
+
+        return $result;
     }
 
     public function getAdminAlerts(): array

@@ -216,6 +216,13 @@ require_once __DIR__ . '/../remesas_private/src/templates/header.php';
                                             </div>
                                         </div>
 
+                                        <div class="form-group mb-3 d-none" id="container-codigo-referido">
+                                            <label for="register-codigo-referido" class="form-label">Código de referido
+                                                <span class="text-muted small">(opcional)</span></label>
+                                            <input type="text" class="form-control text-uppercase" id="register-codigo-referido"
+                                                placeholder="Ej: AB12CD34" name="codigoReferido" maxlength="10">
+                                        </div>
+
                                         <button type="submit" class="btn btn-primary btn-user w-100">
                                             Registrar Cuenta
                                         </button>

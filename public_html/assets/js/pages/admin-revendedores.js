@@ -133,6 +133,11 @@
                             title="Comisión por país">
                             <i class="bi bi-globe"></i>
                         </button>
+                        <button class="btn btn-sm btn-outline-warning btn-limite-cuentas"
+                            data-id="${r.UserID}" data-nombre="${nombre}"
+                            title="Límite de cuentas bancarias">
+                            <i class="bi bi-bank"></i>
+                        </button>
                         <a href="transacciones.php?revendedorId=${r.UserID}" class="btn btn-sm btn-outline-dark"
                            title="Ver órdenes">
                             <i class="bi bi-receipt"></i>
@@ -490,6 +495,91 @@
             btn.innerHTML = '<i class="bi bi-save me-1"></i> Guardar configuración';
         }
     });
+
+    // ── Feature 3: Límite de cuentas bancarias propias del revendedor ────────
+
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.btn-limite-cuentas');
+        if (!btn) return;
+
+        document.getElementById('limite-user-id').value = btn.dataset.id;
+        document.getElementById('limite-user-nombre').textContent = btn.dataset.nombre;
+        document.getElementById('limite-cuentas-input').value = '';
+        document.getElementById('limite-actual-info').textContent = '';
+        new bootstrap.Modal(document.getElementById('limiteCuentasModal')).show();
+
+        try {
+            const res = await fetch('../api/?accion=getResellerMaxCuentas&userId=' + btn.dataset.id);
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('limite-cuentas-input').value = data.max;
+                document.getElementById('limite-actual-info').textContent = `Cuentas registradas actualmente: ${data.actual}`;
+            }
+        } catch {
+            /* silencioso, el input queda vacío */
+        }
+    });
+
+    document.getElementById('btnSaveLimiteCuentas').addEventListener('click', async () => {
+        const userId = parseInt(document.getElementById('limite-user-id').value, 10);
+        const max = parseInt(document.getElementById('limite-cuentas-input').value, 10);
+
+        const btn = document.getElementById('btnSaveLimiteCuentas');
+        btn.disabled = true;
+        try {
+            const res = await fetch('../api/?accion=updateResellerMaxCuentas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, max }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('limiteCuentasModal')).hide();
+            } else {
+                alert(data.error || 'Error al actualizar el límite.');
+            }
+        } catch {
+            alert('Error de red al actualizar el límite.');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // ── Config global de referidos (forma manual / forma link) ──────────────
+
+    async function loadReferralSettings() {
+        try {
+            const res = await fetch('../api/?accion=getReferralSettings');
+            const data = await res.json();
+            if (!data.success) return;
+            document.getElementById('toggle-referido-manual').checked = data.formaManualActiva;
+            document.getElementById('toggle-referido-link').checked = data.formaLinkActiva;
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function saveReferralSettings() {
+        const formaManualActiva = document.getElementById('toggle-referido-manual').checked;
+        const formaLinkActiva = document.getElementById('toggle-referido-link').checked;
+        try {
+            await fetch('../api/?accion=updateReferralSettings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ formaManualActiva, formaLinkActiva }),
+            });
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    const toggleManual = document.getElementById('toggle-referido-manual');
+    const toggleLink = document.getElementById('toggle-referido-link');
+    if (toggleManual && toggleLink) {
+        toggleManual.addEventListener('change', saveReferralSettings);
+        toggleLink.addEventListener('change', saveReferralSettings);
+        loadReferralSettings();
+    }
 
     // ── Init ─────────────────────────────────────────────────────────────────
 
