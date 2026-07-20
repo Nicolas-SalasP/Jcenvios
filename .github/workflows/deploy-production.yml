@@ -81,6 +81,15 @@ jobs:
           define('DB_NAME', 'jcenvios_test');
           define('APP_ENCRYPTION_KEY', '01234567890123456789012345678901');
           define('ADMIN_EMAIL', 'ci@example.test');
+          // Host falso a propósito: NotificationService ya atrapa el fallo de
+          // conexión SMTP como Exception (catch (Exception $e) { ... return false; }),
+          // así que un envío de correo fallido no rompe nada. Lo que sí rompía todo
+          // antes era la CONSTANTE INDEFINIDA (Error, no Exception -> no se atrapaba).
+          define('SMTP_HOST', 'localhost');
+          define('SMTP_USER', 'ci@example.test');
+          define('SMTP_PASS', 'ci-fake-password');
+          define('SMTP_SECURE', 'tls');
+          define('SMTP_PORT', 587);
           EOF
 
       - name: Correr PHPUnit (200 tests)
@@ -168,6 +177,15 @@ jobs:
           define('DB_NAME', 'jcenvios_test');
           define('APP_ENCRYPTION_KEY', '01234567890123456789012345678901');
           define('ADMIN_EMAIL', 'ci@example.test');
+          // Host falso a propósito: NotificationService ya atrapa el fallo de
+          // conexión SMTP como Exception (catch (Exception $e) { ... return false; }),
+          // así que un envío de correo fallido no rompe nada. Lo que sí rompía todo
+          // antes era la CONSTANTE INDEFINIDA (Error, no Exception -> no se atrapaba).
+          define('SMTP_HOST', 'localhost');
+          define('SMTP_USER', 'ci@example.test');
+          define('SMTP_PASS', 'ci-fake-password');
+          define('SMTP_SECURE', 'tls');
+          define('SMTP_PORT', 587);
           EOF
 
       - name: Levantar servidor PHP de prueba
