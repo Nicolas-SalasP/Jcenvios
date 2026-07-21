@@ -26,7 +26,8 @@ use App\Repositories\{
     TasasImagenRepository,
     ResellerAccountsRepository,
     ReferralConfigRepository,
-    NormasRepository
+    NormasRepository,
+    ContactMessageRepository
 };
 use App\Services\{
     LogService,
@@ -106,6 +107,7 @@ class Container
             ResellerAccountsRepository::class => new ResellerAccountsRepository($this->getDb()),
             ReferralConfigRepository::class => new ReferralConfigRepository($this->getDb()),
             NormasRepository::class => new NormasRepository($this->getDb()),
+            ContactMessageRepository::class => new ContactMessageRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -206,7 +208,8 @@ class Container
                 $this->get(TransactionRepository::class),
                 $this->get(LiquidacionRepository::class),
                 $this->get(ResellerAccountsRepository::class),
-                $this->get(ReferralConfigRepository::class)
+                $this->get(ReferralConfigRepository::class),
+                $this->get(ContactMessageRepository::class)
             ),
 
             AdminController::class => new AdminController(

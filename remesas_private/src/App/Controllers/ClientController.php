@@ -16,6 +16,7 @@ use App\Repositories\TransactionRepository;
 use App\Repositories\LiquidacionRepository;
 use App\Repositories\ResellerAccountsRepository;
 use App\Repositories\ReferralConfigRepository;
+use App\Repositories\ContactMessageRepository;
 use Exception;
 
 class ClientController extends BaseController
@@ -35,6 +36,7 @@ class ClientController extends BaseController
     private LiquidacionRepository $liquidacionRepo;
     private ResellerAccountsRepository $resellerAccountsRepo;
     private ReferralConfigRepository $referralConfigRepo;
+    private ContactMessageRepository $contactMessageRepo;
 
     public function __construct(
         TransactionService $txService,
@@ -51,7 +53,8 @@ class ClientController extends BaseController
         TransactionRepository $txRepository,
         LiquidacionRepository $liquidacionRepo,
         ResellerAccountsRepository $resellerAccountsRepo,
-        ReferralConfigRepository $referralConfigRepo
+        ReferralConfigRepository $referralConfigRepo,
+        ContactMessageRepository $contactMessageRepo
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -68,6 +71,7 @@ class ClientController extends BaseController
         $this->liquidacionRepo = $liquidacionRepo;
         $this->resellerAccountsRepo = $resellerAccountsRepo;
         $this->referralConfigRepo = $referralConfigRepo;
+        $this->contactMessageRepo = $contactMessageRepo;
     }
 
     // --- CHECKEO DE SISTEMA---
@@ -478,16 +482,19 @@ class ClientController extends BaseController
             throw new Exception("Uno o más campos exceden el límite de longitud.", 400);
         }
 
+        // Se guarda primero para no perder el mensaje si el envío de email falla
+        // (SMTP caído, credenciales, timeout — motivos reales en producción).
+        $messageId = $this->contactMessageRepo->create($name, $email, $subject, $message);
+
         try {
-            $success = $this->notificationService->sendContactFormEmail($name, $email, $subject, $message);
-            if ($success) {
-                $this->sendJsonResponse(['success' => true, 'message' => 'Mensaje enviado con éxito.']);
-            } else {
-                throw new Exception("No se pudo enviar el correo. Intenta más tarde.", 500);
+            if ($this->notificationService->sendContactFormEmail($name, $email, $subject, $message)) {
+                $this->contactMessageRepo->markEmailEnviado($messageId);
             }
         } catch (Exception $e) {
-            throw new Exception("Error del servidor al enviar el correo: " . $e->getMessage(), 500);
+            error_log("Contact form #{$messageId}: fallo al enviar email - " . $e->getMessage());
         }
+
+        $this->sendJsonResponse(['success' => true, 'message' => 'Mensaje recibido con éxito.']);
     }
 
     public function getCurrentRate(): void
