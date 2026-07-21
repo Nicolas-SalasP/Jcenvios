@@ -6,7 +6,9 @@ use App\Services\SystemSettingsService;
 use App\Repositories\RateRepository;
 use App\Repositories\CountryRepository;
 use App\Repositories\SystemSettingsRepository;
+use App\Repositories\TasasImagenRepository;
 use App\Services\NotificationService;
+use App\Services\FileHandlerService;
 
 class PricingRangeTest extends TestCase
 {
@@ -17,6 +19,8 @@ class PricingRangeTest extends TestCase
         $settingsRepo = $this->createMock(SystemSettingsRepository::class);
         $notifService = $this->createMock(NotificationService::class);
         $systemService = $this->createMock(SystemSettingsService::class);
+        $tasasImagenRepo = $this->createMock(TasasImagenRepository::class);
+        $fileHandler = $this->createMock(FileHandlerService::class);
 
         $rateRepo->method('findCurrentRate')
             ->will($this->returnCallback(function($origen, $destino, $monto) {
@@ -28,7 +32,7 @@ class PricingRangeTest extends TestCase
                 return null;
             }));
 
-        $service = new PricingService($rateRepo, $countryRepo, $settingsRepo, $notifService, $systemService);
+        $service = new PricingService($rateRepo, $countryRepo, $settingsRepo, $notifService, $systemService, $tasasImagenRepo, $fileHandler);
 
         $tasaBaja = $service->getCurrentRate(1, 2, 50);
         $this->assertEquals(1.5, $tasaBaja['ValorTasa']);

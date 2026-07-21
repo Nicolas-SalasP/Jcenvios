@@ -133,6 +133,11 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
         #holiday-alert-bar.show { max-height: 400px; }
 
         @media (max-width: 991.98px) {
+            /* El menú "Gestión" del admin tiene ~10 opciones; al abrirse dentro
+               del navbar-collapse (position:absolute, fuera del flujo normal)
+               el contenido podía superar el alto de la pantalla sin forma de
+               bajar a ver el resto ni cerrar. max-height + scroll propio lo
+               arregla sin tocar el resto del layout. */
             .navbar-collapse {
                 background: white;
                 position: absolute;
@@ -143,6 +148,9 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                 border-top: 1px solid #eee;
                 box-shadow: 0 15px 30px rgba(0, 0, 0, 0.05);
                 z-index: 1050;
+                max-height: calc(100vh - 70px);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
             }
 
             .nav-item {

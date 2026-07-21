@@ -4,8 +4,10 @@ namespace App\Services;
 use App\Repositories\RateRepository;
 use App\Repositories\CountryRepository;
 use App\Repositories\SystemSettingsRepository;
+use App\Repositories\TasasImagenRepository;
 use App\Services\NotificationService;
 use App\Services\SystemSettingsService;
+use App\Services\FileHandlerService;
 use Exception;
 use Throwable;
 
@@ -16,19 +18,25 @@ class PricingService
     private SystemSettingsRepository $settingsRepository;
     private NotificationService $notificationService;
     private SystemSettingsService $systemService;
+    private TasasImagenRepository $tasasImagenRepository;
+    private FileHandlerService $fileHandler;
 
     public function __construct(
         RateRepository $rateRepository,
         CountryRepository $countryRepository,
         SystemSettingsRepository $settingsRepository,
         NotificationService $notificationService,
-        SystemSettingsService $systemService
+        SystemSettingsService $systemService,
+        TasasImagenRepository $tasasImagenRepository,
+        FileHandlerService $fileHandler
     ) {
         $this->rateRepository = $rateRepository;
         $this->countryRepository = $countryRepository;
         $this->settingsRepository = $settingsRepository;
         $this->notificationService = $notificationService;
         $this->systemService = $systemService;
+        $this->tasasImagenRepository = $tasasImagenRepository;
+        $this->fileHandler = $fileHandler;
     }
 
     public function runScheduledAdjustment(): bool
@@ -55,7 +63,23 @@ class PricingService
         if ($ultimaEjecucion === $hoy) {
             return false;
         }
-        return $this->applyGlobalAdjustment(1, $settings['percent']) > 0;
+        $aplicado = $this->applyGlobalAdjustment(1, $settings['percent']) > 0;
+        if ($aplicado) {
+            $this->clearTasasImagenGaleria();
+        }
+        return $aplicado;
+    }
+
+    // El Ajuste Global automático corre fuera de horario laboral (19:30 Lun-Vie,
+    // 16:00 Sáb). Las imágenes de Tasas Visuales quedan obsoletas apenas cambian
+    // las tasas, por eso se limpian junto con el ajuste automático (no en el
+    // ajuste manual desde el panel, que usa applyGlobalAdjustment() directo).
+    private function clearTasasImagenGaleria(): void
+    {
+        $rutas = $this->tasasImagenRepository->deleteAll();
+        foreach ($rutas as $ruta) {
+            $this->fileHandler->deleteTasaImagen($ruta);
+        }
     }
 
     public function applyGlobalAdjustment(int $adminId, float $percentage): int

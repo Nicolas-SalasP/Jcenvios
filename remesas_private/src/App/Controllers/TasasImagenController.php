@@ -26,18 +26,18 @@ class TasasImagenController extends BaseController
             return;
         }
 
-        $row = $this->tasasImagenRepo->findByTipo($tipoFuente);
-        if (!$row || empty($row['RutaImagen'])) {
-            $this->sendJsonResponse(['success' => true, 'disponible' => false, 'url' => null, 'fechaActualizacion' => null]);
-            return;
-        }
+        $rows = $this->tasasImagenRepo->getAllByTipo($tipoFuente);
+        $imagenes = array_map(function (array $row) {
+            return [
+                'id' => (int) $row['Id'],
+                'titulo' => $row['Titulo'],
+                'descripcion' => $row['Descripcion'],
+                'url' => $this->buildStreamUrl((int) $row['Id'], $row['FechaActualizacion']),
+                'fechaActualizacion' => $row['FechaActualizacion'],
+            ];
+        }, $rows);
 
-        $this->sendJsonResponse([
-            'success' => true,
-            'disponible' => true,
-            'url' => $this->buildStreamUrl($tipoFuente, $row['FechaActualizacion']),
-            'fechaActualizacion' => $row['FechaActualizacion'],
-        ]);
+        $this->sendJsonResponse(['success' => true, 'disponible' => count($imagenes) > 0, 'imagenes' => $imagenes]);
     }
 
     // --- ADMIN ---
@@ -47,11 +47,12 @@ class TasasImagenController extends BaseController
         $this->ensureAdmin();
         $rows = $this->tasasImagenRepo->getAll();
         $data = array_map(function (array $row) {
-            $tipoFuente = $row['TipoFuente'];
             return [
-                'tipoFuente' => $tipoFuente,
-                'rutaImagen' => $row['RutaImagen'],
-                'url' => !empty($row['RutaImagen']) ? $this->buildStreamUrl($tipoFuente, $row['FechaActualizacion']) : null,
+                'id' => (int) $row['Id'],
+                'tipoFuente' => $row['TipoFuente'],
+                'titulo' => $row['Titulo'],
+                'descripcion' => $row['Descripcion'],
+                'url' => $this->buildStreamUrl((int) $row['Id'], $row['FechaActualizacion']),
                 'fechaActualizacion' => $row['FechaActualizacion'],
                 'actualizadoPor' => $row['ActualizadoPor'],
             ];
@@ -75,16 +76,36 @@ class TasasImagenController extends BaseController
                 throw new Exception('Debes seleccionar una imagen para subir.', 400);
             }
 
-            $existing = $this->tasasImagenRepo->findByTipo($tipoFuente);
-            $nuevaRuta = $this->fileHandler->saveTasaImagen($_FILES['imagen'], $tipoFuente, $adminId);
+            $titulo = trim((string)($_POST['titulo'] ?? '')) ?: null;
+            $descripcion = trim((string)($_POST['descripcion'] ?? '')) ?: null;
 
-            if (!empty($existing['RutaImagen'])) {
-                $this->fileHandler->deleteTasaImagen($existing['RutaImagen']);
+            $nuevaRuta = $this->fileHandler->saveTasaImagen($_FILES['imagen'], $tipoFuente, $adminId);
+            $this->tasasImagenRepo->insertImagen($tipoFuente, $nuevaRuta, $titulo, $descripcion, $adminId);
+
+            $this->sendJsonResponse(['success' => true, 'message' => 'Imagen de tasa subida correctamente.']);
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+        }
+    }
+
+    public function deleteTasaImagen(): void
+    {
+        try {
+            $this->ensureAdmin();
+
+            $id = (int)($_POST['id'] ?? 0);
+            $row = $id > 0 ? $this->tasasImagenRepo->findById($id) : null;
+            if (!$row) {
+                throw new Exception('Imagen no encontrada.', 404);
             }
 
-            $this->tasasImagenRepo->upsertImagen($tipoFuente, $nuevaRuta, $adminId);
+            if (!empty($row['RutaImagen'])) {
+                $this->fileHandler->deleteTasaImagen($row['RutaImagen']);
+            }
+            $this->tasasImagenRepo->deleteById($id);
 
-            $this->sendJsonResponse(['success' => true, 'message' => 'Imagen de tasa actualizada correctamente.']);
+            $this->sendJsonResponse(['success' => true, 'message' => 'Imagen eliminada correctamente.']);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
@@ -93,9 +114,9 @@ class TasasImagenController extends BaseController
 
     // --- Helpers ---
 
-    private function buildStreamUrl(string $tipoFuente, ?string $fechaActualizacion): string
+    private function buildStreamUrl(int $id, ?string $fechaActualizacion): string
     {
         $version = $fechaActualizacion ? strtotime($fechaActualizacion) : time();
-        return rtrim(BASE_URL, '/') . '/tasas_imagen_stream.php?tipo=' . urlencode($tipoFuente) . '&v=' . $version;
+        return rtrim(BASE_URL, '/') . '/tasas_imagen_stream.php?id=' . $id . '&v=' . $version;
     }
 }

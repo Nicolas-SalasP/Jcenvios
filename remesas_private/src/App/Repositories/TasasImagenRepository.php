@@ -19,11 +19,11 @@ class TasasImagenRepository
         return in_array($tipoFuente, self::TIPOS_VALIDOS, true);
     }
 
-    public function findByTipo(string $tipoFuente): ?array
+    public function findById(int $id): ?array
     {
-        $sql = "SELECT * FROM tasas_imagen WHERE TipoFuente = ? LIMIT 1";
+        $sql = "SELECT * FROM tasas_imagen WHERE Id = ? LIMIT 1";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("s", $tipoFuente);
+        $stmt->bind_param("i", $id);
         $stmt->execute();
         $result = $stmt->get_result();
         $row = $result ? $result->fetch_assoc() : null;
@@ -31,9 +31,21 @@ class TasasImagenRepository
         return $row ?: null;
     }
 
+    public function getAllByTipo(string $tipoFuente): array
+    {
+        $sql = "SELECT * FROM tasas_imagen WHERE TipoFuente = ? ORDER BY FechaActualizacion DESC, Id DESC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("s", $tipoFuente);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+        return $rows;
+    }
+
     public function getAll(): array
     {
-        $sql = "SELECT * FROM tasas_imagen ORDER BY TipoFuente ASC";
+        $sql = "SELECT * FROM tasas_imagen ORDER BY TipoFuente ASC, FechaActualizacion DESC, Id DESC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -42,17 +54,32 @@ class TasasImagenRepository
         return $rows;
     }
 
-    public function upsertImagen(string $tipoFuente, string $rutaImagen, int $actualizadoPor): bool
+    public function insertImagen(string $tipoFuente, string $rutaImagen, ?string $titulo, ?string $descripcion, int $actualizadoPor): int
     {
-        $sql = "INSERT INTO tasas_imagen (TipoFuente, RutaImagen, FechaActualizacion, ActualizadoPor)
-                VALUES (?, ?, NOW(), ?)
-                ON DUPLICATE KEY UPDATE RutaImagen = VALUES(RutaImagen),
-                                        FechaActualizacion = VALUES(FechaActualizacion),
-                                        ActualizadoPor = VALUES(ActualizadoPor)";
+        $sql = "INSERT INTO tasas_imagen (TipoFuente, RutaImagen, Titulo, Descripcion, FechaActualizacion, ActualizadoPor)
+                VALUES (?, ?, ?, ?, NOW(), ?)";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("ssi", $tipoFuente, $rutaImagen, $actualizadoPor);
+        $stmt->bind_param("ssssi", $tipoFuente, $rutaImagen, $titulo, $descripcion, $actualizadoPor);
+        $stmt->execute();
+        $id = (int) $stmt->insert_id;
+        $stmt->close();
+        return $id;
+    }
+
+    public function deleteById(int $id): bool
+    {
+        $sql = "DELETE FROM tasas_imagen WHERE Id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $id);
         $res = $stmt->execute();
         $stmt->close();
         return $res;
+    }
+
+    public function deleteAll(): array
+    {
+        $rutas = array_column($this->getAll(), 'RutaImagen');
+        $this->db->prepare("DELETE FROM tasas_imagen")->execute();
+        return array_values(array_filter($rutas));
     }
 }
