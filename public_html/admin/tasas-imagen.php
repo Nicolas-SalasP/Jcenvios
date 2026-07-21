@@ -97,4 +97,85 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
+<!-- Preview -->
+<div class="modal fade" id="previewTasaImagenModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewTasaImagenTitulo">Vista previa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center bg-dark">
+                <img id="previewTasaImagenImg" src="" class="img-fluid" alt="Vista previa">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Editar (recortar/redimensionar) -->
+<div class="modal fade" id="editTasaImagenModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-crop"></i> Editar imagen</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 bg-dark" style="max-height: 70vh; overflow: hidden;">
+                <input type="hidden" id="editTasaImagenId">
+                <div class="img-container" style="height: 500px; width: 100%;">
+                    <img id="editTasaImagenImg" src="" style="display: block; max-width: 100%;">
+                </div>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary" id="editTasaImagenRotateLeft"><i class="bi bi-arrow-counterclockwise"></i></button>
+                    <button type="button" class="btn btn-outline-secondary" id="editTasaImagenRotateRight"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+                <div>
+                    <div class="alert alert-danger d-none py-1 px-2 d-inline-block mb-0 me-2" id="editTasaImagenError"></div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary px-4" id="editTasaImagenConfirm">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reemplazar (imagen + titulo + descripcion) -->
+<div class="modal fade" id="replaceTasaImagenModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrow-repeat"></i> Reemplazar imagen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="form-replace-tasa-imagen">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="replaceTasaImagenId">
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Imagen nueva</label>
+                        <input type="file" class="form-control" name="imagen" accept="image/jpeg,image/png,image/webp" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Título (opcional)</label>
+                        <input type="text" class="form-control" name="titulo" id="replaceTasaImagenTitulo" maxlength="150">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Descripción (opcional)</label>
+                        <textarea class="form-control" name="descripcion" id="replaceTasaImagenDescripcion" rows="2"></textarea>
+                    </div>
+                    <div class="alert alert-danger d-none" id="replaceTasaImagenError"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Reemplazar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

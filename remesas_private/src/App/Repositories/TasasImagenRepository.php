@@ -33,7 +33,7 @@ class TasasImagenRepository
 
     public function getAllByTipo(string $tipoFuente): array
     {
-        $sql = "SELECT * FROM tasas_imagen WHERE TipoFuente = ? ORDER BY FechaActualizacion DESC, Id DESC";
+        $sql = "SELECT * FROM tasas_imagen WHERE TipoFuente = ? ORDER BY Id ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("s", $tipoFuente);
         $stmt->execute();
@@ -45,7 +45,7 @@ class TasasImagenRepository
 
     public function getAll(): array
     {
-        $sql = "SELECT * FROM tasas_imagen ORDER BY TipoFuente ASC, FechaActualizacion DESC, Id DESC";
+        $sql = "SELECT * FROM tasas_imagen ORDER BY TipoFuente ASC, Id ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -64,6 +64,26 @@ class TasasImagenRepository
         $id = (int) $stmt->insert_id;
         $stmt->close();
         return $id;
+    }
+
+    public function updateImagenArchivo(int $id, string $rutaImagen, int $actualizadoPor): bool
+    {
+        $sql = "UPDATE tasas_imagen SET RutaImagen = ?, FechaActualizacion = NOW(), ActualizadoPor = ? WHERE Id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("sii", $rutaImagen, $actualizadoPor, $id);
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
+    }
+
+    public function updateImagenCompleta(int $id, string $rutaImagen, ?string $titulo, ?string $descripcion, int $actualizadoPor): bool
+    {
+        $sql = "UPDATE tasas_imagen SET RutaImagen = ?, Titulo = ?, Descripcion = ?, FechaActualizacion = NOW(), ActualizadoPor = ? WHERE Id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("sssii", $rutaImagen, $titulo, $descripcion, $actualizadoPor, $id);
+        $res = $stmt->execute();
+        $stmt->close();
+        return $res;
     }
 
     public function deleteById(int $id): bool

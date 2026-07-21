@@ -9,7 +9,7 @@ use App\Database\Database;
 $imagenes = [];
 try {
     $db = Database::getInstance();
-    $stmt = $db->prepare("SELECT Id, Titulo, Descripcion, FechaActualizacion FROM tasas_imagen WHERE TipoFuente = 'web' ORDER BY FechaActualizacion DESC, Id DESC");
+    $stmt = $db->prepare("SELECT Id, Titulo, Descripcion, FechaActualizacion FROM tasas_imagen WHERE TipoFuente = 'web' ORDER BY Id ASC");
     $stmt->execute();
     $result = $stmt->get_result();
     $imagenes = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
