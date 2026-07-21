@@ -55,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     y: {
                         beginAtZero: true,
                         ticks: {
-                            stepSize: 1,
                             callback: function(value) {
                                 if (value % 1 === 0) {
                                     return value;
