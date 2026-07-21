@@ -39,7 +39,7 @@ if ($txId <= 0) {
     $pageScript = 'admin.js';
     require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     ?>
-    <div class="container mt-5">
+    <div class="container mt-5 mb-5">
         <div class="alert alert-warning shadow-sm">
             <h4 class="mb-2"><i class="bi bi-exclamation-triangle"></i> Orden no encontrada</h4>
             <p class="mb-3">No se proporcionó un identificador de orden válido.</p>
@@ -122,7 +122,7 @@ if (!$orden) {
     $pageScript = 'admin.js';
     require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     ?>
-    <div class="container mt-5">
+    <div class="container mt-5 mb-5">
         <div class="alert alert-warning shadow-sm">
             <h4 class="mb-2"><i class="bi bi-exclamation-triangle"></i> Orden no encontrada</h4>
             <p class="mb-3">No existe ninguna orden con el identificador #<?php echo htmlspecialchars((string) $txId); ?>.</p>

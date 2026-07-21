@@ -33,7 +33,7 @@ require_once __DIR__ . '/../remesas_private/src/templates/header.php';
 </div>
 <?php endif; ?>
 
-<div class="container mt-5">
+<div class="container mt-5 mb-5">
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <div class="card shadow-lg border-0 rounded-lg">
