@@ -303,7 +303,8 @@ class UserService
         );
 
         if ($success) {
-            $this->notificationService->logAdminAction($adminId, 'Admin editó usuario', "Editó datos personales del usuario ID: $targetUserId");
+            $nombreCompleto = trim($data['primerNombre'] . ' ' . $data['primerApellido']);
+            $this->notificationService->logAdminAction($adminId, 'Admin editó usuario', "Editó datos personales de {$nombreCompleto} (ID: $targetUserId)");
         } else {
             throw new Exception("No se pudieron actualizar los datos.", 500);
         }
@@ -353,7 +354,8 @@ class UserService
 
         // 5. Actualizar estado de verificación en BD
         if ($this->userRepository->updateVerificationDocuments($userId, $pathFrente, $pathReverso, $estadoEnRevisionID)) {
-            $this->notificationService->logAdminAction($userId, 'Subida Documentos Verificación', "Usuario ID: $userId. Selfie actualizada y docs subidos. Pasa a En Revisión.");
+            $nombreCompleto = trim(($currentUser['PrimerNombre'] ?? '') . ' ' . ($currentUser['PrimerApellido'] ?? ''));
+            $this->notificationService->logAdminAction($userId, 'Subida Documentos Verificación', "{$nombreCompleto} (ID: $userId) actualizó selfie y documentos. Pasa a En Revisión.");
             if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id']) && $_SESSION['user_id'] == $userId) {
                 $_SESSION['verification_status'] = 'En Revisión';
             }
@@ -381,7 +383,8 @@ class UserService
         }
 
         if ($this->userRepository->updateVerificationStatus($userId, $newStatusID)) {
-            $this->notificationService->logAdminAction($adminId, 'Admin actualizó estado verificación', "Usuario ID: $userId, Nuevo Estado: $newStatusName (ID: $newStatusID)");
+            $nombreCompleto = trim(($user['PrimerNombre'] ?? '') . ' ' . ($user['PrimerApellido'] ?? ''));
+            $this->notificationService->logAdminAction($adminId, 'Admin actualizó estado verificación', "{$nombreCompleto} (ID: $userId), Nuevo Estado: $newStatusName");
         } else {
             throw new Exception("No se pudo actualizar el estado de verificación.", 500);
         }
@@ -404,7 +407,9 @@ class UserService
             : null;
         if ($this->userRepository->updateLoginAttempts($userId, 0, $lockoutUntil)) {
             $actionText = $newStatus === 'blocked' ? 'Bloqueado' : 'Desbloqueado';
-            $this->notificationService->logAdminAction($adminId, "Admin cambió estado de usuario", "Usuario ID: $userId, Nuevo Estado: $actionText");
+            $target = $this->userRepository->findUserById($userId);
+            $nombreCompleto = $target ? trim($target['PrimerNombre'] . ' ' . $target['PrimerApellido']) : "ID $userId";
+            $this->notificationService->logAdminAction($adminId, "Admin cambió estado de usuario", "{$nombreCompleto} (ID: $userId), Nuevo Estado: $actionText");
         } else {
             throw new Exception("No se pudo actualizar el estado de bloqueo del usuario.", 500);
         }
@@ -433,7 +438,10 @@ class UserService
         }
 
         if ($this->userRepository->updateRole($targetUserId, $newRoleId)) {
-            $this->notificationService->logAdminAction($adminId, "Admin cambió rol de usuario", "Usuario ID: $targetUserId, Nuevo Rol ID: $newRoleId");
+            $target = $this->userRepository->findUserById($targetUserId);
+            $nombreCompleto = $target ? trim($target['PrimerNombre'] . ' ' . $target['PrimerApellido']) : "ID $targetUserId";
+            $nuevoRolNombre = $this->rolRepo->findNameById($newRoleId) ?? "ID $newRoleId";
+            $this->notificationService->logAdminAction($adminId, "Admin cambió rol de usuario", "{$nombreCompleto} (ID: $targetUserId), Nuevo Rol: $nuevoRolNombre");
         } else {
             throw new Exception("No se pudo actualizar el rol del usuario.", 500);
         }
@@ -445,8 +453,10 @@ class UserService
             throw new Exception("No puedes eliminarte a ti mismo.", 400);
         if ($targetUserId === 1)
             throw new Exception("No se puede eliminar al Super Administrador.", 403);
+        $target = $this->userRepository->findUserById($targetUserId);
+        $nombreCompleto = $target ? trim($target['PrimerNombre'] . ' ' . $target['PrimerApellido']) : "ID $targetUserId";
         if ($this->userRepository->delete($targetUserId)) {
-            $this->notificationService->logAdminAction($adminId, "Admin eliminó usuario", "Usuario ID: $targetUserId (Soft Delete)");
+            $this->notificationService->logAdminAction($adminId, "Admin eliminó usuario", "{$nombreCompleto} (ID: $targetUserId, Soft Delete)");
         } else {
             throw new Exception("No se pudo eliminar al usuario.", 500);
         }

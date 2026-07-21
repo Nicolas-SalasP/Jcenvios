@@ -304,7 +304,7 @@ class CuentasBeneficiariasService
         return $this->cuentasRepo->findAllByUserId($userId);
     }
 
-    public function adminUpdateBeneficiary(array $data): void
+    public function adminUpdateBeneficiary(int $adminId, array $data): void
     {
         if (empty($data['cuentaId']) || empty($data['nombre']) || empty($data['cuenta'])) {
             throw new Exception("Faltan datos obligatorios para la edición.");
@@ -316,6 +316,9 @@ class CuentasBeneficiariasService
         if (!$success) {
             throw new Exception("No se pudo actualizar la cuenta en la base de datos.");
         }
+
+        $banco = $data['banco'] ?? 'Banco no especificado';
+        $this->notificationService->logAdminAction($adminId, 'Admin editó beneficiario', "{$data['nombre']} - Banco: {$banco} (Cuenta ID: {$cuentaId})");
     }
 
     public function togglePermission(int $userId, int $cuentaId, int $newState): bool

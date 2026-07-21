@@ -156,6 +156,17 @@ class RateRepository
         return $success;
     }
 
+    public function findById(int $tasaId): ?array
+    {
+        $sql = "SELECT TasaID, PaisOrigenID, PaisDestinoID, ValorTasa, EsReferencial FROM tasas WHERE TasaID = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $tasaId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $result ?: null;
+    }
+
     public function delete(int $tasaId): bool
     {
         $sql = "UPDATE tasas SET Activa = 0 WHERE TasaID = ?";

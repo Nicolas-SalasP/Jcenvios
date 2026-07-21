@@ -832,9 +832,10 @@ class AdminController extends BaseController
     {
         $this->ensureAdmin();
         $data = $this->getJsonInput();
+        $adminId = (int) ($_SESSION['user_id'] ?? 0);
 
         try {
-            $this->cuentasService->adminUpdateBeneficiary($data);
+            $this->cuentasService->adminUpdateBeneficiary($adminId, $data);
             $this->sendJsonResponse(['success' => true, 'message' => 'Beneficiario corregido exitosamente.']);
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
