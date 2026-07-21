@@ -12,6 +12,10 @@ if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin'
 
 $busqueda = isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
 $estadoFiltro = isset($_GET['estado']) ? $_GET['estado'] : '';
+$registrosPorPagina = 25;
+$paginaActual = isset($_GET['pagina']) ? (int) $_GET['pagina'] : 1;
+if ($paginaActual < 1) $paginaActual = 1;
+$offset = ($paginaActual - 1) * $registrosPorPagina;
 
 // Incluir estado Rechazado (4) para que esos usuarios no desaparezcan del listado.
 // Antes: WHERE U.VerificacionEstadoID IN (1, 2)
@@ -32,26 +36,42 @@ if ($estadoFiltro !== '') {
     $types .= "i";
 }
 
+$sqlCount = "SELECT COUNT(*) as total FROM usuarios U WHERE $conditions";
+$stmtCount = $conexion->prepare($sqlCount);
+if (!empty($params)) {
+    $stmtCount->bind_param($types, ...$params);
+}
+$stmtCount->execute();
+$totalRegistros = $stmtCount->get_result()->fetch_assoc()['total'];
+$totalPaginas = ceil($totalRegistros / $registrosPorPagina);
+$stmtCount->close();
+
 // Dentro del grupo Rechazado (4), ordenar por FechaVerificacion DESC (el
-// rechazo más reciente primero) — antes se ordenaba por FechaRegistro ASC,
-// enterrando rechazos recientes de cuentas viejas bajo rechazos antiguos de
-// cuentas recién registradas. Pendiente(1)/En Revisión(2) siguen como cola
-// FIFO por FechaRegistro ASC (se procesa primero al que espera hace más).
+// rechazo más reciente primero). Pendiente(1)/En Revisión(2) ahora por
+// FechaRegistro DESC (los últimos que llegaron primero), no FIFO.
 $sql = "SELECT U.*, TD.NombreDocumento
         FROM usuarios U
         LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
         WHERE $conditions
         ORDER BY U.VerificacionEstadoID DESC,
                  CASE WHEN U.VerificacionEstadoID = 4 THEN COALESCE(U.FechaVerificacion, U.FechaRegistro) END DESC,
-                 U.FechaRegistro ASC";
+                 U.FechaRegistro DESC
+        LIMIT ? OFFSET ?";
+
+$paramsQuery = $params;
+$paramsQuery[] = $registrosPorPagina;
+$paramsQuery[] = $offset;
+$typesQuery = $types . "ii";
 
 $stmt = $conexion->prepare($sql);
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
-}
+$stmt->bind_param($typesQuery, ...$paramsQuery);
 $stmt->execute();
 $usuariosPendientes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+
+function paginationUrlVerif($page, $busqueda, $estadoFiltro) {
+    return "?" . http_build_query(['pagina' => $page, 'buscar' => $busqueda, 'estado' => $estadoFiltro]);
+}
 
 $isAjax = (isset($_GET['ajax']) && $_GET['ajax'] == '1');
 
@@ -92,7 +112,7 @@ if (!$isAjax) {
         </div>
     </div>
 
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm">
         <div class="card-body" id="table-content">
 <?php endif; ?>
 
@@ -173,6 +193,24 @@ if (!$isAjax) {
                     </tbody>
                 </table>
             </div>
+
+            <?php if ($totalPaginas > 1): ?>
+                <nav class="mt-4 pb-3">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item <?php echo ($paginaActual <= 1) ? 'disabled' : ''; ?>">
+                            <a class="page-link" href="<?php echo paginationUrlVerif($paginaActual - 1, $busqueda, $estadoFiltro); ?>">Anterior</a>
+                        </li>
+                        <?php for ($i = 1; $i <= $totalPaginas; $i++): ?>
+                            <li class="page-item <?php echo ($i == $paginaActual) ? 'active' : ''; ?>">
+                                <a class="page-link" href="<?php echo paginationUrlVerif($i, $busqueda, $estadoFiltro); ?>"><?php echo $i; ?></a>
+                            </li>
+                        <?php endfor; ?>
+                        <li class="page-item <?php echo ($paginaActual >= $totalPaginas) ? 'disabled' : ''; ?>">
+                            <a class="page-link" href="<?php echo paginationUrlVerif($paginaActual + 1, $busqueda, $estadoFiltro); ?>">Siguiente</a>
+                        </li>
+                    </ul>
+                </nav>
+            <?php endif; ?>
 
 <?php if (!$isAjax): ?>
         </div>

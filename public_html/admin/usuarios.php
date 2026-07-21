@@ -122,7 +122,7 @@ if (!$isAjax) {
         </div>
     </div>
 
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm">
         <div class="card-body p-0" id="table-content">
 <?php endif; ?>
 
