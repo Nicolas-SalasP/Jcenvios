@@ -118,7 +118,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                     </div>
                                 </div>
 
-                                <input type="file" id="doc-selfie" name="selfie" class="d-none" accept="image/*" capture="user" required>
+                                <input type="file" id="doc-selfie" name="selfie" class="d-none" accept="image/*" capture="user">
                                 <div id="error-selfie" class="text-danger small fw-bold d-none mt-2"><i class="bi bi-exclamation-circle-fill"></i> La selfie es obligatoria.</div>
                             </div>
                         </div>
