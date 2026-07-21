@@ -25,4 +25,5 @@ Thumbs.db
 .vscode/
 
 .claude
-CLAUDE.md.playwright-mcp/
+CLAUDE.md
+.playwright-mcp/
