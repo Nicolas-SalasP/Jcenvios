@@ -25,13 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderGaleria(tipo, items);
             });
         } catch (err) {
-            tipos.forEach(tipo => {
-                const errEl = document.getElementById('error-' + tipo);
-                if (errEl) {
-                    errEl.textContent = err.message;
-                    errEl.classList.remove('d-none');
-                }
-            });
+            window.showInfoModal('Error', err.message, false);
         }
     }
 
@@ -66,7 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function eliminarImagen(id, tipo) {
-        if (!confirm('¿Eliminar esta imagen?')) return;
+        const confirmado = await window.showConfirmModal('Eliminar imagen', '¿Eliminar esta imagen? Esta acción no se puede deshacer.');
+        if (!confirmado) return;
+
         try {
             const formData = new FormData();
             formData.append('id', id);
@@ -75,11 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!data.success) throw new Error(data.error || 'No se pudo eliminar la imagen.');
             fetchEstado();
         } catch (err) {
-            const errorEl = document.getElementById('error-' + tipo);
-            if (errorEl) {
-                errorEl.textContent = err.message;
-                errorEl.classList.remove('d-none');
-            }
+            window.showInfoModal('Error', err.message, false);
         }
     }
 
@@ -89,8 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const errorEl = document.getElementById('error-' + tipo);
-            errorEl.classList.add('d-none');
             const btn = form.querySelector('button[type="submit"]');
             btn.disabled = true;
 
@@ -104,9 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!data.success) throw new Error(data.error || 'No se pudo subir la imagen.');
                 form.reset();
                 fetchEstado();
+                window.showInfoModal('Listo', 'Imagen subida correctamente.', true);
             } catch (err) {
-                errorEl.textContent = err.message;
-                errorEl.classList.remove('d-none');
+                window.showInfoModal('Error', err.message, false);
             } finally {
                 btn.disabled = false;
             }

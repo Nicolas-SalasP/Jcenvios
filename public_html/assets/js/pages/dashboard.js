@@ -97,39 +97,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. FUNCIONES DE CÁLCULO Y UTILIDADES
     // =========================================================
 
-    const confirmActionWithModal = (title, message) => {
-        return new Promise((resolve) => {
-            const modalEl = document.getElementById('confirmModal');
-            if (!modalEl) return resolve(confirm(message));
-
-            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-            const titleEl = document.getElementById('confirmModalTitle');
-            const bodyEl = document.getElementById('confirmModalBody');
-
-            if (titleEl) titleEl.textContent = title;
-            if (bodyEl) bodyEl.innerText = message;
-
-            const btnYes = document.getElementById('confirmModalYesBtn') || document.getElementById('confirmModalConfirmBtn');
-            const btnCancel = document.getElementById('confirmModalCancelBtn');
-
-            if (!btnYes) return resolve(confirm(message));
-
-            const onYes = () => { cleanup(); modal.hide(); resolve(true); };
-            const onCancel = () => { cleanup(); modal.hide(); resolve(false); };
-
-            const cleanup = () => {
-                btnYes.removeEventListener('click', onYes);
-                if (btnCancel) btnCancel.removeEventListener('click', onCancel);
-                modalEl.removeEventListener('hidden.bs.modal', onCancel);
-            };
-
-            btnYes.addEventListener('click', onYes);
-            if (btnCancel) btnCancel.addEventListener('click', onCancel);
-            modalEl.addEventListener('hidden.bs.modal', onCancel, { once: true });
-
-            modal.show();
-        });
-    };
+    // showConfirmModal/showInfoModal vienen globales desde
+    // assets/js/utils/modalUtils.js (cargado en toda página vía footer.php).
+    const confirmActionWithModal = (title, message) => window.showConfirmModal(title, message);
 
     const parseInput = (val, isUsd = false) => {
         if (!val) return 0;
@@ -375,7 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     false
                 );
             } else {
-                alert('Esta ruta de envío está temporalmente desactivada por el administrador.');
+                window.showInfoModal('Ruta no disponible', 'Esta ruta de envío está temporalmente desactivada por el administrador.', false);
             }
             return;
         }
@@ -601,15 +571,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             } else {
-                if (window.showInfoModal) window.showInfoModal('Error', res.error, false);
-                else alert(res.error);
+                window.showInfoModal('Error', res.error, false);
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Confirmar Orden';
                 isSubmitting = false;
             }
         } catch (e) {
-            if (window.showInfoModal) window.showInfoModal('Error', 'Hubo un problema. Revisa la consola.', false);
-            else alert('Error crítico');
+            window.showInfoModal('Error', 'Hubo un problema. Revisa la consola.', false);
             submitBtn.disabled = false;
             isSubmitting = false;
         }
@@ -792,12 +760,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (paisId) loadBeneficiaries(paisId); // Recargar
                     if (window.showInfoModal) window.showInfoModal("Autorizado", "Has autorizado la edición temporalmente.", true);
                 } else {
-                    alert("Error: " + data.error);
+                    window.showInfoModal('Error', data.error, false);
                     btn.disabled = false;
                     btn.innerHTML = 'Reintentar';
                 }
             } catch (e) {
-                alert("Error de conexión");
+                window.showInfoModal('Error', 'Error de conexión', false);
                 btn.disabled = false;
             }
         });
@@ -1475,11 +1443,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         setTimeout(checkPendingBeneficiaryRequests, 1000);
 
                     } else {
-                        alert("Error: " + data.error);
+                        window.showInfoModal('Error', data.error, false);
                         modal.hide();
                     }
                 } catch (e) {
-                    alert("Error de conexión al registrar respuesta.");
+                    window.showInfoModal('Error', 'Error de conexión al registrar respuesta.', false);
                     modal.hide();
                 }
             });

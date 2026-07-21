@@ -58,7 +58,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <div class="mb-3">
                             <textarea class="form-control" name="descripcion" placeholder="Descripción (opcional)" rows="2"></textarea>
                         </div>
-                        <div class="alert alert-danger d-none" id="error-whatsapp"></div>
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="bi bi-upload me-1"></i> Agregar imagen
                         </button>
@@ -88,7 +87,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <div class="mb-3">
                             <textarea class="form-control" name="descripcion" placeholder="Descripción (opcional)" rows="2"></textarea>
                         </div>
-                        <div class="alert alert-danger d-none" id="error-web"></div>
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="bi bi-upload me-1"></i> Agregar imagen
                         </button>

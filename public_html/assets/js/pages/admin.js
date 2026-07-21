@@ -17,87 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // =================================================
-    // 0. UTILIDADES GLOBALES & HELPERS (MODALES REALES BOOTSTRAP)
+    // 0. UTILIDADES GLOBALES & HELPERS
     // =================================================
-
-    window.showConfirmModal = (title, message) => {
-        return new Promise((resolve) => {
-            const existing = document.getElementById('js-global-confirm-modal');
-            if (existing) existing.remove();
-            const modalEl = document.createElement('div');
-            modalEl.id = 'js-global-confirm-modal';
-            modalEl.className = 'modal fade';
-            modalEl.innerHTML = `
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content border-0 shadow">
-                        <div class="modal-header bg-light">
-                            <h5 class="modal-title fw-bold text-dark">${title}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body p-4 fs-6">${message}</div>
-                        <div class="modal-footer bg-light border-0">
-                            <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary px-4" id="js-global-confirm-btn">Confirmar</button>
-                        </div>
-                    </div>
-                </div>`;
-            document.body.appendChild(modalEl);
-
-            const modal = new bootstrap.Modal(modalEl);
-            const confirmBtn = document.getElementById('js-global-confirm-btn');
-
-            let isConfirmed = false;
-
-            confirmBtn.onclick = () => {
-                isConfirmed = true;
-                modal.hide();
-                resolve(true);
-            };
-
-            modalEl.addEventListener('hidden.bs.modal', () => {
-                if (!isConfirmed) resolve(false);
-                modalEl.remove();
-            });
-
-            modal.show();
-        });
-    };
-
-    window.showInfoModal = (title, message, isSuccess = false, callback = null) => {
-        const id = 'js-global-info-modal';
-        const existing = document.getElementById(id);
-        if (existing) existing.remove();
-
-        const modalEl = document.createElement('div');
-        modalEl.id = id;
-        modalEl.className = 'modal fade';
-        const headerClass = isSuccess ? 'bg-success text-white' : 'bg-primary text-white';
-        const icon = isSuccess ? '<i class="bi bi-check-circle-fill me-2"></i>' : '<i class="bi bi-info-circle-fill me-2"></i>';
-
-        modalEl.innerHTML = `
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 shadow">
-                    <div class="modal-header ${headerClass}">
-                        <h5 class="modal-title fw-bold">${icon}${title}</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body p-4 fs-6">${message}</div>
-                    <div class="modal-footer border-0">
-                        <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Entendido</button>
-                    </div>
-                </div>
-            </div>`;
-        document.body.appendChild(modalEl);
-
-        const modal = new bootstrap.Modal(modalEl);
-
-        modalEl.addEventListener('hidden.bs.modal', () => {
-            if (callback) callback();
-            modalEl.remove();
-        });
-
-        modal.show();
-    };
+    // showConfirmModal/showInfoModal ya vienen globales desde
+    // assets/js/utils/modalUtils.js (cargado en toda página vía footer.php).
 
     window.showPromptModal = (title, message, placeholder = '', requireText = true) => {
         return new Promise((resolve) => {
@@ -1154,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const reason = rejectReasonInput.value.trim();
                 const type = btn.dataset.type;
 
-                if (!reason) { alert('Por favor, escribe un motivo.'); return; }
+                if (!reason) { window.showInfoModal('Falta el motivo', 'Por favor, escribe un motivo.', false); return; }
 
                 const allBtns = document.querySelectorAll('.confirm-reject-btn');
                 allBtns.forEach(b => b.disabled = true);
@@ -1443,7 +1366,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (editBtn.dataset.userId) {
                     currentEditingUserId = editBtn.dataset.userId;
                 } else {
-                    alert("Error: No se pudo identificar el ID del usuario. Por favor cierra y abre el modal de nuevo.");
+                    window.showInfoModal('Error', 'No se pudo identificar el ID del usuario. Por favor cierra y abre el modal de nuevo.', false);
                     return;
                 }
                 let imgSourceId = '';
@@ -1457,7 +1380,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     bootstrap.Modal.getInstance(document.getElementById('userDocsModal')).hide();
                     adminCropModal.show();
                 } else {
-                    alert('No hay una imagen válida cargada para editar.');
+                    window.showInfoModal('Error', 'No hay una imagen válida cargada para editar.', false);
                 }
             }
         });

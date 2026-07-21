@@ -185,10 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 deleteModal.hide();
                 calendar.refetchEvents(); 
             } else {
-                alert('Error al eliminar: ' + data.error);
+                window.showInfoModal('Error', 'Error al eliminar: ' + data.error, false);
             }
         } catch (err) {
-            alert('Error de conexión.');
+            window.showInfoModal('Error', 'Error de conexión.', false);
         } finally {
             btnConfirmDelete.disabled = false;
             btnConfirmDelete.innerHTML = originalText;
@@ -229,11 +229,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     calendar.refetchEvents();
                 } else {
-                    alert('Error: ' + data.error);
+                    window.showInfoModal('Error', 'Error: ' + data.error, false);
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error de conexión.');
+                window.showInfoModal('Error', 'Error de conexión.', false);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalHTML;
@@ -309,12 +309,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     renderHorarioOverride(data);
                 } else {
-                    alert('Error: ' + data.error);
+                    window.showInfoModal('Error', 'Error: ' + data.error, false);
                     fetchHorarioOverrideStatus();
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error de conexión.');
+                window.showInfoModal('Error', 'Error de conexión.', false);
                 fetchHorarioOverrideStatus();
             }
         });
@@ -333,11 +333,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     renderHorarioOverride({ active: null });
                 } else {
-                    alert('Error: ' + data.error);
+                    window.showInfoModal('Error', 'Error: ' + data.error, false);
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error de conexión.');
+                window.showInfoModal('Error', 'Error de conexión.', false);
             } finally {
                 btnLimpiarOverride.disabled = false;
             }
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnGuardarMensajeHorario.addEventListener('click', async () => {
             const mensaje = horarioMensajeInput.value.trim();
             if (!mensaje) {
-                alert('El mensaje no puede estar vacío.');
+                window.showInfoModal('Falta el mensaje', 'El mensaje no puede estar vacío.', false);
                 return;
             }
             btnGuardarMensajeHorario.disabled = true;
@@ -362,11 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     renderHorarioOverride(data);
                 } else {
-                    alert('Error: ' + data.error);
+                    window.showInfoModal('Error', 'Error: ' + data.error, false);
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error de conexión.');
+                window.showInfoModal('Error', 'Error de conexión.', false);
             } finally {
                 btnGuardarMensajeHorario.disabled = false;
             }

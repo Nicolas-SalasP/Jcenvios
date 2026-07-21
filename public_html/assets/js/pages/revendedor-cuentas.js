@@ -127,7 +127,7 @@
             }
 
             if (deleteBtn) {
-                if (!confirm('¿Eliminar esta cuenta bancaria?')) return;
+                if (!(await window.showConfirmModal('Eliminar cuenta', '¿Eliminar esta cuenta bancaria?'))) return;
                 deleteBtn.disabled = true;
                 try {
                     await fetch('../api/?accion=deleteResellerAccount', {
