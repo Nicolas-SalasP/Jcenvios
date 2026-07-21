@@ -259,34 +259,12 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">Confirmación</h5>
-            </div>
-            <div class="modal-body" id="confirmModalBody">¿Estás seguro?</div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                    id="confirmModalCancelBtn">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="confirmModalYesBtn">Confirmar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="infoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Información</h5>
-            </div>
-            <div class="modal-body" id="infoModalBody"></div>
-            <div class="modal-footer"><button type="button" class="btn btn-secondary"
-                    data-bs-dismiss="modal">Cerrar</button></div>
-        </div>
-    </div>
-</div>
+<!-- Los modales globales #confirmModal / #infoModal ya vienen de footer.php —
+     antes había duplicados acá con IDs internos distintos (confirmModalYesBtn,
+     sin confirmModalTitle/infoModalTitle/infoModalHeader) que colisionaban por
+     id repetido. getElementById() se quedaba con estos (primeros en el DOM) y
+     modalUtils.js tiraba TypeError al buscar elementos que no existían acá,
+     rompiendo showConfirmModal()/showInfoModal() en silencio en toda la página. -->
 
 <style>
     #modal-content-visor {

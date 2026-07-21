@@ -381,23 +381,12 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     });
 </script>
 
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title fw-bold text-dark" id="confirmModalTitle">Confirmación</h5>
-            </div>
-            <div class="modal-body">
-                <p id="confirmModalBody" class="fs-6">¿Estás seguro?</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" id="confirmModalCancelBtn" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary fw-bold" id="confirmModalYesBtn">Confirmar y Continuar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <?php
+// El modal de confirmación global (#confirmModal) ya viene de footer.php —
+// antes había uno duplicado acá con IDs distintos (confirmModalYesBtn, sin
+// botón .btn-close) que colisionaba por id="confirmModal" con el global.
+// getElementById() se quedaba con este (el primero en el DOM), y
+// modalUtils.js tiraba TypeError al buscar elementos que no existían acá,
+// rompiendo showConfirmModal() en silencio en toda esta página.
 require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';
 ?>
