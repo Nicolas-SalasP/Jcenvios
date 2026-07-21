@@ -32,11 +32,18 @@ if ($estadoFiltro !== '') {
     $types .= "i";
 }
 
-$sql = "SELECT U.*, TD.NombreDocumento 
-        FROM usuarios U 
+// Dentro del grupo Rechazado (4), ordenar por FechaVerificacion DESC (el
+// rechazo más reciente primero) — antes se ordenaba por FechaRegistro ASC,
+// enterrando rechazos recientes de cuentas viejas bajo rechazos antiguos de
+// cuentas recién registradas. Pendiente(1)/En Revisión(2) siguen como cola
+// FIFO por FechaRegistro ASC (se procesa primero al que espera hace más).
+$sql = "SELECT U.*, TD.NombreDocumento
+        FROM usuarios U
         LEFT JOIN tipos_documento TD ON U.TipoDocumentoID = TD.TipoDocumentoID
         WHERE $conditions
-        ORDER BY U.VerificacionEstadoID DESC, U.FechaRegistro ASC";
+        ORDER BY U.VerificacionEstadoID DESC,
+                 CASE WHEN U.VerificacionEstadoID = 4 THEN COALESCE(U.FechaVerificacion, U.FechaRegistro) END DESC,
+                 U.FechaRegistro ASC";
 
 $stmt = $conexion->prepare($sql);
 if (!empty($params)) {
