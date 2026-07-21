@@ -1248,11 +1248,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const setupToggle = (toggleId, containerId, inputId) => {
             const t = document.getElementById(toggleId), c = document.getElementById(containerId), i = document.getElementById(inputId);
             if (t && c && i) {
-                t.addEventListener('change', async () => {
-                    if (t.checked) {
-                        if (await confirmActionWithModal('Confirmar', '¿Omitir este campo?')) { c.classList.add('d-none'); i.required = false; i.value = ''; }
-                        else t.checked = false;
-                    } else { c.classList.remove('d-none'); i.required = true; }
+                t.addEventListener('change', () => {
+                    if (t.checked) { c.classList.add('d-none'); i.required = false; i.value = ''; }
+                    else { c.classList.remove('d-none'); i.required = true; }
                 });
             }
         };
