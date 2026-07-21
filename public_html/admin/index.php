@@ -876,19 +876,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
-<div class="modal fade" id="infoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="infoModalTitle">Info</h5><button type="button" class="btn-close"
-                    data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="infoModalBody"></div>
-            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                    id="infoModalCloseBtn">Cerrar</button></div>
-        </div>
-    </div>
-</div>
+<!-- El modal global #infoModal ya viene de footer.php — antes había uno
+     duplicado acá sin id="infoModalHeader" en el modal-header, que colisionaba
+     por id="infoModal" repetido. getElementById() se quedaba con este (primero
+     en el DOM) y modalUtils.js tiraba TypeError al buscar infoModalHeader,
+     rompiendo showInfoModal() en silencio en toda la página. -->
 
 <div class="modal fade" id="copyDataModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
