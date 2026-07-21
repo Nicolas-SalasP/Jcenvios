@@ -65,6 +65,10 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <div id="disable-2fa-section" class="d-none">
                     <h3 class="h4">Desactivar Doble Factor (2FA)</h3>
                     <p class="text-danger">Tu cuenta estará menos segura si desactivas la autenticación de doble factor.</p>
+                    <div class="mb-3">
+                        <label for="disable-code" class="form-label">Código de Verificación Actual</label>
+                        <input type="text" class="form-control" id="disable-code" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Ingresa el código de 6 dígitos">
+                    </div>
                     <button id="disable-2fa-btn" class="btn btn-danger">Desactivar 2FA</button>
                 </div>
 

@@ -130,7 +130,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 if(profileImgPreview) {
-                    profileImgPreview.src = p.FotoPerfilURL ? `../admin/view_secure_file.php?file=${encodeURIComponent(p.FotoPerfilURL)}` : defaultPhoto;
+                    if (p.FotoPerfilURL) {
+                        profileImgPreview.src = `../admin/view_secure_file.php?file=${encodeURIComponent(p.FotoPerfilURL)}`;
+                    }
                     if(photoRequiredBadge) p.FotoPerfilURL ? photoRequiredBadge.classList.add('d-none') : photoRequiredBadge.classList.remove('d-none');
                 }
                 if(profileLoading) profileLoading.classList.add('d-none');
