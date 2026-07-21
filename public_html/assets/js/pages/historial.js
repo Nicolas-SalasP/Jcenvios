@@ -1,13 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    if (!window.showConfirmModal) {
-        window.showConfirmModal = async (title, message) => confirm(`${title}\n\n${message}`);
-    }
-    if (!window.showInfoModal) {
-        window.showInfoModal = (title, message, isSuccess = false, callback = null) => {
-            alert(`${title}: ${message}`);
-            if (callback) callback();
-        };
-    }
+    // showConfirmModal/showInfoModal vienen globales desde
+    // assets/js/utils/modalUtils.js (cargado en toda página vía footer.php).
 
     const tableBody = document.getElementById('historial-body');
     const noResultsDiv = document.getElementById('no-results');
@@ -33,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             title = 'Reportar no recibido';
             message = 'Vas a reportar que NO recibiste el dinero. El administrador será notificado para contactarte. Podrás cambiar esto a "Recibido" más tarde si en realidad sí llegó.';
         }
-        const ok = await (window.showConfirmModal ? window.showConfirmModal(title, message) : Promise.resolve(confirm(message)));
+        const ok = await window.showConfirmModal(title, message);
         if (!ok) return;
 
         btn.disabled = true;
@@ -666,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cameraToggleContainer.classList.add('d-none');
             } catch (err) {
                 console.error("Error cámara:", err);
-                alert("No se pudo iniciar la cámara.");
+                window.showInfoModal('Error', 'No se pudo iniciar la cámara.', false);
             }
         };
 
@@ -751,7 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (fileInput.files.length === 0) {
-                alert("Selecciona el archivo del comprobante.");
+                window.showInfoModal('Falta el comprobante', 'Selecciona el archivo del comprobante.', false);
                 return;
             }
 
@@ -819,7 +812,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await res.json();
                 if (result.success) window.showInfoModal('Cancelada', 'Orden cancelada.', true, loadHistorial);
                 else throw new Error(result.error);
-            } catch (err) { alert(err.message || 'Error conexión'); }
+            } catch (err) { window.showInfoModal('Error', err.message || 'Error conexión', false); }
         }
     });
 
@@ -837,7 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await res.json();
                 if (result.success) window.showInfoModal('Plazo extendido', result.message || 'Tienes 4 horas más para pagar.', true, loadHistorial);
                 else throw new Error(result.error);
-            } catch (err) { alert(err.message || 'Error de conexión'); }
+            } catch (err) { window.showInfoModal('Error', err.message || 'Error de conexión', false); }
         }
     });
 
@@ -889,12 +882,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     a.download = fileName;
                     a.click();
                     URL.revokeObjectURL(a.href);
-                    alert("Tu dispositivo no soporta la función de compartir directo. El archivo se ha descargado.");
+                    window.showInfoModal('Descarga completa', 'Tu dispositivo no soporta la función de compartir directo. El archivo se ha descargado.', true);
                 }
             } catch (error) {
                 console.error("Error al compartir:", error);
                 if (error.name !== 'AbortError') {
-                    alert("No se pudo compartir el archivo.");
+                    window.showInfoModal('Error', 'No se pudo compartir el archivo.', false);
                 }
             } finally {
                 btnShare.disabled = false;

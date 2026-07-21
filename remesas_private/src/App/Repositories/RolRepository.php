@@ -44,4 +44,15 @@ class RolRepository
          $stmt->close();
          return $result['RolID'] ?? null;
     }
+
+    public function findNameById(int $rolId): ?string
+    {
+         $sql = "SELECT NombreRol FROM roles WHERE RolID = ? LIMIT 1";
+         $stmt = $this->db->prepare($sql);
+         $stmt->bind_param("i", $rolId);
+         $stmt->execute();
+         $result = $stmt->get_result()->fetch_assoc();
+         $stmt->close();
+         return $result['NombreRol'] ?? null;
+    }
 }

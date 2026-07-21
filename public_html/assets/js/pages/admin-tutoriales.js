@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!data.success) throw new Error(data.error || 'No se pudo cambiar el estado.');
             fetchTutoriales();
         } catch (err) {
-            alert(err.message);
+            window.showInfoModal('Error', err.message, false);
         }
     }
 
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modalEliminar.hide();
             fetchTutoriales();
         } catch (err) {
-            alert(err.message);
+            window.showInfoModal('Error', err.message, false);
         } finally {
             tutorialIdToDelete = null;
         }

@@ -128,7 +128,9 @@ class Container
                 $this->get(CountryRepository::class),
                 $this->get(SystemSettingsRepository::class),
                 $this->get(NotificationService::class),
-                $this->get(SystemSettingsService::class)
+                $this->get(SystemSettingsService::class),
+                $this->get(TasasImagenRepository::class),
+                $this->get(FileHandlerService::class)
             ),
 
             CuentasBeneficiariasService::class => new CuentasBeneficiariasService(
@@ -462,6 +464,7 @@ try {
         // Tasas Imagen (admin)
         'getTasasImagenAdmin'   => [TasasImagenController::class, 'getTasasImagenAdmin', 'GET'],
         'saveTasaImagen'        => [TasasImagenController::class, 'saveTasaImagen', 'POST'],
+        'deleteTasaImagen'      => [TasasImagenController::class, 'deleteTasaImagen', 'POST'],
 
         // Normas (público)
         'getNormasPublicas'     => [NormasController::class, 'getNormasPublicas', 'GET'],

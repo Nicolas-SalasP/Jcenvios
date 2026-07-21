@@ -289,7 +289,7 @@ class UserRepository
 
     public function updateVerificationStatus(int $userId, int $newStatusID): bool
     {
-        $sql = "UPDATE usuarios SET VerificacionEstadoID = ? WHERE UserID = ?";
+        $sql = "UPDATE usuarios SET VerificacionEstadoID = ?, FechaVerificacion = NOW() WHERE UserID = ?";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("ii", $newStatusID, $userId);
         $success = $stmt->execute();

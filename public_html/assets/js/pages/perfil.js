@@ -513,23 +513,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if(pais === C_PERU) {
-            if(isMov && phone.length !== 9) { alert(`${banco} debe tener 9 dígitos.`); btn.disabled=false; btn.textContent=txt; return; }
+            if(isMov && phone.length !== 9) { window.showInfoModal('Dato inválido', `${banco} debe tener 9 dígitos.`, false); btn.disabled=false; btn.textContent=txt; return; }
             if(isCta) {
                 if (banco === 'Interbank') {
-                    if (acc.length !== 13 && acc.length !== 14) { alert('La cuenta Interbank debe tener 13 o 14 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
+                    if (acc.length !== 13 && acc.length !== 14) { window.showInfoModal('Dato inválido', 'La cuenta Interbank debe tener 13 o 14 dígitos.', false); btn.disabled=false; btn.textContent=txt; return; }
                 } else if (banco === 'Otro Banco') {
                     const cci = fd.get('cci') || '';
-                    if (cci.length !== 20) { alert('El CCI debe tener exactamente 20 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
+                    if (cci.length !== 20) { window.showInfoModal('Dato inválido', 'El CCI debe tener exactamente 20 dígitos.', false); btn.disabled=false; btn.textContent=txt; return; }
                 }
             }
         }
         else if(pais === C_COLOMBIA) {
-            if(isMov && phone.length !== 10) { alert('Celular debe tener 10 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
-            if(isCta && acc.length !== 11) { alert('Cuenta Colombia debe tener 11 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
+            if(isMov && phone.length !== 10) { window.showInfoModal('Dato inválido', 'Celular debe tener 10 dígitos.', false); btn.disabled=false; btn.textContent=txt; return; }
+            if(isCta && acc.length !== 11) { window.showInfoModal('Dato inválido', 'Cuenta Colombia debe tener 11 dígitos.', false); btn.disabled=false; btn.textContent=txt; return; }
         }
         else if(pais === C_VENEZUELA) {
-            if(isCta && acc.length !== 20) { alert('Cuenta Venezuela debe tener 20 dígitos.'); btn.disabled=false; btn.textContent=txt; return; }
-            if(isMov && phone.length !== 7) { alert('Teléfono debe tener 7 dígitos (sin prefijo).'); btn.disabled=false; btn.textContent=txt; return; }
+            if(isCta && acc.length !== 20) { window.showInfoModal('Dato inválido', 'Cuenta Venezuela debe tener 20 dígitos.', false); btn.disabled=false; btn.textContent=txt; return; }
+            if(isMov && phone.length !== 7) { window.showInfoModal('Dato inválido', 'Teléfono debe tener 7 dígitos (sin prefijo).', false); btn.disabled=false; btn.textContent=txt; return; }
         }
 
         if(benefDocPrefix && !benefDocPrefix.classList.contains('d-none')) {
@@ -569,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
         profileForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if(profileImgPreview.src.includes('SoloLogoNegroSinFondo') && !capturedBlob) {
-                alert("Selfie obligatoria."); return;
+                window.showInfoModal('Falta la selfie', 'Selfie obligatoria.', false); return;
             }
             profileSaveBtn.disabled = true; profileSaveBtn.textContent = 'Guardando...';
             const fd = new FormData();
@@ -587,7 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const startCam = async () => {
         try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); video.srcObject = stream; cameraModal.show(); } 
-        catch(e){ alert('Cámara bloqueada o no disponible'); }
+        catch(e){ window.showInfoModal('Error', 'Cámara bloqueada o no disponible', false); }
     };
     if(btnOpenCamera) btnOpenCamera.addEventListener('click', startCam);
     if(btnCapture) btnCapture.addEventListener('click', () => {
@@ -700,24 +700,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (data.success) {
                         modal.hide();
-                        if (window.showInfoModal) {
-                            window.showInfoModal(
-                                "Auditoría Registrada",
-                                responseType === 'Aprobada' ? 'Has autorizado la edición. El administrador ha sido notificado.' : 'Has rechazado la edición. Tus datos se mantendrán intactos.',
-                                true
-                            );
-                        } else {
-                            alert(responseType === 'Aprobada' ? 'Autorizado correctamente. El admin ya puede editar.' : 'Rechazado correctamente.');
-                        }
+                        window.showInfoModal(
+                            "Auditoría Registrada",
+                            responseType === 'Aprobada' ? 'Has autorizado la edición. El administrador ha sido notificado.' : 'Has rechazado la edición. Tus datos se mantendrán intactos.',
+                            true
+                        );
                         loadBeneficiaries();
                         setTimeout(checkPendingBeneficiaryRequests, 1000);
 
                     } else {
-                        alert("Error: " + data.error);
+                        window.showInfoModal('Error', data.error, false);
                         modal.hide();
                     }
                 } catch (e) {
-                    alert("Error de conexión al registrar respuesta.");
+                    window.showInfoModal('Error', 'Error de conexión al registrar respuesta.', false);
                     modal.hide();
                 }
             });

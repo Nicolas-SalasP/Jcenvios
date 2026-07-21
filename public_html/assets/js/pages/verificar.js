@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (files && files.length > 0) {
             const file = files[0];
             if (!file.type.startsWith('image/')) {
-                alert('Por favor selecciona un archivo de imagen válido.');
+                window.showInfoModal('Archivo inválido', 'Por favor selecciona un archivo de imagen válido.', false);
                 return;
             }
 
@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (err) {
             console.error("Error cámara:", err);
-            alert("No se pudo iniciar la cámara. Verifica permisos o usa 'Seleccionar archivo'.");
+            window.showInfoModal('Error', "No se pudo iniciar la cámara. Verifica permisos o usa 'Seleccionar archivo'.", false);
         }
     };
 
@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const errDiv = document.getElementById('error-selfie');
                 if (errDiv) errDiv.classList.remove('d-none');
                 selfieInput.closest('.card').scrollIntoView({ behavior: 'smooth' });
-                alert('La selfie es obligatoria.');
+                window.showInfoModal('Falta la selfie', 'La selfie es obligatoria.', false);
                 return;
             }
 

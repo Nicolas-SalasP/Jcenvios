@@ -281,8 +281,8 @@
         const preview = document.getElementById('liq-preview');
         const btn     = document.getElementById('btnConfirmLiq');
 
-        if (!desde || !hasta) { alert('Selecciona período.'); return; }
-        if (desde > hasta) { alert('La fecha "desde" no puede ser posterior a "hasta".'); return; }
+        if (!desde || !hasta) { window.showInfoModal('Falta el período', 'Selecciona período.', false); return; }
+        if (desde > hasta) { window.showInfoModal('Período inválido', 'La fecha "desde" no puede ser posterior a "hasta".', false); return; }
 
         const params = new URLSearchParams({ userId, desde, hasta });
         const res    = await fetch('../api/?accion=getResellerCommissionPreview&' + params);
@@ -317,12 +317,12 @@
                 await loadResellers();
                 await loadLiquidaciones();
             } else {
-                alert(data.error || 'Error al crear liquidación.');
+                window.showInfoModal('Error', data.error || 'Error al crear liquidación.', false);
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Crear liquidación';
             }
         } catch (e) {
-            alert('Error de red al crear liquidación.');
+            window.showInfoModal('Error', 'Error de red al crear liquidación.', false);
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Crear liquidación';
         }
@@ -345,12 +345,12 @@
                 await loadResellers();
                 await loadLiquidaciones();
             } else {
-                alert(data.error || 'Error al registrar pago.');
+                window.showInfoModal('Error', data.error || 'Error al registrar pago.', false);
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Confirmar pago';
             }
         } catch (e) {
-            alert('Error de red al registrar pago.');
+            window.showInfoModal('Error', 'Error de red al registrar pago.', false);
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Confirmar pago';
         }
@@ -372,7 +372,7 @@
         const porcentaje = parseFloat(document.getElementById('edit-comision-pct').value);
 
         if (!userId || isNaN(porcentaje) || porcentaje < 0 || porcentaje > 100) {
-            alert('Porcentaje inválido (debe estar entre 0 y 100).');
+            window.showInfoModal('Porcentaje inválido', 'Porcentaje inválido (debe estar entre 0 y 100).', false);
             return;
         }
 
@@ -391,10 +391,10 @@
                 bootstrap.Modal.getInstance(document.getElementById('editComisionModal')).hide();
                 await loadResellers();
             } else {
-                alert(data.error || 'Error al guardar comisión.');
+                window.showInfoModal('Error', data.error || 'Error al guardar comisión.', false);
             }
         } catch {
-            alert('Error de red al guardar comisión.');
+            window.showInfoModal('Error', 'Error de red al guardar comisión.', false);
         } finally {
             btn.disabled = false;
             btn.textContent = 'Guardar';
@@ -486,10 +486,10 @@
             if (data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('configPaisesModal')).hide();
             } else {
-                alert(data.error || 'Error al guardar configuración de países.');
+                window.showInfoModal('Error', data.error || 'Error al guardar configuración de países.', false);
             }
         } catch {
-            alert('Error de red al guardar configuración de países.');
+            window.showInfoModal('Error', 'Error de red al guardar configuración de países.', false);
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-save me-1"></i> Guardar configuración';
@@ -536,10 +536,10 @@
             if (data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('limiteCuentasModal')).hide();
             } else {
-                alert(data.error || 'Error al actualizar el límite.');
+                window.showInfoModal('Error', data.error || 'Error al actualizar el límite.', false);
             }
         } catch {
-            alert('Error de red al actualizar el límite.');
+            window.showInfoModal('Error', 'Error de red al actualizar el límite.', false);
         } finally {
             btn.disabled = false;
         }

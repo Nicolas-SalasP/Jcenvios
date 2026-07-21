@@ -4,8 +4,10 @@ namespace App\Services;
 use App\Repositories\RateRepository;
 use App\Repositories\CountryRepository;
 use App\Repositories\SystemSettingsRepository;
+use App\Repositories\TasasImagenRepository;
 use App\Services\NotificationService;
 use App\Services\SystemSettingsService;
+use App\Services\FileHandlerService;
 use Exception;
 use Throwable;
 
@@ -16,19 +18,25 @@ class PricingService
     private SystemSettingsRepository $settingsRepository;
     private NotificationService $notificationService;
     private SystemSettingsService $systemService;
+    private TasasImagenRepository $tasasImagenRepository;
+    private FileHandlerService $fileHandler;
 
     public function __construct(
         RateRepository $rateRepository,
         CountryRepository $countryRepository,
         SystemSettingsRepository $settingsRepository,
         NotificationService $notificationService,
-        SystemSettingsService $systemService
+        SystemSettingsService $systemService,
+        TasasImagenRepository $tasasImagenRepository,
+        FileHandlerService $fileHandler
     ) {
         $this->rateRepository = $rateRepository;
         $this->countryRepository = $countryRepository;
         $this->settingsRepository = $settingsRepository;
         $this->notificationService = $notificationService;
         $this->systemService = $systemService;
+        $this->tasasImagenRepository = $tasasImagenRepository;
+        $this->fileHandler = $fileHandler;
     }
 
     public function runScheduledAdjustment(): bool
@@ -55,7 +63,23 @@ class PricingService
         if ($ultimaEjecucion === $hoy) {
             return false;
         }
-        return $this->applyGlobalAdjustment(1, $settings['percent']) > 0;
+        $aplicado = $this->applyGlobalAdjustment(1, $settings['percent']) > 0;
+        if ($aplicado) {
+            $this->clearTasasImagenGaleria();
+        }
+        return $aplicado;
+    }
+
+    // El Ajuste Global automático corre fuera de horario laboral (19:30 Lun-Vie,
+    // 16:00 Sáb). Las imágenes de Tasas Visuales quedan obsoletas apenas cambian
+    // las tasas, por eso se limpian junto con el ajuste automático (no en el
+    // ajuste manual desde el panel, que usa applyGlobalAdjustment() directo).
+    private function clearTasasImagenGaleria(): void
+    {
+        $rutas = $this->tasasImagenRepository->deleteAll();
+        foreach ($rutas as $ruta) {
+            $this->fileHandler->deleteTasaImagen($ruta);
+        }
     }
 
     public function applyGlobalAdjustment(int $adminId, float $percentage): int
@@ -98,7 +122,9 @@ class PricingService
 
                 $this->recalculateRouteRates($origen, $destino, $nuevoValor);
 
-                $detalleLog = "Ajuste Global ({$percentage}%): Tasa Ref ID {$t['TasaID']} (Ruta {$origen}->{$destino}) cambió de " .
+                $nombreOrigen = $this->countryRepository->findNameById($origen) ?? "País ID $origen";
+                $nombreDestino = $this->countryRepository->findNameById($destino) ?? "País ID $destino";
+                $detalleLog = "Ajuste Global ({$percentage}%): Ruta {$nombreOrigen} → {$nombreDestino} cambió de " .
                     number_format($valorOriginal, 4, ',', '.') . " a " . number_format($nuevoValor, 4, ',', '.');
 
                 $this->notificationService->logAdminAction($adminId, 'Ajuste Automático de Tasa', $detalleLog);
@@ -226,7 +252,8 @@ class PricingService
             $valorFinal = $ref['ValorTasa'] * (1 + ($porcentaje / 100));
         }
 
-        if ($tasaId === 0) {
+        $esNueva = ($tasaId === 0);
+        if ($esNueva) {
             $tasaId = $this->rateRepository->createRate($origenId, $destinoId, $valorFinal, $montoMin, $montoMax, $esReferencial, $esRiesgoso, $porcentaje);
         } else {
             $this->rateRepository->updateRateValue($tasaId, $valorFinal, $montoMin, $montoMax, $esReferencial, $esRiesgoso, $porcentaje);
@@ -237,6 +264,13 @@ class PricingService
         }
 
         $this->rateRepository->logRateChange($tasaId, $origenId, $destinoId, $valorFinal, $montoMin, $montoMax);
+
+        $nombreOrigen = $this->countryRepository->findNameById($origenId) ?? "País ID $origenId";
+        $nombreDestino = $this->countryRepository->findNameById($destinoId) ?? "País ID $destinoId";
+        $tipoTasa = $esReferencial === 1 ? 'Referencial' : 'Comercial';
+        $accion = $esNueva ? 'Admin creó tasa' : 'Admin editó tasa';
+        $this->notificationService->logAdminAction($adminId, $accion, "Ruta {$nombreOrigen} → {$nombreDestino} ({$tipoTasa}): nuevo valor " . number_format($valorFinal, 4, ',', '.'));
+
         return [
             'TasaID' => $tasaId,
             'routeKey' => $origenId . '-' . $destinoId,
@@ -270,27 +304,53 @@ class PricingService
 
     public function adminAddCountry(int $adminId, string $nombrePais, string $codigoMoneda, string $rol): bool
     {
-        return $this->countryRepository->create($nombrePais, strtoupper($codigoMoneda), $rol) > 0;
+        $creado = $this->countryRepository->create($nombrePais, strtoupper($codigoMoneda), $rol) > 0;
+        if ($creado) {
+            $this->notificationService->logAdminAction($adminId, 'Admin agregó país', "{$nombrePais} ({$codigoMoneda}), Rol: {$rol}");
+        }
+        return $creado;
     }
 
     public function adminUpdateCountry(int $adminId, int $paisId, string $nombrePais, string $codigoMoneda): bool
     {
-        return $this->countryRepository->update($paisId, $nombrePais, strtoupper($codigoMoneda));
+        $nombreAnterior = $this->countryRepository->findNameById($paisId) ?? "País ID $paisId";
+        $actualizado = $this->countryRepository->update($paisId, $nombrePais, strtoupper($codigoMoneda));
+        if ($actualizado) {
+            $this->notificationService->logAdminAction($adminId, 'Admin editó país', "{$nombreAnterior} → {$nombrePais} ({$codigoMoneda})");
+        }
+        return $actualizado;
     }
 
     public function adminUpdateCountryRole(int $adminId, int $paisId, string $newRole): bool
     {
-        return $this->countryRepository->updateRole($paisId, $newRole);
+        $nombrePais = $this->countryRepository->findNameById($paisId) ?? "País ID $paisId";
+        $actualizado = $this->countryRepository->updateRole($paisId, $newRole);
+        if ($actualizado) {
+            $this->notificationService->logAdminAction($adminId, 'Admin cambió rol de país', "{$nombrePais}, Nuevo Rol: {$newRole}");
+        }
+        return $actualizado;
     }
 
     public function adminToggleCountryStatus(int $adminId, int $paisId, bool $newStatus): bool
     {
-        return $this->countryRepository->updateStatus($paisId, $newStatus);
+        $nombrePais = $this->countryRepository->findNameById($paisId) ?? "País ID $paisId";
+        $actualizado = $this->countryRepository->updateStatus($paisId, $newStatus);
+        if ($actualizado) {
+            $estadoTexto = $newStatus ? 'Activado' : 'Desactivado';
+            $this->notificationService->logAdminAction($adminId, 'Admin cambió estado de país', "{$nombrePais}: {$estadoTexto}");
+        }
+        return $actualizado;
     }
 
     public function adminDeleteRate(int $adminId, int $tasaId): void
     {
+        $tasa = $this->rateRepository->findById($tasaId);
         $this->rateRepository->delete($tasaId);
+        if ($tasa) {
+            $nombreOrigen = $this->countryRepository->findNameById((int) $tasa['PaisOrigenID']) ?? "País ID {$tasa['PaisOrigenID']}";
+            $nombreDestino = $this->countryRepository->findNameById((int) $tasa['PaisDestinoID']) ?? "País ID {$tasa['PaisDestinoID']}";
+            $this->notificationService->logAdminAction($adminId, 'Admin eliminó tasa', "Ruta {$nombreOrigen} → {$nombreDestino} (valor {$tasa['ValorTasa']})");
+        }
     }
 
     public function adminToggleRouteActive(int $adminId, int $origenId, int $destinoId, bool $active): bool
@@ -305,6 +365,10 @@ class PricingService
         if ($affected === 0) {
             throw new Exception("No existe una tasa referencial para esta ruta. Crearla primero.", 404);
         }
+        $nombreOrigen = $this->countryRepository->findNameById($origenId) ?? "País ID $origenId";
+        $nombreDestino = $this->countryRepository->findNameById($destinoId) ?? "País ID $destinoId";
+        $estadoTexto = $active ? 'Activada' : 'Desactivada';
+        $this->notificationService->logAdminAction($adminId, 'Admin cambió estado de ruta', "Ruta {$nombreOrigen} → {$nombreDestino}: {$estadoTexto}");
         return true;
     }
 }

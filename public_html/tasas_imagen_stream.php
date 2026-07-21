@@ -1,6 +1,6 @@
 <?php
-// Sirve públicamente (sin login) la imagen de tasas vigente por TipoFuente
-// (whatsapp/web). Es contenido de marketing, no sensible, por eso no requiere
+// Sirve públicamente (sin login) una imagen de la galería de Tasas Visuales
+// por Id. Es contenido de marketing, no sensible, por eso no requiere
 // sesión — a diferencia de tutoriales_stream.php.
 ini_set('display_errors', 0);
 error_reporting(0);
@@ -9,15 +9,15 @@ require_once __DIR__ . '/../remesas_private/src/core/init.php';
 
 use App\Database\Database;
 
-$tipoFuente = strtolower(trim((string)($_GET['tipo'] ?? '')));
-if (!in_array($tipoFuente, ['whatsapp', 'web'], true)) {
+$id = (int) ($_GET['id'] ?? 0);
+if ($id <= 0) {
     http_response_code(400);
     exit;
 }
 
 $db = Database::getInstance();
-$stmt = $db->prepare("SELECT RutaImagen FROM tasas_imagen WHERE TipoFuente = ? LIMIT 1");
-$stmt->bind_param("s", $tipoFuente);
+$stmt = $db->prepare("SELECT RutaImagen FROM tasas_imagen WHERE Id = ? LIMIT 1");
+$stmt->bind_param("i", $id);
 $stmt->execute();
 $result = $stmt->get_result();
 $row = $result ? $result->fetch_assoc() : null;

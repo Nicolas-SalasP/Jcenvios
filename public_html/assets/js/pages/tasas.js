@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await res.json();
             if (result.success) window.showInfoModal('Éxito', 'Configuración de ajuste global guardada.', true);
-        } catch (e) { alert("Error al guardar"); }
+        } catch (e) { window.showInfoModal('Error', 'Error al guardar', false); }
     });
 
     btnApplyGlobalNow?.addEventListener('click', async () => {
@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     window.showInfoModal('Error', result.error, false);
                 }
-            } catch (e) { alert("Error de red"); }
+            } catch (e) { window.showInfoModal('Error', 'Error de red', false); }
             finally { btnApplyGlobalNow.disabled = false; btnApplyGlobalNow.innerHTML = '<i class="bi bi-lightning-fill"></i> Aplicar Ya'; }
         }
     });

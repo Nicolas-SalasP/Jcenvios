@@ -181,7 +181,9 @@ $container = new class($conexion) {
                     $countryRepo,
                     $settingsRepo,
                     $notifService,
-                    $systemService
+                    $systemService,
+                    new \App\Repositories\TasasImagenRepository($db),
+                    new \App\Services\FileHandlerService()
                 );
             }
 
