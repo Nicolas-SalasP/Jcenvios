@@ -464,6 +464,8 @@ try {
         // Tasas Imagen (admin)
         'getTasasImagenAdmin'   => [TasasImagenController::class, 'getTasasImagenAdmin', 'GET'],
         'saveTasaImagen'        => [TasasImagenController::class, 'saveTasaImagen', 'POST'],
+        'editTasaImagenArchivo' => [TasasImagenController::class, 'editTasaImagenArchivo', 'POST'],
+        'replaceTasaImagen'     => [TasasImagenController::class, 'replaceTasaImagen', 'POST'],
         'deleteTasaImagen'      => [TasasImagenController::class, 'deleteTasaImagen', 'POST'],
 
         // Normas (público)

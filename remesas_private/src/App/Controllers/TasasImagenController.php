@@ -89,6 +89,67 @@ class TasasImagenController extends BaseController
         }
     }
 
+    public function editTasaImagenArchivo(): void
+    {
+        try {
+            $this->ensureAdmin();
+            $adminId = (int)($_SESSION['user_id'] ?? 0);
+
+            $id = (int)($_POST['id'] ?? 0);
+            $row = $id > 0 ? $this->tasasImagenRepo->findById($id) : null;
+            if (!$row) {
+                throw new Exception('Imagen no encontrada.', 404);
+            }
+
+            if (empty($_FILES['imagen']) || $_FILES['imagen']['error'] === UPLOAD_ERR_NO_FILE) {
+                throw new Exception('Debes recortar y subir la imagen editada.', 400);
+            }
+
+            $nuevaRuta = $this->fileHandler->saveTasaImagen($_FILES['imagen'], $row['TipoFuente'], $adminId);
+            if (!empty($row['RutaImagen'])) {
+                $this->fileHandler->deleteTasaImagen($row['RutaImagen']);
+            }
+            $this->tasasImagenRepo->updateImagenArchivo($id, $nuevaRuta, $adminId);
+
+            $this->sendJsonResponse(['success' => true, 'message' => 'Imagen editada correctamente.']);
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+        }
+    }
+
+    public function replaceTasaImagen(): void
+    {
+        try {
+            $this->ensureAdmin();
+            $adminId = (int)($_SESSION['user_id'] ?? 0);
+
+            $id = (int)($_POST['id'] ?? 0);
+            $row = $id > 0 ? $this->tasasImagenRepo->findById($id) : null;
+            if (!$row) {
+                throw new Exception('Imagen no encontrada.', 404);
+            }
+
+            if (empty($_FILES['imagen']) || $_FILES['imagen']['error'] === UPLOAD_ERR_NO_FILE) {
+                throw new Exception('Debes seleccionar una imagen nueva.', 400);
+            }
+
+            $titulo = trim((string)($_POST['titulo'] ?? '')) ?: null;
+            $descripcion = trim((string)($_POST['descripcion'] ?? '')) ?: null;
+
+            $nuevaRuta = $this->fileHandler->saveTasaImagen($_FILES['imagen'], $row['TipoFuente'], $adminId);
+            if (!empty($row['RutaImagen'])) {
+                $this->fileHandler->deleteTasaImagen($row['RutaImagen']);
+            }
+            $this->tasasImagenRepo->updateImagenCompleta($id, $nuevaRuta, $titulo, $descripcion, $adminId);
+
+            $this->sendJsonResponse(['success' => true, 'message' => 'Imagen reemplazada correctamente.']);
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+        }
+    }
+
     public function deleteTasaImagen(): void
     {
         try {
