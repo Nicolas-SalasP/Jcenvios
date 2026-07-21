@@ -47,7 +47,7 @@ $cspDirectives = [
     "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' https://cdn.jsdelivr.net",
     "img-src 'self' data: blob:",
-    "frame-src 'self' blob: chrome-extension: http://googleusercontent.com/maps.google.com/ https://www.google.com/",
+    "frame-src 'self' blob: chrome-extension: https://maps.google.com https://www.google.com/",
     "connect-src 'self' blob: " . $cspHost . " https://cdn.jsdelivr.net",
     "object-src 'self' blob: chrome-extension:",
     "frame-ancestors 'self'",
