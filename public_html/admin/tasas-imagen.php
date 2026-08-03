@@ -39,8 +39,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     <div class="row g-4" id="tasasImagenContainer">
         <div class="col-md-6">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white border-0 pt-4 px-4">
+                <div class="card-header bg-white border-0 pt-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h5 class="fw-bold mb-0"><i class="bi bi-whatsapp text-success me-2"></i>Tasas WhatsApp</h5>
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-copy-link" data-url="<?php echo rtrim(BASE_URL, '/'); ?>/tasas-whatsapp.php">
+                        <i class="bi bi-link-45deg me-1"></i> Copiar Link
+                    </button>
                 </div>
                 <div class="card-body p-4">
                     <div class="row g-3 mb-3" id="galeria-whatsapp"></div>
@@ -68,8 +71,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
         <div class="col-md-6">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white border-0 pt-4 px-4">
+                <div class="card-header bg-white border-0 pt-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h5 class="fw-bold mb-0"><i class="bi bi-globe text-primary me-2"></i>Tasas Web</h5>
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-copy-link" data-url="<?php echo rtrim(BASE_URL, '/'); ?>/tasas-web.php">
+                        <i class="bi bi-link-45deg me-1"></i> Copiar Link
+                    </button>
                 </div>
                 <div class="card-body p-4">
                     <div class="row g-3 mb-3" id="galeria-web"></div>
@@ -174,6 +180,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </div>
     </div>
 </div>
+
+<input type="file" id="cambiarFotoInput" class="d-none" accept="image/jpeg,image/png,image/webp">
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
