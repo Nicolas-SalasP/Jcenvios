@@ -52,33 +52,82 @@ try {
     <h1>Tasas de Cambio — Web</h1>
     <p class="subtitle">Tasa vigente publicada por nuestro equipo para la web.</p>
 
-    <?php if (count($imagenes) > 0): ?>
-        <?php foreach ($imagenes as $img): ?>
-            <?php
-                $version = strtotime($img['FechaActualizacion']);
-                $imagenUrl = rtrim(BASE_URL, '/') . '/tasas_imagen_stream.php?id=' . (int) $img['Id'] . '&v=' . $version;
-            ?>
+    <div id="galeriaTasas">
+        <?php if (count($imagenes) > 0): ?>
+            <?php foreach ($imagenes as $img): ?>
+                <?php
+                    $version = strtotime($img['FechaActualizacion']);
+                    $imagenUrl = rtrim(BASE_URL, '/') . '/tasas_imagen_stream.php?id=' . (int) $img['Id'] . '&v=' . $version;
+                ?>
+                <div class="card">
+                    <img src="<?php echo htmlspecialchars($imagenUrl); ?>" alt="Tasas Web">
+                    <?php if (!empty($img['Titulo'])): ?>
+                        <p class="card-titulo"><?php echo htmlspecialchars($img['Titulo']); ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($img['Descripcion'])): ?>
+                        <p class="card-descripcion"><?php echo nl2br(htmlspecialchars($img['Descripcion'])); ?></p>
+                    <?php endif; ?>
+                    <p class="fecha">Actualizado: <?php echo htmlspecialchars(date('d/m/Y H:i', $version)); ?></p>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
             <div class="card">
-                <img src="<?php echo htmlspecialchars($imagenUrl); ?>" alt="Tasas Web">
-                <?php if (!empty($img['Titulo'])): ?>
-                    <p class="card-titulo"><?php echo htmlspecialchars($img['Titulo']); ?></p>
-                <?php endif; ?>
-                <?php if (!empty($img['Descripcion'])): ?>
-                    <p class="card-descripcion"><?php echo nl2br(htmlspecialchars($img['Descripcion'])); ?></p>
-                <?php endif; ?>
-                <p class="fecha">Actualizado: <?php echo htmlspecialchars(date('d/m/Y H:i', $version)); ?></p>
+                <div class="empty">
+                    <span>📷</span>
+                    Próximamente
+                </div>
             </div>
-        <?php endforeach; ?>
-    <?php else: ?>
-        <div class="card">
-            <div class="empty">
-                <span>📷</span>
-                Próximamente
-            </div>
-        </div>
-    <?php endif; ?>
+        <?php endif; ?>
+    </div>
 
     <p class="back-bottom"><a class="btn-volver" href="<?php echo BASE_URL; ?>/index.php">&larr; Volver a JC Envíos</a></p>
 </div>
+<script>
+(function () {
+    var tipo = 'web';
+    var contenedor = document.getElementById('galeriaTasas');
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+    }
+
+    function formatFecha(fechaSql) {
+        var d = new Date(fechaSql.replace(' ', 'T'));
+        if (isNaN(d.getTime())) return '';
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function render(imagenes) {
+        if (!imagenes.length) {
+            contenedor.innerHTML = '<div class="card"><div class="empty"><span>📷</span>Próximamente</div></div>';
+            return;
+        }
+        contenedor.innerHTML = imagenes.map(function (img) {
+            var titulo = img.titulo ? '<p class="card-titulo">' + escapeHtml(img.titulo) + '</p>' : '';
+            var descripcion = img.descripcion ? '<p class="card-descripcion">' + escapeHtml(img.descripcion).replace(/\n/g, '<br>') + '</p>' : '';
+            return '<div class="card">' +
+                '<img src="' + escapeHtml(img.url) + '" alt="Tasas Web">' +
+                titulo + descripcion +
+                '<p class="fecha">Actualizado: ' + formatFecha(img.fechaActualizacion) + '</p>' +
+                '</div>';
+        }).join('');
+    }
+
+    async function actualizar() {
+        try {
+            var res = await fetch('api/?accion=getTasaImagenPublica&tipo=' + tipo);
+            var data = await res.json();
+            if (data.success) render(data.imagenes || []);
+        } catch (e) {
+            // Silencioso: se reintenta en el siguiente ciclo, sin romper la vista actual.
+        }
+    }
+
+    setInterval(actualizar, 15000);
+})();
+</script>
 </body>
 </html>
