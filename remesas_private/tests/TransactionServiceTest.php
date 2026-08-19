@@ -1250,6 +1250,39 @@ class TransactionServiceTest extends TestCase
         $this->assertEquals(1000.0, $capturedData['montoDestino']); // 3800 / 3.8, ruta inversa
     }
 
+    public function testCreateTransactionUsaTasaEspecialEnRutaInversaRespetaDivision()
+    {
+        // La tasa especial no cambia el modo de cálculo (multiplicación/división),
+        // solo el valor — en ruta inversa (Col -> Ven) sigue dividiendo, con el
+        // valor especial (4.0) en vez del público (3.8).
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $tasaEspecialRepo = $this->createMock(TasaEspecialRepository::class);
+        $tasaEspecialRepo->method('findActiveForUserAndRoute')
+            ->with(1, 2, 3)
+            ->willReturn(['TasaEspecialID' => 88, 'ValorTasa' => 4.0]);
+        $tasaEspecialRepo->expects($this->once())->method('markUsed')->with(88, 999);
+        $mocks['tasaEspecialRepo'] = $tasaEspecialRepo;
+
+        $capturedData = null;
+        $txRepo = $mocks['txRepo'];
+        $txRepo->method('create')->willReturnCallback(function ($data) use (&$capturedData) {
+            $capturedData = $data;
+            return 999;
+        });
+
+        $service = $this->buildService($mocks);
+
+        $datos = $this->datosTransaccionBase();
+        $datos['paisOrigenID'] = 2; // ruta "2-3" (Col -> Ven) está en $inverseRoutes
+        $datos['montoOrigen'] = 4000;
+        $result = $service->createTransaction($datos);
+
+        $this->assertEquals('created', $result['status']);
+        $this->assertEquals(1000.0, $capturedData['montoDestino']); // 4000 / 4.0 (tasa especial), no 3.8
+        $this->assertEquals(4.0, $capturedData['tasaCapturada']);
+    }
+
     public function testCreateTransactionExitosoCalculaComisionRevendedor()
     {
         $mocks = $this->mocksParaCreateExitoso();
