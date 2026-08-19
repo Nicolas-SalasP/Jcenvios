@@ -53,7 +53,8 @@ use App\Controllers\{
     BotController,
     TutorialController,
     TasasImagenController,
-    NormasController
+    NormasController,
+    CspReportController
 };
 
 header('Content-Type: application/json');
@@ -257,6 +258,10 @@ class Container
                 $this->get(NormasRepository::class)
             ),
 
+            CspReportController::class => new CspReportController(
+                $this->get(LogService::class)
+            ),
+
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")
         };
     }
@@ -270,7 +275,7 @@ const PUBLIC_ACTIONS = [
     'getActiveDestinationCountries', 'getFormasDePago', 'getBeneficiaryTypes',
     'getDocumentTypes', 'checkSystemStatus', 'getBcvRate', 'botWebhook',
     'submitContactForm', 'getTasaImagenPublica', 'getReferralSettingsPublic',
-    'getNormasPublicas',
+    'getNormasPublicas', 'cspReport',
 ];
 
 try {
@@ -477,6 +482,9 @@ try {
         // Normas (admin)
         'getNormasAdmin'        => [NormasController::class, 'getNormasAdmin', 'GET'],
         'saveNormas'            => [NormasController::class, 'saveNormas', 'POST'],
+
+        // Reporting API: violaciones de CSP que el navegador reporta solo
+        'cspReport'             => [CspReportController::class, 'receiveCspReport', 'POST'],
     ];
 
     if (isset($routes[$accion])) {

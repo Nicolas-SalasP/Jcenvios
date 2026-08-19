@@ -58,7 +58,7 @@ jobs:
         with:
           php-version: '8.2'
           extensions: mbstring, mysqli, gd, zip, curl, openssl
-          coverage: none
+          coverage: pcov
 
       - name: Composer install (con dev, incluye PHPUnit)
         run: cd remesas_private && composer install --optimize-autoloader --no-interaction
@@ -92,8 +92,18 @@ jobs:
           define('SMTP_PORT', 587);
           EOF
 
-      - name: Correr PHPUnit (200 tests)
-        run: cd remesas_private && vendor/bin/phpunit --colors=always
+      - name: Correr PHPUnit (200 tests) con coverage
+        run: cd remesas_private && vendor/bin/phpunit --colors=always --coverage-html=coverage-html --coverage-clover=coverage.xml
+
+      - name: Subir reporte de coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            remesas_private/coverage-html/
+            remesas_private/coverage.xml
+          retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────────
   # JOB 2: Barrido de sintaxis PHP en todo el repo. No corre PHPUnit ni

@@ -2038,3 +2038,17 @@ paths:
             application/json:
               schema:
                 type: object
+  /api/?accion=cspReport:
+    post:
+      summary: CspReportController.receiveCspReport
+      description: Endpoint del Reporting API (report-to) - recibe reportes de violación CSP enviados automáticamente por el navegador. No requiere sesión ni CSRF (lo llama el navegador, no el frontend de la app).
+      requestBody:
+        content:
+          application/reports+json:
+            schema:
+              type: array
+              items:
+                type: object
+      responses:
+        '204':
+          description: No Content

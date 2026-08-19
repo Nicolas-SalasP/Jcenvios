@@ -56,9 +56,13 @@ $cspDirectives = [
     "object-src 'self' blob: chrome-extension:",
     "frame-ancestors 'self'",
     "base-uri 'self'",
-    "form-action 'self'"
+    "form-action 'self'",
+    "report-to csp-endpoint",
 ];
 
+if (defined('BASE_URL')) {
+    header('Reporting-Endpoints: csp-endpoint="' . BASE_URL . '/api/?accion=cspReport"');
+}
 header("Content-Security-Policy: " . implode('; ', $cspDirectives));
 
 session_start();
