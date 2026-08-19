@@ -49,6 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${item.descripcion ? `<p class="small text-muted mb-1">${escapeHtml(item.descripcion)}</p>` : ''}
                     <p class="small text-muted mb-2 mt-auto">${formatFecha(item.fechaActualizacion)}</p>
                     <div class="d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-dark btn-cambiar-foto-tasa-imagen" data-id="${item.id}" title="Cambiar solo la foto (mantiene título/descripción)">
+                            <i class="bi bi-image"></i>
+                        </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary btn-edit-tasa-imagen" data-id="${item.id}" data-url="${escapeHtml(item.url)}" title="Editar imagen (recortar)">
                             <i class="bi bi-crop"></i>
                         </button>
@@ -76,6 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
         container.querySelectorAll('.btn-replace-tasa-imagen').forEach(btn => {
             btn.addEventListener('click', () => abrirReemplazar(btn.dataset.id, btn.dataset.titulo, btn.dataset.descripcion));
         });
+        container.querySelectorAll('.btn-cambiar-foto-tasa-imagen').forEach(btn => {
+            btn.addEventListener('click', () => cambiarFoto(btn.dataset.id));
+        });
     }
 
     async function eliminarImagen(id, tipo) {
@@ -93,6 +99,58 @@ document.addEventListener('DOMContentLoaded', () => {
             window.showInfoModal('Error', err.message, false);
         }
     }
+
+    // --- Cambiar foto (subida directa, sin recorte, mantiene título/descripción) ---
+    const cambiarFotoInput = document.getElementById('cambiarFotoInput');
+    let cambiarFotoTasaId = null;
+
+    function cambiarFoto(id) {
+        cambiarFotoTasaId = id;
+        cambiarFotoInput.value = '';
+        cambiarFotoInput.click();
+    }
+
+    if (cambiarFotoInput) {
+        cambiarFotoInput.addEventListener('change', async () => {
+            const file = cambiarFotoInput.files[0];
+            if (!file || !cambiarFotoTasaId) return;
+
+            try {
+                const formData = new FormData();
+                formData.append('id', cambiarFotoTasaId);
+                formData.append('imagen', file);
+                const res = await fetch('../api/?accion=editTasaImagenArchivo', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'No se pudo cambiar la foto.');
+                fetchEstado();
+                window.showInfoModal('Listo', 'Foto cambiada correctamente.', true);
+            } catch (err) {
+                window.showInfoModal('Error', err.message, false);
+            } finally {
+                cambiarFotoTasaId = null;
+            }
+        });
+    }
+
+    // --- Copiar link público ---
+    document.querySelectorAll('.btn-copy-link').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const url = btn.dataset.url;
+            const originalHtml = btn.innerHTML;
+            try {
+                await navigator.clipboard.writeText(url);
+            } catch (err) {
+                const temp = document.createElement('textarea');
+                temp.value = url;
+                document.body.appendChild(temp);
+                temp.select();
+                document.execCommand('copy');
+                document.body.removeChild(temp);
+            }
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Copiado';
+            setTimeout(() => { btn.innerHTML = originalHtml; }, 2000);
+        });
+    });
 
     tipos.forEach(tipo => {
         const form = document.getElementById('form-' + tipo);
