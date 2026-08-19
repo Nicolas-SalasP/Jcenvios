@@ -320,7 +320,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                                 <li>
-                                    <button class="dropdown-item" type="button" onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')">
+                                    <button class="dropdown-item js-copy-b64-btn" type="button" data-copy-b64="<?php echo $textoBase64_a; ?>">
                                         <i class="bi bi-clipboard-check me-2"></i> Copiar datos
                                     </button>
                                 </li>
@@ -381,6 +381,8 @@ $pageTitle = 'Panel de Administración';
 $pageScript = 'admin.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
+
+<div id="app-data" class="d-none" data-cuentas-destino='<?php echo htmlspecialchars(json_encode($cuentasDestino), ENT_QUOTES, "UTF-8"); ?>'></div>
 
 <div class="container mt-4">
 
@@ -578,7 +580,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                                             <li>
-                                                <button class="dropdown-item" type="button" onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')">
+                                                <button class="dropdown-item js-copy-b64-btn" type="button" data-copy-b64="<?php echo $textoBase64_a; ?>">
                                                     <i class="bi bi-clipboard-check me-2"></i> Copiar datos
                                                 </button>
                                             </li>
@@ -711,38 +713,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </div>
     </div>
 </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const selOrigin = document.getElementById('exportOrigin');
-        const selDest = document.getElementById('exportDest');
-
-        const updateOptions = () => {
-            const valOrigin = selOrigin.value;
-            const valDest = selDest.value;
-            Array.from(selDest.options).forEach(opt => {
-                if (opt.value !== "" && opt.value === valOrigin) {
-                    opt.disabled = true;
-                    if (opt.selected) selDest.value = "";
-                } else {
-                    opt.disabled = false;
-                }
-            });
-            Array.from(selOrigin.options).forEach(opt => {
-                if (opt.value !== "" && opt.value === valDest) {
-                    opt.disabled = true;
-                } else {
-                    opt.disabled = false;
-                }
-            });
-        };
-
-        if (selOrigin && selDest) {
-            selOrigin.addEventListener('change', updateOptions);
-            selDest.addEventListener('change', updateOptions);
-        }
-    });
-</script>
 
 <div class="modal fade" id="editCommissionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -894,8 +864,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     <strong class="fs-5 text-muted">Monto a Pagar:</strong>
                     <div class="d-flex align-items-center">
                         <span class="fs-3 fw-bold text-success me-3" id="copy-monto-display"></span>
-                        <button class="btn btn-outline-success btn-sm"
-                            onclick="copyToClipboard('copy-monto-value', this)"><i class="bi bi-clipboard"></i></button>
+                        <button class="btn btn-outline-success btn-sm js-copy-btn"
+                            data-copy-target="copy-monto-value"><i class="bi bi-clipboard"></i></button>
                         <input type="hidden" id="copy-monto-value">
                     </div>
                 </div>
@@ -905,7 +875,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Banco / Billetera</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-banco" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-banco"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -914,7 +884,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Cuenta Bancaria</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-cuenta" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-cuenta"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -923,8 +893,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Teléfono (Pago Móvil/Billetera)</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-telefono" readonly>
-                            <button class="btn btn-outline-secondary"
-                                onclick="copyToClipboard('copy-telefono', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn"
+                                data-copy-target="copy-telefono"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -933,7 +903,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Documento</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-doc" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-doc', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-doc"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -941,7 +911,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Beneficiario</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-nombre" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-nombre', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-nombre"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -953,70 +923,5 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </div>
     </div>
 </div>
-
-<script>
-    window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
-
-    document.addEventListener('DOMContentLoaded', () => {
-        document.body.addEventListener('click', function (e) {
-            const btn = e.target.closest('.view-pause-reason-btn');
-            if (btn) {
-                e.preventDefault();
-                const reason = btn.getAttribute('data-reason');
-                const modalBody = document.getElementById('pause-reason-text');
-                if (modalBody) modalBody.textContent = reason;
-                const modalEl = document.getElementById('viewPauseReasonModal');
-                if (modalEl) {
-                    const modal = new bootstrap.Modal(modalEl);
-                    modal.show();
-                }
-            }
-        });
-
-        document.body.addEventListener('click', function (e) {
-            const btn = e.target.closest('.view-comprobante-btn-admin');
-            if (btn) {
-                e.preventDefault();
-
-                document.getElementById('visor-nombre-titular').textContent = btn.dataset.nombreTitular || 'No registrado';
-                document.getElementById('visor-rut-titular').textContent = btn.dataset.rutTitular || 'No registrado';
-
-                const urlUser = btn.dataset.comprobanteUrl;
-                const urlAdmin = btn.dataset.envioUrl;
-                const startType = btn.dataset.startType || 'user';
-                const urlToLoad = (startType === 'admin' && urlAdmin) ? urlAdmin : urlUser;
-                const imgEl = document.getElementById('comprobante-img-full');
-                const pdfEl = document.getElementById('comprobante-pdf-full');
-                const placeholder = document.getElementById('comprobante-placeholder');
-                const downloadBtn = document.getElementById('download-comprobante-btn');
-
-                imgEl.classList.add('d-none');
-                pdfEl.classList.add('d-none');
-                placeholder.classList.remove('d-none');
-
-                let extension = '';
-                if (urlToLoad.includes('?')) {
-                    const urlParams = new URLSearchParams(urlToLoad.split('?')[1]);
-                    const fileParam = urlParams.get('file');
-                    if (fileParam) extension = fileParam.split('.').pop().toLowerCase();
-                } else {
-                    extension = urlToLoad.split('.').pop().toLowerCase();
-                }
-
-                setTimeout(() => {
-                    placeholder.classList.add('d-none');
-                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
-                        imgEl.src = urlToLoad;
-                        imgEl.classList.remove('d-none');
-                    } else {
-                        pdfEl.src = urlToLoad;
-                        pdfEl.classList.remove('d-none');
-                    }
-                    if (downloadBtn) downloadBtn.href = urlToLoad;
-                }, 500);
-            }
-        });
-    });
-</script>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

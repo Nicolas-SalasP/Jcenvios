@@ -26,7 +26,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     <div class="row justify-content-center">
         <div class="col-md-8">
             
-            <div id="state-pending" class="<?php echo $isPending ? '' : 'd-none'; ?> animate__animated animate__fadeIn">
+            <div id="state-pending" data-pending="<?php echo $isPending ? '1' : '0'; ?>" class="<?php echo $isPending ? '' : 'd-none'; ?> animate__animated animate__fadeIn">
                 <div class="card p-5 shadow text-center border-warning">
                     <div class="mb-4">
                         <div class="spinner-border text-warning" style="width: 4rem; height: 4rem;" role="status"></div>
@@ -48,20 +48,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     <a href="../logout.php" class="btn btn-outline-dark btn-sm mt-2">Cerrar Sesión</a>
                 </div>
 
-                <?php if ($isPending): ?>
-                <script>
-                    setInterval(async () => {
-                        try {
-                            const res = await fetch('../api/?accion=checkSessionStatus');
-                            const data = await res.json();
-                            // Si cambia el estado (ej. a Verificado o Rechazado), recargar.
-                            if (data.success && data.needs_refresh) {
-                                window.location.reload(); 
-                            }
-                        } catch (e) {}
-                    }, 5000);
-                </script>
-                <?php endif; ?>
             </div>
 
             <div id="state-form" class="<?php echo $isPending ? 'd-none' : 'animate__animated animate__fadeIn'; ?>">
@@ -171,30 +157,5 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </div>
     </div>
 </div>
-
-<script>
-    // Lógica para alternar entre "Pendiente" y "Formulario"
-    document.addEventListener('DOMContentLoaded', () => {
-        const btnEnable = document.getElementById('btn-enable-edit');
-        const btnCancel = document.getElementById('btn-cancel-edit');
-        const statePending = document.getElementById('state-pending');
-        const stateForm = document.getElementById('state-form');
-
-        if (btnEnable) {
-            btnEnable.addEventListener('click', () => {
-                statePending.classList.add('d-none');
-                stateForm.classList.remove('d-none');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-        }
-
-        if (btnCancel) {
-            btnCancel.addEventListener('click', () => {
-                stateForm.classList.add('d-none');
-                statePending.classList.remove('d-none');
-            });
-        }
-    });
-</script>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

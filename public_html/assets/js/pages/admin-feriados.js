@@ -375,3 +375,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fetchHorarioOverrideStatus();
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+    const lockSwitch = document.getElementById('holidayLockSwitch');
+    const statusText = document.getElementById('lockStatusText');
+    const statusDesc = document.getElementById('lockStatusDesc');
+
+    if (lockSwitch) {
+        lockSwitch.addEventListener('change', function () {
+            if (this.checked) {
+                statusText.textContent = 'Bloquear Sistema';
+                statusText.className = 'text-danger fw-bold d-block';
+                statusDesc.textContent = 'Nadie podrá acceder.';
+            } else {
+                statusText.textContent = 'Solo Informativo';
+                statusText.className = 'text-success fw-bold d-block';
+                statusDesc.textContent = 'Muestra aviso, permite operar.';
+            }
+        });
+    }
+});

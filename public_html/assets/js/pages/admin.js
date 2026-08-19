@@ -1,3 +1,14 @@
+(function () {
+    const appDataEl = document.getElementById('app-data');
+    if (appDataEl && appDataEl.dataset.cuentasDestino) {
+        try {
+            window.cuentasDestino = JSON.parse(appDataEl.dataset.cuentasDestino);
+        } catch (e) {
+            window.cuentasDestino = [];
+        }
+    }
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
 
     window.refreshAdminTable = async () => {
@@ -1794,5 +1805,96 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     startAutoRefresh();
+
+    // --- admin/index.php: filtro de países en export de transacciones ---
+    const selOrigin = document.getElementById('exportOrigin');
+    const selDest = document.getElementById('exportDest');
+    if (selOrigin && selDest) {
+        const updateExportOptions = () => {
+            const valOrigin = selOrigin.value;
+            const valDest = selDest.value;
+            Array.from(selDest.options).forEach(opt => {
+                if (opt.value !== "" && opt.value === valOrigin) {
+                    opt.disabled = true;
+                    if (opt.selected) selDest.value = "";
+                } else {
+                    opt.disabled = false;
+                }
+            });
+            Array.from(selOrigin.options).forEach(opt => {
+                if (opt.value !== "" && opt.value === valDest) {
+                    opt.disabled = true;
+                } else {
+                    opt.disabled = false;
+                }
+            });
+        };
+        selOrigin.addEventListener('change', updateExportOptions);
+        selDest.addEventListener('change', updateExportOptions);
+    }
+
+    // --- admin/index.php: modal de motivo de pausa + visor de comprobante admin ---
+    document.body.addEventListener('click', function (e) {
+        const btn = e.target.closest('.view-pause-reason-btn');
+        if (btn) {
+            e.preventDefault();
+            const reason = btn.getAttribute('data-reason');
+            const modalBody = document.getElementById('pause-reason-text');
+            if (modalBody) modalBody.textContent = reason;
+            const modalEl = document.getElementById('viewPauseReasonModal');
+            if (modalEl) {
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+        }
+    });
+
+    document.body.addEventListener('click', function (e) {
+        const btn = e.target.closest('.view-comprobante-btn-admin');
+        // Guard: este visor (con nombre/rut de titular) es específico de admin/index.php.
+        // operador/index.php reutiliza la misma clase para un visor más simple con su
+        // propio handler (operador-index.js) — sin este guard, este listener compartido
+        // en admin.js tira TypeError ahí porque #visor-nombre-titular no existe.
+        if (btn && document.getElementById('visor-nombre-titular')) {
+            e.preventDefault();
+
+            document.getElementById('visor-nombre-titular').textContent = btn.dataset.nombreTitular || 'No registrado';
+            document.getElementById('visor-rut-titular').textContent = btn.dataset.rutTitular || 'No registrado';
+
+            const urlUser = btn.dataset.comprobanteUrl;
+            const urlAdmin = btn.dataset.envioUrl;
+            const startType = btn.dataset.startType || 'user';
+            const urlToLoad = (startType === 'admin' && urlAdmin) ? urlAdmin : urlUser;
+            const imgEl = document.getElementById('comprobante-img-full');
+            const pdfEl = document.getElementById('comprobante-pdf-full');
+            const placeholder = document.getElementById('comprobante-placeholder');
+            const downloadBtn = document.getElementById('download-comprobante-btn');
+
+            imgEl.classList.add('d-none');
+            pdfEl.classList.add('d-none');
+            placeholder.classList.remove('d-none');
+
+            let extension = '';
+            if (urlToLoad.includes('?')) {
+                const urlParams = new URLSearchParams(urlToLoad.split('?')[1]);
+                const fileParam = urlParams.get('file');
+                if (fileParam) extension = fileParam.split('.').pop().toLowerCase();
+            } else {
+                extension = urlToLoad.split('.').pop().toLowerCase();
+            }
+
+            setTimeout(() => {
+                placeholder.classList.add('d-none');
+                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
+                    imgEl.src = urlToLoad;
+                    imgEl.classList.remove('d-none');
+                } else {
+                    pdfEl.src = urlToLoad;
+                    pdfEl.classList.remove('d-none');
+                }
+                if (downloadBtn) downloadBtn.href = urlToLoad;
+            }, 500);
+        }
+    });
 
 });

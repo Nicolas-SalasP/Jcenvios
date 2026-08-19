@@ -18,7 +18,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="mb-0">Contabilidad y Saldos</h1>
-        <button class="btn btn-outline-secondary btn-sm" onclick="cargarDatosGenerales()">
+        <button id="btn-refrescar-contabilidad" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-clockwise"></i> Actualizar
         </button>
     </div>

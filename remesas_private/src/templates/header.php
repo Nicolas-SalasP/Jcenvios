@@ -184,40 +184,11 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <?php endif; ?>
 
-    <?php if ($is_logged_in && $verifStatusId !== 3): ?>
-        <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                let isChecking = false;
-                const CHECK_INTERVAL = 30000;
-
-                const checkStatus = async () => {
-                    if (isChecking || document.hidden) return;
-                    isChecking = true;
-                    try {
-                        const baseUrl = "<?php echo BASE_URL; ?>";
-                        const response = await fetch(`${baseUrl}/api/?accion=checkSessionStatus&_=${new Date().getTime()}`);
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.success && data.needs_refresh) {
-                                window.location.reload();
-                            }
-                        }
-                    } catch (error) {
-                    } finally {
-                        isChecking = false;
-                    }
-                };
-                setInterval(checkStatus, CHECK_INTERVAL);
-                document.addEventListener("visibilitychange", () => {
-                    if (!document.hidden) checkStatus();
-                });
-            });
-        </script>
-    <?php endif; ?>
 </head>
 
 <body class="d-flex flex-column min-vh-100 bg-light" data-base-url="<?php echo htmlspecialchars(BASE_URL); ?>"
-    data-csrf-token="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
+    data-csrf-token="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>"
+    data-session-watch="<?php echo ($is_logged_in && $verifStatusId !== 3) ? '1' : '0'; ?>">
 
     <header class="main-header sticky-top">
         <nav class="navbar navbar-expand-lg navbar-light py-2">

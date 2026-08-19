@@ -23,7 +23,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <h1 class="mb-0 fw-bold h3"><i class="bi bi-people-fill text-primary me-2"></i>Revendedores</h1>
             <p class="text-muted mb-0 small">Gestiona comisiones, liquidaciones y configuración de cada revendedor.</p>
         </div>
-        <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+        <button class="btn btn-outline-secondary btn-sm js-reload-btn">
             <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
         </button>
     </div>

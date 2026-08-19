@@ -181,6 +181,8 @@ $pageScript = 'admin.js';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
+<div id="app-data" class="d-none" data-cuentas-destino='<?php echo htmlspecialchars(json_encode($cuentasDestino), ENT_QUOTES, "UTF-8"); ?>'></div>
+
 <div class="container-fluid mt-4 mb-5 px-3 px-lg-4">
 
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
@@ -540,34 +542,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </div>
     </div>
 </div>
-
-<script>
-    window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
-</script>
-
-<script>
-    // Handler de .view-pause-reason-btn (no está en admin.js, va inline en cada página)
-    document.addEventListener('DOMContentLoaded', () => {
-        document.body.addEventListener('click', function (e) {
-            const btn = e.target.closest('.view-pause-reason-btn');
-            if (btn) {
-                e.preventDefault();
-                const reason = btn.getAttribute('data-reason');
-                const modalBodyText = document.getElementById('pause-reason-text');
-                if (modalBodyText) modalBodyText.textContent = reason;
-
-                const modalEl = document.getElementById('viewPauseReasonModal');
-                if (modalEl) {
-                    let modalInstance = bootstrap.Modal.getInstance(modalEl);
-                    if (!modalInstance) {
-                        modalInstance = new bootstrap.Modal(modalEl);
-                    }
-                    modalInstance.show();
-                }
-            }
-        });
-    });
-</script>
 
 <?php
 require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';

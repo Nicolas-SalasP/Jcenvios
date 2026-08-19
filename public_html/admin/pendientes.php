@@ -52,10 +52,12 @@ $pageScript = 'admin.js'; // Referencia correcta
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
+<div id="app-data" class="d-none" data-cuentas-destino='<?php echo htmlspecialchars(json_encode($cuentasDestino), ENT_QUOTES, "UTF-8"); ?>'></div>
+
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Transacciones Pendientes</h1>
-        <button class="btn btn-outline-secondary btn-sm" onclick="location.reload();">
+        <button class="btn btn-outline-secondary btn-sm js-reload-btn">
             <i class="bi bi-arrow-clockwise"></i> Actualizar
         </button>
     </div>
@@ -304,10 +306,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         }
     }
 </style>
-
-<script>
-    window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
-</script>
 
 <?php
 require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';

@@ -47,7 +47,7 @@ if (defined('BASE_URL')) {
 
 $cspDirectives = [
     "default-src 'self'",
-    "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'",
+    "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
     "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' https://cdn.jsdelivr.net",
     "img-src 'self' data: blob:",

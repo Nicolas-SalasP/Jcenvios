@@ -344,5 +344,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const btnRefrescar = document.getElementById('btn-refrescar-contabilidad');
+    if (btnRefrescar) {
+        btnRefrescar.addEventListener('click', () => cargarDatosGenerales());
+    }
+
     cargarDatosGenerales();
 });

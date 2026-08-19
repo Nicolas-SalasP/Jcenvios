@@ -362,25 +362,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
 <script src="../assets/js/components/rut-validator.js"></script>
 
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const nextBtn = document.getElementById('next-btn');
-        const tasaInput = document.getElementById('selected-tasa-id');
-        const modalTasa = new bootstrap.Modal(document.getElementById('modalTasaNoDisponible'));
-        nextBtn.addEventListener('click', (e) => {
-            const pasoActual = document.querySelector('.form-step.active');
-            if (pasoActual && pasoActual.id === 'step-1') {
-                const tasaId = tasaInput.value;
-                if (!tasaId || tasaId == '0' || tasaId === '') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    modalTasa.show();
-                }
-            }
-        }, true);
-    });
-</script>
-
 <?php
 // El modal de confirmación global (#confirmModal) ya viene de footer.php —
 // antes había uno duplicado acá con IDs distintos (confirmModalYesBtn, sin

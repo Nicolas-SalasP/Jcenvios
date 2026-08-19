@@ -166,23 +166,4 @@ require_once __DIR__ . '/../remesas_private/src/templates/header.php';
     }
 </style>
 
-<script>
-    document.addEventListener('DOMContentLoaded', async () => {
-        try {
-            const response = await fetch('api/?accion=checkSystemStatus');
-            const data = await response.json();
-            if (data.success && data.status && data.status.available === false) {
-                const btnEnviar = document.getElementById('btn-enviar-ahora');
-                if (btnEnviar) {
-                    btnEnviar.classList.replace('btn-warning', 'btn-secondary');
-                    btnEnviar.innerHTML = '<i class="bi bi-lock-fill me-2"></i>Servicio Pausado';
-                    btnEnviar.style.pointerEvents = 'none';
-                }
-            }
-        } catch (error) {
-            console.error("Error checkSystemStatus:", error);
-        }
-    });
-</script>
-
 <?php require_once __DIR__ . '/../remesas_private/src/templates/footer.php'; ?>
