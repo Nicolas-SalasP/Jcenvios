@@ -13,6 +13,7 @@ use App\Repositories\TransactionProofRepository;
 use App\Repositories\LiquidacionRepository;
 use App\Repositories\ResellerAccountsRepository;
 use App\Repositories\ReferralConfigRepository;
+use App\Repositories\TasaEspecialRepository;
 use App\Services\FileHandlerService;
 use App\Services\CuentasBeneficiariasService;
 use Exception;
@@ -32,6 +33,7 @@ class AdminController extends BaseController
     private LiquidacionRepository $liquidacionRepo;
     private ResellerAccountsRepository $resellerAccountsRepo;
     private ReferralConfigRepository $referralConfigRepo;
+    private TasaEspecialRepository $tasaEspecialRepo;
 
     public function __construct(
         TransactionService $txService,
@@ -46,7 +48,8 @@ class AdminController extends BaseController
         TransactionRepository $txRepository,
         LiquidacionRepository $liquidacionRepo,
         ResellerAccountsRepository $resellerAccountsRepo,
-        ReferralConfigRepository $referralConfigRepo
+        ReferralConfigRepository $referralConfigRepo,
+        TasaEspecialRepository $tasaEspecialRepo
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -61,6 +64,54 @@ class AdminController extends BaseController
         $this->liquidacionRepo = $liquidacionRepo;
         $this->resellerAccountsRepo = $resellerAccountsRepo;
         $this->referralConfigRepo = $referralConfigRepo;
+        $this->tasaEspecialRepo = $tasaEspecialRepo;
+    }
+
+    // --- TASAS ESPECIALES POR CLIENTE ---
+
+    public function adminAssignTasaEspecial(): void
+    {
+        $this->ensureAdmin();
+        $adminId = (int) $_SESSION['user_id'];
+        $data = $this->getJsonInput();
+
+        $userId = (int) ($data['userId'] ?? 0);
+        $paisOrigenId = (int) ($data['paisOrigenId'] ?? 0);
+        $paisDestinoId = (int) ($data['paisDestinoId'] ?? 0);
+        $valor = (float) ($data['valor'] ?? 0);
+
+        if ($userId <= 0 || $paisOrigenId <= 0 || $paisDestinoId <= 0 || $valor <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos o inválidos.'], 400);
+            return;
+        }
+
+        $id = $this->tasaEspecialRepo->create($userId, $paisOrigenId, $paisDestinoId, $valor, $adminId);
+        $this->sendJsonResponse(['success' => true, 'id' => $id]);
+    }
+
+    public function adminGetTasasEspecialesByUser(): void
+    {
+        $this->ensureAdmin();
+        $userId = (int) ($_GET['userId'] ?? 0);
+        if ($userId <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Usuario inválido.'], 400);
+            return;
+        }
+        $tasas = $this->tasaEspecialRepo->findAllByUser($userId);
+        $this->sendJsonResponse(['success' => true, 'tasas' => $tasas]);
+    }
+
+    public function adminDeactivateTasaEspecial(): void
+    {
+        $this->ensureAdmin();
+        $data = $this->getJsonInput();
+        $id = (int) ($data['id'] ?? 0);
+        if ($id <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'ID inválido.'], 400);
+            return;
+        }
+        $ok = $this->tasaEspecialRepo->deactivate($id);
+        $this->sendJsonResponse(['success' => $ok]);
     }
 
     // --- GESTIÓN DE VACACIONES ---

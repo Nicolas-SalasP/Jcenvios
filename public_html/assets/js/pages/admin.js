@@ -1897,4 +1897,119 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Tasas Especiales por Cliente (admin/usuarios.php) ---
+    const tasaEspecialModalEl = document.getElementById('tasaEspecialModal');
+    if (tasaEspecialModalEl) {
+        const tasaEspecialModal = new bootstrap.Modal(tasaEspecialModalEl);
+        const tasaEspecialForm = document.getElementById('tasa-especial-form');
+        const tasaEspecialUserId = document.getElementById('tasa-especial-user-id');
+        const tasaEspecialUserName = document.getElementById('tasa-especial-user-name');
+        const selOrigen = document.getElementById('tasa-especial-origen');
+        const selDestino = document.getElementById('tasa-especial-destino');
+        const historialEl = document.getElementById('tasa-especial-historial');
+
+        const escapeHtmlTe = (s) => {
+            const div = document.createElement('div');
+            div.textContent = s == null ? '' : String(s);
+            return div.innerHTML;
+        };
+
+        const cargarPaisesSelect = async (selectEl, rol) => {
+            try {
+                const res = await fetch('../api/?accion=getPaises&rol=' + rol);
+                const paises = await res.json();
+                selectEl.innerHTML = paises.map(p => `<option value="${p.PaisID}">${escapeHtmlTe(p.NombrePais)}</option>`).join('');
+            } catch (e) { console.error('Error cargando países', e); }
+        };
+
+        const cargarHistorial = async (userId) => {
+            historialEl.innerHTML = '<span class="text-muted">Cargando...</span>';
+            try {
+                const res = await fetch('../api/?accion=adminGetTasasEspecialesByUser&userId=' + userId);
+                const data = await res.json();
+                if (!data.success || !data.tasas.length) {
+                    historialEl.innerHTML = '<span class="text-muted">Sin tasas especiales previas.</span>';
+                    return;
+                }
+                historialEl.innerHTML = data.tasas.map(t => `
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-1">
+                        <span>
+                            ${escapeHtmlTe(t.PaisOrigenNombre)} → ${escapeHtmlTe(t.PaisDestinoNombre)}:
+                            <strong>${escapeHtmlTe(t.ValorTasa)}</strong>
+                            ${t.Activa == 1 ? '<span class="badge bg-success ms-1">Activa</span>' : '<span class="badge bg-secondary ms-1">Usada/Inactiva</span>'}
+                        </span>
+                        ${t.Activa == 1 ? `<button type="button" class="btn btn-sm btn-outline-danger btn-desactivar-tasa-especial" data-id="${t.TasaEspecialID}">Desactivar</button>` : ''}
+                    </div>
+                `).join('');
+            } catch (e) {
+                historialEl.innerHTML = '<span class="text-danger">Error al cargar historial.</span>';
+            }
+        };
+
+        document.body.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tasa-especial');
+            if (!btn) return;
+            tasaEspecialUserId.value = btn.dataset.userId;
+            tasaEspecialUserName.textContent = btn.dataset.userName || '';
+            tasaEspecialForm.reset();
+            tasaEspecialUserId.value = btn.dataset.userId;
+            cargarPaisesSelect(selOrigen, 'Origen');
+            cargarPaisesSelect(selDestino, 'Destino');
+            cargarHistorial(btn.dataset.userId);
+            tasaEspecialModal.show();
+        });
+
+        historialEl.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.btn-desactivar-tasa-especial');
+            if (!btn) return;
+            btn.disabled = true;
+            try {
+                const res = await fetch('../api/?accion=adminDeactivateTasaEspecial', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: btn.dataset.id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    cargarHistorial(tasaEspecialUserId.value);
+                } else {
+                    window.showInfoModal('Error', 'No se pudo desactivar.', false);
+                    btn.disabled = false;
+                }
+            } catch (e2) {
+                window.showInfoModal('Error', 'Error de conexión.', false);
+                btn.disabled = false;
+            }
+        });
+
+        tasaEspecialForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = tasaEspecialForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            try {
+                const body = {
+                    userId: tasaEspecialUserId.value,
+                    paisOrigenId: selOrigen.value,
+                    paisDestinoId: selDestino.value,
+                    valor: document.getElementById('tasa-especial-valor').value
+                };
+                const res = await fetch('../api/?accion=adminAssignTasaEspecial', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('tasa-especial-valor').value = '';
+                    cargarHistorial(tasaEspecialUserId.value);
+                    window.showInfoModal('Listo', 'Tasa especial asignada correctamente.', true);
+                } else {
+                    window.showInfoModal('Error', data.error || 'No se pudo asignar la tasa.', false);
+                }
+            } catch (e3) {
+                window.showInfoModal('Error', 'Error de conexión.', false);
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
 });

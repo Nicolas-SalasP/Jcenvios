@@ -11,6 +11,7 @@ use App\Repositories\EstadoTransaccionRepository;
 use App\Repositories\CuentasAdminRepository;
 use App\Repositories\RateRepository;
 use App\Repositories\ResellerAccountsRepository;
+use App\Repositories\TasaEspecialRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -38,6 +39,7 @@ class TransactionServiceTest extends TestCase
             'cuentasAdminRepo' => $this->createMock(CuentasAdminRepository::class),
             'rateRepo' => $this->createMock(RateRepository::class),
             'resellerAccountsRepo' => $this->createMock(ResellerAccountsRepository::class),
+            'tasaEspecialRepo' => $this->createMock(TasaEspecialRepository::class),
         ];
         $deps = array_merge($defaults, $overrides);
 
@@ -53,7 +55,8 @@ class TransactionServiceTest extends TestCase
             $deps['cuentasRepo'],
             $deps['cuentasAdminRepo'],
             $deps['rateRepo'],
-            $deps['resellerAccountsRepo']
+            $deps['resellerAccountsRepo'],
+            $deps['tasaEspecialRepo']
         );
     }
 
@@ -1175,6 +1178,54 @@ class TransactionServiceTest extends TestCase
 
         $this->assertEquals('created', $result['status']);
         $this->assertEquals(38000.0, $capturedData['montoDestino']); // 10000 * 3.8, ruta normal (no inversa)
+    }
+
+    public function testCreateTransactionUsaTasaEspecialActivaEnVezDeLaPublica()
+    {
+        // ValorTasa pública = 3.8, pero el cliente tiene una tasa especial
+        // activa de 4.5 para esta ruta exacta (origen=1, destino=3) — debe
+        // usarse esa, no la pública.
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $tasaEspecialRepo = $this->createMock(TasaEspecialRepository::class);
+        $tasaEspecialRepo->method('findActiveForUserAndRoute')
+            ->with(1, 1, 3)
+            ->willReturn(['TasaEspecialID' => 77, 'ValorTasa' => 4.5]);
+        $tasaEspecialRepo->expects($this->once())->method('markUsed')->with(77, 999);
+        $mocks['tasaEspecialRepo'] = $tasaEspecialRepo;
+
+        $capturedData = null;
+        $txRepo = $mocks['txRepo'];
+        $txRepo->method('create')->willReturnCallback(function ($data) use (&$capturedData) {
+            $capturedData = $data;
+            return 999;
+        });
+
+        $service = $this->buildService($mocks);
+
+        $datos = $this->datosTransaccionBase();
+        $datos['montoOrigen'] = 10000;
+        $result = $service->createTransaction($datos);
+
+        $this->assertEquals('created', $result['status']);
+        $this->assertEquals(45000.0, $capturedData['montoDestino']); // 10000 * 4.5 (tasa especial), no 3.8
+        $this->assertEquals(4.5, $capturedData['tasaCapturada']);
+    }
+
+    public function testCreateTransactionSinTasaEspecialUsaTasaPublicaYNoLlamaMarkUsed()
+    {
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $tasaEspecialRepo = $this->createMock(TasaEspecialRepository::class);
+        $tasaEspecialRepo->method('findActiveForUserAndRoute')->willReturn(null);
+        $tasaEspecialRepo->expects($this->never())->method('markUsed');
+        $mocks['tasaEspecialRepo'] = $tasaEspecialRepo;
+
+        $service = $this->buildService($mocks);
+
+        $result = $service->createTransaction($this->datosTransaccionBase());
+
+        $this->assertEquals('created', $result['status']);
     }
 
     public function testCreateTransactionExitosoRutaInversaCalculaMontoPorDivision()

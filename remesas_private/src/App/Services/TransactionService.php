@@ -10,6 +10,7 @@ use App\Repositories\CuentasAdminRepository;
 use App\Repositories\RateRepository;
 use App\Repositories\TransactionProofRepository;
 use App\Repositories\ResellerAccountsRepository;
+use App\Repositories\TasaEspecialRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -31,6 +32,7 @@ class TransactionService
     private RateRepository $rateRepository;
     private TransactionProofRepository $proofRepository;
     private ResellerAccountsRepository $resellerAccountsRepo;
+    private TasaEspecialRepository $tasaEspecialRepo;
 
     private const ESTADO_PENDIENTE_PAGO = 'Pendiente de Pago';
     private const ESTADO_EN_VERIFICACION = 'En Verificación';
@@ -57,7 +59,8 @@ class TransactionService
         CuentasBeneficiariasRepository $cuentasRepo,
         CuentasAdminRepository $cuentasAdminRepo,
         RateRepository $rateRepository,
-        ResellerAccountsRepository $resellerAccountsRepo
+        ResellerAccountsRepository $resellerAccountsRepo,
+        TasaEspecialRepository $tasaEspecialRepo
     ) {
         $this->txRepository = $txRepository;
         $this->userRepository = $userRepository;
@@ -72,6 +75,7 @@ class TransactionService
         $this->rateRepository = $rateRepository;
         $this->proofRepository = new TransactionProofRepository();
         $this->resellerAccountsRepo = $resellerAccountsRepo;
+        $this->tasaEspecialRepo = $tasaEspecialRepo;
     }
 
     public function getEstadoIdByName(string $nombreEstado): int
@@ -204,6 +208,17 @@ class TransactionService
             throw new Exception("Esta ruta está temporalmente desactivada. Contacta al administrador.", 403);
         }
 
+        // Tasa especial de uso único: si el admin le asignó una tasa
+        // preferencial a este cliente para esta ruta exacta, se usa en vez
+        // de la tasa pública. El TasaID_Al_Momento sigue siendo el de la
+        // ruta real (FK a `tasas`, tasas_especiales_cliente no tiene fila
+        // propia ahí) — lo que cambia es el valor con el que se calcula y
+        // se guarda en TasaCapturada.
+        $tasaEspecial = $this->tasaEspecialRepo->findActiveForUserAndRoute((int) $data['userID'], $paisOrigenID, $paisDestinoID);
+        if ($tasaEspecial) {
+            $tasaInfo['ValorTasa'] = $tasaEspecial['ValorTasa'];
+        }
+
         $inverseRoutes = [
             '2-3', // Col -> Ven
             '4-1', // Peru -> Chile
@@ -282,6 +297,10 @@ class TransactionService
 
         try {
             $transactionId = $this->txRepository->create($data);
+
+            if ($tasaEspecial) {
+                $this->tasaEspecialRepo->markUsed((int) $tasaEspecial['TasaEspecialID'], $transactionId);
+            }
 
             if ($statusKey === 'requires_approval') {
                 $this->notificationService->logAdminAction($data['userID'], 'Orden Riesgosa Creada', "TX ID: $transactionId - Esperando aprobación.");

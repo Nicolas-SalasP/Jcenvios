@@ -27,7 +27,8 @@ use App\Repositories\{
     ResellerAccountsRepository,
     ReferralConfigRepository,
     NormasRepository,
-    ContactMessageRepository
+    ContactMessageRepository,
+    TasaEspecialRepository
 };
 use App\Services\{
     LogService,
@@ -109,6 +110,7 @@ class Container
             ReferralConfigRepository::class => new ReferralConfigRepository($this->getDb()),
             NormasRepository::class => new NormasRepository($this->getDb()),
             ContactMessageRepository::class => new ContactMessageRepository($this->getDb()),
+            TasaEspecialRepository::class => new TasaEspecialRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -165,7 +167,8 @@ class Container
                 $this->get(CuentasBeneficiariasRepository::class),
                 $this->get(CuentasAdminRepository::class),
                 $this->get(RateRepository::class),
-                $this->get(ResellerAccountsRepository::class)
+                $this->get(ResellerAccountsRepository::class),
+                $this->get(TasaEspecialRepository::class)
             ),
 
             SystemSettingsService::class => new SystemSettingsService(
@@ -227,7 +230,8 @@ class Container
                 $this->get(TransactionRepository::class),
                 $this->get(LiquidacionRepository::class),
                 $this->get(ResellerAccountsRepository::class),
-                $this->get(ReferralConfigRepository::class)
+                $this->get(ReferralConfigRepository::class),
+                $this->get(TasaEspecialRepository::class)
             ),
 
             DashboardController::class => new DashboardController(
@@ -386,6 +390,9 @@ try {
         'adminGetUserBeneficiaries' => [AdminController::class, 'getUserBeneficiaries', 'GET'],
         'adminRequestBeneficiaryAccess' => [AdminController::class, 'requestBeneficiaryAccess', 'POST'],
         'adminUpdateBeneficiary' => [AdminController::class, 'adminUpdateBeneficiary', 'POST'],
+        'adminAssignTasaEspecial' => [AdminController::class, 'adminAssignTasaEspecial', 'POST'],
+        'adminGetTasasEspecialesByUser' => [AdminController::class, 'adminGetTasasEspecialesByUser', 'GET'],
+        'adminDeactivateTasaEspecial' => [AdminController::class, 'adminDeactivateTasaEspecial', 'POST'],
 
         // Admin - Transacciones
         'processTransaction' => [AdminController::class, 'processTransaction', 'POST'],

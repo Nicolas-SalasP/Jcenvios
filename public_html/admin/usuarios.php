@@ -229,9 +229,16 @@ if (!$isAjax) {
                                             <i class="bi bi-pencil-square"></i>
                                         </button>
 
-                                        <button class="btn btn-sm btn-outline-danger admin-delete-user-btn" 
+                                        <button class="btn btn-sm btn-outline-success btn-tasa-especial"
+                                                title="Asignar Tasa Especial"
+                                                data-user-id="<?php echo $user['UserID']; ?>"
+                                                data-user-name="<?php echo htmlspecialchars($user['PrimerNombre'] . ' ' . $user['PrimerApellido']); ?>">
+                                            <i class="bi bi-percent"></i>
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-danger admin-delete-user-btn"
                                                 title="Eliminar"
-                                                data-user-id="<?php echo $user['UserID']; ?>" 
+                                                data-user-id="<?php echo $user['UserID']; ?>"
                                                 <?php echo $disabledAttr; ?>>
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -508,6 +515,44 @@ if (!$isAjax) {
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="tasaEspecialModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Tasa Especial — <span id="tasa-especial-user-name"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="tasa-especial-form">
+                <div class="modal-body">
+                    <input type="hidden" id="tasa-especial-user-id" name="userId">
+                    <p class="small text-muted">Se aplica automáticamente en la próxima orden que el cliente cree para esta ruta exacta, y queda inactiva después de usarse (uso único).</p>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">País Origen</label>
+                            <select class="form-select" id="tasa-especial-origen" name="paisOrigenId" required></select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">País Destino</label>
+                            <select class="form-select" id="tasa-especial-destino" name="paisDestinoId" required></select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Valor de la Tasa</label>
+                            <input type="number" step="0.00001" min="0" class="form-control" id="tasa-especial-valor" name="valor" required>
+                        </div>
+                    </div>
+                    <hr>
+                    <h6 class="small fw-bold text-muted">Historial</h6>
+                    <div id="tasa-especial-historial" class="small"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-success">Asignar Tasa</button>
                 </div>
             </form>
         </div>
