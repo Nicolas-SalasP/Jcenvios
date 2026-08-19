@@ -17,6 +17,7 @@ use App\Repositories\LiquidacionRepository;
 use App\Repositories\ResellerAccountsRepository;
 use App\Repositories\ReferralConfigRepository;
 use App\Repositories\ContactMessageRepository;
+use App\Repositories\CuentasAdminRepository;
 use Exception;
 
 class ClientController extends BaseController
@@ -37,6 +38,7 @@ class ClientController extends BaseController
     private ResellerAccountsRepository $resellerAccountsRepo;
     private ReferralConfigRepository $referralConfigRepo;
     private ContactMessageRepository $contactMessageRepo;
+    private CuentasAdminRepository $cuentasAdminRepo;
 
     public function __construct(
         TransactionService $txService,
@@ -54,7 +56,8 @@ class ClientController extends BaseController
         LiquidacionRepository $liquidacionRepo,
         ResellerAccountsRepository $resellerAccountsRepo,
         ReferralConfigRepository $referralConfigRepo,
-        ContactMessageRepository $contactMessageRepo
+        ContactMessageRepository $contactMessageRepo,
+        CuentasAdminRepository $cuentasAdminRepo
     ) {
         $this->txService = $txService;
         $this->pricingService = $pricingService;
@@ -72,6 +75,19 @@ class ClientController extends BaseController
         $this->resellerAccountsRepo = $resellerAccountsRepo;
         $this->referralConfigRepo = $referralConfigRepo;
         $this->contactMessageRepo = $contactMessageRepo;
+        $this->cuentasAdminRepo = $cuentasAdminRepo;
+    }
+
+    public function getDatosBancariosPorPais(): void
+    {
+        $this->ensureLoggedIn();
+        $paisId = (int) ($_GET['paisId'] ?? 0);
+        if ($paisId <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'País inválido.'], 400);
+            return;
+        }
+        $cuentas = $this->cuentasAdminRepo->getActiveOrigenAccountsByPais($paisId);
+        $this->sendJsonResponse(['success' => true, 'cuentas' => $cuentas]);
     }
 
     // --- CHECKEO DE SISTEMA---
@@ -101,8 +117,8 @@ class ClientController extends BaseController
                 if ($feriado['BloqueoSistema'] == 1) {
                     if ($isStaff) {
                         $response['holiday_warning'] = [
-                            'title'   => 'FERIADO ACTIVO (acceso staff)',
-                            'message' => $feriado['Motivo'],
+                            'title'   => $feriado['Motivo'],
+                            'message' => '',
                             'ends_at' => $feriado['FechaFin']
                         ];
                     } else {
@@ -113,8 +129,8 @@ class ClientController extends BaseController
                     }
                 } else {
                     $response['holiday_warning'] = [
-                        'title' => 'AVISO INFORMATIVO',
-                        'message' => $feriado['Motivo'],
+                        'title' => $feriado['Motivo'],
+                        'message' => '',
                         'ends_at' => $feriado['FechaFin']
                     ];
                 }

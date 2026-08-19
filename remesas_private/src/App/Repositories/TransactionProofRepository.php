@@ -59,7 +59,10 @@ class TransactionProofRepository
     public function findByHash(string $hash): ?array
     {
         $stmt = $this->db->prepare(
-            "SELECT ProofID, TransaccionID, Tipo FROM transaction_proofs WHERE FileHash = ? LIMIT 1"
+            "SELECT tp.ProofID, tp.TransaccionID, tp.Tipo
+             FROM transaction_proofs tp
+             JOIN transacciones t ON t.TransaccionID = tp.TransaccionID
+             WHERE tp.FileHash = ? AND t.EstadoID != 5 LIMIT 1"
         );
         $stmt->bind_param("s", $hash);
         $stmt->execute();

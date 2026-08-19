@@ -277,6 +277,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/historial.php">Historial</a></li>
                                 <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/dashboard/datos-bancarios.php">Datos Bancarios</a></li>
+                                <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/tasas-web.php">Tasas</a></li>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/normas.php">Normas</a></li>
@@ -288,6 +290,8 @@ if ($is_logged_in && isset($_SESSION['user_photo_url'])) {
                                         href="<?php echo BASE_URL; ?>/dashboard/index.php">Enviar Dinero</a></li>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/dashboard/historial.php">Historial</a></li>
+                                <li class="nav-item"><a class="nav-link"
+                                        href="<?php echo BASE_URL; ?>/dashboard/datos-bancarios.php">Datos Bancarios</a></li>
                                 <li class="nav-item"><a class="nav-link"
                                         href="<?php echo BASE_URL; ?>/tasas-web.php">Tasas</a></li>
                                 <li class="nav-item"><a class="nav-link"

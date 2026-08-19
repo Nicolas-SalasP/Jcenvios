@@ -210,7 +210,8 @@ class Container
                 $this->get(LiquidacionRepository::class),
                 $this->get(ResellerAccountsRepository::class),
                 $this->get(ReferralConfigRepository::class),
-                $this->get(ContactMessageRepository::class)
+                $this->get(ContactMessageRepository::class),
+                $this->get(CuentasAdminRepository::class)
             ),
 
             AdminController::class => new AdminController(
@@ -325,6 +326,7 @@ try {
         'getDocumentTypes' => [ClientController::class, 'getDocumentTypes', 'GET'],
         'getAssignableRoles' => [ClientController::class, 'getAssignableRoles', 'GET'],
         'checkSystemStatus' => [ClientController::class, 'checkSystemStatus', 'GET'],
+        'getDatosBancariosPorPais' => [ClientController::class, 'getDatosBancariosPorPais', 'GET'],
 
         // Client - Gestión de Cuentas y Perfil
         'getCuentas' => [ClientController::class, 'getCuentas', 'GET'],

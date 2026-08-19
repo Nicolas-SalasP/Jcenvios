@@ -748,6 +748,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            // Límite igual al del servidor (FileHandlerService::saveReceiptFile, 10MB).
+            // Las imágenes se comprimen antes de subir (más abajo) así que este límite
+            // real solo importa para PDFs, que se suben tal cual.
+            const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+            const originalFileCheck = fileInput.files[0];
+            if (!originalFileCheck.type.startsWith('image/') && originalFileCheck.size > MAX_UPLOAD_BYTES) {
+                window.showInfoModal('Archivo muy pesado', `El comprobante pesa ${(originalFileCheck.size / 1024 / 1024).toFixed(1)}MB. El máximo permitido es 10MB — si es un PDF escaneado, intenta con una foto en su lugar.`, false);
+                return;
+            }
+
             submitBtn.disabled = true;
             submitBtn.textContent = 'Procesando...';
 
@@ -790,7 +800,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (error) {
                 console.error(error);
-                window.showInfoModal('Error', error.message || 'Error de conexión.', false);
+                // 'Failed to fetch' es el error nativo del navegador cuando la conexión
+                // se cae/interrumpe a mitad de la subida (típicamente archivo muy pesado
+                // para la conexión, o timeout) — no dice nada útil al usuario tal cual.
+                const msg = error.message === 'Failed to fetch'
+                    ? 'No se pudo subir el archivo. Verifica tu conexión a internet e intenta de nuevo con una foto más liviana si el problema persiste.'
+                    : (error.message || 'Error de conexión.');
+                window.showInfoModal('Error', msg, false);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = originalText;

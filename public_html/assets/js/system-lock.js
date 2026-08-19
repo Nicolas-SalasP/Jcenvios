@@ -42,9 +42,11 @@ async function checkSystemStatus() {
                 // Feriado bloqueante. Para usuarios logueados (clientes) además
                 // se va a disparar el modal de bloqueo más abajo. Pero el banner
                 // se muestra a TODOS, especialmente útil para los no logueados.
+                // El título es directo el texto que el admin escribió (Motivo),
+                // sin palabra fija adelante.
                 bannerInfo = {
-                    title:   'SISTEMA EN MANTENIMIENTO',
-                    message: data.message || 'El sistema está temporalmente fuera de servicio.',
+                    title:   data.message || 'El sistema está temporalmente fuera de servicio.',
+                    message: '',
                     ends_at: data.ends_at,
                     danger:  true
                 };

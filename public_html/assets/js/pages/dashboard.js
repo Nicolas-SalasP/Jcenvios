@@ -541,19 +541,72 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
+                    // Misma compresión que historial.js: reduce a max 1280px/calidad 0.8
+                    // antes de subir, para no depender del límite de post_max_size del
+                    // servidor con fotos 4K de celular (8-15MB sin comprimir).
+                    const compressImageExpress = (file) => {
+                        return new Promise((resolve, reject) => {
+                            if (!file.type.match(/image.*/)) {
+                                resolve(file);
+                                return;
+                            }
+                            const maxWidth = 1280;
+                            const quality = 0.8;
+                            const reader = new FileReader();
+                            reader.readAsDataURL(file);
+                            reader.onload = (event) => {
+                                const img = new Image();
+                                img.src = event.target.result;
+                                img.onload = () => {
+                                    let width = img.width;
+                                    let height = img.height;
+                                    if (width > maxWidth) {
+                                        height = Math.round((height * maxWidth) / width);
+                                        width = maxWidth;
+                                    }
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0, width, height);
+                                    canvas.toBlob((blob) => {
+                                        if (!blob) { reject(new Error('Error al comprimir')); return; }
+                                        resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+                                    }, 'image/jpeg', quality);
+                                };
+                                img.onerror = (err) => reject(err);
+                            };
+                            reader.onerror = (err) => reject(err);
+                        });
+                    };
+
                     document.getElementById('form-comprobante-express').addEventListener('submit', async function (ev) {
                         ev.preventDefault();
                         const btnUp = document.getElementById('btn-subir-express');
                         const originalTxt = btnUp.innerHTML;
+
+                        const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+                        const rawFile = expressFileInput.files[0];
+                        if (rawFile && !rawFile.type.startsWith('image/') && rawFile.size > MAX_UPLOAD_BYTES) {
+                            window.showInfoModal('Archivo muy pesado', `El comprobante pesa ${(rawFile.size / 1024 / 1024).toFixed(1)}MB. El máximo permitido es 10MB — si es un PDF escaneado, intenta con una foto en su lugar.`, false);
+                            return;
+                        }
+
                         btnUp.disabled = true;
                         btnUp.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Subiendo...';
 
-                        const fd = new FormData(this);
-                        if (!requiereRut) {
-                            fd.set('rutTitularOrigen', 'N/A');
-                        }
-
                         try {
+                            let fileToUpload = rawFile;
+                            if (rawFile && rawFile.type.startsWith('image/')) {
+                                fileToUpload = await compressImageExpress(rawFile);
+                            }
+
+                            const fd = new FormData(this);
+                            if (fileToUpload) fd.set('receiptFile', fileToUpload, fileToUpload.name);
+                            if (!requiereRut) {
+                                fd.set('rutTitularOrigen', 'N/A');
+                            }
+
                             const upResp = await fetch('../api/?accion=uploadReceipt', { method: 'POST', body: fd });
                             const upJson = await upResp.json();
 
@@ -564,7 +617,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 throw new Error(upJson.error || 'Este comprobante ya fue utilizado.');
                             }
                         } catch (errUp) {
-                            Swal.fire('Error', errUp.message, 'error');
+                            // 'Failed to fetch' = conexión caída a mitad de subida, no dice
+                            // nada útil al usuario tal cual (ver historial.js, mismo fix).
+                            const msg = errUp.message === 'Failed to fetch'
+                                ? 'No se pudo subir el archivo. Verifica tu conexión a internet e intenta de nuevo con una foto más liviana si el problema persiste.'
+                                : errUp.message;
+                            Swal.fire('Error', msg, 'error');
                             btnUp.disabled = false;
                             btnUp.innerHTML = originalTxt;
                         }
@@ -960,7 +1018,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ops.forEach(o => benefBankSelect.add(new Option(o.text, o.val)));
             }
             else if (paisId === C_VENEZUELA) {
-                if (containerBankInputText) containerBankInputText.classList.remove('d-none');
+                if (containerBankSelect) containerBankSelect.classList.remove('d-none');
+                const opsVe = [
+                    { val: 'Banesco', text: 'Banesco' },
+                    { val: 'Provincial', text: 'Provincial' },
+                    { val: 'Mercantil', text: 'Mercantil' },
+                    { val: 'BNC', text: 'BNC' },
+                    { val: 'Bancamiga', text: 'Bancamiga' },
+                    { val: 'BDT', text: 'BDT' },
+                    { val: 'Otro Banco', text: 'Otro Banco' }
+                ];
+                opsVe.forEach(o => benefBankSelect.add(new Option(o.text, o.val)));
                 if (walletPhonePrefix) {
                     walletPhonePrefix.classList.add('d-none');
                     walletPhonePrefix.textContent = '';
@@ -1005,6 +1073,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const val = this.value;
                 const paisId = parseInt(benefPaisIdInput.value);
                 if (containerOtherBank) containerOtherBank.classList.add('d-none');
+                if (inputOtherBank) inputOtherBank.required = false;
+
+                if (paisId === C_VENEZUELA) {
+                    // Venezuela maneja cuenta bancaria/pago móvil con los checkboxes
+                    // check-include-bank/mobile, independientes del select de banco —
+                    // a diferencia de Perú/Colombia no hay que resetearlos acá.
+                    if (val === 'Otro Banco') {
+                        if (containerOtherBank) containerOtherBank.classList.remove('d-none');
+                        if (inputOtherBank) inputOtherBank.required = true;
+                    }
+                    return;
+                }
+
                 if (containerCCI) containerCCI.classList.add('d-none');
                 if (inputCCI) inputCCI.required = false;
                 if (containerBankFields) containerBankFields.classList.add('d-none');
@@ -1127,7 +1208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // CuentasBeneficiariasService), pero el input no tiene "required" en el HTML.
             // Sin este chequeo, el usuario podía dejarlo vacío y el submit fallaba recién
             // en el servidor con un 400 poco claro (visto repetido en el error_log real).
-            const nombreBancoActual = (paisId === C_PERU || paisId === C_COLOMBIA)
+            const nombreBancoActual = (paisId === C_PERU || paisId === C_COLOMBIA || paisId === C_VENEZUELA)
                 ? (benefBankSelect && benefBankSelect.value === 'Otro Banco' && inputOtherBank
                     ? inputOtherBank.value.trim()
                     : (benefBankSelect ? benefBankSelect.value : ''))
@@ -1192,7 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (paisId === C_PERU || paisId === C_COLOMBIA) {
+            if (paisId === C_PERU || paisId === C_COLOMBIA || paisId === C_VENEZUELA) {
                 if (benefBankSelect.value === 'Otro Banco' && inputOtherBank && inputOtherBank.value) {
                     formData.set('nombreBanco', inputOtherBank.value.trim());
                 } else if (benefBankSelect.value) {
