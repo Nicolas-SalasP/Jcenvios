@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use Exception;
-require_once __DIR__ . '/../../lib/fpdf/fpdf.php';
+use FPDF;
 
 class PDFService
 {
