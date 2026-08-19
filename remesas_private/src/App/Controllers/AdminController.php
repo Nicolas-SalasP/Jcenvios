@@ -246,11 +246,6 @@ class AdminController extends BaseController
         }
     }
 
-    public function uploadProof(): void
-    {
-        $this->adminUploadProof();
-    }
-
     public function pauseTransaction(): void
     {
         $this->ensureAdminOrOperator(); 
@@ -301,11 +296,6 @@ class AdminController extends BaseController
         }
     }
 
-    public function resumeTransaction(): void
-    {
-        $this->resumeTransactionAdmin();
-    }
-
     public function authorizeTransaction(): void
     {
         $adminId = $this->ensureAdminOrOperator();
@@ -351,11 +341,6 @@ class AdminController extends BaseController
         } catch (Exception $e) {
             $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
-    }
-
-    public function updateCommission(): void
-    {
-        $this->updateTxCommission();
     }
 
     // --- CONFIGURACIÓN Y USUARIOS ---
