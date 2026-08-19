@@ -30,6 +30,14 @@ $f_status = $_GET['f_status'] ?? '';
 $f_origen = $_GET['f_origen'] ?? '';
 $f_confirm = $_GET['f_confirm'] ?? '';
 $f_destino = $_GET['f_destino'] ?? '';
+$f_emision_desde = $_GET['f_emision_desde'] ?? '';
+$f_emision_hasta = $_GET['f_emision_hasta'] ?? '';
+$f_comprobante_desde = $_GET['f_comprobante_desde'] ?? '';
+$f_comprobante_hasta = $_GET['f_comprobante_hasta'] ?? '';
+$f_completado_desde = $_GET['f_completado_desde'] ?? '';
+$f_completado_hasta = $_GET['f_completado_hasta'] ?? '';
+$f_moneda_origen = $_GET['f_moneda_origen'] ?? '';
+$f_moneda_destino = $_GET['f_moneda_destino'] ?? '';
 
 $whereClause = "WHERE 1=1";
 $params = [];
@@ -65,6 +73,46 @@ if (!empty($f_status)) {
 if (!empty($f_confirm) && in_array($f_confirm, ['pendiente', 'recibido', 'no_recibido'], true)) {
     $whereClause .= " AND T.ConfirmacionRecepcion = ?";
     $params[] = $f_confirm;
+    $types .= "s";
+}
+if (!empty($f_emision_desde)) {
+    $whereClause .= " AND DATE(T.FechaTransaccion) >= ?";
+    $params[] = $f_emision_desde;
+    $types .= "s";
+}
+if (!empty($f_emision_hasta)) {
+    $whereClause .= " AND DATE(T.FechaTransaccion) <= ?";
+    $params[] = $f_emision_hasta;
+    $types .= "s";
+}
+if (!empty($f_comprobante_desde)) {
+    $whereClause .= " AND DATE(T.FechaSubidaComprobante) >= ?";
+    $params[] = $f_comprobante_desde;
+    $types .= "s";
+}
+if (!empty($f_comprobante_hasta)) {
+    $whereClause .= " AND DATE(T.FechaSubidaComprobante) <= ?";
+    $params[] = $f_comprobante_hasta;
+    $types .= "s";
+}
+if (!empty($f_completado_desde)) {
+    $whereClause .= " AND DATE(T.FechaCompletado) >= ?";
+    $params[] = $f_completado_desde;
+    $types .= "s";
+}
+if (!empty($f_completado_hasta)) {
+    $whereClause .= " AND DATE(T.FechaCompletado) <= ?";
+    $params[] = $f_completado_hasta;
+    $types .= "s";
+}
+if (!empty($f_moneda_origen)) {
+    $whereClause .= " AND T.MonedaOrigen = ?";
+    $params[] = $f_moneda_origen;
+    $types .= "s";
+}
+if (!empty($f_moneda_destino)) {
+    $whereClause .= " AND T.MonedaDestino = ?";
+    $params[] = $f_moneda_destino;
     $types .= "s";
 }
 
@@ -112,7 +160,7 @@ if (!isset($_GET['ajax'])) {
 }
 
 $sql = "
-    SELECT T.*, U.PrimerNombre, U.PrimerApellido,
+    SELECT T.*, U.PrimerNombre, U.PrimerApellido, U.Telefono AS ClienteTelefono,
         T.BeneficiarioNombre AS BeneficiarioNombreCompleto,
         ET.NombreEstado AS EstadoNombre,
         U.NumeroDocumento AS UsuarioDocumento,
@@ -185,17 +233,22 @@ function getStatusBadgeClass($statusName)
 // --- MODO AJAX (SOLO TABLA) ---
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     if (empty($transacciones)) {
-        echo '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>';
+        echo '<tr><td colspan="11" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>';
     } else {
         foreach ($transacciones as $tx) {
             $nombreTitular = !empty($tx['NombreTitularOrigen']) ? $tx['NombreTitularOrigen'] : ($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']);
             $rutTitular = !empty($tx['RutTitularOrigen']) ? $tx['RutTitularOrigen'] : ($tx['UsuarioDocumento'] ?? 'N/A');
             ?>
             <tr>
-                <td><?php echo $tx['TransaccionID']; ?></td>
-                <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
+                <td>
+                    <button type="button" class="btn btn-link btn-sm p-0 btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
+                        #<?php echo $tx['TransaccionID']; ?>
+                    </button>
+                </td>
                 <td class="search-user">
-                    <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-start btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
+                        <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                    </button>
                 </td>
                 <td class="search-beneficiary">
                     <?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?>
@@ -211,6 +264,19 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                                 style="cursor:pointer;font-size:0.7rem;">
                             <i class="bi bi-arrow-repeat"></i> Envío #<?php echo $previos + 1; ?>
                         </button>
+                    <?php endif; ?>
+                </td>
+                <td><?php echo number_format($tx['MontoOrigen'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaOrigen'] ?? ''); ?></span></td>
+                <td><?php echo number_format($tx['MontoDestino'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?></span></td>
+                <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
+                <td><?php echo !empty($tx['FechaSubidaComprobante']) ? date("d/m/y H:i", strtotime($tx['FechaSubidaComprobante'])) : '—'; ?></td>
+                <td>
+                    <?php if (!empty($tx['FechaCompletado'])): ?>
+                        <span class="text-success small">Completada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCompletado'])); ?></span>
+                    <?php elseif (!empty($tx['FechaCancelacion'])): ?>
+                        <span class="text-danger small">Cancelada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCancelacion'])); ?></span>
+                    <?php else: ?>
+                        <span class="text-muted">—</span>
                     <?php endif; ?>
                 </td>
                 <td>
@@ -375,7 +441,14 @@ function getPaginationUrl($page, $filters)
     $params = array_merge($filters, ['pagina' => $page]);
     return '?' . http_build_query($params);
 }
-$currentFilters = ['f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status, 'f_origen' => $f_origen, 'f_destino' => $f_destino, 'f_confirm' => $f_confirm];
+$currentFilters = [
+    'f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status,
+    'f_origen' => $f_origen, 'f_destino' => $f_destino, 'f_confirm' => $f_confirm,
+    'f_emision_desde' => $f_emision_desde, 'f_emision_hasta' => $f_emision_hasta,
+    'f_comprobante_desde' => $f_comprobante_desde, 'f_comprobante_hasta' => $f_comprobante_hasta,
+    'f_completado_desde' => $f_completado_desde, 'f_completado_hasta' => $f_completado_hasta,
+    'f_moneda_origen' => $f_moneda_origen, 'f_moneda_destino' => $f_moneda_destino,
+];
 
 $pageTitle = 'Panel de Administración';
 $pageScript = 'admin.js';
@@ -469,6 +542,52 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i></button>
                 <a href="index.php" class="btn btn-sm btn-secondary" title="Limpiar"><i class="bi bi-x-lg"></i></a>
             </div>
+
+            <div class="col-12">
+                <button type="button" class="btn btn-sm btn-link px-0" data-bs-toggle="collapse" data-bs-target="#masFiltros">
+                    <i class="bi bi-funnel"></i> Más filtros (fechas por evento, moneda)
+                </button>
+            </div>
+
+            <?php
+            $hayFiltrosExtra = !empty($f_emision_desde) || !empty($f_emision_hasta) || !empty($f_comprobante_desde)
+                || !empty($f_comprobante_hasta) || !empty($f_completado_desde) || !empty($f_completado_hasta)
+                || !empty($f_moneda_origen) || !empty($f_moneda_destino);
+            ?>
+            <div id="masFiltros" class="collapse row g-2 align-items-end <?php echo $hayFiltrosExtra ? 'show' : ''; ?>">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Emisión desde</label>
+                    <input type="date" name="f_emision_desde" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_emision_desde); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Emisión hasta</label>
+                    <input type="date" name="f_emision_hasta" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_emision_hasta); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Comprobante desde</label>
+                    <input type="date" name="f_comprobante_desde" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_comprobante_desde); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Comprobante hasta</label>
+                    <input type="date" name="f_comprobante_hasta" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_comprobante_hasta); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Completada desde</label>
+                    <input type="date" name="f_completado_desde" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_completado_desde); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Completada hasta</label>
+                    <input type="date" name="f_completado_hasta" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_completado_hasta); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Moneda origen</label>
+                    <input type="text" name="f_moneda_origen" maxlength="10" class="form-control form-control-sm" placeholder="CLP" value="<?php echo htmlspecialchars($f_moneda_origen); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Moneda destino</label>
+                    <input type="text" name="f_moneda_destino" maxlength="10" class="form-control form-control-sm" placeholder="VES" value="<?php echo htmlspecialchars($f_moneda_destino); ?>">
+                </div>
+            </div>
         </form>
     </div>
 
@@ -477,9 +596,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <thead class="table-light">
                 <tr>
                     <th>ID</th>
-                    <th>Fecha</th>
-                    <th>Usuario</th>
+                    <th>Cliente</th>
                     <th>Beneficiario</th>
+                    <th>Monto Origen</th>
+                    <th>Monto Destino</th>
+                    <th>F. Emisión</th>
+                    <th>F. Comprobante</th>
+                    <th>F. Completado/Cancelado</th>
                     <th>Estado</th>
                     <th>Comisión</th>
                     <th class="text-center">Acciones</th>
@@ -488,7 +611,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <tbody id="transactionsTableBody">
                 <?php if (empty($transacciones)): ?>
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td>
+                        <td colspan="11" class="text-center py-4 text-muted">No se encontraron resultados.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($transacciones as $tx):
@@ -496,12 +619,30 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         $rutTitular = !empty($tx['RutTitularOrigen']) ? $tx['RutTitularOrigen'] : ($tx['UsuarioDocumento'] ?? 'N/A');
                         ?>
                         <tr>
-                            <td><?php echo $tx['TransaccionID']; ?></td>
-                            <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
+                            <td>
+                                <button type="button" class="btn btn-link btn-sm p-0 btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
+                                    #<?php echo $tx['TransaccionID']; ?>
+                                </button>
+                            </td>
                             <td class="search-user">
-                                <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-start btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
+                                    <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                                </button>
                             </td>
                             <td class="search-beneficiary"><?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?>
+                            </td>
+                            <td><?php echo number_format($tx['MontoOrigen'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaOrigen'] ?? ''); ?></span></td>
+                            <td><?php echo number_format($tx['MontoDestino'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?></span></td>
+                            <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
+                            <td><?php echo !empty($tx['FechaSubidaComprobante']) ? date("d/m/y H:i", strtotime($tx['FechaSubidaComprobante'])) : '—'; ?></td>
+                            <td>
+                                <?php if (!empty($tx['FechaCompletado'])): ?>
+                                    <span class="text-success small">Completada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCompletado'])); ?></span>
+                                <?php elseif (!empty($tx['FechaCancelacion'])): ?>
+                                    <span class="text-danger small">Cancelada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCancelacion'])); ?></span>
+                                <?php else: ?>
+                                    <span class="text-muted">—</span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <span class="badge <?php echo getStatusBadgeClass($tx['EstadoNombre'] ?? ''); ?>">
@@ -804,6 +945,28 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <div class="modal-body text-center p-4">
                 <i class="bi bi-info-circle text-warning display-4 mb-3 d-block"></i>
                 <p class="mb-0 fw-medium" id="pause-reason-text" style="font-size: 1.1rem;"></p>
+            </div>
+            <div class="modal-footer justify-content-center py-2 bg-light border-0">
+                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="clienteInfoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-person-badge me-2"></i>Datos del Cliente</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-5">Orden ID</dt><dd class="col-7" id="cliente-info-tx-id"></dd>
+                    <dt class="col-5">Nombre</dt><dd class="col-7" id="cliente-info-nombre"></dd>
+                    <dt class="col-5">Teléfono</dt><dd class="col-7" id="cliente-info-telefono"></dd>
+                    <dt class="col-5">Documento</dt><dd class="col-7" id="cliente-info-doc"></dd>
+                </dl>
             </div>
             <div class="modal-footer justify-content-center py-2 bg-light border-0">
                 <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cerrar</button>

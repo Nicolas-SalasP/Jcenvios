@@ -1850,6 +1850,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.body.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-cliente-info');
+        if (!btn) return;
+        const modalEl = document.getElementById('clienteInfoModal');
+        if (!modalEl) return;
+        document.getElementById('cliente-info-tx-id').textContent = '#' + (btn.dataset.txId || '');
+        document.getElementById('cliente-info-nombre').textContent = btn.dataset.nombre || '';
+        document.getElementById('cliente-info-telefono').textContent = btn.dataset.telefono || 'No registrado';
+        document.getElementById('cliente-info-doc').textContent = btn.dataset.doc || 'No registrado';
+        new bootstrap.Modal(modalEl).show();
+    });
+
+    document.body.addEventListener('click', function (e) {
         const btn = e.target.closest('.view-comprobante-btn-admin');
         // Guard: este visor (con nombre/rut de titular) es específico de admin/index.php.
         // operador/index.php reutiliza la misma clase para un visor más simple con su

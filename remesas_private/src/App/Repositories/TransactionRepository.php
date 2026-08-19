@@ -313,7 +313,7 @@ class TransactionRepository
     public function uploadAdminProof(int $transactionId, string $dbPath, string $fileHash, int $estadoPagadoID, int $estadoEnProcesoID, float $comisionDestino): int
     {
         $sql = "UPDATE transacciones
-            SET ComprobanteEnvioURL = ?, ComprobanteEnvioHash = ?, EstadoID = ?, ComisionDestino = ?, FechaPago = NOW()
+            SET ComprobanteEnvioURL = ?, ComprobanteEnvioHash = ?, EstadoID = ?, ComisionDestino = ?, FechaPago = NOW(), FechaCompletado = NOW()
             WHERE TransaccionID = ? AND EstadoID = ?";
 
         $stmt = $this->db->prepare($sql);
@@ -327,7 +327,16 @@ class TransactionRepository
 
     public function updateStatus(int $id, int $newStatusID, $requiredStatusID = null): int
     {
-        $sql = "UPDATE transacciones SET EstadoID = ? WHERE TransaccionID = ?";
+        // EstadoID 4=Exitoso, 5=Cancelado (catálogo estados_transaccion) — se usa
+        // este método desde varios flujos (forceUpdateState, adminRejectPayment,
+        // etc.) así que el timestamp se setea acá en vez de en cada caller.
+        $extraSet = '';
+        if ($newStatusID === 4) {
+            $extraSet = ', FechaCompletado = NOW()';
+        } elseif ($newStatusID === 5) {
+            $extraSet = ', FechaCancelacion = NOW()';
+        }
+        $sql = "UPDATE transacciones SET EstadoID = ?" . $extraSet . " WHERE TransaccionID = ?";
         $types = "ii";
         $params = [$newStatusID, $id];
 
@@ -369,10 +378,11 @@ class TransactionRepository
         }
         $placeholders = implode(',', array_fill(0, count($allowedStatusIds), '?'));
 
-        $sql = "UPDATE transacciones SET 
-                    EstadoID = ?, 
-                    ComprobanteURL = NULL, 
-                    ComprobanteHash = NULL 
+        $sql = "UPDATE transacciones SET
+                    EstadoID = ?,
+                    ComprobanteURL = NULL,
+                    ComprobanteHash = NULL,
+                    FechaCancelacion = NOW()
                 WHERE TransaccionID = ? AND UserID = ? AND EstadoID IN ($placeholders)";
 
         $stmt = $this->db->prepare($sql);
@@ -400,7 +410,8 @@ class TransactionRepository
         $sql = "UPDATE transacciones
                 SET EstadoID       = ?,
                     AutoCancelado  = 1,
-                    ComprobanteHash = NULL
+                    ComprobanteHash = NULL,
+                    FechaCancelacion = NOW()
                 WHERE EstadoID  = ?
                   AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
                   AND (
