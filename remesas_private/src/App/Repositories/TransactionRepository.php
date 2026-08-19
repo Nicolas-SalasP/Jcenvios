@@ -424,44 +424,55 @@ class TransactionRepository
      */
     public function extendPaymentDeadline(int $txId, int $userId, int $estadoPendienteID, int $horas, int $maxExtensiones): array
     {
-        $sql = "SELECT TransaccionID, ExtensionesPlazoUsadas, PlazoExtendidoHasta
-                FROM transacciones
-                WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?
-                  AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
-                LIMIT 1
-                FOR UPDATE";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iii", $txId, $userId, $estadoPendienteID);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
+        $conn = $this->db->getConnection();
+        $conn->begin_transaction();
+        try {
+            $sql = "SELECT TransaccionID, ExtensionesPlazoUsadas, PlazoExtendidoHasta
+                    FROM transacciones
+                    WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?
+                      AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
+                    LIMIT 1
+                    FOR UPDATE";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bind_param("iii", $txId, $userId, $estadoPendienteID);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
 
-        if (!$row) {
-            return ['success' => false, 'reason' => 'not_found'];
+            if (!$row) {
+                $conn->rollback();
+                return ['success' => false, 'reason' => 'not_found'];
+            }
+
+            if ((int) $row['ExtensionesPlazoUsadas'] >= $maxExtensiones) {
+                $conn->rollback();
+                return ['success' => false, 'reason' => 'limit_reached'];
+            }
+
+            $update = "UPDATE transacciones
+                        SET PlazoExtendidoHasta = NOW() + INTERVAL ? HOUR,
+                            ExtensionesPlazoUsadas = ExtensionesPlazoUsadas + 1
+                        WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?";
+            $stmtU = $this->db->prepare($update);
+            $stmtU->bind_param("iiii", $horas, $txId, $userId, $estadoPendienteID);
+            $stmtU->execute();
+            $affected = $stmtU->affected_rows;
+            $stmtU->close();
+
+            if ($affected === 0) {
+                $conn->rollback();
+                return ['success' => false, 'reason' => 'not_found'];
+            }
+
+            $conn->commit();
+            return [
+                'success' => true,
+                'extensionesUsadas' => (int) $row['ExtensionesPlazoUsadas'] + 1,
+            ];
+        } catch (\Throwable $e) {
+            $conn->rollback();
+            throw $e;
         }
-
-        if ((int) $row['ExtensionesPlazoUsadas'] >= $maxExtensiones) {
-            return ['success' => false, 'reason' => 'limit_reached'];
-        }
-
-        $update = "UPDATE transacciones
-                    SET PlazoExtendidoHasta = NOW() + INTERVAL ? HOUR,
-                        ExtensionesPlazoUsadas = ExtensionesPlazoUsadas + 1
-                    WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?";
-        $stmtU = $this->db->prepare($update);
-        $stmtU->bind_param("iiii", $horas, $txId, $userId, $estadoPendienteID);
-        $stmtU->execute();
-        $affected = $stmtU->affected_rows;
-        $stmtU->close();
-
-        if ($affected === 0) {
-            return ['success' => false, 'reason' => 'not_found'];
-        }
-
-        return [
-            'success' => true,
-            'extensionesUsadas' => (int) $row['ExtensionesPlazoUsadas'] + 1,
-        ];
     }
 
     public function findByHash(string $fileHash): ?array

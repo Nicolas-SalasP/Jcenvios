@@ -26,6 +26,10 @@ session_set_cookie_params([
 
 header('X-Content-Type-Options: nosniff');
 
+if (defined('IS_HTTPS') && IS_HTTPS) {
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+}
+
 // --- CSP (Content Security Policy) ---
 $cspHost = '';
 if (defined('BASE_URL')) {
