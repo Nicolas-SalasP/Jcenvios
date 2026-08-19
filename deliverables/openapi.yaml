@@ -28,3 +28,2013 @@ paths:
               properties:
                 montoOrigen: {type: number}
                 cuentaID: {type: integer}
+  /api/?accion=registerUser:
+    post:
+      summary: AuthController.registerUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AuthController::registerUser)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=requestPasswordReset:
+    post:
+      summary: AuthController.requestPasswordReset
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AuthController::requestPasswordReset)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=performPasswordReset:
+    post:
+      summary: AuthController.performPasswordReset
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AuthController::performPasswordReset)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=verify2fa:
+    post:
+      summary: AuthController.verify2FACode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AuthController::verify2FACode)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=send2faCode:
+    post:
+      summary: AuthController.send2FACode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AuthController::send2FACode)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=resend2faCode:
+    post:
+      summary: AuthController.send2FACode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AuthController::send2FACode)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=submitContactForm:
+    post:
+      summary: ClientController.handleContactForm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::handleContactForm)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getTasa:
+    get:
+      summary: ClientController.getTasa
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getCurrentRate:
+    get:
+      summary: ClientController.getCurrentRate
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getPaises:
+    get:
+      summary: ClientController.getPaises
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getDolarBcv:
+    get:
+      summary: DashboardController.getDolarBcvData
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getActiveDestinationCountries:
+    get:
+      summary: ClientController.getActiveDestinationCountries
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getFormasDePago:
+    get:
+      summary: ClientController.getFormasDePago
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getBeneficiaryTypes:
+    get:
+      summary: ClientController.getBeneficiaryTypes
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getDocumentTypes:
+    get:
+      summary: ClientController.getDocumentTypes
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getAssignableRoles:
+    get:
+      summary: ClientController.getAssignableRoles
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=checkSystemStatus:
+    get:
+      summary: ClientController.checkSystemStatus
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getCuentas:
+    get:
+      summary: ClientController.getCuentas
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getBeneficiaryDetails:
+    get:
+      summary: ClientController.getBeneficiaryDetails
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=addCuenta:
+    post:
+      summary: ClientController.addCuenta
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::addCuenta)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateBeneficiary:
+    post:
+      summary: ClientController.updateBeneficiary
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::updateBeneficiary)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=deleteBeneficiary:
+    post:
+      summary: ClientController.deleteBeneficiary
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::deleteBeneficiary)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getUserProfile:
+    get:
+      summary: ClientController.getUserProfile
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateUserProfile:
+    post:
+      summary: ClientController.updateUserProfile
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::updateUserProfile)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=uploadVerificationDocs:
+    post:
+      summary: ClientController.uploadVerificationDocs
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::uploadVerificationDocs)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=generate2FASecret:
+    post:
+      summary: ClientController.generate2FASecret
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::generate2FASecret)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=enable2FA:
+    post:
+      summary: ClientController.enable2FA
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::enable2FA)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=disable2FA:
+    post:
+      summary: ClientController.disable2FA
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::disable2FA)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=toggleBeneficiaryPermission:
+    post:
+      summary: ClientController.toggleBeneficiaryPermission
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::toggleBeneficiaryPermission)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=cancelTransaction:
+    post:
+      summary: ClientController.cancelTransaction
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::cancelTransaction)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=extendPaymentDeadline:
+    post:
+      summary: ClientController.extendPaymentDeadline
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::extendPaymentDeadline)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=uploadReceipt:
+    post:
+      summary: ClientController.uploadReceipt
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::uploadReceipt)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=resumeOrder:
+    post:
+      summary: ClientController.resumeOrder
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::resumeOrder)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=confirmReceipt:
+    post:
+      summary: ClientController.confirmReceipt
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::confirmReceipt)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getHistorialTransacciones:
+    get:
+      summary: ClientController.getTransactionsHistory
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=checkSessionStatus:
+    get:
+      summary: ClientController.checkSessionStatus
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updatePausedTransactionAmount:
+    post:
+      summary: ClientController.updatePausedTransactionAmount
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::updatePausedTransactionAmount)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getDashboardStats:
+    get:
+      summary: AdminController.getDashboardStats
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=addPais:
+    post:
+      summary: AdminController.addPais
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::addPais)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updatePais:
+    post:
+      summary: AdminController.updatePais
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updatePais)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updatePaisRol:
+    post:
+      summary: AdminController.updatePaisRol
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updatePaisRol)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=togglePaisStatus:
+    post:
+      summary: AdminController.togglePaisStatus
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::togglePaisStatus)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getHolidays:
+    get:
+      summary: AdminController.getHolidays
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=addHoliday:
+    post:
+      summary: AdminController.addHoliday
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::addHoliday)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=deleteHoliday:
+    post:
+      summary: AdminController.deleteHoliday
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::deleteHoliday)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getHorarioOverrideStatusAdmin:
+    get:
+      summary: AdminController.getHorarioOverrideStatusAdmin
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=toggleHorarioOverride:
+    post:
+      summary: AdminController.toggleHorarioOverride
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::toggleHorarioOverride)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=clearHorarioOverride:
+    post:
+      summary: AdminController.clearHorarioOverride
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::clearHorarioOverride)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateMensajeHorario:
+    post:
+      summary: AdminController.updateMensajeHorario
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateMensajeHorario)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateRate:
+    post:
+      summary: AdminController.upsertRate
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::upsertRate)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=deleteRate:
+    post:
+      summary: AdminController.deleteRate
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::deleteRate)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=toggleRouteActive:
+    post:
+      summary: AdminController.toggleRouteActive
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::toggleRouteActive)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateBcvRate:
+    post:
+      summary: AdminController.updateBcvRate
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateBcvRate)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getBcvRate:
+    get:
+      summary: ClientController.getBcvRate
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=applyGlobalAdjustment:
+    post:
+      summary: AdminController.applyGlobalAdjustment
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::applyGlobalAdjustment)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=saveGlobalAdjustmentSettings:
+    post:
+      summary: AdminController.saveGlobalAdjustmentSettings
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::saveGlobalAdjustmentSettings)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateVerificationStatus:
+    post:
+      summary: AdminController.updateVerificationStatus
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateVerificationStatus)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=toggleUserBlock:
+    post:
+      summary: AdminController.toggleUserBlock
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::toggleUserBlock)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateUserRole:
+    post:
+      summary: AdminController.updateUserRole
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateUserRole)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=deleteUser:
+    post:
+      summary: AdminController.deleteUser
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::deleteUser)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=adminUpdateUser:
+    post:
+      summary: AdminController.adminUpdateUser
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::adminUpdateUser)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=adminUpdateUserDoc:
+    post:
+      summary: AdminController.adminUpdateUserDoc
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::adminUpdateUserDoc)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=adminGetUserBeneficiaries:
+    get:
+      summary: AdminController.getUserBeneficiaries
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=adminRequestBeneficiaryAccess:
+    post:
+      summary: AdminController.requestBeneficiaryAccess
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::requestBeneficiaryAccess)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=adminUpdateBeneficiary:
+    post:
+      summary: AdminController.adminUpdateBeneficiary
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::adminUpdateBeneficiary)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=processTransaction:
+    post:
+      summary: AdminController.processTransaction
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::processTransaction)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=rejectTransaction:
+    post:
+      summary: AdminController.rejectTransaction
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::rejectTransaction)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=adminUploadProof:
+    post:
+      summary: AdminController.adminUploadProof
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::adminUploadProof)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=canReplaceAdminProof:
+    get:
+      summary: AdminController.canReplaceAdminProof
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateTxCommission:
+    post:
+      summary: AdminController.updateTxCommission
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateTxCommission)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=pauseTransaction:
+    post:
+      summary: AdminController.pauseTransaction
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::pauseTransaction)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=resumeTransactionAdmin:
+    post:
+      summary: AdminController.resumeTransactionAdmin
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::resumeTransactionAdmin)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=authorizeTransaction:
+    post:
+      summary: AdminController.authorizeTransaction
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::authorizeTransaction)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=toggleMontoEditPermission:
+    post:
+      summary: AdminController.toggleMontoEditPermission
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::toggleMontoEditPermission)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getPreviousSendsToSameAccount:
+    get:
+      summary: AdminController.getPreviousSendsToSameAccount
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getCuentasAdmin:
+    get:
+      summary: AdminController.getCuentasAdmin
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=saveCuentaAdmin:
+    post:
+      summary: AdminController.saveCuentaAdmin
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::saveCuentaAdmin)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=deleteCuentaAdmin:
+    post:
+      summary: AdminController.deleteCuentaAdmin
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::deleteCuentaAdmin)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getAdminAlerts:
+    get:
+      summary: AdminController.getAdminAlerts
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getSaldosContables:
+    get:
+      summary: ContabilidadController.getSaldos
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=agregarFondos:
+    post:
+      summary: ContabilidadController.agregarFondos
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ContabilidadController::agregarFondos)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=retirarFondos:
+    post:
+      summary: ContabilidadController.retirarFondos
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ContabilidadController::retirarFondos)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=compraDivisas:
+    post:
+      summary: ContabilidadController.compraDivisas
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ContabilidadController::compraDivisas)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResumenContable:
+    get:
+      summary: ContabilidadController.getResumenMensual
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getContabilidadGlobal:
+    get:
+      summary: ContabilidadController.getContabilidadGlobal
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=transferenciaInterna:
+    post:
+      summary: ContabilidadController.transferenciaInterna
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ContabilidadController::transferenciaInterna)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=botWebhook:
+    post:
+      summary: BotController.handleWebhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver BotController::handleWebhook)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getPendingBeneficiaryRequests:
+    get:
+      summary: ClientController.getPendingBeneficiaryRequests
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=respondBeneficiaryRequest:
+    post:
+      summary: ClientController.respondBeneficiaryRequest
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::respondBeneficiaryRequest)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=requestBeneficiaryEdit:
+    post:
+      summary: ClientController.requestBeneficiaryEdit
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::requestBeneficiaryEdit)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=executeBeneficiaryEdit:
+    post:
+      summary: ClientController.executeBeneficiaryEdit
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::executeBeneficiaryEdit)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getBeneficiaryHistory:
+    get:
+      summary: ClientController.getBeneficiaryHistory
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerDashboard:
+    get:
+      summary: ClientController.getResellerDashboard
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerTransactions:
+    get:
+      summary: ClientController.getResellerTransactions
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerSummary:
+    get:
+      summary: ClientController.getResellerSummary
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerList:
+    get:
+      summary: AdminController.getResellerList
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerCommissionPreview:
+    get:
+      summary: AdminController.getResellerCommissionPreview
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=crearLiquidacion:
+    post:
+      summary: AdminController.crearLiquidacion
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::crearLiquidacion)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=pagarLiquidacion:
+    post:
+      summary: AdminController.pagarLiquidacion
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::pagarLiquidacion)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getLiquidacionesList:
+    get:
+      summary: AdminController.getLiquidacionesList
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateResellerCommission:
+    post:
+      summary: AdminController.updateResellerCommission
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateResellerCommission)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerPaises:
+    get:
+      summary: AdminController.getResellerPaises
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateResellerPaises:
+    post:
+      summary: AdminController.updateResellerPaises
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateResellerPaises)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerMaxCuentas:
+    get:
+      summary: AdminController.getResellerMaxCuentas
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateResellerMaxCuentas:
+    post:
+      summary: AdminController.updateResellerMaxCuentas
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateResellerMaxCuentas)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getReferralSettings:
+    get:
+      summary: AdminController.getReferralSettings
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateReferralSettings:
+    post:
+      summary: AdminController.updateReferralSettings
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver AdminController::updateReferralSettings)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerAccounts:
+    get:
+      summary: ClientController.getResellerAccounts
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=addResellerAccount:
+    post:
+      summary: ClientController.addResellerAccount
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::addResellerAccount)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=updateResellerAccount:
+    post:
+      summary: ClientController.updateResellerAccount
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::updateResellerAccount)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=toggleResellerAccount:
+    post:
+      summary: ClientController.toggleResellerAccount
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::toggleResellerAccount)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=deleteResellerAccount:
+    post:
+      summary: ClientController.deleteResellerAccount
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver ClientController::deleteResellerAccount)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getResellerReferralCode:
+    get:
+      summary: ClientController.getResellerReferralCode
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getReferrerAccounts:
+    get:
+      summary: ClientController.getReferrerAccounts
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getReferralSettingsPublic:
+    get:
+      summary: ClientController.getReferralSettingsPublic
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getTutorialesActivos:
+    get:
+      summary: TutorialController.getTutorialesActivos
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getTutorialesAdmin:
+    get:
+      summary: TutorialController.getTutorialesAdmin
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=saveTutorial:
+    post:
+      summary: TutorialController.saveTutorial
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver TutorialController::saveTutorial)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=deleteTutorial:
+    post:
+      summary: TutorialController.deleteTutorial
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver TutorialController::deleteTutorial)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=toggleTutorialStatus:
+    post:
+      summary: TutorialController.toggleTutorialStatus
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver TutorialController::toggleTutorialStatus)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=reorderTutoriales:
+    post:
+      summary: TutorialController.reorderTutoriales
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver TutorialController::reorderTutoriales)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getTasaImagenPublica:
+    get:
+      summary: TasasImagenController.getTasaImagenPublica
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getTasasImagenAdmin:
+    get:
+      summary: TasasImagenController.getTasasImagenAdmin
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=saveTasaImagen:
+    post:
+      summary: TasasImagenController.saveTasaImagen
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver TasasImagenController::saveTasaImagen)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=editTasaImagenArchivo:
+    post:
+      summary: TasasImagenController.editTasaImagenArchivo
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver TasasImagenController::editTasaImagenArchivo)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=replaceTasaImagen:
+    post:
+      summary: TasasImagenController.replaceTasaImagen
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver TasasImagenController::replaceTasaImagen)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=deleteTasaImagen:
+    post:
+      summary: TasasImagenController.deleteTasaImagen
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver TasasImagenController::deleteTasaImagen)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getNormasPublicas:
+    get:
+      summary: NormasController.getNormasPublicas
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=getNormasAdmin:
+    get:
+      summary: NormasController.getNormasAdmin
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/?accion=saveNormas:
+    post:
+      summary: NormasController.saveNormas
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TODO - completar campos reales (ver NormasController::saveNormas)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object

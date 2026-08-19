@@ -123,6 +123,44 @@ jobs:
           | xargs -0 -n1 -P4 php -l
 
   # ─────────────────────────────────────────────────────────────────────────
+  # JOB: Auditoría de dependencias (composer audit + npm audit). No bloquea
+  # el pipeline todavía (continue-on-error) — solo reporta vulnerabilidades
+  # conocidas en el log del run. Cuando el equipo esté cómodo con los falsos
+  # positivos, sacar continue-on-error para que bloquee el merge.
+  # ─────────────────────────────────────────────────────────────────────────
+  dependency-audit:
+    name: Auditoría de dependencias (composer + npm)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Composer install (con dev)
+        run: cd remesas_private && composer install --optimize-autoloader --no-interaction
+
+      - name: composer audit
+        continue-on-error: true
+        run: cd remesas_private && composer audit --format=table
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm install
+        run: npm install
+
+      - name: npm audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  # ─────────────────────────────────────────────────────────────────────────
   # JOB 3: Smoke + flujo de negocio crítico con Playwright, contra un
   # servidor PHP real y una BD recién migrada + sembrada (schema + catálogo
   # + usuarios/tasa/beneficiario de prueba en database/ci_test_seed.sql).
