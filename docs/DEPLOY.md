@@ -73,6 +73,27 @@ mysql -u TU_USUARIO_BD -p TU_BD < migrations/003_drop_unused_user_columns.sql
 o impórtala desde **phpMyAdmin**. Las migraciones del proyecto son idempotentes
 (usan `IF EXISTS` / `INFORMATION_SCHEMA`), así que reaplicarlas no rompe nada.
 
+## Tareas programadas (cron)
+
+Configurar en cPanel → **Cron Jobs**, apuntando al PHP CLI del servidor:
+
+```bash
+# Cancelación automática de órdenes expiradas (Pendiente de Pago > 4hs sin comprobante):
+0,30 * * * * php /home/TU_USUARIO/remesas_private/cron_auto_cancelacion.php >> /home/TU_USUARIO/logs/jcenvios_cancel.log 2>&1
+
+# Conciliación de pagos por correo (lee bandeja de entrada, sugiere/aplica comprobantes):
+*/10 * * * * php /home/TU_USUARIO/remesas_private/cron_email_reconciliation.php >> /home/TU_USUARIO/logs/jcenvios_recon.log 2>&1
+
+# Ajuste automático de tasas fuera de horario laboral:
+*/15 * * * * php /home/TU_USUARIO/remesas_private/cron_tasas.php >> /home/TU_USUARIO/logs/jcenvios_tasas.log 2>&1
+
+# Purga de bitácora (tabla `logs`) con más de 12 meses de antigüedad — no urgente, alcanza semanal:
+0 4 * * 0 php /home/TU_USUARIO/remesas_private/cron_purge_logs.php >> /home/TU_USUARIO/logs/jcenvios_purge_logs.log 2>&1
+```
+
+Ajusta rutas y frecuencias según el hosting real. Todos los crons son idempotentes/seguros
+de reintentar y loguean con `error_log()` si algo falla.
+
 ## Notas
 
 - Si `composer` no está en el PATH del servidor, sube un `composer.phar` a `~/remesas_private/`
