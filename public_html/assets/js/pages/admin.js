@@ -1232,27 +1232,38 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================
     // 6. LOGICA DE AUTO-REFRESH (POLLING)
     // =========================================================
-    function startAutoRefresh() {
-        setInterval(async () => {
-            if (document.body.classList.contains('modal-open')) return;
-
-            const currentUrl = new URL(window.location.href);
-            currentUrl.searchParams.set('ajax', '1');
-
-            try {
-                const response = await fetch(currentUrl);
-                if (!response.ok) throw new Error('Error en refresh');
-
-                const newHtmlRows = await response.text();
-
-                const tbody = document.getElementById('transactionsTableBody');
-                if (tbody && newHtmlRows.trim().length > 0) {
-                    tbody.innerHTML = newHtmlRows;
-                }
-            } catch (error) {
-                console.warn('Error en auto-refresh:', error);
+    // Antes: se saltaba ENTERO el refresh mientras hubiera cualquier modal
+    // abierto (document.body tiene 'modal-open' con CUALQUIER modal de
+    // Bootstrap, no solo uno relacionado a la tabla). Como el admin suele
+    // dejar abierto "Ver comprobante"/"Cliente info"/etc. varios segundos
+    // mientras revisa una orden, la confirmación de recepción del cliente
+    // quedaba sin actualizar hasta que cerraba TODO modal y esperaba el
+    // siguiente ciclo — de ahí el reporte de "no sale hasta actualizar".
+    // Los modales viven fuera de #transactionsTableBody (son <div> aparte
+    // al final de la página), así que reemplazar el tbody no les afecta:
+    // ya no hace falta saltarse el refresh por eso.
+    async function refreshAdminTableRows() {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('ajax', '1');
+        try {
+            const response = await fetch(currentUrl);
+            if (!response.ok) throw new Error('Error en refresh');
+            const newHtmlRows = await response.text();
+            const tbody = document.getElementById('transactionsTableBody');
+            if (tbody && newHtmlRows.trim().length > 0) {
+                tbody.innerHTML = newHtmlRows;
             }
-        }, 10000);
+        } catch (error) {
+            console.warn('Error en auto-refresh:', error);
+        }
+    }
+
+    function startAutoRefresh() {
+        setInterval(refreshAdminTableRows, 5000);
+        // Refresco inmediato apenas se cierra cualquier modal, para no
+        // esperar hasta el próximo ciclo si el admin justo confirmó algo
+        // (ej. subir comprobante) mientras el modal estaba abierto.
+        document.addEventListener('hidden.bs.modal', refreshAdminTableRows);
     }
 
     // =========================================================
