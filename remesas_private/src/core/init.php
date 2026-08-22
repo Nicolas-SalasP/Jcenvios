@@ -214,7 +214,8 @@ $container = new class($conexion) {
                     new \App\Repositories\CuentasBeneficiariasRepository($db),
                     new \App\Repositories\CuentasAdminRepository($db),
                     new \App\Repositories\RateRepository($db),
-                    new \App\Repositories\ResellerAccountsRepository($db)
+                    new \App\Repositories\ResellerAccountsRepository($db),
+                    new \App\Repositories\TasaEspecialRepository($db)
                 );
             }
         } catch (Throwable $e) {
