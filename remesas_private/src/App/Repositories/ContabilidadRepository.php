@@ -93,6 +93,46 @@ class ContabilidadRepository
         return $stmt->execute();
     }
 
+    /**
+     * Devuelve, por cuenta bancaria admin, cuánto ingreso de venta de esta
+     * transacción sigue SIN revertir: SUM(INGRESO_VENTA) - SUM(REVERSA_VENTA).
+     *
+     * Es la base de que la reversión sea idempotente: si ya se revirtió todo,
+     * el neto da 0, el HAVING lo filtra y no devuelve nada (no-op). También
+     * cubre el caso de múltiples INGRESO_VENTA sobre la misma orden (pasa si
+     * un soft-reject la devuelve a Pendiente de Pago y se vuelve a confirmar).
+     *
+     * Se lee del libro mayor y no de transacciones.CuentaAdminID a propósito:
+     * registrarIngresoVenta() puede terminar sin registrar nada (rollback
+     * silencioso si la cuenta no existe), así que asumir que siempre hubo
+     * ingreso restaría plata que nunca se sumó.
+     *
+     * @return array<int, array{CuentaAdminID:int, Neto:string}>
+     */
+    public function getNetoIngresoVentaPorCuenta(int $txId): array
+    {
+        $sql = "SELECT m.CuentaAdminID,
+                       SUM(CASE
+                             WHEN tm.Codigo = 'INGRESO_VENTA' THEN m.Monto
+                             WHEN tm.Codigo = 'REVERSA_VENTA' THEN -m.Monto
+                             ELSE 0
+                           END) AS Neto
+                FROM contabilidad_movimientos m
+                JOIN tipos_movimiento tm ON m.TipoMovimientoID = tm.TipoMovimientoID
+                WHERE m.TransaccionID = ?
+                  AND m.CuentaAdminID IS NOT NULL
+                  AND tm.Codigo IN ('INGRESO_VENTA', 'REVERSA_VENTA')
+                GROUP BY m.CuentaAdminID
+                HAVING Neto > 0";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $txId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
     public function actualizarSaldo(int $saldoId, float $nuevoSaldo): bool
     {
         $sql = "UPDATE contabilidad_saldos SET SaldoActual = ? WHERE SaldoID = ?";

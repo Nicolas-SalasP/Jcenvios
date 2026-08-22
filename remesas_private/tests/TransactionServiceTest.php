@@ -349,6 +349,121 @@ class TransactionServiceTest extends TestCase
         $service->adminRejectPayment(1, 999, 'motivo', false);
     }
 
+    // --- Reversa contable al sacar una orden de "En Proceso" ---
+
+    public function testAdminRejectPaymentDuroRevierteElIngreso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->once())->method('revertirIngresoVenta')->with(123, 1)->willReturn(true);
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->adminRejectPayment(1, 123, 'motivo', false));
+    }
+
+    public function testAdminRejectPaymentSoftRevierteElIngresoParaNoDuplicarlo()
+    {
+        // Soft-reject devuelve la orden a "Pendiente de Pago": al re-confirmarse
+        // se registra un SEGUNDO INGRESO_VENTA, así que el primero debe revertirse.
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->once())->method('revertirIngresoVenta')->with(123, 1)->willReturn(true);
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->adminRejectPayment(1, 123, 'corregir', true));
+    }
+
+    public function testAdminRejectPaymentNoRevierteSiElEstadoNoLoPermite()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(0); // el CAS no afectó filas
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->never())->method('revertirIngresoVenta');
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->expectException(Exception::class);
+        $service->adminRejectPayment(1, 123, 'motivo', false);
+    }
+
+    public function testReversaFallidaNoRompeElRechazoPeroDejaAlerta()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->method('revertirIngresoVenta')->willReturn(false);
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->atLeastOnce())
+            ->method('logAdminAction')
+            ->with($this->anything(), $this->anything(), $this->anything());
+
+        $service = $this->buildService([
+            'txRepo' => $txRepo,
+            'contabService' => $contabService,
+            'notifService' => $notifService,
+        ]);
+
+        // El rechazo se completa igual: abortar acá dejaría la orden cancelada
+        // sin reversión y sin posibilidad de reintento (409 para siempre).
+        $this->assertTrue($service->adminRejectPayment(1, 123, 'motivo', false));
+    }
+
+    public function testForceUpdateStateRevierteAlSacarDeEnProceso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(['EstadoID' => 3]); // En Proceso
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->once())->method('revertirIngresoVenta');
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->forceUpdateState(123, 5)); // 3 -> Cancelado
+    }
+
+    public function testForceUpdateStateNoRevierteAlCompletarLaOrden()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(['EstadoID' => 3]);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        // 3 -> 4 (Exitoso) es el camino normal de completado: el ingreso queda.
+        $contabService->expects($this->never())->method('revertirIngresoVenta');
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->forceUpdateState(123, 4));
+    }
+
+    public function testForceUpdateStateNoRevierteSiNoVeniaDeEnProceso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(['EstadoID' => 2]); // En Verificación
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->never())->method('revertirIngresoVenta');
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->forceUpdateState(123, 5));
+    }
+
     // --- requestResume ---
 
     public function testRequestResumeFallaSiTransaccionNoExiste()

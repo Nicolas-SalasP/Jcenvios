@@ -4,6 +4,7 @@ use PHPUnit\Framework\TestCase;
 use App\Services\ContabilidadService;
 use App\Repositories\ContabilidadRepository;
 use App\Repositories\CountryRepository;
+use App\Repositories\CuentasAdminRepository;
 use App\Services\LogService;
 use App\Database\Database;
 
@@ -20,10 +21,99 @@ class ContabilidadTest extends TestCase
             'countryRepo' => $this->createMock(CountryRepository::class),
             'logService' => $this->createMock(LogService::class),
             'db' => $db,
+            'cuentasAdminRepo' => null,
         ];
         $deps = array_merge($defaults, $overrides);
 
-        return new ContabilidadService($deps['contabRepo'], $deps['countryRepo'], $deps['logService'], $deps['db']);
+        return new ContabilidadService(
+            $deps['contabRepo'],
+            $deps['countryRepo'],
+            $deps['logService'],
+            $deps['db'],
+            $deps['cuentasAdminRepo']
+        );
+    }
+
+    // --- revertirIngresoVenta (reversa contable al cancelar) ---
+
+    public function testRevertirIngresoVentaSinMovimientosNoTocaNada()
+    {
+        $contabRepo = $this->createMock(ContabilidadRepository::class);
+        $contabRepo->method('getNetoIngresoVentaPorCuenta')->willReturn([]);
+        // Nunca hubo ingreso (o ya se revirtió): no debe registrar ni tocar saldo.
+        $contabRepo->expects($this->never())->method('registrarMovimientoBanco');
+
+        $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
+        $cuentasAdminRepo->expects($this->never())->method('updateSaldo');
+
+        $service = $this->buildService([
+            'contabRepo' => $contabRepo,
+            'cuentasAdminRepo' => $cuentasAdminRepo,
+        ]);
+
+        $this->assertTrue($service->revertirIngresoVenta(123, 1));
+    }
+
+    public function testRevertirIngresoVentaDescuentaElNetoDelSaldo()
+    {
+        $contabRepo = $this->createMock(ContabilidadRepository::class);
+        $contabRepo->method('getNetoIngresoVentaPorCuenta')
+            ->willReturn([['CuentaAdminID' => 7, 'Neto' => '100000.00']]);
+        $contabRepo->expects($this->once())
+            ->method('registrarMovimientoBanco')
+            ->with(7, 1, 123, 'REVERSA_VENTA', 100000.00, 500000.00, 400000.00, $this->stringContains('123'))
+            ->willReturn(true);
+
+        $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
+        $cuentasAdminRepo->method('getById')->willReturn(['SaldoActual' => '500000.00']);
+        $cuentasAdminRepo->expects($this->once())->method('updateSaldo')->with(7, 400000.00);
+
+        $service = $this->buildService([
+            'contabRepo' => $contabRepo,
+            'cuentasAdminRepo' => $cuentasAdminRepo,
+        ]);
+
+        $this->assertTrue($service->revertirIngresoVenta(123, 1));
+    }
+
+    public function testRevertirIngresoVentaNoTocaSaldoSiFallaElMovimiento()
+    {
+        $contabRepo = $this->createMock(ContabilidadRepository::class);
+        $contabRepo->method('getNetoIngresoVentaPorCuenta')
+            ->willReturn([['CuentaAdminID' => 7, 'Neto' => '100000.00']]);
+        // El INSERT del movimiento falla: no debe actualizarse el saldo, o el
+        // libro y el saldo quedarían desincronizados.
+        $contabRepo->method('registrarMovimientoBanco')->willReturn(false);
+
+        $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
+        $cuentasAdminRepo->method('getById')->willReturn(['SaldoActual' => '500000.00']);
+        $cuentasAdminRepo->expects($this->never())->method('updateSaldo');
+
+        $service = $this->buildService([
+            'contabRepo' => $contabRepo,
+            'cuentasAdminRepo' => $cuentasAdminRepo,
+        ]);
+
+        $this->assertFalse($service->revertirIngresoVenta(123, 1));
+    }
+
+    public function testRevertirIngresoVentaFallaSiLaCuentaYaNoExiste()
+    {
+        $contabRepo = $this->createMock(ContabilidadRepository::class);
+        $contabRepo->method('getNetoIngresoVentaPorCuenta')
+            ->willReturn([['CuentaAdminID' => 7, 'Neto' => '100000.00']]);
+        $contabRepo->expects($this->never())->method('registrarMovimientoBanco');
+
+        $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
+        $cuentasAdminRepo->method('getById')->willReturn(null);
+        $cuentasAdminRepo->expects($this->never())->method('updateSaldo');
+
+        $service = $this->buildService([
+            'contabRepo' => $contabRepo,
+            'cuentasAdminRepo' => $cuentasAdminRepo,
+        ]);
+
+        $this->assertFalse($service->revertirIngresoVenta(123, 1));
     }
 
     public function testRegistrarGastoDescuentaSaldoCorrectamente()

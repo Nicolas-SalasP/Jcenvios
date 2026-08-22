@@ -153,8 +153,49 @@ class TransactionService
 
         $this->txRepository->clearComprobanteHash($txId);
 
+        // Si la orden ya había pasado por adminConfirmPayment (estado "En
+        // Proceso"), el ingreso de venta ya está sumado al saldo de la cuenta
+        // admin y hay que revertirlo. Es no-op si nunca hubo ingreso.
+        $this->revertirIngresoSiCorresponde($txId, $userId, 'cancelación de cliente');
+
         $this->notificationService->logAdminAction($userId, 'Usuario canceló transacción', "TX ID: $txId");
         return true;
+    }
+
+    /**
+     * Envoltorio de ContabilidadService::revertirIngresoVenta que deja rastro
+     * visible del resultado.
+     *
+     * Deliberadamente NO lanza excepción si la reversión falla: para cuando se
+     * ejecuta, el cambio de estado ya está comiteado (mysqli en autocommit).
+     * Abortar acá dejaría la orden cancelada + error al usuario + sin reversión,
+     * y los reintentos devolverían 409 para siempre, así que la reversión nunca
+     * llegaría a correr. Como la operación es idempotente, es preferible dejarla
+     * pendiente y reintentable: el peor caso es un saldo temporalmente inflado,
+     * nunca un doble descuento.
+     */
+    private function revertirIngresoSiCorresponde(int $txId, int $actorId, string $motivo): void
+    {
+        $ok = $this->contabilidadService->revertirIngresoVenta($txId, $actorId);
+
+        if (!$ok) {
+            $this->notificationService->logAdminAction(
+                null,
+                'ALERTA: Reversa contable fallida',
+                "TX ID: $txId ($motivo). El ingreso por venta NO pudo revertirse — revisar el saldo de la cuenta admin a mano."
+            );
+            return;
+        }
+
+        // Aviso al admin cuando la reversa la disparó el cliente (él no puede
+        // ver la contabilidad, pero el admin necesita enterarse del movimiento).
+        if ($motivo === 'cancelación de cliente') {
+            $this->notificationService->logAdminAction(
+                null,
+                'Reversa por cancelación de cliente',
+                "TX ID: $txId. Se revirtió el ingreso por venta de la cuenta admin (si lo había)."
+            );
+        }
     }
 
 
@@ -534,6 +575,13 @@ class TransactionService
         // findByHash() ya resuelve la reutilización tras cancelar (EstadoID != 5) con tope de
         // MAX_USOS_POR_HASH, sin necesidad de destruir el hash original del registro de auditoría.
 
+        // Incondicional, cubre tanto el rechazo duro (-> Cancelado) como el
+        // soft-reject (-> Pendiente de Pago). El soft-reject importa: la orden
+        // vuelve al circuito y al re-confirmarse se registra un SEGUNDO
+        // INGRESO_VENTA, así que sin revertir acá el ingreso quedaba duplicado.
+        // Es no-op si la orden nunca llegó a "En Proceso".
+        $this->revertirIngresoSiCorresponde($txId, $adminId, $isSoftReject ? 'soft-reject' : 'rechazo de admin');
+
         if ($isSoftReject) {
             $this->notificationService->sendCorrectionRequestEmail($txData['Email'], $txData['PrimerNombre'], $txId, $reason);
         } else {
@@ -721,6 +769,13 @@ class TransactionService
         $affected = $this->txRepository->updateStatus($txId, $newState, $estadoActual);
 
         if ($affected > 0) {
+            // Sacar la orden de "En Proceso" (3) a mano también deja el ingreso
+            // de venta sumado. Se excluye 3 -> 4 (Exitoso): ese es el camino
+            // normal de completado, donde el ingreso debe quedar.
+            if ($estadoActual === 3 && in_array($newState, [1, 2, 5, 7], true)) {
+                $adminId = (int) ($_SESSION['user_id'] ?? 0);
+                $this->revertirIngresoSiCorresponde($txId, $adminId, 'cambio manual de estado');
+            }
             return true;
         }
 

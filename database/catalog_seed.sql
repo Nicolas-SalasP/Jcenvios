@@ -90,7 +90,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `tipos_movimiento` WRITE;
 /*!40000 ALTER TABLE `tipos_movimiento` DISABLE KEYS */;
-INSERT INTO `tipos_movimiento` VALUES (1,'SALDO_INICIAL','Saldo Inicial / Ajuste',1,'primary'),(2,'RECARGA','Recarga de Fondos',1,'success'),(3,'GASTO_TX','Gasto por Envío',0,'danger'),(4,'GASTO_COMISION','Gasto por Comisión',0,'danger'),(5,'INGRESO_VENTA','Ingreso por Venta',1,'success'),(6,'RETIRO_DIVISAS','Retiro Compra Divisas',0,'warning text-dark'),(7,'COMPRA_DIVISA','Ingreso Compra Divisas',1,'info text-dark'),(8,'GASTO_VARIO','Gasto Operativo / Retiro',0,'warning');
+INSERT INTO `tipos_movimiento` VALUES (1,'SALDO_INICIAL','Saldo Inicial / Ajuste',1,'primary'),(2,'RECARGA','Recarga de Fondos',1,'success'),(3,'GASTO_TX','Gasto por Envío',0,'danger'),(4,'GASTO_COMISION','Gasto por Comisión',0,'danger'),(5,'INGRESO_VENTA','Ingreso por Venta',1,'success'),(6,'RETIRO_DIVISAS','Retiro Compra Divisas',0,'warning text-dark'),(7,'COMPRA_DIVISA','Ingreso Compra Divisas',1,'info text-dark'),(8,'GASTO_VARIO','Gasto Operativo / Retiro',0,'warning'),(9,'REVERSA_VENTA','Reversa por Cancelación',0,'warning');
 /*!40000 ALTER TABLE `tipos_movimiento` ENABLE KEYS */;
 UNLOCK TABLES;
 

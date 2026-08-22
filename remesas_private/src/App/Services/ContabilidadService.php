@@ -20,11 +20,14 @@ class ContabilidadService
         ContabilidadRepository $contabilidadRepo,
         CountryRepository $countryRepo,
         LogService $logService,
-        Database $db
+        Database $db,
+        ?CuentasAdminRepository $cuentasAdminRepo = null
     ) {
         $this->contabilidadRepo = $contabilidadRepo;
         $this->countryRepo = $countryRepo;
-        $this->cuentasAdminRepo = new CuentasAdminRepository($db);
+        // Parámetro opcional para poder inyectar un mock en tests; si no se
+        // pasa, se mantiene el comportamiento original (instanciarlo acá).
+        $this->cuentasAdminRepo = $cuentasAdminRepo ?? new CuentasAdminRepository($db);
         $this->logService = $logService;
         $this->dbConnection = $db->getConnection();
     }
@@ -357,6 +360,72 @@ class ContabilidadService
         } catch (Exception $e) {
             $this->dbConnection->rollback();
             error_log("Error egreso pago: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Revierte el ingreso por venta de una transacción que se cancela/rechaza
+     * después de que el admin ya confirmó el pago (estado "En Proceso").
+     *
+     * Sin esto el saldo de la cuenta admin quedaba inflado para siempre: el
+     * INGRESO_VENTA de adminConfirmPayment nunca se deshacía.
+     *
+     * Idempotente: opera sobre el NETO pendiente de revertir por cuenta
+     * (ver ContabilidadRepository::getNetoIngresoVentaPorCuenta), así que
+     * llamarlo dos veces sobre la misma transacción no descuenta dos veces.
+     * Si nunca hubo ingreso (o ya se revirtió), no hace nada y devuelve true.
+     *
+     * Devuelve bool —a diferencia de registrarIngresoVenta/registrarEgresoPago,
+     * que son void— justamente para que el llamador pueda enterarse del fallo
+     * y dejar rastro. Ver el manejo en TransactionService.
+     */
+    public function revertirIngresoVenta(int $txId, int $actorId): bool
+    {
+        $pendientes = $this->contabilidadRepo->getNetoIngresoVentaPorCuenta($txId);
+        if (empty($pendientes)) {
+            return true; // Nada que revertir: no hubo ingreso, o ya se revirtió.
+        }
+
+        $this->dbConnection->begin_transaction();
+        try {
+            foreach ($pendientes as $fila) {
+                $cuentaAdminId = (int) $fila['CuentaAdminID'];
+                $montoRevertir = (float) $fila['Neto'];
+
+                $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
+                if (!$cuenta) {
+                    throw new Exception("Cuenta admin #$cuentaAdminId no encontrada al revertir TX #$txId.");
+                }
+
+                $saldoAnt = (float) $cuenta['SaldoActual'];
+                $saldoNew = $saldoAnt - $montoRevertir;
+
+                // A diferencia de registrarIngresoVenta, acá SÍ se chequea el
+                // retorno: si el INSERT del movimiento falla y se actualiza el
+                // saldo igual, el libro y el saldo quedan desincronizados.
+                $ok = $this->contabilidadRepo->registrarMovimientoBanco(
+                    $cuentaAdminId,
+                    $actorId,
+                    $txId,
+                    'REVERSA_VENTA',
+                    $montoRevertir,
+                    $saldoAnt,
+                    $saldoNew,
+                    "Reversa por cancelación TX #$txId"
+                );
+                if (!$ok) {
+                    throw new Exception("No se pudo registrar el movimiento de reversa para TX #$txId.");
+                }
+
+                $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNew);
+            }
+
+            $this->dbConnection->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->dbConnection->rollback();
+            error_log("[CONTAB][REVERSA_FALLIDA] TX #$txId: " . $e->getMessage());
+            return false;
         }
     }
 
