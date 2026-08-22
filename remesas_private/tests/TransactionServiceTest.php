@@ -11,6 +11,7 @@ use App\Repositories\EstadoTransaccionRepository;
 use App\Repositories\CuentasAdminRepository;
 use App\Repositories\RateRepository;
 use App\Repositories\ResellerAccountsRepository;
+use App\Repositories\TasaEspecialRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -38,6 +39,7 @@ class TransactionServiceTest extends TestCase
             'cuentasAdminRepo' => $this->createMock(CuentasAdminRepository::class),
             'rateRepo' => $this->createMock(RateRepository::class),
             'resellerAccountsRepo' => $this->createMock(ResellerAccountsRepository::class),
+            'tasaEspecialRepo' => $this->createMock(TasaEspecialRepository::class),
         ];
         $deps = array_merge($defaults, $overrides);
 
@@ -53,7 +55,8 @@ class TransactionServiceTest extends TestCase
             $deps['cuentasRepo'],
             $deps['cuentasAdminRepo'],
             $deps['rateRepo'],
-            $deps['resellerAccountsRepo']
+            $deps['resellerAccountsRepo'],
+            $deps['tasaEspecialRepo']
         );
     }
 
@@ -344,6 +347,121 @@ class TransactionServiceTest extends TestCase
         $this->expectExceptionMessage("Transacción no encontrada");
 
         $service->adminRejectPayment(1, 999, 'motivo', false);
+    }
+
+    // --- Reversa contable al sacar una orden de "En Proceso" ---
+
+    public function testAdminRejectPaymentDuroRevierteElIngreso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->once())->method('revertirIngresoVenta')->with(123, 1)->willReturn(true);
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->adminRejectPayment(1, 123, 'motivo', false));
+    }
+
+    public function testAdminRejectPaymentSoftRevierteElIngresoParaNoDuplicarlo()
+    {
+        // Soft-reject devuelve la orden a "Pendiente de Pago": al re-confirmarse
+        // se registra un SEGUNDO INGRESO_VENTA, así que el primero debe revertirse.
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->once())->method('revertirIngresoVenta')->with(123, 1)->willReturn(true);
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->adminRejectPayment(1, 123, 'corregir', true));
+    }
+
+    public function testAdminRejectPaymentNoRevierteSiElEstadoNoLoPermite()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(0); // el CAS no afectó filas
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->never())->method('revertirIngresoVenta');
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->expectException(Exception::class);
+        $service->adminRejectPayment(1, 123, 'motivo', false);
+    }
+
+    public function testReversaFallidaNoRompeElRechazoPeroDejaAlerta()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->method('revertirIngresoVenta')->willReturn(false);
+
+        $notifService = $this->createMock(NotificationService::class);
+        $notifService->expects($this->atLeastOnce())
+            ->method('logAdminAction')
+            ->with($this->anything(), $this->anything(), $this->anything());
+
+        $service = $this->buildService([
+            'txRepo' => $txRepo,
+            'contabService' => $contabService,
+            'notifService' => $notifService,
+        ]);
+
+        // El rechazo se completa igual: abortar acá dejaría la orden cancelada
+        // sin reversión y sin posibilidad de reintento (409 para siempre).
+        $this->assertTrue($service->adminRejectPayment(1, 123, 'motivo', false));
+    }
+
+    public function testForceUpdateStateRevierteAlSacarDeEnProceso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(['EstadoID' => 3]); // En Proceso
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->once())->method('revertirIngresoVenta');
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->forceUpdateState(123, 5)); // 3 -> Cancelado
+    }
+
+    public function testForceUpdateStateNoRevierteAlCompletarLaOrden()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(['EstadoID' => 3]);
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        // 3 -> 4 (Exitoso) es el camino normal de completado: el ingreso queda.
+        $contabService->expects($this->never())->method('revertirIngresoVenta');
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->forceUpdateState(123, 4));
+    }
+
+    public function testForceUpdateStateNoRevierteSiNoVeniaDeEnProceso()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getById')->willReturn(['EstadoID' => 2]); // En Verificación
+        $txRepo->method('updateStatus')->willReturn(1);
+
+        $contabService = $this->createMock(ContabilidadService::class);
+        $contabService->expects($this->never())->method('revertirIngresoVenta');
+
+        $service = $this->buildService(['txRepo' => $txRepo, 'contabService' => $contabService]);
+
+        $this->assertTrue($service->forceUpdateState(123, 5));
     }
 
     // --- requestResume ---
@@ -1177,6 +1295,87 @@ class TransactionServiceTest extends TestCase
         $this->assertEquals(38000.0, $capturedData['montoDestino']); // 10000 * 3.8, ruta normal (no inversa)
     }
 
+    public function testCreateTransactionUsaTasaEspecialActivaEnVezDeLaPublica()
+    {
+        // ValorTasa pública = 3.8, pero el cliente tiene una tasa especial
+        // activa de 4.5 para esta ruta exacta (origen=1, destino=3) — debe
+        // usarse esa, no la pública.
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $tasaEspecialRepo = $this->createMock(TasaEspecialRepository::class);
+        $tasaEspecialRepo->method('findActiveForUserAndRoute')
+            ->with(1, 1, 3)
+            ->willReturn(['TasaEspecialID' => 77, 'ValorTasa' => 4.5]);
+        $tasaEspecialRepo->expects($this->once())->method('claim')->with(77)->willReturn(true);
+        $tasaEspecialRepo->expects($this->once())->method('attachTransaccion')->with(77, 999);
+        $mocks['tasaEspecialRepo'] = $tasaEspecialRepo;
+
+        $capturedData = null;
+        $txRepo = $mocks['txRepo'];
+        $txRepo->method('create')->willReturnCallback(function ($data) use (&$capturedData) {
+            $capturedData = $data;
+            return 999;
+        });
+
+        $service = $this->buildService($mocks);
+
+        $datos = $this->datosTransaccionBase();
+        $datos['montoOrigen'] = 10000;
+        $result = $service->createTransaction($datos);
+
+        $this->assertEquals('created', $result['status']);
+        $this->assertEquals(45000.0, $capturedData['montoDestino']); // 10000 * 4.5 (tasa especial), no 3.8
+        $this->assertEquals(4.5, $capturedData['tasaCapturada']);
+    }
+
+    public function testCreateTransactionSinTasaEspecialUsaTasaPublicaYNoLlamaMarkUsed()
+    {
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $tasaEspecialRepo = $this->createMock(TasaEspecialRepository::class);
+        $tasaEspecialRepo->method('findActiveForUserAndRoute')->willReturn(null);
+        $tasaEspecialRepo->expects($this->never())->method('claim');
+        $tasaEspecialRepo->expects($this->never())->method('attachTransaccion');
+        $mocks['tasaEspecialRepo'] = $tasaEspecialRepo;
+
+        $service = $this->buildService($mocks);
+
+        $result = $service->createTransaction($this->datosTransaccionBase());
+
+        $this->assertEquals('created', $result['status']);
+    }
+
+    public function testCreateTransactionTasaEspecialYaReclamadaPorOtraRequestUsaTasaPublica()
+    {
+        // Simula la carrera: findActiveForUserAndRoute encuentra la fila activa,
+        // pero otra request concurrente ya la reclamó (claim() -> false). Debe
+        // caer a la tasa pública, no la especial, y no llamar attachTransaccion.
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $tasaEspecialRepo = $this->createMock(TasaEspecialRepository::class);
+        $tasaEspecialRepo->method('findActiveForUserAndRoute')
+            ->willReturn(['TasaEspecialID' => 99, 'ValorTasa' => 5.0]);
+        $tasaEspecialRepo->expects($this->once())->method('claim')->with(99)->willReturn(false);
+        $tasaEspecialRepo->expects($this->never())->method('attachTransaccion');
+        $mocks['tasaEspecialRepo'] = $tasaEspecialRepo;
+
+        $capturedData = null;
+        $txRepo = $mocks['txRepo'];
+        $txRepo->method('create')->willReturnCallback(function ($data) use (&$capturedData) {
+            $capturedData = $data;
+            return 999;
+        });
+
+        $service = $this->buildService($mocks);
+
+        $datos = $this->datosTransaccionBase();
+        $datos['montoOrigen'] = 10000;
+        $result = $service->createTransaction($datos);
+
+        $this->assertEquals('created', $result['status']);
+        $this->assertEquals(38000.0, $capturedData['montoDestino']); // 10000 * 3.8 (pública, no 5.0)
+    }
+
     public function testCreateTransactionExitosoRutaInversaCalculaMontoPorDivision()
     {
         $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
@@ -1197,6 +1396,40 @@ class TransactionServiceTest extends TestCase
 
         $this->assertEquals('created', $result['status']);
         $this->assertEquals(1000.0, $capturedData['montoDestino']); // 3800 / 3.8, ruta inversa
+    }
+
+    public function testCreateTransactionUsaTasaEspecialEnRutaInversaRespetaDivision()
+    {
+        // La tasa especial no cambia el modo de cálculo (multiplicación/división),
+        // solo el valor — en ruta inversa (Col -> Ven) sigue dividiendo, con el
+        // valor especial (4.0) en vez del público (3.8).
+        $mocks = $this->mocksParaCreateExitoso(['ValorTasa' => 3.8]);
+
+        $tasaEspecialRepo = $this->createMock(TasaEspecialRepository::class);
+        $tasaEspecialRepo->method('findActiveForUserAndRoute')
+            ->with(1, 2, 3)
+            ->willReturn(['TasaEspecialID' => 88, 'ValorTasa' => 4.0]);
+        $tasaEspecialRepo->expects($this->once())->method('claim')->with(88)->willReturn(true);
+        $tasaEspecialRepo->expects($this->once())->method('attachTransaccion')->with(88, 999);
+        $mocks['tasaEspecialRepo'] = $tasaEspecialRepo;
+
+        $capturedData = null;
+        $txRepo = $mocks['txRepo'];
+        $txRepo->method('create')->willReturnCallback(function ($data) use (&$capturedData) {
+            $capturedData = $data;
+            return 999;
+        });
+
+        $service = $this->buildService($mocks);
+
+        $datos = $this->datosTransaccionBase();
+        $datos['paisOrigenID'] = 2; // ruta "2-3" (Col -> Ven) está en $inverseRoutes
+        $datos['montoOrigen'] = 4000;
+        $result = $service->createTransaction($datos);
+
+        $this->assertEquals('created', $result['status']);
+        $this->assertEquals(1000.0, $capturedData['montoDestino']); // 4000 / 4.0 (tasa especial), no 3.8
+        $this->assertEquals(4.0, $capturedData['tasaCapturada']);
     }
 
     public function testCreateTransactionExitosoCalculaComisionRevendedor()

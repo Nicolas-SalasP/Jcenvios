@@ -177,7 +177,7 @@ class CuentasBeneficiariasService
 
         $cuenta = $this->cuentasRepo->findByIdAndUserId($cuentaId, $userId);
         if (!$cuenta)
-            throw new Exception("Cuenta no encontrada.");
+            throw new Exception("Cuenta no encontrada.", 404);
 
         $data['UserID'] = $userId;
         if (empty($data['tipoBeneficiario'])) {
@@ -215,11 +215,11 @@ class CuentasBeneficiariasService
 
                 if ($newCuentaId > 0) {
                     $this->txRepo->migratePendingOrdersToNewAccount($cuentaId, $newCuentaId);
-                    $this->cuentasRepo->softDelete($cuentaId);
+                    $this->cuentasRepo->softDelete($cuentaId, $userId);
                     $this->regeneratePdfsForPendingOrders($newCuentaId);
                     return true;
                 }
-                throw new Exception("Error al versionar cuenta.");
+                throw new Exception("Error al versionar cuenta.", 500);
             } else {
                 $updated = $this->cuentasRepo->update($cuentaId, $prepared);
                 if ($updated) {
@@ -235,7 +235,7 @@ class CuentasBeneficiariasService
 
     public function deleteAccount(int $userId, int $cuentaId): bool
     {
-        return $this->cuentasRepo->softDelete($cuentaId);
+        return $this->cuentasRepo->softDelete($cuentaId, $userId);
     }
 
     private function validateCommonFields(array $data): void
@@ -307,14 +307,14 @@ class CuentasBeneficiariasService
     public function adminUpdateBeneficiary(int $adminId, array $data): void
     {
         if (empty($data['cuentaId']) || empty($data['nombre']) || empty($data['cuenta'])) {
-            throw new Exception("Faltan datos obligatorios para la edición.");
+            throw new Exception("Faltan datos obligatorios para la edición.", 400);
         }
 
         $cuentaId = (int)$data['cuentaId'];
         $success = $this->cuentasRepo->adminUpdateBeneficiary($cuentaId, $data);
 
         if (!$success) {
-            throw new Exception("No se pudo actualizar la cuenta en la base de datos.");
+            throw new Exception("No se pudo actualizar la cuenta en la base de datos.", 409);
         }
 
         $banco = $data['banco'] ?? 'Banco no especificado';

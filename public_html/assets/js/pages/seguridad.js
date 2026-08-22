@@ -21,6 +21,87 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let is2FAEnabled = false;
 
+    /**
+     * Pide una contraseña en un modal Bootstrap. Devuelve la contraseña, o null
+     * si el usuario cancela.
+     *
+     * Reemplaza al window.prompt() nativo que quedaba acá (era el último
+     * diálogo nativo del proyecto). NO se usa window.showPromptModal porque ese
+     * lo define pages/admin.js, que solo se carga en páginas de admin: esta
+     * pantalla corre en el dashboard del cliente y ahí no existe. Además ese
+     * usa un <textarea>, inservible para una contraseña.
+     */
+    const askPassword = (title, message) => {
+        return new Promise((resolve) => {
+            const id = 'seguridad-password-prompt-modal';
+            const existing = document.getElementById(id);
+            if (existing) existing.remove();
+
+            const modalEl = document.createElement('div');
+            modalEl.id = id;
+            modalEl.className = 'modal fade';
+            modalEl.setAttribute('tabindex', '-1');
+            // Sin datos externos interpolados: todo el texto se setea con
+            // textContent más abajo.
+            modalEl.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title fw-bold" data-role="title"></h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <p class="mb-3 text-dark" data-role="message"></p>
+                            <input type="password" class="form-control" autocomplete="current-password" data-role="input">
+                            <div class="form-text text-danger d-none" data-role="error">Debes ingresar tu contraseña.</div>
+                        </div>
+                        <div class="modal-footer bg-light border-0">
+                            <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary px-4" data-role="confirm">Confirmar</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modalEl);
+
+            modalEl.querySelector('[data-role="title"]').textContent = title;
+            modalEl.querySelector('[data-role="message"]').textContent = message;
+
+            const inputEl = modalEl.querySelector('[data-role="input"]');
+            const errorEl = modalEl.querySelector('[data-role="error"]');
+            const confirmBtn = modalEl.querySelector('[data-role="confirm"]');
+            const modal = new bootstrap.Modal(modalEl);
+
+            let resolvedValue = null;
+
+            const submit = () => {
+                const val = inputEl.value;
+                if (!val) {
+                    errorEl.classList.remove('d-none');
+                    inputEl.focus();
+                    return;
+                }
+                resolvedValue = val;
+                modal.hide();
+            };
+
+            confirmBtn.addEventListener('click', submit);
+            inputEl.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter') { ev.preventDefault(); submit(); }
+            });
+            inputEl.addEventListener('input', () => errorEl.classList.add('d-none'));
+
+            modalEl.addEventListener('shown.bs.modal', () => inputEl.focus());
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                // La contraseña no queda colgando en el DOM.
+                inputEl.value = '';
+                modalEl.remove();
+                resolve(resolvedValue);
+            });
+
+            modal.show();
+        });
+    };
+
     const update2FAStatus = () => {
         if (!statusContainer || !setupSection || !disableSection) return;
         
@@ -48,7 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.error(e);
             if (statusContainer) {
-                statusContainer.innerHTML = `<p class="text-danger">Error al cargar estado 2FA: ${e.message}</p>`;
+                // e.message puede venir de result.error (texto del servidor):
+                // se escapa antes de meterlo en innerHTML.
+                statusContainer.innerHTML = `<p class="text-danger">Error al cargar estado 2FA: ${window.escapeHtml(window.formatNetworkError(e))}</p>`;
             }
         }
         update2FAStatus();
@@ -77,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (e) {
             console.error(e);
-            qrContainer.innerHTML = `<p class="text-danger">Error al generar QR: ${e.message}</p>`;
+            qrContainer.innerHTML = `<p class="text-danger">Error al generar QR: ${window.escapeHtml(window.formatNetworkError(e))}</p>`;
             secretKeyDisplay.textContent = 'Error';
         }
     };
@@ -136,7 +219,15 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        const password = window.prompt('Confirma tu contraseña para continuar:');
+        // Antes esto era un window.prompt() nativo. El orden (contraseña y
+        // después confirmación) se mantiene a propósito: askPassword resuelve
+        // recién en 'hidden.bs.modal', o sea con su modal YA cerrado, así el
+        // showConfirmModal que sigue no se abre encima de otro modal a medio
+        // cerrar (eso deja backdrops huérfanos).
+        const password = await askPassword(
+            'Confirma tu contraseña',
+            'Por seguridad, ingresa tu contraseña para desactivar el doble factor.'
+        );
         if (!password) return;
 
         const confirmed = await window.showConfirmModal(

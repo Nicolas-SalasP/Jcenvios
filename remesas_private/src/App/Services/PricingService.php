@@ -13,6 +13,34 @@ use Throwable;
 
 class PricingService
 {
+    /**
+     * Cota máxima (en valor absoluto) para el ajuste global porcentual.
+     *
+     * Un ajuste de tasa de cambio realista es de pocos puntos porcentuales;
+     * 20% es holgado de sobra y bloquea los casos catastróficos: percent = -100
+     * dejaba TODAS las tasas en 0 y percent < -100 las dejaba negativas, sin
+     * forma automática de revertirlo (es dinero real).
+     */
+    public const MAX_AJUSTE_PORCENTUAL = 20.0;
+
+    /**
+     * Cota superior para la tasa BCV (Bs/USD). Es un valor que crece con la
+     * inflación, así que el techo es deliberadamente muy alto: sólo está para
+     * atajar dedazos (un 0 de más) y valores absurdos. El piso, en cambio, es
+     * estricto: la tasa debe ser > 0.
+     */
+    public const MAX_TASA_BCV = 10000000.0;
+
+    /** Hora por defecto del ajuste automático Lunes a Viernes (fallback). */
+    private const HORA_AJUSTE_DEFAULT_LV = '19:30';
+
+    /**
+     * Hora del ajuste automático los sábados. Sigue hardcodeada porque NO existe
+     * un setting separado para el sábado en system_settings (sólo hay
+     * 'global_adjustment_time'), y no se inventa uno acá.
+     */
+    private const HORA_AJUSTE_SABADO = '16:00';
+
     private RateRepository $rateRepository;
     private CountryRepository $countryRepository;
     private SystemSettingsRepository $settingsRepository;
@@ -39,35 +67,104 @@ class PricingService
         $this->fileHandler = $fileHandler;
     }
 
+    /**
+     * ¿Corresponde ejecutar hoy el ajuste global? Función pura: recibe el
+     * "ahora" y la configuración, no consulta nada. Está separada de
+     * runScheduledAdjustment() justamente para poder testear la decisión con
+     * cualquier día/hora sin depender del reloj del que corre los tests.
+     *
+     * @param string      $fechaHoraActual 'Y-m-d H:i:s' (o cualquier cosa parseable por strtotime)
+     * @param string      $horaConfigurada Hora objetivo Lun-Vie ('HH:MM'), desde el panel
+     * @param string|null $lastRun         Último ajuste aplicado ('Y-m-d H:i:s') o null
+     */
+    public function shouldRunScheduledAdjustment(string $fechaHoraActual, string $horaConfigurada, ?string $lastRun): bool
+    {
+        $ts = strtotime($fechaHoraActual);
+        if ($ts === false) {
+            return false;
+        }
+        $horaActual = date('H:i', $ts);
+        $diaSemana  = (int) date('N', $ts);
+        $hoy        = date('Y-m-d', $ts);
+
+        // === LÓGICA DE HORARIO DINÁMICO SEGÚN EL DÍA ===
+        if ($diaSemana >= 1 && $diaSemana <= 5) {
+            // Hora configurable desde el panel ('global_adjustment_time'). Antes
+            // estaba hardcodeada y el setting era decorativo: se guardaba pero
+            // nunca se leía.
+            $horaTarget = $this->normalizeAdjustmentTime($horaConfigurada, self::HORA_AJUSTE_DEFAULT_LV);
+        } elseif ($diaSemana === 6) {
+            $horaTarget = self::HORA_AJUSTE_SABADO;
+        } else {
+            return false; // Domingo.
+        }
+
+        // VENTANA, no minuto exacto. El cron corre cada 15 minutos; comparar
+        // date('H:i') !== $horaTarget hacía que un atraso de un minuto por carga
+        // del servidor se comiera el ajuste del día entero, en silencio.
+        // Con la ventana basta con que ya haya pasado la hora objetivo de hoy;
+        // el claim atómico de last_run es lo que impide que se repita.
+        if ($horaActual < $horaTarget) {
+            return false;
+        }
+
+        $ultimaEjecucion = $lastRun ? date('Y-m-d', strtotime($lastRun)) : '';
+        return $ultimaEjecucion !== $hoy;
+    }
+
     public function runScheduledAdjustment(): bool
     {
         $settings = $this->getGlobalAdjustmentSettings();
-        $horaActual = date('H:i');
-        $diaSemana = (int) date('N');
-        $hoy = date('Y-m-d');
 
-        // === LÓGICA DE HORARIO DINÁMICO SEGÚN EL DÍA ===
-        $horaTarget = '';
-        if ($diaSemana >= 1 && $diaSemana <= 5) {
-            $horaTarget = '19:30';
-        } elseif ($diaSemana === 6) {
-            $horaTarget = '16:00';
-        } else {
+        if (!$this->shouldRunScheduledAdjustment(date('Y-m-d H:i:s'), (string) $settings['time'], $settings['last_run'])) {
             return false;
         }
 
-        if ($horaActual !== $horaTarget) {
+        // Claim ATÓMICO del día. Antes esto era un read-then-write: se leía
+        // last_run acá y recién se escribía al final de applyGlobalAdjustment.
+        // Dos instancias solapadas leían ambas la fecha de ayer, ambas pasaban
+        // el guard, y el ajuste se aplicaba DOS VECES en cascada sobre ValorTasa
+        // (un 2% se volvía 4,04% sobre todas las rutas). El cron ya tiene lock
+        // de archivo, pero esto lo blinda también entre servidores/procesos que
+        // no compartan el filesystem.
+        if (!$this->settingsRepository->claimDailyRun('global_adjustment_last_run', date('Y-m-d H:i:s'))) {
             return false;
         }
-        $ultimaEjecucion = $settings['last_run'] ? date('Y-m-d', strtotime($settings['last_run'])) : '';
-        if ($ultimaEjecucion === $hoy) {
-            return false;
+
+        try {
+            $aplicado = $this->applyGlobalAdjustment(1, $settings['percent']) > 0;
+        } catch (Throwable $e) {
+            // Falló de entrada (feriado, sistema bloqueado, porcentaje inválido):
+            // devolvemos last_run a su valor anterior para que el próximo tick
+            // del cron pueda reintentar hoy mismo.
+            $this->settingsRepository->updateValue('global_adjustment_last_run', (string) ($settings['last_run'] ?? ''));
+            throw $e;
         }
-        $aplicado = $this->applyGlobalAdjustment(1, $settings['percent']) > 0;
+
         if ($aplicado) {
             $this->clearTasasImagenGaleria();
+        } else {
+            // No se ajustó ninguna ruta: liberamos el día para poder reintentar.
+            $this->settingsRepository->updateValue('global_adjustment_last_run', (string) ($settings['last_run'] ?? ''));
         }
+
         return $aplicado;
+    }
+
+    /**
+     * Valida y normaliza una hora 'HH:MM' de 24 horas. Si el setting no existe o
+     * está corrupto, devuelve el fallback en vez de romper el cron.
+     */
+    private function normalizeAdjustmentTime(?string $time, string $fallback): string
+    {
+        $time = trim((string) $time);
+        if (preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time)) {
+            return $time;
+        }
+        if ($time !== '') {
+            error_log("PricingService: 'global_adjustment_time' inválido ('{$time}'), usando {$fallback}.");
+        }
+        return $fallback;
     }
 
     // El Ajuste Global automático corre fuera de horario laboral (19:30 Lun-Vie,
@@ -90,16 +187,19 @@ class PricingService
         // Política negocio: ajustes solo Lun-Sáb. Domingo (date('N') === 7) bloqueado.
         $diaSemana = (int) date('N');
         if ($diaSemana === 7) {
-            throw new Exception("Los ajustes automáticos de tasa están deshabilitados los domingos por política comercial.");
+            throw new Exception("Los ajustes automáticos de tasa están deshabilitados los domingos por política comercial.", 403);
         }
+
+        $this->validateAdjustmentPercentage($percentage);
 
         $status = $this->systemService->checkSystemAvailability();
         if (!$status['available']) {
-            throw new Exception("Operación Bloqueada: El sistema está en modo '{$status['reason']}' ({$status['message']}). Las tasas están congeladas.");
+            throw new Exception("Operación Bloqueada: El sistema está en modo '{$status['reason']}' ({$status['message']}). Las tasas están congeladas.", 403);
         }
 
         $tasasRef = $this->rateRepository->findAllReferentialRates();
         $count = 0;
+        $fallidas = 0;
 
         foreach ($tasasRef as $t) {
             try {
@@ -109,6 +209,15 @@ class PricingService
                 $modo = $this->getCalculationMode($origen, $destino);
                 $porcentajeAplicar = ($modo === 'divide') ? ($percentage * -1) : $percentage;
                 $nuevoValor = $valorOriginal * (1 + ($porcentajeAplicar / 100));
+
+                // Blindaje final: nunca escribir una tasa 0 o negativa, pase lo
+                // que pase con el porcentaje o con el valor que había en la BD.
+                if (!is_finite($nuevoValor) || $nuevoValor <= 0) {
+                    throw new Exception(
+                        "El ajuste dejaría la tasa en un valor inválido (" . $nuevoValor . "). Operación cancelada para esta ruta.",
+                        422
+                    );
+                }
 
                 $this->rateRepository->updateRateValue(
                     (int) $t['TasaID'],
@@ -139,15 +248,57 @@ class PricingService
                 );
                 $count++;
 
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
+                // Throwable y no Exception: un Error de PHP 8 acá abortaba el
+                // ajuste entero sin que este catch lo viera.
+                $fallidas++;
                 error_log("Error en Cron Ajuste Global (Tasa ID {$t['TasaID']}): " . $e->getMessage());
-                continue; 
+                continue;
             }
+        }
+
+        // NO se envuelve el foreach en una transacción a propósito:
+        // PricingService no recibe la conexión (sólo repositorios), así que
+        // meterla implicaría cambiar el constructor y, con él, los DOS
+        // contenedores de DI del proyecto (api/index.php y src/core/init.php),
+        // que ya causaron varios bugs al desincronizarse. El riesgo grave
+        // (aplicar el ajuste dos veces) queda cubierto por el lock del cron y
+        // por claimDailyRun(). Lo que sí se corrige es el silencio: un fallo
+        // parcial ahora queda registrado en la bitácora para que un admin lo
+        // revise a mano. No se reintenta automáticamente porque reintentar
+        // volvería a ajustar las rutas que SÍ se aplicaron (doble ajuste).
+        if ($fallidas > 0) {
+            $this->notificationService->logAdminAction(
+                $adminId,
+                'Ajuste Global PARCIAL',
+                "Ajuste del {$percentage}%: {$count} ruta(s) actualizada(s), {$fallidas} fallaron. Revisar manualmente: las tasas quedaron inconsistentes entre sí."
+            );
+            error_log("AJUSTE GLOBAL PARCIAL: {$count} ok, {$fallidas} fallidas. Revisión manual requerida.");
         }
 
         $this->settingsRepository->updateValue('global_adjustment_last_run', date('Y-m-d H:i:s'));
 
         return $count;
+    }
+
+    /**
+     * Valida que el porcentaje de ajuste global esté dentro de un rango sensato.
+     */
+    private function validateAdjustmentPercentage(float $percentage): void
+    {
+        if (!is_finite($percentage)) {
+            throw new Exception("El porcentaje de ajuste no es un número válido.", 400);
+        }
+        if ($percentage == 0.0) {
+            throw new Exception("El porcentaje de ajuste no puede ser 0: no habría nada que ajustar.", 400);
+        }
+        if (abs($percentage) > self::MAX_AJUSTE_PORCENTUAL) {
+            throw new Exception(
+                "El porcentaje de ajuste debe estar entre -" . self::MAX_AJUSTE_PORCENTUAL .
+                "% y " . self::MAX_AJUSTE_PORCENTUAL . "%. Recibido: {$percentage}%.",
+                400
+            );
+        }
     }
 
     private function recalculateRouteRates(int $origenId, int $destinoId, float $valorBase): void
@@ -175,13 +326,25 @@ class PricingService
     {
         return [
             'percent' => (float) $this->settingsRepository->getValue('global_adjustment_percent'),
-            'time' => $this->settingsRepository->getValue('global_adjustment_time') ?: '20:30',
+            // Fallback = la hora que el cron realmente usa. Antes decía '20:30'
+            // mientras el cron ajustaba a las 19:30 hardcodeadas: el panel
+            // mostraba una hora que no era la real.
+            'time' => $this->settingsRepository->getValue('global_adjustment_time') ?: self::HORA_AJUSTE_DEFAULT_LV,
             'last_run' => $this->settingsRepository->getValue('global_adjustment_last_run')
         ];
     }
 
     public function saveGlobalAdjustmentSettings(int $adminId, float $percent, string $time): bool
     {
+        // El porcentaje guardado acá es el que usa el cron sin intervención
+        // humana: validarlo al guardar evita dejar armada una bomba de tiempo.
+        $this->validateAdjustmentPercentage($percent);
+
+        $time = trim($time);
+        if (!preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time)) {
+            throw new Exception("La hora del ajuste global debe tener el formato HH:MM (24 horas). Recibido: '{$time}'.", 400);
+        }
+
         $this->settingsRepository->updateValue('global_adjustment_percent', (string) $percent);
         $this->settingsRepository->updateValue('global_adjustment_time', $time);
         $this->notificationService->logAdminAction($adminId, 'Configuración Ajuste Global', "Porcentaje: {$percent}%, Hora: {$time}");
@@ -223,6 +386,86 @@ class PricingService
         $tasaInfo['operation'] = $this->getCalculationMode($origenID, $destinoID);
 
         return $tasaInfo;
+    }
+
+    /**
+     * Factor de conversión "CLP por 1 unidad de $moneda", para liquidar
+     * comisiones de revendedor en modo consolidado.
+     *
+     * Devuelve null si NO se puede determinar una tasa. Nunca inventa una tasa
+     * ni asume 1:1: si esto devuelve null, el llamador tiene que exigirle al
+     * admin que la escriba a mano, o rechazar la operación. Es dinero real.
+     *
+     * CRITERIO DE SELECCIÓN cuando la ruta tiene varias tasas activas
+     * (ej. Chile→Colombia tiene 3.42 para montos < 300.000 y 3.43778 para el
+     * resto, escalonadas por MontoMinimo/MontoMaximo):
+     *   se usa la TASA REFERENCIAL de la ruta (EsReferencial = 1 AND Activa = 1),
+     *   que es exactamente lo que devuelve getCurrentRate($o, $d, 0) vía
+     *   findReferentialRate(), y es única por ruta por construcción
+     *   (adminUpsertRate llama a clearReferentialFlag antes de marcar una nueva).
+     * Razones para no usar las tasas escalonadas:
+     *   1. Los rangos MontoMinimo/MontoMaximo están expresados en la moneda de
+     *      ORIGEN DE LA RUTA. Para una ruta invertida (ver abajo) el monto que
+     *      queremos convertir NO está en esa moneda, así que el escalón elegido
+     *      sería arbitrario.
+     *   2. La referencial es la tasa base sin el margen comercial
+     *      (PorcentajeAjuste), que es lo correcto para pagarle a un revendedor:
+     *      el margen es ganancia del negocio, no parte del tipo de cambio.
+     *
+     * RUTA DIRECTA vs INVERTIDA: hoy no existe ninguna ruta activa hacia Chile
+     * (COP→CLP y PEN→CLP no existen o están con Activa = 0). Por eso, si no hay
+     * ruta directa Moneda→CLP, se busca la inversa CLP→Moneda y se invierte la
+     * operación: si la ruta directa multiplica, la inversa divide y viceversa
+     * (getCalculationMode ya codifica qué rutas se dividen).
+     *
+     * @return array{factor: float, tasaId: int, valorTasa: float, sentido: string, paisId: int}|null
+     */
+    public function getFactorConversionACLP(string $moneda): ?array
+    {
+        $moneda = strtoupper(trim($moneda));
+        if ($moneda === '') {
+            return null;
+        }
+        if ($moneda === 'CLP') {
+            return ['factor' => 1.0, 'tasaId' => 0, 'valorTasa' => 1.0, 'sentido' => 'identidad', 'paisId' => 1];
+        }
+
+        $paisId = $this->countryRepository->findIdByMoneda($moneda);
+        if ($paisId === null || $paisId === 1) {
+            return null;
+        }
+
+        // 1) Ruta directa Moneda → CLP.
+        $directa = $this->rateRepository->findReferentialRate($paisId, 1);
+        if ($directa && (int) ($directa['RutaActiva'] ?? 1) === 1 && (float) $directa['ValorTasa'] > 0) {
+            $valor = (float) $directa['ValorTasa'];
+            $factor = ($this->getCalculationMode($paisId, 1) === 'divide') ? (1 / $valor) : $valor;
+            return [
+                'factor'    => $factor,
+                'tasaId'    => (int) $directa['TasaID'],
+                'valorTasa' => $valor,
+                'sentido'   => 'directa',
+                'paisId'    => $paisId,
+            ];
+        }
+
+        // 2) Ruta inversa CLP → Moneda, con la operación dada vuelta.
+        $inversa = $this->rateRepository->findReferentialRate(1, $paisId);
+        if ($inversa && (int) ($inversa['RutaActiva'] ?? 1) === 1 && (float) $inversa['ValorTasa'] > 0) {
+            $valor = (float) $inversa['ValorTasa'];
+            // Ruta CLP→Moneda 'multiply' significa monto_moneda = monto_clp * valor,
+            // por lo tanto monto_clp = monto_moneda / valor.
+            $factor = ($this->getCalculationMode(1, $paisId) === 'divide') ? $valor : (1 / $valor);
+            return [
+                'factor'    => $factor,
+                'tasaId'    => (int) $inversa['TasaID'],
+                'valorTasa' => $valor,
+                'sentido'   => 'inversa',
+                'paisId'    => $paisId,
+            ];
+        }
+
+        return null;
     }
 
     public function adminUpsertRate(int $adminId, array $data): array
@@ -286,9 +529,19 @@ class PricingService
 
     public function updateBcvRate(int $adminId, float $newValue): bool
     {
+        if (!is_finite($newValue) || $newValue <= 0) {
+            throw new Exception("La tasa BCV debe ser un número mayor que 0.", 400);
+        }
+        if ($newValue > self::MAX_TASA_BCV) {
+            throw new Exception(
+                "La tasa BCV supera el máximo permitido (" . number_format(self::MAX_TASA_BCV, 0, ',', '.') . "). Verifica el valor ingresado.",
+                400
+            );
+        }
+
         $status = $this->systemService->checkSystemAvailability();
         if (!$status['available']) {
-            throw new Exception("BLOQUEO AUTOMÁTICO: El sistema está en feriado ({$status['message']}). No se permite actualizar la tasa BCV.");
+            throw new Exception("BLOQUEO AUTOMÁTICO: El sistema está en feriado ({$status['message']}). No se permite actualizar la tasa BCV.", 403);
         }
 
         $success = $this->settingsRepository->updateValue('tasa_dolar_bcv', (string) $newValue);

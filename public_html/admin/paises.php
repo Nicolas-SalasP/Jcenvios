@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Admin'
 }
 
 $pageTitle = 'Gestionar Países';
-$pageScript = 'admin.js';
+$pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
 
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 

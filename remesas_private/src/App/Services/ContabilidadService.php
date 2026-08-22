@@ -20,11 +20,14 @@ class ContabilidadService
         ContabilidadRepository $contabilidadRepo,
         CountryRepository $countryRepo,
         LogService $logService,
-        Database $db
+        Database $db,
+        ?CuentasAdminRepository $cuentasAdminRepo = null
     ) {
         $this->contabilidadRepo = $contabilidadRepo;
         $this->countryRepo = $countryRepo;
-        $this->cuentasAdminRepo = new CuentasAdminRepository($db);
+        // Parámetro opcional para poder inyectar un mock en tests; si no se
+        // pasa, se mantiene el comportamiento original (instanciarlo acá).
+        $this->cuentasAdminRepo = $cuentasAdminRepo ?? new CuentasAdminRepository($db);
         $this->logService = $logService;
         $this->dbConnection = $db->getConnection();
     }
@@ -59,7 +62,7 @@ class ContabilidadService
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
             if (!$cuenta) {
-                throw new Exception("Cuenta bancaria no encontrada.");
+                throw new Exception("Cuenta bancaria no encontrada.", 404);
             }
 
             $saldoAnterior = (float) $cuenta['SaldoActual'];
@@ -82,7 +85,7 @@ class ContabilidadService
 
         } catch (Exception $e) {
             $this->dbConnection->rollback();
-            throw new Exception("Error al recargar cuenta: " . $e->getMessage());
+            throw new Exception("Error al recargar cuenta: " . $e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
@@ -96,7 +99,7 @@ class ContabilidadService
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
             if (!$cuenta) {
-                throw new Exception("Cuenta bancaria no encontrada.");
+                throw new Exception("Cuenta bancaria no encontrada.", 404);
             }
 
             $saldoAnterior = (float) $cuenta['SaldoActual'];
@@ -120,7 +123,7 @@ class ContabilidadService
 
         } catch (Exception $e) {
             $this->dbConnection->rollback();
-            throw new Exception("Error al retirar fondos de la cuenta: " . $e->getMessage());
+            throw new Exception("Error al retirar fondos de la cuenta: " . $e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
@@ -147,7 +150,7 @@ class ContabilidadService
         try {
             $bancoOri = $this->cuentasAdminRepo->getById($origenId);
             if (!$bancoOri)
-                throw new Exception("Cuenta origen no encontrada.");
+                throw new Exception("Cuenta origen no encontrada.", 404);
 
             $saldoOriAnt = (float) $bancoOri['SaldoActual'];
             $saldoOriNew = $saldoOriAnt - $salida;
@@ -166,7 +169,7 @@ class ContabilidadService
 
             $bancoDes = $this->cuentasAdminRepo->getById($destinoId);
             if (!$bancoDes)
-                throw new Exception("Cuenta destino no encontrada.");
+                throw new Exception("Cuenta destino no encontrada.", 404);
 
             $saldoDesAnt = (float) $bancoDes['SaldoActual'];
             $saldoDesNew = $saldoDesAnt + $entrada;
@@ -188,7 +191,7 @@ class ContabilidadService
 
         } catch (Exception $e) {
             $this->dbConnection->rollback();
-            throw new Exception("Error en transferencia: " . $e->getMessage());
+            throw new Exception("Error en transferencia: " . $e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
@@ -205,7 +208,7 @@ class ContabilidadService
         }
 
         if (!$cuentaDestinoId) {
-            throw new Exception("No existe una cuenta bancaria de destino configurada para este país.");
+            throw new Exception("No existe una cuenta bancaria de destino configurada para este país.", 409);
         }
 
         $this->registrarTransferencia($bancoOrigenId, $cuentaDestinoId, $montoSalida, $montoEntrada, $adminId);
@@ -217,10 +220,13 @@ class ContabilidadService
 
     public function registrarIngresoVenta(int $cuentaAdminId, float $monto, int $adminId, int $txId): void
     {
+        $this->dbConnection->begin_transaction();
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
-            if (!$cuenta)
+            if (!$cuenta) {
+                $this->dbConnection->rollback();
                 return;
+            }
 
             $saldoAnt = (float) $cuenta['SaldoActual'];
             $saldoNew = $saldoAnt + $monto;
@@ -237,7 +243,9 @@ class ContabilidadService
             );
 
             $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNew);
+            $this->dbConnection->commit();
         } catch (Exception $e) {
+            $this->dbConnection->rollback();
             error_log("Error ingreso venta: " . $e->getMessage());
         }
     }
@@ -327,10 +335,13 @@ class ContabilidadService
 
     public function registrarEgresoPago(int $cuentaAdminId, float $monto, int $adminId, int $txId): void
     {
+        $this->dbConnection->begin_transaction();
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
-            if (!$cuenta)
+            if (!$cuenta) {
+                $this->dbConnection->rollback();
                 return;
+            }
 
             $saldoAnt = (float) $cuenta['SaldoActual'];
             $saldoNew = $saldoAnt - $monto;
@@ -345,8 +356,90 @@ class ContabilidadService
                 "Pago a beneficiario TX #$txId"
             );
             $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNew);
+            $this->dbConnection->commit();
         } catch (Exception $e) {
+            $this->dbConnection->rollback();
             error_log("Error egreso pago: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Revierte el ingreso por venta de una transacción que se cancela/rechaza
+     * después de que el admin ya confirmó el pago (estado "En Proceso").
+     *
+     * Sin esto el saldo de la cuenta admin quedaba inflado para siempre: el
+     * INGRESO_VENTA de adminConfirmPayment nunca se deshacía.
+     *
+     * Idempotente: opera sobre el NETO pendiente de revertir por cuenta
+     * (ver ContabilidadRepository::getNetoIngresoVentaPorCuenta), así que
+     * llamarlo dos veces sobre la misma transacción no descuenta dos veces.
+     * Si nunca hubo ingreso (o ya se revirtió), no hace nada y devuelve true.
+     *
+     * Devuelve bool —a diferencia de registrarIngresoVenta/registrarEgresoPago,
+     * que son void— justamente para que el llamador pueda enterarse del fallo
+     * y dejar rastro. Ver el manejo en TransactionService.
+     */
+    public function revertirIngresoVenta(int $txId, int $actorId): bool
+    {
+        $this->dbConnection->begin_transaction();
+        try {
+            // El lock y la lectura del neto van DENTRO de la transacción: el
+            // "SUM(INGRESO_VENTA) - SUM(REVERSA_VENTA)" es lo que hace idempotente
+            // a esta operación, y leerlo afuera y sin lock permitía que dos
+            // reversas concurrentes de la misma transacción (cliente cancelando y
+            // admin rechazando a la vez) vieran ambas Neto > 0 y descontaran las
+            // dos.
+            $this->contabilidadRepo->lockMovimientosDeTransaccion($txId);
+
+            $pendientes = $this->contabilidadRepo->getNetoIngresoVentaPorCuenta($txId);
+            if (empty($pendientes)) {
+                // Nada que revertir: no hubo ingreso, o ya se revirtió.
+                $this->dbConnection->commit();
+                return true;
+            }
+
+            foreach ($pendientes as $fila) {
+                $cuentaAdminId = (int) $fila['CuentaAdminID'];
+                $montoRevertir = (float) $fila['Neto'];
+
+                // ForUpdate: updateSaldo escribe un valor absoluto calculado a
+                // partir de esta lectura, así que sin bloquear la fila un
+                // registrarIngresoVenta concurrente sobre la misma cuenta se
+                // perdería (last write wins).
+                $cuenta = $this->cuentasAdminRepo->getByIdForUpdate($cuentaAdminId);
+                if (!$cuenta) {
+                    throw new Exception("Cuenta admin #$cuentaAdminId no encontrada al revertir TX #$txId.", 500);
+                }
+
+                $saldoAnt = (float) $cuenta['SaldoActual'];
+                $saldoNew = $saldoAnt - $montoRevertir;
+
+                // A diferencia de registrarIngresoVenta, acá SÍ se chequea el
+                // retorno: si el INSERT del movimiento falla y se actualiza el
+                // saldo igual, el libro y el saldo quedan desincronizados.
+                $ok = $this->contabilidadRepo->registrarMovimientoBanco(
+                    $cuentaAdminId,
+                    $actorId,
+                    $txId,
+                    'REVERSA_VENTA',
+                    $montoRevertir,
+                    $saldoAnt,
+                    $saldoNew,
+                    "Reversa por cancelación TX #$txId"
+                );
+                if (!$ok) {
+                    throw new Exception("No se pudo registrar el movimiento de reversa para TX #$txId.", 500);
+                }
+
+                $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNew);
+            }
+
+            $this->dbConnection->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->dbConnection->rollback();
+            error_log("[CONTAB][REVERSA_FALLIDA] TX #$txId: " . $e->getMessage());
+            return false;
         }
     }
 
@@ -385,7 +478,7 @@ class ContabilidadService
         if ($tipo === 'banco') {
             $cuenta = $this->cuentasAdminRepo->getById($id);
             if (!$cuenta)
-                throw new Exception("Cuenta bancaria no encontrada.");
+                throw new Exception("Cuenta bancaria no encontrada.", 404);
 
             $entidadNombre = $cuenta['Banco'] . ' - ' . $cuenta['Titular'];
             $moneda = $this->countryRepo->findMonedaById($cuenta['PaisID']) ?? '???';

@@ -26,6 +26,10 @@ session_set_cookie_params([
 
 header('X-Content-Type-Options: nosniff');
 
+if (defined('IS_HTTPS') && IS_HTTPS) {
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+}
+
 // --- CSP (Content Security Policy) ---
 $cspHost = '';
 if (defined('BASE_URL')) {
@@ -43,7 +47,7 @@ if (defined('BASE_URL')) {
 
 $cspDirectives = [
     "default-src 'self'",
-    "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'",
+    "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
     "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' https://cdn.jsdelivr.net",
     "img-src 'self' data: blob:",
@@ -52,9 +56,13 @@ $cspDirectives = [
     "object-src 'self' blob: chrome-extension:",
     "frame-ancestors 'self'",
     "base-uri 'self'",
-    "form-action 'self'"
+    "form-action 'self'",
+    "report-to csp-endpoint",
 ];
 
+if (defined('BASE_URL')) {
+    header('Reporting-Endpoints: csp-endpoint="' . BASE_URL . '/api/?accion=cspReport"');
+}
 header("Content-Security-Policy: " . implode('; ', $cspDirectives));
 
 session_start();
@@ -206,7 +214,8 @@ $container = new class($conexion) {
                     new \App\Repositories\CuentasBeneficiariasRepository($db),
                     new \App\Repositories\CuentasAdminRepository($db),
                     new \App\Repositories\RateRepository($db),
-                    new \App\Repositories\ResellerAccountsRepository($db)
+                    new \App\Repositories\ResellerAccountsRepository($db),
+                    new \App\Repositories\TasaEspecialRepository($db)
                 );
             }
         } catch (Throwable $e) {

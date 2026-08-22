@@ -58,7 +58,7 @@ jobs:
         with:
           php-version: '8.2'
           extensions: mbstring, mysqli, gd, zip, curl, openssl
-          coverage: none
+          coverage: pcov
 
       - name: Composer install (con dev, incluye PHPUnit)
         run: cd remesas_private && composer install --optimize-autoloader --no-interaction
@@ -92,8 +92,18 @@ jobs:
           define('SMTP_PORT', 587);
           EOF
 
-      - name: Correr PHPUnit (200 tests)
-        run: cd remesas_private && vendor/bin/phpunit --colors=always
+      - name: Correr PHPUnit (200 tests) con coverage
+        run: cd remesas_private && vendor/bin/phpunit --colors=always --coverage-html=coverage-html --coverage-clover=coverage.xml
+
+      - name: Subir reporte de coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            remesas_private/coverage-html/
+            remesas_private/coverage.xml
+          retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────────
   # JOB 2: Barrido de sintaxis PHP en todo el repo. No corre PHPUnit ni
@@ -121,6 +131,44 @@ jobs:
             -not -path "./node_modules/*" \
             -print0 \
           | xargs -0 -n1 -P4 php -l
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # JOB: Auditoría de dependencias (composer audit + npm audit). No bloquea
+  # el pipeline todavía (continue-on-error) — solo reporta vulnerabilidades
+  # conocidas en el log del run. Cuando el equipo esté cómodo con los falsos
+  # positivos, sacar continue-on-error para que bloquee el merge.
+  # ─────────────────────────────────────────────────────────────────────────
+  dependency-audit:
+    name: Auditoría de dependencias (composer + npm)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Composer install (con dev)
+        run: cd remesas_private && composer install --optimize-autoloader --no-interaction
+
+      - name: composer audit
+        continue-on-error: true
+        run: cd remesas_private && composer audit --format=table
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm install
+        run: npm install
+
+      - name: npm audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
 
   # ─────────────────────────────────────────────────────────────────────────
   # JOB 3: Smoke + flujo de negocio crítico con Playwright, contra un
@@ -263,6 +311,44 @@ jobs:
           ssh -fN deploy
           echo "Conexion maestra establecida."
 
+      # ── Migraciones ANTES del codigo ──────────────────────────────────────
+      #
+      # El rsync no es atomico: mientras corre, el sitio sigue sirviendo
+      # peticiones. Si el codigo nuevo llega antes que el esquema, hay una
+      # ventana de decenas de segundos en la que consulta columnas y tablas que
+      # todavia no existen, y cada peticion que las toque devuelve un 500.
+      # Migrando primero, la ventana la atraviesa el codigo VIEJO contra el
+      # esquema nuevo, que es la unica de las dos combinaciones que se puede
+      # hacer segura.
+      #
+      # A cambio, esto le impone una regla a las migraciones: tienen que ser
+      # compatibles hacia atras con el codigo que todavia esta corriendo. En la
+      # practica, agregar columnas, tablas e indices es seguro; renombrar o
+      # borrar algo que el codigo viejo aun usa NO lo es. Para esos casos hay que
+      # partirlo en dos despliegues (primero agregar y empezar a escribir en lo
+      # nuevo, despues borrar lo viejo).
+      #
+      # Solo se sube migrations/ en este punto, no remesas_private/: los crons
+      # viven ahi y desplegarlos antes que el src/ del que dependen los dejaria
+      # fallando si alguno se dispara durante la ventana. El migrate.php que se
+      # ejecuta es el que ya esta en el servidor del despliegue anterior; si
+      # alguna vez cambia el runner en si, ese cambio recien tiene efecto en el
+      # despliegue siguiente.
+      - name: Desplegar migrations/  (antes de tocar el codigo)
+        run: |
+          rsync -rltvz --no-perms --no-owner --no-group \
+            --exclude '.git*' \
+            migrations/ deploy:migrations/
+
+      # Corre migrations/*.sql pendientes contra la BD de prod, en orden, cada
+      # una una sola vez (tabla de control _migrations_applied). Usa las
+      # credenciales de remesas_private/config.php ya presentes en el
+      # servidor (no viajan secretos de BD por este pipeline). Si una
+      # migración falla, el step falla y el codigo nuevo NO se despliega: la
+      # aplicacion sigue entera con la version anterior.
+      - name: Correr migraciones de BD pendientes
+        run: ssh deploy 'php ~/remesas_private/scripts/migrate.php'
+
       - name: Desplegar public_html/  (document root)
         run: |
           rsync -rltvz --no-perms --no-owner --no-group \
@@ -280,6 +366,7 @@ jobs:
             --exclude 'config.php' \
             --exclude 'vendor/' \
             --exclude 'sessions/' \
+            --exclude 'locks/' \
             --exclude 'uploads/' \
             --exclude 'tests/' \
             --exclude 'phpunit.xml' \
@@ -290,20 +377,6 @@ jobs:
       - name: Instalar dependencias en el servidor (composer, sin dev)
         run: |
           ssh deploy 'cd ~/remesas_private && { command -v composer >/dev/null 2>&1 && composer install --no-dev --optimize-autoloader --no-interaction || php composer.phar install --no-dev --optimize-autoloader --no-interaction; }'
-
-      - name: Desplegar migrations/  (para que migrate.php las encuentre)
-        run: |
-          rsync -rltvz --no-perms --no-owner --no-group \
-            --exclude '.git*' \
-            migrations/ deploy:migrations/
-
-      # Corre migrations/*.sql pendientes contra la BD de prod, en orden, cada
-      # una una sola vez (tabla de control _migrations_applied). Usa las
-      # credenciales de remesas_private/config.php ya presentes en el
-      # servidor (no viajan secretos de BD por este pipeline). Si una
-      # migración falla, el step (y el deploy) falla — revisar el log.
-      - name: Correr migraciones de BD pendientes
-        run: ssh deploy 'php ~/remesas_private/scripts/migrate.php'
 
       - name: Cerrar conexion maestra
         if: always()

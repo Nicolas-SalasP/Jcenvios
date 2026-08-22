@@ -16,6 +16,7 @@ use App\Repositories\CuentasBeneficiariasRepository;
 use App\Repositories\CuentasAdminRepository;
 use App\Repositories\RateRepository;
 use App\Repositories\ResellerAccountsRepository;
+use App\Repositories\TasaEspecialRepository;
 use App\Repositories\ContabilidadRepository;
 use App\Repositories\CountryRepository;
 use App\Services\LogService;
@@ -25,6 +26,13 @@ use App\Services\PDFService;
 use App\Services\ContabilidadService;
 use App\Services\TransactionService;
 use App\Services\EmailReconciliationService;
+
+// Sin lock, dos instancias solapadas pueden leer el mismo mensaje UNSEEN antes
+// de que la primera haga imap_setflag_full y procesarlo dos veces.
+if (!\App\Support\CronLock::acquire('email_reconciliation')) {
+    echo "[" . date('Y-m-d H:i:s') . "] Ya hay una instancia de cron_email_reconciliation.php en ejecución. Saliendo sin hacer nada.\n";
+    exit(0);
+}
 
 try {
     echo "Iniciando conciliación de pagos por correo...\n";
@@ -59,7 +67,8 @@ try {
             new CuentasBeneficiariasRepository($db),
             new CuentasAdminRepository($db),
             new RateRepository($db),
-            new ResellerAccountsRepository($db)
+            new ResellerAccountsRepository($db),
+            new TasaEspecialRepository($db)
         );
     } catch (\Throwable $e) {
         error_log("CRON RECON: no se pudo construir TransactionService, degradando a modo sugerir: " . $e->getMessage());

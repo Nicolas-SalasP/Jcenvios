@@ -73,6 +73,45 @@ mysql -u TU_USUARIO_BD -p TU_BD < migrations/003_drop_unused_user_columns.sql
 o impórtala desde **phpMyAdmin**. Las migraciones del proyecto son idempotentes
 (usan `IF EXISTS` / `INFORMATION_SCHEMA`), así que reaplicarlas no rompe nada.
 
+## Tareas programadas (cron)
+
+Configurar en cPanel → **Cron Jobs**, apuntando al PHP CLI del servidor:
+
+```bash
+# Cancelación automática de órdenes expiradas (Pendiente de Pago > 4hs sin comprobante):
+0,30 * * * * php /home/TU_USUARIO/remesas_private/cron_auto_cancelacion.php >> /home/TU_USUARIO/logs/jcenvios_cancel.log 2>&1
+
+# Conciliación de pagos por correo (lee bandeja de entrada, sugiere/aplica comprobantes):
+*/10 * * * * php /home/TU_USUARIO/remesas_private/cron_email_reconciliation.php >> /home/TU_USUARIO/logs/jcenvios_recon.log 2>&1
+
+# Ajuste automático de tasas fuera de horario laboral:
+*/15 * * * * php /home/TU_USUARIO/remesas_private/cron_tasas.php >> /home/TU_USUARIO/logs/jcenvios_tasas.log 2>&1
+
+# Purga de bitácora (tabla `logs`) con más de 12 meses de antigüedad — no urgente, alcanza semanal:
+0 4 * * 0 php /home/TU_USUARIO/remesas_private/cron_purge_logs.php >> /home/TU_USUARIO/logs/jcenvios_purge_logs.log 2>&1
+
+# Purga de PDF de órdenes en public_html/temp_orders/ con más de 7 días (contienen datos personales):
+30 4 * * * php /home/TU_USUARIO/remesas_private/cron_purge_temp_orders.php >> /home/TU_USUARIO/logs/jcenvios_purge_temp.log 2>&1
+```
+
+Ajusta rutas y frecuencias según el hosting real. Todos los crons son idempotentes/seguros
+de reintentar y loguean con `error_log()` si algo falla.
+
+### Concurrencia
+
+Todos los crons toman un lock exclusivo con `flock()` (`App\Support\CronLock`) sobre un
+archivo en `remesas_private/locks/` antes de hacer nada. Si ya hay una instancia corriendo,
+la segunda imprime un aviso y sale con código 0 sin esperar. El lock lo libera el sistema
+operativo al terminar el proceso, aunque muera por excepción o fatal error.
+
+Se eligió `flock()` y no `GET_LOCK()` de MySQL porque funciona igual en Linux (cPanel) y en
+Windows/XAMPP, no consume una conexión a la base y no depende de que la BD esté arriba.
+
+El caso crítico es `cron_tasas.php`: sin lock, dos instancias solapadas pasaban ambas el
+guard de `last_run` y el ajuste porcentual se aplicaba **dos veces en cascada** sobre las
+tasas. Además del lock, `runScheduledAdjustment()` reclama el día con
+`SystemSettingsRepository::claimDailyRun()`, un `INSERT ... ON DUPLICATE KEY UPDATE` atómico.
+
 ## Notas
 
 - Si `composer` no está en el PATH del servidor, sube un `composer.phar` a `~/remesas_private/`

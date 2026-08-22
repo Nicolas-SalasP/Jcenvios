@@ -14,19 +14,113 @@ class LiquidacionRepository
 
     /**
      * Creates a new liquidacion record and returns its ID.
-     * Bind types: i=userId(int), d=monto(double), s=desde, s=hasta, i=cantidad, s=notas
+     *
+     * $moneda es la moneda EN LA QUE SE PAGA la liquidación (la comisión se
+     * genera en la moneda de origen de cada orden, ver
+     * TransactionRepository::getResellerCommissionInRange). $modo es
+     * 'por_moneda' (una liquidación por moneda, sin conversión) o
+     * 'consolidado_clp' (una sola liquidación en CLP con conversión).
+     *
+     * AJUSTE MANUAL: $monto es SIEMPRE el monto efectivamente pagado, o sea
+     * $montoBase + $montoAjuste. Se guardan los tres por separado para poder
+     * responder "¿de dónde salió esta cifra?" (ver migración 024). $montoBase
+     * null significa "sin ajuste": se guarda igual al monto pagado.
+     * La validación del ajuste (motivo obligatorio, monto final > 0) vive en
+     * LiquidacionService; acá sólo se persiste.
      */
-    public function create(int $userId, float $monto, string $desde, string $hasta, int $cantidad, ?string $notas = null): int
-    {
+    public function create(
+        int $userId,
+        float $monto,
+        string $desde,
+        string $hasta,
+        int $cantidad,
+        ?string $notas = null,
+        string $moneda = 'CLP',
+        string $modo = 'por_moneda',
+        ?float $montoBase = null,
+        float $montoAjuste = 0.0,
+        ?string $motivoAjuste = null
+    ): int {
+        $montoBase = $montoBase ?? $monto;
+
         $stmt = $this->db->prepare(
-            "INSERT INTO liquidaciones_revendedor (UserID, Monto, PeriodoDesde, PeriodoHasta, CantidadTransacciones, Notas)
-             VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO liquidaciones_revendedor (UserID, Monto, MontoBase, MontoAjuste, MotivoAjuste, Moneda, ModoLiquidacion, PeriodoDesde, PeriodoHasta, CantidadTransacciones, Notas)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
-        $stmt->bind_param("idssis", $userId, $monto, $desde, $hasta, $cantidad, $notas);
+        $stmt->bind_param(
+            "idddsssssis",
+            $userId, $monto, $montoBase, $montoAjuste, $motivoAjuste,
+            $moneda, $modo, $desde, $hasta, $cantidad, $notas
+        );
         $stmt->execute();
         $id = $stmt->insert_id;
         $stmt->close();
         return $id;
+    }
+
+    /**
+     * Guarda una fila del desglose por moneda de una liquidación.
+     *
+     * $tasaConversion se expresa SIEMPRE como "CLP por 1 unidad de $moneda",
+     * de modo que $montoConvertido = $montoOriginal * $tasaConversion. En modo
+     * 'por_moneda' la tasa es 1 y el convertido es igual al original.
+     * Esto es lo que deja auditable a qué cambio se pagó.
+     */
+    public function addDetalleMoneda(int $liquidacionId, string $moneda, float $montoOriginal, ?float $tasaConversion, float $montoConvertido, int $cantidad): int
+    {
+        $stmt = $this->db->prepare(
+            "INSERT INTO liquidacion_detalle_moneda
+                (LiquidacionID, Moneda, MontoOriginal, TasaConversion, MontoConvertido, Cantidad)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->bind_param("isdddi", $liquidacionId, $moneda, $montoOriginal, $tasaConversion, $montoConvertido, $cantidad);
+        $stmt->execute();
+        $id = $stmt->insert_id;
+        $stmt->close();
+        return $id;
+    }
+
+    /**
+     * Desglose por moneda de una liquidación (vacío si no tiene detalle).
+     */
+    public function getDetalleMoneda(int $liquidacionId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT Moneda, MontoOriginal, TasaConversion, MontoConvertido, Cantidad
+             FROM liquidacion_detalle_moneda WHERE LiquidacionID = ? ORDER BY Moneda"
+        );
+        $stmt->bind_param("i", $liquidacionId);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Adjunta el desglose por moneda a una lista de liquidaciones, en una sola
+     * consulta (evita el N+1 de llamar getDetalleMoneda por fila).
+     */
+    public function attachDetalles(array $liquidaciones): array
+    {
+        if (empty($liquidaciones)) {
+            return $liquidaciones;
+        }
+        $ids = array_map(fn($l) => (int) $l['LiquidacionID'], $liquidaciones);
+        $in  = implode(',', $ids); // ints casteados, no hay input de usuario acá
+        $rows = $this->db->query(
+            "SELECT LiquidacionID, Moneda, MontoOriginal, TasaConversion, MontoConvertido, Cantidad
+             FROM liquidacion_detalle_moneda WHERE LiquidacionID IN ($in) ORDER BY Moneda"
+        )->fetch_all(MYSQLI_ASSOC);
+
+        $byId = [];
+        foreach ($rows as $r) {
+            $byId[(int) $r['LiquidacionID']][] = $r;
+        }
+        foreach ($liquidaciones as &$l) {
+            $l['Detalle'] = $byId[(int) $l['LiquidacionID']] ?? [];
+        }
+        unset($l);
+        return $liquidaciones;
     }
 
     public function markPaid(int $liquidacionId, ?string $comprobanteUrl, int $adminId): bool

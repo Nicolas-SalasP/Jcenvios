@@ -64,7 +64,7 @@ class TransactionRepository
 
         if (!$stmt->execute()) {
             error_log("Error al crear la transacción: " . $stmt->error);
-            throw new Exception("No se pudo registrar la orden.");
+            throw new Exception("No se pudo registrar la orden.", 409);
         }
 
         $newId = $stmt->insert_id;
@@ -313,7 +313,7 @@ class TransactionRepository
     public function uploadAdminProof(int $transactionId, string $dbPath, string $fileHash, int $estadoPagadoID, int $estadoEnProcesoID, float $comisionDestino): int
     {
         $sql = "UPDATE transacciones
-            SET ComprobanteEnvioURL = ?, ComprobanteEnvioHash = ?, EstadoID = ?, ComisionDestino = ?, FechaPago = NOW()
+            SET ComprobanteEnvioURL = ?, ComprobanteEnvioHash = ?, EstadoID = ?, ComisionDestino = ?, FechaPago = NOW(), FechaCompletado = NOW()
             WHERE TransaccionID = ? AND EstadoID = ?";
 
         $stmt = $this->db->prepare($sql);
@@ -327,7 +327,16 @@ class TransactionRepository
 
     public function updateStatus(int $id, int $newStatusID, $requiredStatusID = null): int
     {
-        $sql = "UPDATE transacciones SET EstadoID = ? WHERE TransaccionID = ?";
+        // EstadoID 4=Exitoso, 5=Cancelado (catálogo estados_transaccion) — se usa
+        // este método desde varios flujos (forceUpdateState, adminRejectPayment,
+        // etc.) así que el timestamp se setea acá en vez de en cada caller.
+        $extraSet = '';
+        if ($newStatusID === 4) {
+            $extraSet = ', FechaCompletado = NOW()';
+        } elseif ($newStatusID === 5) {
+            $extraSet = ', FechaCancelacion = NOW()';
+        }
+        $sql = "UPDATE transacciones SET EstadoID = ?" . $extraSet . " WHERE TransaccionID = ?";
         $types = "ii";
         $params = [$newStatusID, $id];
 
@@ -369,10 +378,11 @@ class TransactionRepository
         }
         $placeholders = implode(',', array_fill(0, count($allowedStatusIds), '?'));
 
-        $sql = "UPDATE transacciones SET 
-                    EstadoID = ?, 
-                    ComprobanteURL = NULL, 
-                    ComprobanteHash = NULL 
+        $sql = "UPDATE transacciones SET
+                    EstadoID = ?,
+                    ComprobanteURL = NULL,
+                    ComprobanteHash = NULL,
+                    FechaCancelacion = NOW()
                 WHERE TransaccionID = ? AND UserID = ? AND EstadoID IN ($placeholders)";
 
         $stmt = $this->db->prepare($sql);
@@ -400,7 +410,8 @@ class TransactionRepository
         $sql = "UPDATE transacciones
                 SET EstadoID       = ?,
                     AutoCancelado  = 1,
-                    ComprobanteHash = NULL
+                    ComprobanteHash = NULL,
+                    FechaCancelacion = NOW()
                 WHERE EstadoID  = ?
                   AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
                   AND (
@@ -424,44 +435,55 @@ class TransactionRepository
      */
     public function extendPaymentDeadline(int $txId, int $userId, int $estadoPendienteID, int $horas, int $maxExtensiones): array
     {
-        $sql = "SELECT TransaccionID, ExtensionesPlazoUsadas, PlazoExtendidoHasta
-                FROM transacciones
-                WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?
-                  AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
-                LIMIT 1
-                FOR UPDATE";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iii", $txId, $userId, $estadoPendienteID);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
+        $conn = $this->db->getConnection();
+        $conn->begin_transaction();
+        try {
+            $sql = "SELECT TransaccionID, ExtensionesPlazoUsadas, PlazoExtendidoHasta
+                    FROM transacciones
+                    WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?
+                      AND (ComprobanteURL IS NULL OR ComprobanteURL = '')
+                    LIMIT 1
+                    FOR UPDATE";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bind_param("iii", $txId, $userId, $estadoPendienteID);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
 
-        if (!$row) {
-            return ['success' => false, 'reason' => 'not_found'];
+            if (!$row) {
+                $conn->rollback();
+                return ['success' => false, 'reason' => 'not_found'];
+            }
+
+            if ((int) $row['ExtensionesPlazoUsadas'] >= $maxExtensiones) {
+                $conn->rollback();
+                return ['success' => false, 'reason' => 'limit_reached'];
+            }
+
+            $update = "UPDATE transacciones
+                        SET PlazoExtendidoHasta = NOW() + INTERVAL ? HOUR,
+                            ExtensionesPlazoUsadas = ExtensionesPlazoUsadas + 1
+                        WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?";
+            $stmtU = $this->db->prepare($update);
+            $stmtU->bind_param("iiii", $horas, $txId, $userId, $estadoPendienteID);
+            $stmtU->execute();
+            $affected = $stmtU->affected_rows;
+            $stmtU->close();
+
+            if ($affected === 0) {
+                $conn->rollback();
+                return ['success' => false, 'reason' => 'not_found'];
+            }
+
+            $conn->commit();
+            return [
+                'success' => true,
+                'extensionesUsadas' => (int) $row['ExtensionesPlazoUsadas'] + 1,
+            ];
+        } catch (\Throwable $e) {
+            $conn->rollback();
+            throw $e;
         }
-
-        if ((int) $row['ExtensionesPlazoUsadas'] >= $maxExtensiones) {
-            return ['success' => false, 'reason' => 'limit_reached'];
-        }
-
-        $update = "UPDATE transacciones
-                    SET PlazoExtendidoHasta = NOW() + INTERVAL ? HOUR,
-                        ExtensionesPlazoUsadas = ExtensionesPlazoUsadas + 1
-                    WHERE TransaccionID = ? AND UserID = ? AND EstadoID = ?";
-        $stmtU = $this->db->prepare($update);
-        $stmtU->bind_param("iiii", $horas, $txId, $userId, $estadoPendienteID);
-        $stmtU->execute();
-        $affected = $stmtU->affected_rows;
-        $stmtU->close();
-
-        if ($affected === 0) {
-            return ['success' => false, 'reason' => 'not_found'];
-        }
-
-        return [
-            'success' => true,
-            'extensionesUsadas' => (int) $row['ExtensionesPlazoUsadas'] + 1,
-        ];
     }
 
     public function findByHash(string $fileHash): ?array
@@ -807,16 +829,19 @@ class TransactionRepository
 
     public function getResellerStats(int $userId, string $fechaInicio, string $fechaFin): array
     {
-        $sql = "SELECT 
-                T.MonedaOrigen, 
+        // Solo EstadoID=4 (Exitoso): una orden Cancelada (5) nunca pagó comisión
+        // real, sumarla acá la mostraba como "Ganado" en el panel del revendedor
+        // sin haberse pagado nunca (hallado en auditoría 2026-08-21).
+        $sql = "SELECT
+                T.MonedaOrigen,
                 P.NombrePais as PaisDestino,
                 SUM(T.ComisionRevendedor) as TotalGanado,
                 COUNT(T.TransaccionID) as CantidadEnvios
             FROM transacciones T
             JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
             JOIN paises P ON CB.PaisID = P.PaisID
-            WHERE T.UserID = ? 
-            AND T.EstadoID IN (4, 5)
+            WHERE T.UserID = ?
+            AND T.EstadoID = 4
             AND T.FechaTransaccion BETWEEN ? AND ?
             GROUP BY T.MonedaOrigen, P.NombrePais";
 
@@ -1070,51 +1095,140 @@ class TransactionRepository
     }
 
     /**
-     * Sum of pending commissions (not yet liquidated) for a reseller.
+     * Comisiones pendientes (no liquidadas) de un revendedor, DESGLOSADAS POR MONEDA.
+     *
+     * ¡No devolver un escalar! La comisión se calcula como
+     * (montoOrigen * porcentaje) / 100 (TransactionService), o sea que está
+     * expresada en transacciones.MonedaOrigen. Sumar CLP con COP daba un número
+     * sin sentido que se terminaba pagando como pesos chilenos.
+     *
+     * @return array<int, array{Moneda: string, Total: float, Cantidad: int}>
      */
-    public function getResellerPendingCommission(int $userId): float
+    public function getResellerPendingCommission(int $userId): array
     {
-        $sql = "SELECT COALESCE(SUM(ComisionRevendedor), 0) as total
+        $sql = "SELECT MonedaOrigen AS Moneda,
+                       COALESCE(SUM(ComisionRevendedor), 0) AS Total,
+                       COUNT(*) AS Cantidad
                 FROM transacciones
                 WHERE UserID = ? AND EstadoID = 4
-                  AND (LiquidacionID IS NULL OR LiquidacionID = 0)";
+                  AND ComisionRevendedor > 0
+                  AND (LiquidacionID IS NULL OR LiquidacionID = 0)
+                GROUP BY MonedaOrigen
+                ORDER BY MonedaOrigen";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("i", $userId);
         $stmt->execute();
-        $total = (float) $stmt->get_result()->fetch_row()[0];
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
-        return $total;
+        return array_map(fn($r) => [
+            'Moneda'   => (string) $r['Moneda'],
+            'Total'    => (float) $r['Total'],
+            'Cantidad' => (int) $r['Cantidad'],
+        ], $rows);
     }
 
     /**
-     * Sum of commissions in a date range for liquidation preview.
+     * Comisiones de un período, DESGLOSADAS POR MONEDA, para previsualizar la
+     * liquidación. Mismo motivo que arriba: nunca un escalar.
+     *
+     * @return array<int, array{Moneda: string, Total: float, Cantidad: int}>
      */
     public function getResellerCommissionInRange(int $userId, string $desde, string $hasta): array
     {
-        $sql = "SELECT COALESCE(SUM(ComisionRevendedor), 0) as total, COUNT(*) as cantidad
+        $sql = "SELECT MonedaOrigen AS Moneda,
+                       COALESCE(SUM(ComisionRevendedor), 0) AS Total,
+                       COUNT(*) AS Cantidad
                 FROM transacciones
                 WHERE UserID = ? AND EstadoID = 4
+                  AND ComisionRevendedor > 0
                   AND DATE(FechaTransaccion) BETWEEN ? AND ?
-                  AND (LiquidacionID IS NULL OR LiquidacionID = 0)";
+                  AND (LiquidacionID IS NULL OR LiquidacionID = 0)
+                GROUP BY MonedaOrigen
+                ORDER BY MonedaOrigen";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("iss", $userId, $desde, $hasta);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
-        return $row;
+        return array_map(fn($r) => [
+            'Moneda'   => (string) $r['Moneda'],
+            'Total'    => (float) $r['Total'],
+            'Cantidad' => (int) $r['Cantidad'],
+        ], $rows);
     }
 
     /**
-     * Mark transactions in range as part of a liquidation.
+     * Igual que getResellerCommissionInRange pero tomando un lock de escritura
+     * (SELECT ... FOR UPDATE) sobre las transacciones candidatas.
+     *
+     * DEBE llamarse DENTRO de una transacción abierta. Sin esto, dos admins
+     * liquidando al mismo tiempo leían el mismo total y creaban dos
+     * liquidaciones por la misma plata (se pagaba dos veces).
+     *
+     * Se bloquean las filas crudas y se agrega en PHP porque MySQL/MariaDB no
+     * combina de forma confiable GROUP BY con FOR UPDATE.
+     *
+     * @return array<int, array{Moneda: string, Total: float, Cantidad: int}>
      */
-    public function assignLiquidacionToTransactions(int $userId, string $desde, string $hasta, int $liquidacionId): int
+    public function lockResellerCommissionInRange(int $userId, string $desde, string $hasta): array
+    {
+        $sql = "SELECT TransaccionID, MonedaOrigen, ComisionRevendedor
+                FROM transacciones
+                WHERE UserID = ? AND EstadoID = 4
+                  AND ComisionRevendedor > 0
+                  AND DATE(FechaTransaccion) BETWEEN ? AND ?
+                  AND (LiquidacionID IS NULL OR LiquidacionID = 0)
+                ORDER BY TransaccionID
+                FOR UPDATE";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("iss", $userId, $desde, $hasta);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $porMoneda = [];
+        foreach ($rows as $r) {
+            $m = (string) $r['MonedaOrigen'];
+            if (!isset($porMoneda[$m])) {
+                $porMoneda[$m] = ['Moneda' => $m, 'Total' => 0.0, 'Cantidad' => 0];
+            }
+            $porMoneda[$m]['Total']    += (float) $r['ComisionRevendedor'];
+            $porMoneda[$m]['Cantidad'] += 1;
+        }
+        ksort($porMoneda);
+        return array_values($porMoneda);
+    }
+
+    /**
+     * Marca las transacciones del rango como parte de una liquidación.
+     *
+     * $moneda filtra por transacciones.MonedaOrigen. En modo 'por_moneda' es
+     * OBLIGATORIO pasarlo: sin el filtro, la liquidación de COP se llevaría
+     * puestas también las órdenes en CLP y quedarían marcadas como pagadas sin
+     * haberse pagado. En modo 'consolidado_clp' se pasa null a propósito
+     * (una sola liquidación cubre todas las monedas).
+     *
+     * Devuelve la cantidad de filas afectadas; el llamador DEBE compararla con
+     * lo previsto y hacer rollback si no coincide.
+     */
+    public function assignLiquidacionToTransactions(int $userId, string $desde, string $hasta, int $liquidacionId, ?string $moneda = null): int
     {
         $sql = "UPDATE transacciones SET LiquidacionID = ?
                 WHERE UserID = ? AND EstadoID = 4
+                  AND ComisionRevendedor > 0
                   AND DATE(FechaTransaccion) BETWEEN ? AND ?
                   AND (LiquidacionID IS NULL OR LiquidacionID = 0)";
+        $params = [$liquidacionId, $userId, $desde, $hasta];
+        $types  = "iiss";
+
+        if ($moneda !== null && $moneda !== '') {
+            $sql     .= " AND MonedaOrigen = ?";
+            $params[] = $moneda;
+            $types   .= "s";
+        }
+
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("iiss", $liquidacionId, $userId, $desde, $hasta);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $affected = $stmt->affected_rows;
         $stmt->close();
@@ -1122,25 +1236,86 @@ class TransactionRepository
     }
 
     /**
-     * All resellers with their total commissions and counts, including per-currency breakdown.
+     * Todos los revendedores con su desglose de comisiones POR MONEDA.
+     *
+     * Antes esto devolvía los escalares TotalGanado/PendienteCobro sumando
+     * monedas distintas (mal), más tres columnas PendienteCLP/COP/PEN
+     * hardcodeadas que dejaban afuera cualquier otra moneda (hay órdenes en USD).
+     * Ahora el desglose sale de un GROUP BY real y no hay ningún escalar
+     * multi-moneda que se pueda malinterpretar como pesos.
+     *
+     * Cada fila trae:
+     *   Ganado    => [{Moneda, Total, Cantidad}, ...]  (todas las completadas)
+     *   Pendiente => [{Moneda, Total, Cantidad}, ...]  (sin liquidar)
+     *   TienePendiente => bool
      */
     public function getResellersSummary(): array
     {
+        $conn = $this->db->getConnection();
+
         $sql = "SELECT U.UserID, U.PrimerNombre, U.PrimerApellido, U.Email,
-                       U.PorcentajeComision,
-                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 THEN T.ComisionRevendedor ELSE 0 END), 0) as TotalGanado,
-                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 AND (T.LiquidacionID IS NULL OR T.LiquidacionID = 0) THEN T.ComisionRevendedor ELSE 0 END), 0) as PendienteCobro,
-                       COUNT(DISTINCT CASE WHEN T.EstadoID = 4 THEN T.TransaccionID END) as TotalOrdenes,
-                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 AND T.MonedaOrigen = 'CLP' AND (T.LiquidacionID IS NULL OR T.LiquidacionID = 0) THEN T.ComisionRevendedor ELSE 0 END), 0) as PendienteCLP,
-                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 AND T.MonedaOrigen = 'COP' AND (T.LiquidacionID IS NULL OR T.LiquidacionID = 0) THEN T.ComisionRevendedor ELSE 0 END), 0) as PendienteCOP,
-                       COALESCE(SUM(CASE WHEN T.EstadoID = 4 AND T.MonedaOrigen = 'PEN' AND (T.LiquidacionID IS NULL OR T.LiquidacionID = 0) THEN T.ComisionRevendedor ELSE 0 END), 0) as PendientePEN
+                       U.Telefono, U.FechaRegistro, U.PorcentajeComision,
+                       COUNT(DISTINCT CASE WHEN T.EstadoID = 4 THEN T.TransaccionID END) AS TotalOrdenes
                 FROM usuarios U
                 LEFT JOIN transacciones T ON T.UserID = U.UserID
                 WHERE U.RolID = 4 AND U.Eliminado = 0
                 GROUP BY U.UserID
-                ORDER BY PendienteCobro DESC";
-        $result = $this->db->getConnection()->query($sql)->fetch_all(MYSQLI_ASSOC);
-        return $result;
+                ORDER BY U.PrimerNombre, U.PrimerApellido";
+        $resellers = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
+        if (!$resellers) {
+            return [];
+        }
+
+        $breakdownSql = "SELECT T.UserID, T.MonedaOrigen AS Moneda,
+                                COALESCE(SUM(T.ComisionRevendedor), 0) AS Total,
+                                COUNT(*) AS Cantidad,
+                                COALESCE(SUM(CASE WHEN T.LiquidacionID IS NULL OR T.LiquidacionID = 0
+                                                  THEN T.ComisionRevendedor ELSE 0 END), 0) AS Pendiente,
+                                SUM(CASE WHEN T.LiquidacionID IS NULL OR T.LiquidacionID = 0
+                                         THEN 1 ELSE 0 END) AS PendienteCantidad
+                         FROM transacciones T
+                         JOIN usuarios U ON U.UserID = T.UserID
+                         WHERE U.RolID = 4 AND U.Eliminado = 0
+                           AND T.EstadoID = 4 AND T.ComisionRevendedor > 0
+                         GROUP BY T.UserID, T.MonedaOrigen
+                         ORDER BY T.MonedaOrigen";
+        $breakdown = $conn->query($breakdownSql)->fetch_all(MYSQLI_ASSOC);
+
+        $ganado    = [];
+        $pendiente = [];
+        foreach ($breakdown as $b) {
+            $uid = (int) $b['UserID'];
+            if ((float) $b['Total'] > 0) {
+                $ganado[$uid][] = [
+                    'Moneda'   => (string) $b['Moneda'],
+                    'Total'    => (float) $b['Total'],
+                    'Cantidad' => (int) $b['Cantidad'],
+                ];
+            }
+            if ((float) $b['Pendiente'] > 0) {
+                $pendiente[$uid][] = [
+                    'Moneda'   => (string) $b['Moneda'],
+                    'Total'    => (float) $b['Pendiente'],
+                    'Cantidad' => (int) $b['PendienteCantidad'],
+                ];
+            }
+        }
+
+        foreach ($resellers as &$r) {
+            $uid = (int) $r['UserID'];
+            $r['Ganado']         = $ganado[$uid]    ?? [];
+            $r['Pendiente']      = $pendiente[$uid] ?? [];
+            $r['TienePendiente'] = !empty($pendiente[$uid]);
+        }
+        unset($r);
+
+        // Los que tienen plata pendiente primero: es la acción que el admin busca.
+        usort($resellers, function ($a, $b) {
+            return ($b['TienePendiente'] <=> $a['TienePendiente'])
+                ?: strcasecmp($a['PrimerNombre'] . $a['PrimerApellido'], $b['PrimerNombre'] . $b['PrimerApellido']);
+        });
+
+        return $resellers;
     }
 
     /**

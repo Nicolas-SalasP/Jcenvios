@@ -3,6 +3,8 @@
 # Dependencias Composer (se reinstala con "composer install")
 /remesas_private/vendor/
 /remesas_private/sessions/
+# Archivos de lock de los crons (App\Support\CronLock), se recrean solos
+/remesas_private/locks/
 
 # Dependencias npm (se reinstala con "npm install", copia a public_html/assets/vendor/)
 /node_modules/
@@ -28,3 +30,6 @@ Thumbs.db
 CLAUDE.md
 .playwright-mcp/
 remesas_private/.phpunit.result.cache
+remesas_private/coverage-html/
+remesas_private/coverage.xml
+/graphify-out/

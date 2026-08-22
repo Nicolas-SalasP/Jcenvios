@@ -24,6 +24,11 @@ class RateLimiterService
 
     /**
      * Verifica y registra un intento. Lanza excepción si se supera el límite.
+     *
+     * Depende de la UNIQUE KEY uq_ip_accion (ip, accion) — UNA fila por
+     * IP+acción, con `ventana_fin` como estado. Ver migrations/022. Con la
+     * clave vieja (ip, accion, ventana_fin) cada intento generaba una clave
+     * distinta y el upsert no incrementaba nunca: el limitador era decorativo.
      */
     public function check(string $accion, ?string $ip = null): void
     {
@@ -38,49 +43,81 @@ class RateLimiterService
 
         $conn = $this->db->getConnection();
 
-        // INSERT o incrementa hits atómicamente dentro de la ventana activa
+        // Un solo statement atómico: inserta la fila si es el primer intento;
+        // si ya existe, incrementa dentro de la ventana activa o la reinicia
+        // (hits = 1 + ventana nueva) si venció. El reinicio va acá adentro a
+        // propósito — un SELECT-then-UPDATE dejaría una ventana de carrera en
+        // la que dos requests simultáneos reinician el contador.
+        //
+        // hits queda además en LAST_INSERT_ID() para poder leer el valor
+        // resultante sin un SELECT extra: en la rama UPDATE, LAST_INSERT_ID(x)
+        // devuelve x. En la rama INSERT devuelve el AUTO_INCREMENT, por eso se
+        // distingue con affected_rows (1 = insert nuevo, 2 = update).
         $sql = "INSERT INTO rate_limit (ip, accion, hits, ventana_fin)
                 VALUES (?, ?, 1, ?)
                 ON DUPLICATE KEY UPDATE
-                    hits = IF(ventana_fin > NOW(), hits + 1, 1),
-                    ventana_fin = IF(ventana_fin > NOW(), ventana_fin, ?)";
+                    hits        = LAST_INSERT_ID(IF(ventana_fin > NOW(), hits + 1, 1)),
+                    ventana_fin = IF(ventana_fin > NOW(), ventana_fin, VALUES(ventana_fin))";
 
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssss", $ip, $accion, $ventanaFin, $ventanaFin);
+        $stmt->bind_param("sss", $ip, $accion, $ventanaFin);
         $stmt->execute();
+        $esFilaNueva = ($stmt->affected_rows === 1);
+        $hits = $esFilaNueva ? 1 : (int)$conn->insert_id;
         $stmt->close();
 
-        // Leer el estado actual
+        if ($hits <= $maxHits) {
+            return;
+        }
+
+        // `>` y no `>=`: hits ya incluye el intento actual, así que con
+        // maxHits = 10 los intentos 1..10 pasan y el 11 es el que corta.
+        // Eso es exactamente lo que dicen los comentarios de LIMITS
+        // ("10 intentos/min"): se permiten maxHits, no maxHits + 1.
+
+        // La ventana efectiva puede no ser la que acabamos de calcular (si la
+        // fila ya venía con una ventana activa se conservó la vieja), así que
+        // se lee para dar el tiempo restante real.
         $stmt2 = $conn->prepare(
-            "SELECT hits, ventana_fin FROM rate_limit
-             WHERE ip = ? AND accion = ? AND ventana_fin > NOW()
-             ORDER BY ventana_fin DESC LIMIT 1"
+            "SELECT ventana_fin FROM rate_limit WHERE ip = ? AND accion = ?"
         );
         $stmt2->bind_param("ss", $ip, $accion);
         $stmt2->execute();
         $row = $stmt2->get_result()->fetch_assoc();
         $stmt2->close();
 
-        if ($row && (int)$row['hits'] > $maxHits) {
-            $segundosRestantes = max(0, strtotime($row['ventana_fin']) - $ahora);
-            $minutosRestantes  = ceil($segundosRestantes / 60);
-            throw new \Exception(
-                "Demasiados intentos. Inténtalo nuevamente en $minutosRestantes minuto(s).",
-                429
-            );
-        }
+        $finTs = $row ? strtotime($row['ventana_fin']) : ($ahora + $ventanaSegundos);
+        $segundosRestantes = max(0, $finTs - $ahora);
+        $minutosRestantes  = max(1, (int)ceil($segundosRestantes / 60));
+
+        throw new \Exception(
+            "Demasiados intentos. Inténtalo nuevamente en $minutosRestantes minuto(s).",
+            429
+        );
     }
 
+    /**
+     * IP real del cliente.
+     *
+     * SOLO se usa REMOTE_ADDR, que lo escribe el servidor web y el cliente no
+     * puede falsificar. Antes se leían primero HTTP_CF_CONNECTING_IP y
+     * HTTP_X_FORWARDED_FOR, que son headers que manda el propio cliente: bastaba
+     * enviar un X-Forwarded-For distinto en cada request para tener intentos
+     * ilimitados, o mandar el de otra persona para dejarla bloqueada.
+     *
+     * Confiar en esos headers solo es válido detrás de un proxy de confianza que
+     * los reescriba. El hosting actual es cPanel directo, sin proxy delante
+     * (confirmado con el usuario el 2026-08-22).
+     *
+     * SI ALGÚN DÍA SE PONE CLOUDFLARE (u otro proxy) DELANTE: REMOTE_ADDR pasa a
+     * ser la IP del proxy y todos los usuarios compartirían el mismo contador.
+     * En ese caso hay que leer HTTP_CF_CONNECTING_IP, pero únicamente cuando
+     * REMOTE_ADDR esté dentro de los rangos publicados de Cloudflare; nunca
+     * confiar en el header por sí solo.
+     */
     private function getClientIp(): string
     {
-        foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {
-            if (!empty($_SERVER[$key])) {
-                $ip = trim(explode(',', $_SERVER[$key])[0]);
-                if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                    return $ip;
-                }
-            }
-        }
-        return '0.0.0.0';
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '0.0.0.0';
     }
 }

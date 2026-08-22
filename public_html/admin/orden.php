@@ -36,7 +36,7 @@ $cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
 // --- Manejo de ID inválido (sin fatal) ---
 if ($txId <= 0) {
     $pageTitle = 'Orden no encontrada';
-    $pageScript = 'admin.js';
+    $pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
     require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     ?>
     <div class="container mt-5 mb-5">
@@ -119,7 +119,7 @@ $stmt->close();
 // --- Orden inexistente (sin fatal) ---
 if (!$orden) {
     $pageTitle = 'Orden no encontrada';
-    $pageScript = 'admin.js';
+    $pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
     require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     ?>
     <div class="container mt-5 mb-5">
@@ -177,9 +177,11 @@ if ($comprobanteURL !== '') {
 $esImagen = in_array($extComprobante, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
 
 $pageTitle = 'Orden #' . $txId;
-$pageScript = 'admin.js';
+$pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
+
+<div id="app-data" class="d-none" data-cuentas-destino='<?php echo htmlspecialchars(json_encode($cuentasDestino), ENT_QUOTES, "UTF-8"); ?>'></div>
 
 <div class="container-fluid mt-4 mb-5 px-3 px-lg-4">
 
@@ -540,34 +542,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </div>
     </div>
 </div>
-
-<script>
-    window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
-</script>
-
-<script>
-    // Handler de .view-pause-reason-btn (no está en admin.js, va inline en cada página)
-    document.addEventListener('DOMContentLoaded', () => {
-        document.body.addEventListener('click', function (e) {
-            const btn = e.target.closest('.view-pause-reason-btn');
-            if (btn) {
-                e.preventDefault();
-                const reason = btn.getAttribute('data-reason');
-                const modalBodyText = document.getElementById('pause-reason-text');
-                if (modalBodyText) modalBodyText.textContent = reason;
-
-                const modalEl = document.getElementById('viewPauseReasonModal');
-                if (modalEl) {
-                    let modalInstance = bootstrap.Modal.getInstance(modalEl);
-                    if (!modalInstance) {
-                        modalInstance = new bootstrap.Modal(modalEl);
-                    }
-                    modalInstance.show();
-                }
-            }
-        });
-    });
-</script>
 
 <?php
 require_once __DIR__ . '/../../remesas_private/src/templates/footer.php';

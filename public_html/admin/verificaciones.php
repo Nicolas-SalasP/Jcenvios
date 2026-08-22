@@ -77,7 +77,7 @@ $isAjax = (isset($_GET['ajax']) && $_GET['ajax'] == '1');
 
 if (!$isAjax) {
     $pageTitle = 'Verificación de Identidad';
-    $pageScript = 'admin.js';
+    $pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
     require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 }
 ?>

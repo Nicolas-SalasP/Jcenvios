@@ -7,59 +7,47 @@
         return Number(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    // Nombre/email/teléfono los escribe el propio revendedor: van escapados
+    // siempre que se interpolen en innerHTML.
+    const esc = (s) => window.escapeHtml(s);
+    // window.escapeHtml (domUtils.js) NO escapa comillas; dentro de un atributo
+    // (data-nombre="...") hacen falta o se puede romper el atributo.
+    const escAttr = window.escapeAttr;
+
     /**
-     * Calls calculateConversion API to convert an amount from a source country to CLP.
-     * Returns the converted amount or null on error.
+     * Renderiza [{Moneda, Total, Cantidad}, …] como "CLP 5.000,00 + COP 20.000,00".
+     *
+     * La comisión del revendedor se calcula sobre el monto de origen de cada
+     * orden, así que está expresada en la moneda de esa orden. NUNCA se suman
+     * monedas distintas acá: antes se sumaban y el resultado se mostraba (y se
+     * pagaba) como pesos chilenos.
      */
-    async function convertToCLP(monto, paisOrigenID) {
-        if (!monto || monto <= 0) return 0;
-        try {
-            const res  = await fetch(`../api/?accion=calculateConversion&monto=${monto}&paisOrigenID=${paisOrigenID}&paisDestinoID=1`);
-            const data = await res.json();
-            return data.success ? data.montoConvertido : null;
-        } catch {
-            return null;
-        }
+    function fmtMonedas(lista, extraClass) {
+        if (!Array.isArray(lista)) return '<span class="text-muted">—</span>';
+        const partes = lista.filter(x => Number(x.Total) > 0).map(x => `${x.Moneda} ${fmt(x.Total)}`);
+        if (!partes.length) return '<span class="text-muted">—</span>';
+        return `<span class="${extraClass || ''}">${esc(partes.join(' + '))}</span>`;
     }
 
-    // Country ID mapping (origin → PaisID)
-    const COUNTRY_IDS = { COP: 2, PEN: 4, ECU: 10 };
-
-    // ── Feature 3 helper: build pending-cobro display string ────────────────
-
     /**
-     * Builds a display string for pending commissions, broken down by currency.
-     * Non-CLP amounts are converted asynchronously; the cell is updated in-place.
+     * Junta varias listas [{Moneda, Total}] en un solo total por moneda.
+     * Se usa para las tarjetas de resumen (suma sobre revendedores, no sobre monedas).
      */
-    async function buildPendienteCell(r, cell) {
-        const parts = [];
-        if (Number(r.PendienteCLP) > 0) parts.push(`CLP ${fmt(r.PendienteCLP)}`);
-        if (Number(r.PendienteCOP) > 0) parts.push(`COP ${fmt(r.PendienteCOP)}`);
-        if (Number(r.PendientePEN) > 0) parts.push(`PEN ${fmt(r.PendientePEN)}`);
+    function totalizarPorMoneda(listas) {
+        const acc = {};
+        listas.forEach(lista => {
+            (Array.isArray(lista) ? lista : []).forEach(x => {
+                const m = x.Moneda || '?';
+                acc[m] = (acc[m] || 0) + Number(x.Total || 0);
+            });
+        });
+        return Object.keys(acc).sort().map(m => ({ Moneda: m, Total: acc[m] }));
+    }
 
-        if (!parts.length) {
-            cell.innerHTML = '<span class="text-muted">—</span>';
-            return;
-        }
-
-        // Show base amounts first
-        cell.innerHTML = `<span class="fw-bold text-warning">${parts.join(' + ')}</span>`;
-
-        // Compute CLP equivalents for non-CLP amounts in background
-        const clpEquivParts = [];
-        if (Number(r.PendienteCLP) > 0) clpEquivParts.push(Number(r.PendienteCLP));
-
-        const conversions = [];
-        if (Number(r.PendienteCOP) > 0) conversions.push(convertToCLP(r.PendienteCOP, COUNTRY_IDS.COP));
-        if (Number(r.PendientePEN) > 0) conversions.push(convertToCLP(r.PendientePEN, COUNTRY_IDS.PEN));
-
-        if (conversions.length > 0) {
-            const results = await Promise.all(conversions);
-            let totalCLPEquiv = Number(r.PendienteCLP) || 0;
-            results.forEach(v => { if (v !== null) totalCLPEquiv += v; });
-            const equiv = `<br><small class="text-muted">≈ CLP ${fmt(totalCLPEquiv)} total</small>`;
-            cell.innerHTML = `<span class="fw-bold text-warning">${parts.join(' + ')}</span>${equiv}`;
-        }
+    function textoMonedas(lista) {
+        if (!Array.isArray(lista)) return '—';
+        const partes = lista.filter(x => Number(x.Total) > 0).map(x => `${x.Moneda} ${fmt(x.Total)}`);
+        return partes.length ? partes.join(' + ') : '—';
     }
 
     // ── Avatar initials helper ───────────────────────────────────────────────
@@ -83,9 +71,9 @@
             ? new Date(r.FechaRegistro).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
             : '';
 
-        const liquidarBtn = Number(r.PendienteCobro) > 0
+        const liquidarBtn = r.TienePendiente
             ? `<button class="btn btn-sm btn-primary btn-crear-liq"
-                   data-id="${r.UserID}" data-nombre="${nombre}" title="Crear liquidación">
+                   data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}" title="Crear liquidación">
                    <i class="bi bi-cash-stack me-1"></i>Liquidar
                </button>`
             : `<button class="btn btn-sm btn-outline-secondary" disabled title="Sin comisión pendiente">
@@ -93,52 +81,52 @@
                </button>`;
 
         return `
-            <tr data-search="${nombre.toLowerCase()} ${(r.Email || '').toLowerCase()}">
+            <tr data-search="${escAttr(nombre.toLowerCase() + ' ' + (r.Email || '').toLowerCase())}">
                 <td>
                     <div class="d-flex align-items-center gap-2">
                         <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold text-white"
                              style="width:32px;height:32px;font-size:.75rem;background:${color}">
-                            ${inits}
+                            ${esc(inits)}
                         </div>
                         <div>
-                            <div class="fw-semibold lh-sm">${nombre}</div>
-                            <small class="text-muted"><i class="bi bi-envelope me-1"></i>${r.Email || '—'}</small>
-                            ${r.Telefono ? `<br><small class="text-muted"><i class="bi bi-whatsapp me-1 text-success"></i>${r.Telefono}</small>` : ''}
-                            ${regDate ? `<br><span class="text-muted" style="font-size:.7rem">Desde ${regDate}</span>` : ''}
+                            <div class="fw-semibold lh-sm">${esc(nombre)}</div>
+                            <small class="text-muted"><i class="bi bi-envelope me-1"></i>${esc(r.Email || '—')}</small>
+                            ${r.Telefono ? `<br><small class="text-muted"><i class="bi bi-whatsapp me-1 text-success"></i>${esc(r.Telefono)}</small>` : ''}
+                            ${regDate ? `<br><span class="text-muted" style="font-size:.7rem">Desde ${esc(regDate)}</span>` : ''}
                         </div>
                     </div>
                 </td>
                 <td class="text-center">
                     <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold">${parseFloat(r.PorcentajeComision)}%</span>
                 </td>
-                <td class="text-end">
-                    <span class="fw-semibold small">CLP ${fmt(r.TotalGanado)}</span>
+                <td class="text-end small">
+                    ${fmtMonedas(r.Ganado, 'fw-semibold')}
                 </td>
-                <td class="text-end" id="pendiente-cell-${r.UserID}">
-                    <span class="spinner-border spinner-border-sm text-secondary"></span>
+                <td class="text-end small">
+                    ${fmtMonedas(r.Pendiente, 'fw-bold text-warning')}
                 </td>
                 <td class="text-center">
-                    <span class="badge bg-light text-dark border">${r.TotalOrdenes}</span>
+                    <span class="badge bg-light text-dark border">${esc(r.TotalOrdenes)}</span>
                 </td>
                 <td>
                     <div class="d-flex gap-1 justify-content-end flex-wrap">
                         ${liquidarBtn}
                         <button class="btn btn-sm btn-outline-secondary btn-edit-comision"
-                            data-id="${r.UserID}" data-nombre="${nombre}" data-pct="${r.PorcentajeComision}"
+                            data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}" data-pct="${escAttr(r.PorcentajeComision)}"
                             title="Editar comisión">
                             <i class="bi bi-percent"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-info btn-config-paises"
-                            data-id="${r.UserID}" data-nombre="${nombre}"
+                            data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}"
                             title="Comisión por país">
                             <i class="bi bi-globe"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-warning btn-limite-cuentas"
-                            data-id="${r.UserID}" data-nombre="${nombre}"
+                            data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}"
                             title="Límite de cuentas bancarias">
                             <i class="bi bi-bank"></i>
                         </button>
-                        <a href="transacciones.php?revendedorId=${r.UserID}" class="btn btn-sm btn-outline-dark"
+                        <a href="transacciones.php?revendedorId=${encodeURIComponent(r.UserID)}" class="btn btn-sm btn-outline-dark"
                            title="Ver órdenes">
                             <i class="bi bi-receipt"></i>
                         </a>
@@ -155,38 +143,35 @@
         const tbody = document.getElementById('resellers-body');
         try {
             const res  = await fetch('../api/?accion=getResellerList');
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
             const data = await res.json();
-            if (!data.success || !data.data.length) {
+            if (!data.success) throw new Error(data.error || 'No se pudo obtener la lista de revendedores.');
+            if (!data.data.length) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No hay revendedores registrados.</td></tr>';
                 return;
             }
 
             _resellersData = data.data;
 
-            // Populate summary stats cards
+            // Tarjetas de resumen: se suma POR MONEDA entre revendedores, nunca
+            // entre monedas distintas.
             const totalOrdenes = data.data.reduce((s, r) => s + Number(r.TotalOrdenes), 0);
-            const totalGanado  = data.data.reduce((s, r) => s + Number(r.TotalGanado),  0);
-            const totalPend    = data.data.reduce((s, r) => s + Number(r.PendienteCobro || 0), 0);
+            const totalGanado  = totalizarPorMoneda(data.data.map(r => r.Ganado));
+            const totalPend    = totalizarPorMoneda(data.data.map(r => r.Pendiente));
             const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
             setEl('stat-total-resellers', data.data.length);
             setEl('stat-total-ordenes',   totalOrdenes.toLocaleString('es-CL'));
-            setEl('stat-pendiente-total', 'CLP ' + fmt(totalPend));
-            setEl('stat-total-ganado',    'CLP ' + fmt(totalGanado));
+            setEl('stat-pendiente-total', textoMonedas(totalPend));
+            setEl('stat-total-ganado',    textoMonedas(totalGanado));
             const countBadge = document.getElementById('badge-count-resellers');
             if (countBadge) countBadge.textContent = data.data.length;
 
             tbody.innerHTML = data.data.map(resellerRow).join('');
             wireResellerButtons();
 
-            // Populate pending-cobro cells (Feature 3) asynchronously
-            data.data.forEach(r => {
-                const cell = document.getElementById(`pendiente-cell-${r.UserID}`);
-                if (cell) buildPendienteCell(r, cell);
-            });
-
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-danger">Error al cargar revendedores.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-danger">${esc(window.formatNetworkError(e, 'Error al cargar revendedores.'))}</td></tr>`;
         }
     }
 
@@ -198,10 +183,10 @@
                 const now = new Date();
                 document.getElementById('liq-desde').value  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
                 document.getElementById('liq-hasta').value  = now.toISOString().split('T')[0];
-                document.getElementById('liq-preview').classList.add('d-none');
-                document.getElementById('btnConfirmLiq').disabled = true;
+                document.getElementById('liq-modo-por-moneda').checked = true;
+                resetPreview();
                 document.getElementById('liq-notas').value = '';
-                new bootstrap.Modal(document.getElementById('crearLiqModal')).show();
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('crearLiqModal')).show();
             });
         });
     }
@@ -222,12 +207,52 @@
         applyResellerFilter();
     });
 
+    /**
+     * Muestra a qué cambio se pagó cada moneda de una liquidación consolidada.
+     * Es el rastro auditable: sin esto, dentro de seis meses nadie puede
+     * reconstruir el pago.
+     */
+    /**
+     * Ajuste manual con motivo (migración 024). Sin mostrarlo acá el registro
+     * no sirve para nada: el admin vería sólo el monto final y no de dónde sale.
+     * El motivo lo escribe el propio admin → va escapado.
+     */
+    function detalleAjuste(l) {
+        const delta = Number(l.MontoAjuste || 0);
+        if (!isFinite(delta) || delta === 0) return '';
+        const moneda = l.Moneda || 'CLP';
+        const base   = l.MontoBase !== null && l.MontoBase !== undefined
+            ? Number(l.MontoBase)
+            : Number(l.Monto) - delta;
+        const signo  = delta > 0 ? '+' : '−';
+        const clase  = delta > 0 ? 'text-success' : 'text-danger';
+        return `<br><small class="fw-normal d-block" style="font-size:.7rem">
+                    <span class="text-muted">Base ${esc(moneda)} ${esc(fmt(base))}</span>
+                    <span class="${clase}">${signo} ${esc(moneda)} ${esc(fmt(Math.abs(delta)))}</span>
+                </small>
+                <small class="text-muted fst-italic fw-normal d-block" style="font-size:.7rem">
+                    Motivo: ${esc(l.MotivoAjuste || '—')}
+                </small>`;
+    }
+
+    function detalleConversion(l) {
+        if (l.ModoLiquidacion !== 'consolidado_clp' || !Array.isArray(l.Detalle) || l.Detalle.length === 0) {
+            return '';
+        }
+        const lineas = l.Detalle.map(d =>
+            `${d.Moneda} ${fmt(d.MontoOriginal)} × ${Number(d.TasaConversion)} = CLP ${fmt(d.MontoConvertido)}`
+        );
+        return `<br><small class="text-muted fw-normal" style="font-size:.7rem">${esc(lineas.join(' · '))}</small>`;
+    }
+
     async function loadLiquidaciones() {
         const tbody = document.getElementById('liq-body');
         try {
             const res  = await fetch('../api/?accion=getLiquidacionesList');
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
             const data = await res.json();
-            if (!data.success || !data.data.length) {
+            if (!data.success) throw new Error(data.error || 'No se pudo obtener el listado de liquidaciones.');
+            if (!data.data.length) {
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Sin liquidaciones creadas.</td></tr>';
                 return;
             }
@@ -235,20 +260,24 @@
             if (liqBadge) liqBadge.textContent = data.data.length;
             tbody.innerHTML = data.data.map(l => `
                 <tr>
-                    <td><strong>${l.RevendedorNombre}</strong><br><small class="text-muted">${l.RevendedorEmail}</small></td>
-                    <td class="small">${l.PeriodoDesde} — ${l.PeriodoHasta}</td>
-                    <td class="text-end fw-bold">${fmt(l.Monto)}</td>
-                    <td class="text-center">${l.CantidadTransacciones}</td>
+                    <td><strong>${esc(l.RevendedorNombre)}</strong><br><small class="text-muted">${esc(l.RevendedorEmail)}</small></td>
+                    <td class="small">${esc(l.PeriodoDesde)} — ${esc(l.PeriodoHasta)}</td>
+                    <td class="text-end fw-bold">
+                        ${esc(l.Moneda || 'CLP')} ${esc(fmt(l.Monto))}
+                        ${detalleConversion(l)}
+                        ${detalleAjuste(l)}
+                    </td>
+                    <td class="text-center">${esc(l.CantidadTransacciones)}</td>
                     <td>${l.Estado === 'pagada'
                         ? '<span class="badge bg-success">Pagada</span>'
                         : '<span class="badge bg-warning text-dark">Pendiente</span>'}</td>
-                    <td class="small">${l.FechaPago ? new Date(l.FechaPago).toLocaleDateString('es-CL') : '—'}</td>
+                    <td class="small">${l.FechaPago ? esc(new Date(l.FechaPago).toLocaleDateString('es-CL')) : '—'}</td>
                     <td class="text-end">
                         ${l.Estado !== 'pagada' ? `
                         <button class="btn btn-sm btn-success btn-pagar-liq"
-                            data-id="${l.LiquidacionID}"
-                            data-monto="${fmt(l.Monto)}"
-                            data-nombre="${l.RevendedorNombre}">
+                            data-id="${escAttr(l.LiquidacionID)}"
+                            data-monto="${escAttr((l.Moneda || 'CLP') + ' ' + fmt(l.Monto))}"
+                            data-nombre="${escAttr(l.RevendedorNombre)}">
                             <i class="bi bi-check-circle me-1"></i> Pagar
                         </button>` :
                         l.ComprobanteURL
@@ -263,35 +292,464 @@
                     document.getElementById('pagar-liq-id').value     = btn.dataset.id;
                     document.getElementById('pagar-liq-monto').textContent  = btn.dataset.monto;
                     document.getElementById('pagar-liq-nombre').textContent = btn.dataset.nombre;
-                    new bootstrap.Modal(document.getElementById('pagarLiqModal')).show();
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('pagarLiqModal')).show();
                 });
             });
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">Error al cargar liquidaciones.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger">${esc(window.formatNetworkError(e, 'Error al cargar liquidaciones.'))}</td></tr>`;
         }
     }
 
     // ── Preview / Crear liquidacion ──────────────────────────────────────────
+
+    // Último desglose calculado. Se limpia al abrir el modal y al cambiar de
+    // modo: confirmar con un desglose viejo sería pagar un monto que el admin
+    // no está viendo.
+    let _liqPreview = null;
+
+    function modoSeleccionado() {
+        const el = document.querySelector('input[name="liq-modo"]:checked');
+        return el ? el.value : 'por_moneda';
+    }
+
+    function resetPreview() {
+        _liqPreview = null;
+        const preview = document.getElementById('liq-preview');
+        preview.classList.add('d-none');
+        preview.innerHTML = '';
+        document.getElementById('btnConfirmLiq').disabled = true;
+    }
+
+    /**
+     * Fila editable de conversión (solo en modo consolidado).
+     * La tasa se expresa como CLP por 1 unidad de la moneda:
+     *   montoCLP = montoOriginal * tasa
+     * Se muestra además la equivalencia inversa (1 CLP = X moneda) porque es
+     * como el admin está acostumbrado a leer las tasas del panel.
+     */
+    function filaConversion(d) {
+        const sinTasa = d.tasaSugerida === null || d.tasaSugerida === undefined;
+        const valor   = sinTasa ? '' : d.tasaSugerida;
+        const origen  = d.sentidoTasa === 'inversa'
+            ? `sugerida desde la ruta CLP→${d.moneda} (invertida)`
+            : d.sentidoTasa === 'directa'
+                ? `sugerida desde la ruta ${d.moneda}→CLP`
+                : d.moneda === 'CLP' ? 'sin conversión' : '';
+
+        if (d.moneda === 'CLP') {
+            return `
+                <tr data-moneda="CLP" data-monto="${escAttr(d.total)}">
+                    <td class="fw-semibold">CLP</td>
+                    <td class="text-end">${esc(fmt(d.total))}</td>
+                    <td class="text-center small text-muted">${esc(d.cantidad)}</td>
+                    <td class="text-center small text-muted">1 (sin conversión)</td>
+                    <td class="text-end fw-semibold liq-clp-cell">${esc(fmt(d.total))}</td>
+                </tr>`;
+        }
+
+        return `
+            <tr data-moneda="${escAttr(d.moneda)}">
+                <td class="fw-semibold">${esc(d.moneda)}</td>
+                <td class="text-end">${esc(fmt(d.total))}</td>
+                <td class="text-center small text-muted">${esc(d.cantidad)}</td>
+                <td>
+                    <input type="number" step="any" min="0"
+                           class="form-control form-control-sm text-end liq-tasa-input"
+                           data-moneda="${escAttr(d.moneda)}"
+                           data-monto="${escAttr(d.total)}"
+                           value="${escAttr(valor)}"
+                           placeholder="CLP por 1 ${escAttr(d.moneda)}">
+                    <small class="${sinTasa ? 'text-danger' : 'text-muted'}" style="font-size:.7rem">
+                        ${sinTasa
+                            ? 'Sin ruta de tasas activa: escribí la tasa a mano.'
+                            : esc(origen)}
+                    </small>
+                </td>
+                <td class="text-end fw-semibold liq-clp-cell">—</td>
+            </tr>`;
+    }
+
+    // ── Ajuste manual con motivo ────────────────────────────────────────────
+    //
+    // El ajuste es un DELTA sobre el monto calculado, en la moneda de la propia
+    // liquidación, y NO una edición de la tasa: una tasa deformada afirmaría una
+    // conversión cambiaria que nunca ocurrió. Las reglas de acá son un espejo de
+    // LiquidacionService::resolverAjuste — el backend igual valida y rechaza con
+    // 422, esto es la primera barrera, no la única.
+
+    const MIN_MOTIVO_AJUSTE = 5;   // = LiquidacionService::MIN_MOTIVO_AJUSTE
+    const MAX_MOTIVO_AJUSTE = 255; // = LiquidacionService::MAX_MOTIVO_AJUSTE (VARCHAR(255))
+
+    const round2 = (n) => Math.round(n * 100) / 100;
+
+    /** Celdas "Ajuste | Motivo | Monto final" de una fila de liquidación. */
+    function celdasAjuste(moneda, base) {
+        return `
+            <td>
+                <input type="number" step="any"
+                       class="form-control form-control-sm text-end liq-ajuste-input"
+                       data-moneda="${escAttr(moneda)}"
+                       placeholder="0 (opcional)"
+                       title="Ajuste en ${escAttr(moneda)}: positivo suma, negativo resta">
+            </td>
+            <td>
+                <input type="text" maxlength="${MAX_MOTIVO_AJUSTE}"
+                       class="form-control form-control-sm liq-motivo-input"
+                       data-moneda="${escAttr(moneda)}"
+                       placeholder="Motivo (obligatorio si hay ajuste)">
+            </td>
+            <td class="text-end fw-bold liq-final-cell">${esc(fmt(base))}</td>`;
+    }
+
+    /**
+     * Valida un par (ajuste, motivo) contra su base.
+     * @returns {{ok: boolean, delta: number, motivo: string, final: number, error: string}}
+     */
+    function evaluarAjuste(moneda, ajusteEl, motivoEl, base) {
+        const raw    = (ajusteEl.value || '').trim();
+        const motivo = (motivoEl.value || '').trim();
+
+        let delta = 0;
+        if (raw !== '') {
+            delta = Number(raw);
+            if (!isFinite(delta)) {
+                return { ok: false, delta: 0, motivo, final: base,
+                    error: `El ajuste de la liquidación en ${moneda} no es un número válido.` };
+            }
+        }
+        delta = round2(delta);
+
+        // Un input[type=number] devuelve cadena vacía cuando lo que se tipeó no es
+        // un número válido para el navegador: escribir "1500,50" con coma decimal
+        // deja value === '' y sin este chequeo el ajuste se descartaba en silencio.
+        // El admin escribía el motivo, veía el botón habilitado, confirmaba, y se
+        // pagaba el monto SIN el descuento. Si hay motivo, hubo intención de
+        // ajustar: no se puede tratar como "sin ajuste".
+        if (delta === 0 && motivo !== '') {
+            return { ok: false, delta: 0, motivo, final: round2(base),
+                error: `Escribiste un motivo para la liquidación en ${moneda}, pero el ajuste está vacío o no es un número válido. Usá punto como separador decimal (por ejemplo 1500.50).` };
+        }
+
+        // Sin ajuste no hay nada que justificar: el motivo se ignora.
+        if (delta === 0) {
+            return { ok: true, delta: 0, motivo: '', final: round2(base), error: '' };
+        }
+
+        if (motivo.length < MIN_MOTIVO_AJUSTE) {
+            return { ok: false, delta, motivo, final: round2(base + delta),
+                error: `El ajuste en ${moneda} necesita un motivo de al menos ${MIN_MOTIVO_AJUSTE} caracteres. Un ajuste sin motivo no queda auditable.` };
+        }
+
+        const final = round2(base + delta);
+        if (final <= 0) {
+            return { ok: false, delta, motivo, final,
+                error: `El ajuste deja la liquidación en ${moneda} en ${fmt(final)}. El monto a pagar tiene que ser mayor que cero.` };
+        }
+
+        return { ok: true, delta, motivo, final, error: '' };
+    }
+
+    /** Pinta los errores de ajuste en el bloque de avisos y devuelve si hay alguno. */
+    function pintarAvisosAjuste(errores) {
+        const el = document.getElementById('liq-ajuste-aviso');
+        if (!el) return errores.length > 0;
+        el.innerHTML = errores.length === 0
+            ? ''
+            : `<div class="alert alert-danger py-2 px-3 mb-0 mt-2 small">
+                   ${errores.map(e => `<div>${esc(e)}</div>`).join('')}
+               </div>`;
+        return errores.length > 0;
+    }
+
+    /** Recorre una fila/bloque con ajuste y actualiza su celda de monto final. */
+    function aplicarAjusteEnNodo(nodo, moneda, base, errores) {
+        const aj    = nodo.querySelector('.liq-ajuste-input');
+        const mo    = nodo.querySelector('.liq-motivo-input');
+        const celda = nodo.querySelector('.liq-final-cell');
+        if (!aj || !mo) return;
+
+        const r = evaluarAjuste(moneda, aj, mo, base);
+        aj.classList.toggle('is-invalid', !r.ok);
+        mo.classList.toggle('is-invalid', !r.ok && r.delta !== 0);
+        if (celda) celda.textContent = r.ok ? fmt(r.final) : '—';
+        if (!r.ok) errores.push(r.error);
+    }
+
+    function recalcularPorMoneda() {
+        const preview = document.getElementById('liq-preview');
+        const errores = [];
+
+        preview.querySelectorAll('tr[data-moneda]').forEach(tr => {
+            // data-base es el monto crudo; el texto de la celda está formateado.
+            aplicarAjusteEnNodo(tr, tr.dataset.moneda, parseFloat(tr.dataset.base) || 0, errores);
+        });
+
+        document.getElementById('btnConfirmLiq').disabled = pintarAvisosAjuste(errores);
+    }
+
+    function recalcularConsolidado() {
+        const preview = document.getElementById('liq-preview');
+        const btn     = document.getElementById('btnConfirmLiq');
+        let total     = 0;
+        let valido    = true;
+        const faltan  = [];
+
+        preview.querySelectorAll('tr[data-moneda]').forEach(tr => {
+            const moneda = tr.dataset.moneda;
+            const celda  = tr.querySelector('.liq-clp-cell');
+            if (moneda === 'CLP') {
+                // Monto crudo del data-attr, no el texto formateado de la celda.
+                total += parseFloat(tr.dataset.monto) || 0;
+                return;
+            }
+            const input = tr.querySelector('.liq-tasa-input');
+            const tasa  = parseFloat(input.value);
+            const monto = parseFloat(input.dataset.monto);
+
+            if (!isFinite(tasa) || tasa <= 0) {
+                valido = false;
+                faltan.push(moneda);
+                celda.innerHTML = '<span class="text-danger">falta tasa</span>';
+                input.classList.add('is-invalid');
+                return;
+            }
+            input.classList.remove('is-invalid');
+            // Se redondea POR FILA, igual que LiquidacionService::crearConsolidado,
+            // que hace round($monto * $factor, 2) antes de acumular. Sumando sin
+            // redondear, el total mostrado podía diferir en centavos del MontoBase
+            // que se guarda, y además las filas no sumaban el total en pantalla.
+            const convertido = round2(monto * tasa);
+            total += convertido;
+            celda.textContent = fmt(convertido);
+        });
+
+        total = round2(total);
+
+        const totalEl = preview.querySelector('#liq-total-clp');
+        const avisoEl = preview.querySelector('#liq-total-aviso');
+        if (totalEl) totalEl.textContent = valido ? 'CLP ' + fmt(total) : '—';
+        if (avisoEl) {
+            avisoEl.innerHTML = valido
+                ? ''
+                : `<div class="alert alert-danger py-2 px-3 mb-0 mt-2 small">
+                       Falta la tasa de conversión de <strong>${esc(faltan.join(', '))}</strong>.
+                       No se puede consolidar sin ella; también podés liquidar por moneda.
+                   </div>`;
+        }
+
+        // El ajuste va sobre el total YA convertido, y en CLP: es la moneda de
+        // esta única liquidación. Se recalcula cada vez porque la base depende
+        // de las tasas que el admin esté editando.
+        const errores = [];
+        const box = document.getElementById('liq-ajuste-box');
+        if (box) {
+            box.dataset.base = valido ? total : '';
+            const baseEl = document.getElementById('liq-ajuste-base');
+            if (baseEl) baseEl.textContent = valido ? 'CLP ' + fmt(total) : '—';
+            if (valido) {
+                aplicarAjusteEnNodo(box, 'CLP', total, errores);
+            } else {
+                const celda = box.querySelector('.liq-final-cell');
+                if (celda) celda.textContent = '—';
+            }
+        }
+
+        btn.disabled = !valido || pintarAvisosAjuste(errores);
+    }
+
+    /** Cablea los inputs de ajuste/motivo al recálculo en vivo. */
+    function wireAjusteInputs(recalcular) {
+        document.querySelectorAll('#liq-preview .liq-ajuste-input, #liq-preview .liq-motivo-input')
+            .forEach(inp => inp.addEventListener('input', recalcular));
+    }
+
+    /**
+     * Junta los ajustes del DOM en el mapa { MONEDA: {monto, motivo} } que espera
+     * el backend. Devuelve null si alguno es inválido (no debería llegar acá: el
+     * botón está deshabilitado, pero es plata y no se manda a ciegas).
+     */
+    function recolectarAjustes(pares) {
+        const ajustes = {};
+        for (const { moneda, nodo, base } of pares) {
+            const aj = nodo.querySelector('.liq-ajuste-input');
+            const mo = nodo.querySelector('.liq-motivo-input');
+            if (!aj || !mo) continue;
+            const r = evaluarAjuste(moneda, aj, mo, base);
+            if (!r.ok) {
+                window.showInfoModal('Ajuste inválido', r.error, false);
+                return null;
+            }
+            if (r.delta !== 0) {
+                ajustes[moneda] = { monto: r.delta, motivo: r.motivo };
+            }
+        }
+        return ajustes;
+    }
+
+    function renderPreview() {
+        const preview = document.getElementById('liq-preview');
+        const btn     = document.getElementById('btnConfirmLiq');
+        const data    = _liqPreview;
+
+        if (!data || !data.desglose.length) {
+            preview.classList.remove('d-none');
+            preview.innerHTML = '<div class="alert alert-warning mb-0">No hay comisiones pendientes en ese período.</div>';
+            btn.disabled = true;
+            return;
+        }
+
+        const modo = modoSeleccionado();
+        preview.classList.remove('d-none');
+
+        if (modo === 'por_moneda') {
+            // Cada liquidación lleva SU propio ajuste en SU moneda: un ajuste en
+            // COP no puede aplicarse a la liquidación en CLP.
+            const filas = data.desglose.map(d => `
+                <tr data-moneda="${escAttr(d.moneda)}" data-base="${escAttr(d.total)}">
+                    <td class="fw-semibold">${esc(d.moneda)}</td>
+                    <td class="text-end">${esc(fmt(d.total))}</td>
+                    <td class="text-center small text-muted">${esc(d.cantidad)}</td>
+                    ${celdasAjuste(d.moneda, d.total)}
+                </tr>`).join('');
+
+            preview.innerHTML = `
+                <div class="alert alert-info mb-2 py-2 px-3 small">
+                    Se van a crear <strong>${esc(data.desglose.length)}</strong> liquidación(es),
+                    una por moneda. Cada una marca solo las órdenes de su propia moneda.
+                    El ajuste de cada fila va en <strong>su propia moneda</strong>.
+                </div>
+                <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Moneda</th>
+                            <th class="text-end">Base calculada</th>
+                            <th class="text-center">Órdenes</th>
+                            <th style="min-width:120px">Ajuste (+/−)</th>
+                            <th style="min-width:200px">Motivo del ajuste</th>
+                            <th class="text-end">Monto final</th>
+                        </tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>
+                </div>
+                <div id="liq-ajuste-aviso"></div>`;
+
+            wireAjusteInputs(recalcularPorMoneda);
+            recalcularPorMoneda();
+            return;
+        }
+
+        // Modo consolidado: tasas visibles y editables.
+        const filas = data.desglose.map(filaConversion).join('');
+        preview.innerHTML = `
+            <div class="alert alert-warning mb-2 py-2 px-3 small">
+                Revisá la tasa de cada moneda antes de confirmar. La tasa es
+                <strong>CLP por 1 unidad</strong> de esa moneda y queda guardada con la liquidación.
+            </div>
+            <table class="table table-sm table-bordered align-middle mb-2">
+                <thead class="table-light">
+                    <tr>
+                        <th>Moneda</th>
+                        <th class="text-end">Comisión</th>
+                        <th class="text-center">Órdenes</th>
+                        <th style="min-width:170px">Tasa (CLP por 1)</th>
+                        <th class="text-end">Equivale a (CLP)</th>
+                    </tr>
+                </thead>
+                <tbody>${filas}</tbody>
+                <tfoot>
+                    <tr class="table-light">
+                        <th colspan="4" class="text-end">Total calculado</th>
+                        <th class="text-end" id="liq-total-clp">—</th>
+                    </tr>
+                </tfoot>
+            </table>
+            <div id="liq-total-aviso"></div>
+            <div class="border rounded p-2 mt-2" id="liq-ajuste-box">
+                <div class="row g-2 align-items-end">
+                    <div class="col-12">
+                        <span class="small text-muted">
+                            Ajuste manual en <strong>CLP</strong> (opcional): un anticipo ya
+                            entregado, un descuento acordado, un redondeo. Positivo suma, negativo resta.
+                            No toques la tasa para esto.
+                        </span>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold mb-1">Base calculada</label>
+                        <div class="form-control form-control-sm bg-light text-end" id="liq-ajuste-base">—</div>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold mb-1">Ajuste (+/−)</label>
+                        <input type="number" step="any"
+                               class="form-control form-control-sm text-end liq-ajuste-input"
+                               data-moneda="CLP" placeholder="0 (opcional)">
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label small fw-semibold mb-1">Motivo del ajuste</label>
+                        <input type="text" maxlength="${MAX_MOTIVO_AJUSTE}"
+                               class="form-control form-control-sm liq-motivo-input"
+                               data-moneda="CLP" placeholder="Obligatorio si hay ajuste">
+                    </div>
+                    <div class="col-12 text-end">
+                        <span class="small text-muted">Monto final a pagar:</span>
+                        <span class="fs-6 fw-bold liq-final-cell">—</span>
+                    </div>
+                </div>
+            </div>
+            <div id="liq-ajuste-aviso"></div>`;
+
+        preview.querySelectorAll('.liq-tasa-input').forEach(inp => {
+            inp.addEventListener('input', recalcularConsolidado);
+        });
+        wireAjusteInputs(recalcularConsolidado);
+        recalcularConsolidado();
+    }
+
+    document.querySelectorAll('input[name="liq-modo"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (_liqPreview) renderPreview();
+        });
+    });
 
     document.getElementById('btnPreviewLiq').addEventListener('click', async () => {
         const userId  = document.getElementById('liq-user-id').value;
         const desde   = document.getElementById('liq-desde').value;
         const hasta   = document.getElementById('liq-hasta').value;
         const preview = document.getElementById('liq-preview');
-        const btn     = document.getElementById('btnConfirmLiq');
 
         if (!desde || !hasta) { window.showInfoModal('Falta el período', 'Selecciona período.', false); return; }
         if (desde > hasta) { window.showInfoModal('Período inválido', 'La fecha "desde" no puede ser posterior a "hasta".', false); return; }
 
-        const params = new URLSearchParams({ userId, desde, hasta });
-        const res    = await fetch('../api/?accion=getResellerCommissionPreview&' + params);
-        const data   = await res.json();
+        const btnPreview = document.getElementById('btnPreviewLiq');
+        const previewOriginal = btnPreview.innerHTML;
+        btnPreview.disabled = true;
+        btnPreview.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        resetPreview();
 
-        if (data.success) {
-            preview.classList.remove('d-none');
-            preview.innerHTML = `Monto a liquidar: <strong>${fmt(data.total)}</strong> (${data.cantidad} transacciones) <small class="text-muted">* suma de todas las monedas</small>`;
-            btn.disabled = (Number(data.total) <= 0);
+        try {
+            const params = new URLSearchParams({ userId, desde, hasta });
+            const res    = await fetch('../api/?accion=getResellerCommissionPreview&' + params);
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+            const data   = await res.json();
+
+            // Antes no había else ni catch: si la previsualización fallaba, no
+            // pasaba nada visible y el botón "Crear liquidación" quedaba
+            // deshabilitado sin explicación.
+            if (data.success) {
+                _liqPreview = data;
+                renderPreview();
+            } else {
+                preview.classList.add('d-none');
+                window.showInfoModal('Error', data.error || 'No se pudo calcular la previsualización.', false);
+            }
+        } catch (err) {
+            preview.classList.add('d-none');
+            window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo calcular la previsualización.'), false);
+        } finally {
+            btnPreview.disabled = false;
+            btnPreview.innerHTML = previewOriginal;
         }
     });
 
@@ -300,8 +758,63 @@
         const desde  = document.getElementById('liq-desde').value;
         const hasta  = document.getElementById('liq-hasta').value;
         const notas  = document.getElementById('liq-notas').value;
+        const modo   = modoSeleccionado();
+
+        if (!_liqPreview) {
+            window.showInfoModal('Falta calcular', 'Calculá el monto antes de crear la liquidación.', false);
+            return;
+        }
+
+        // Tasas solo en modo consolidado. El backend igual valida y rechaza si
+        // falta alguna o no es positiva: esto es la primera barrera, no la única.
+        const tasas = {};
+        // Ajuste manual: { MONEDA: {monto, motivo} }, en la moneda de CADA
+        // liquidación. En consolidado hay una sola clave (CLP); en por_moneda,
+        // una por cada moneda que tenga ajuste.
+        let pares = [];
+
+        if (modo === 'consolidado_clp') {
+            let faltante = null;
+            document.querySelectorAll('#liq-preview .liq-tasa-input').forEach(inp => {
+                const t = parseFloat(inp.value);
+                if (!isFinite(t) || t <= 0) { faltante = faltante || inp.dataset.moneda; return; }
+                tasas[inp.dataset.moneda] = t;
+            });
+            if (faltante) {
+                window.showInfoModal(
+                    'Falta una tasa',
+                    `No se puede consolidar en CLP sin la tasa de ${faltante}. Escribila a mano o liquidá por moneda.`,
+                    false
+                );
+                return;
+            }
+            const box = document.getElementById('liq-ajuste-box');
+            if (box) {
+                pares = [{ moneda: 'CLP', nodo: box, base: parseFloat(box.dataset.base) || 0 }];
+            }
+        } else {
+            pares = Array.from(document.querySelectorAll('#liq-preview tr[data-moneda]')).map(tr => ({
+                moneda: tr.dataset.moneda,
+                nodo:   tr,
+                base:   parseFloat(tr.dataset.base) || 0,
+            }));
+        }
+
+        const ajustes = recolectarAjustes(pares);
+        if (ajustes === null) return; // ya se avisó cuál es el problema
+
+        // Base por moneda tal como la devolvió la previsualización: es contra
+        // estos números que el admin dimensionó las tasas y los ajustes.
+        const bases = {};
+        (_liqPreview.desglose || []).forEach(d => { bases[d.moneda] = d.total; });
+
+        // No se abre un modal de confirmación acá a propósito: showConfirmModal
+        // usa el #confirmModal genérico de footer.php y anidarlo dentro de
+        // #crearLiqModal deja backdrops de Bootstrap superpuestos. El control
+        // es la previsualización, que ya muestra el desglose y las tasas.
 
         const btn = document.getElementById('btnConfirmLiq');
+        // Deshabilitar YA: un doble click crearía dos liquidaciones.
         btn.disabled = true;
         btn.textContent = 'Creando…';
 
@@ -309,21 +822,32 @@
             const res  = await fetch('../api/?accion=crearLiquidacion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: parseInt(userId), desde, hasta, notas }),
+                // `bases` es la base por moneda que se mostró en la
+                // previsualización. El backend recalcula bajo lock y rechaza con
+                // 409 si se movió: sin esto, el ajuste que el admin dimensionó
+                // contra un número se aplicaría sobre otro.
+                body: JSON.stringify({ userId: parseInt(userId), desde, hasta, notas, modo, tasas, ajustes, bases }),
             });
-            const data = await res.json();
-            if (data.success) {
-                bootstrap.Modal.getInstance(document.getElementById('crearLiqModal')).hide();
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                throw new Error((data && data.error) || `El servidor respondió con un error (${res.status}).`);
+            }
+            if (data && data.success) {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('crearLiqModal')).hide();
+                resetPreview();
                 await loadResellers();
                 await loadLiquidaciones();
             } else {
-                window.showInfoModal('Error', data.error || 'Error al crear liquidación.', false);
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Crear liquidación';
+                throw new Error((data && data.error) || 'Error al crear liquidación.');
             }
         } catch (e) {
-            window.showInfoModal('Error', 'Error de red al crear liquidación.', false);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'Error al crear liquidación.'), false);
             btn.disabled = false;
+        } finally {
+            // En el camino de éxito el label quedaba en "Creando…" para siempre:
+            // al abrir el modal del siguiente revendedor el botón decía que había
+            // algo en curso cuando no lo había. Sobre un flujo de plata eso hace
+            // dudar o apretar dos veces, así que se restaura siempre.
             btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Crear liquidación';
         }
     });
@@ -339,6 +863,7 @@
 
         try {
             const res  = await fetch('../api/?accion=pagarLiquidacion', { method: 'POST', body: formData });
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}). Es posible que el archivo sea demasiado pesado.`);
             const data = await res.json();
             if (data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('pagarLiqModal')).hide();
@@ -350,7 +875,7 @@
                 submitBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Confirmar pago';
             }
         } catch (e) {
-            window.showInfoModal('Error', 'Error de red al registrar pago.', false);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'Error al registrar el pago.'), false);
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Confirmar pago';
         }
@@ -364,7 +889,7 @@
         document.getElementById('edit-comision-user-id').value      = btn.dataset.id;
         document.getElementById('edit-comision-nombre').textContent = btn.dataset.nombre;
         document.getElementById('edit-comision-pct').value          = btn.dataset.pct;
-        new bootstrap.Modal(document.getElementById('editComisionModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editComisionModal')).show();
     });
 
     document.getElementById('btnSaveComision').addEventListener('click', async () => {
@@ -412,7 +937,7 @@
 
         const list = document.getElementById('paises-config-list');
         list.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
-        new bootstrap.Modal(document.getElementById('configPaisesModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('configPaisesModal')).show();
 
         try {
             const res  = await fetch('../api/?accion=getResellerPaises&userId=' + btn.dataset.id);
@@ -425,21 +950,21 @@
             list.innerHTML = data.data.map(p => `
                 <div class="row align-items-center border-bottom py-2 g-2">
                     <div class="col-4 fw-semibold">
-                        ${p.NombrePais} <small class="text-muted">(${p.CodigoMoneda})</small>
+                        ${esc(p.NombrePais)} <small class="text-muted">(${esc(p.CodigoMoneda)})</small>
                     </div>
                     <div class="col-3">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" role="switch"
-                                   id="pais-activo-${p.PaisID}" data-pais="${p.PaisID}"
+                                   id="pais-activo-${escAttr(p.PaisID)}" data-pais="${escAttr(p.PaisID)}"
                                    ${p.Activo ? 'checked' : ''}>
-                            <label class="form-check-label small" for="pais-activo-${p.PaisID}">Habilitado</label>
+                            <label class="form-check-label small" for="pais-activo-${escAttr(p.PaisID)}">Habilitado</label>
                         </div>
                     </div>
                     <div class="col-5">
                         <div class="input-group input-group-sm">
-                            <input type="number" class="form-control pais-pct-input" data-pais="${p.PaisID}"
+                            <input type="number" class="form-control pais-pct-input" data-pais="${escAttr(p.PaisID)}"
                                    min="0" max="100" step="0.01"
-                                   value="${p.PorcentajeComision !== null ? p.PorcentajeComision : ''}"
+                                   value="${escAttr(p.PorcentajeComision !== null ? p.PorcentajeComision : '')}"
                                    placeholder="% (vacío = global)">
                             <span class="input-group-text">%</span>
                         </div>
@@ -506,7 +1031,7 @@
         document.getElementById('limite-user-nombre').textContent = btn.dataset.nombre;
         document.getElementById('limite-cuentas-input').value = '';
         document.getElementById('limite-actual-info').textContent = '';
-        new bootstrap.Modal(document.getElementById('limiteCuentasModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('limiteCuentasModal')).show();
 
         try {
             const res = await fetch('../api/?accion=getResellerMaxCuentas&userId=' + btn.dataset.id);
@@ -560,16 +1085,33 @@
     }
 
     async function saveReferralSettings() {
-        const formaManualActiva = document.getElementById('toggle-referido-manual').checked;
-        const formaLinkActiva = document.getElementById('toggle-referido-link').checked;
+        const manualEl = document.getElementById('toggle-referido-manual');
+        const linkEl = document.getElementById('toggle-referido-link');
+        const formaManualActiva = manualEl.checked;
+        const formaLinkActiva = linkEl.checked;
+        manualEl.disabled = true;
+        linkEl.disabled = true;
         try {
-            await fetch('../api/?accion=updateReferralSettings', {
+            const res = await fetch('../api/?accion=updateReferralSettings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ formaManualActiva, formaLinkActiva }),
             });
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+            const data = await res.json();
+            // Antes no se leía nada de la respuesta: el switch quedaba en la
+            // posición nueva aunque el backend hubiera rechazado el cambio.
+            if (!data.success) {
+                window.showInfoModal('Error', data.error || 'No se pudo guardar la configuración de referidos.', false);
+                loadReferralSettings();
+            }
         } catch (e) {
             console.error(e);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'No se pudo guardar la configuración de referidos.'), false);
+            loadReferralSettings();
+        } finally {
+            manualEl.disabled = false;
+            linkEl.disabled = false;
         }
     }
 

@@ -44,6 +44,31 @@ class CuentasAdminRepository
         return $result;
     }
 
+    /**
+     * Cuentas activas para que un cliente sepa a dónde transferir al pagar
+     * desde un país (RolCuentaID 1=Origen o 3=Ambos — mismo filtro que
+     * findActiveByFormaPagoAndPais, pero sin exigir una FormaPago específica
+     * y devolviendo todas, no solo la primera).
+     */
+    public function getActiveOrigenAccountsByPais(int $paisId): array
+    {
+        $sql = "SELECT c.CuentaAdminID, c.Banco, c.Titular, c.TipoCuenta, c.NumeroCuenta,
+                    c.RUT, c.Instrucciones, c.ColorHex, c.QrCodeURL,
+                    COALESCE(f.Nombre, 'Sin Forma Pago') as FormaPagoNombre
+                FROM cuentas_bancarias_admin c
+                LEFT JOIN formas_pago f ON c.FormaPagoID = f.FormaPagoID
+                WHERE c.PaisID = ?
+                AND c.Activo = 1
+                AND c.RolCuentaID IN (1, 3)
+                ORDER BY f.Nombre, c.Banco ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $paisId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $result;
+    }
+
     public function getCuentasParaPago(int $paisDestinoId): array
     {
         $sql = "SELECT CuentaAdminID, Banco, Titular, SaldoActual, Moneda 
@@ -59,6 +84,24 @@ class CuentasAdminRepository
         $res = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         return $res;
+    }
+
+    /**
+     * Igual que getById(), pero bloqueando la fila hasta el fin de la transacción
+     * SQL en curso. Debe usarse DENTRO de una transacción siempre que se vaya a
+     * leer SaldoActual para después escribirlo: updateSaldo() guarda un valor
+     * absoluto precalculado, así que sin el lock dos procesos leen el mismo saldo
+     * y el segundo pisa el descuento del primero (lost update).
+     */
+    public function getByIdForUpdate(int $id): ?array
+    {
+        $sql = "SELECT * FROM cuentas_bancarias_admin WHERE CuentaAdminID = ? FOR UPDATE";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $res ?: null;
     }
 
     public function getById(int $id): ?array

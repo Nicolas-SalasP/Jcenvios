@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers;
 
+use App\Support\ErrorPresenter;
+
 use App\Services\UserService;
 use Exception;
 
@@ -36,7 +38,7 @@ class AuthController extends BaseController
 
         } catch (Exception $e) {
             $statusCode = $e->getCode() >= 400 ? $e->getCode() : 401;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $statusCode);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $statusCode);
         }
     }
 
@@ -54,10 +56,10 @@ class AuthController extends BaseController
             if ($res) {
                 $this->sendJsonResponse(['success' => true, 'message' => 'Código enviado con éxito.']);
             } else {
-                throw new Exception("No se pudo enviar el código. Intenta con otro método.");
+                throw new Exception("No se pudo enviar el código. Intenta con otro método.", 400);
             }
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -73,7 +75,7 @@ class AuthController extends BaseController
             $code = $data['code'] ?? '';
 
             if (empty($code)) {
-                throw new Exception("El código es obligatorio.");
+                throw new Exception("El código es obligatorio.", 400);
             }
 
             $isValid = $this->userService->verifyTemp2FACode($userId, $code);
@@ -89,11 +91,11 @@ class AuthController extends BaseController
             if ($isValid) {
                 $this->finalizeLogin($userId);
             } else {
-                throw new Exception("Código de seguridad inválido o expirado.");
+                throw new Exception("Código de seguridad inválido o expirado.", 401);
             }
 
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 401);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 401);
         }
     }
 
@@ -105,7 +107,7 @@ class AuthController extends BaseController
             $this->finalizeLogin($result['UserID']);
         } catch (Exception $e) {
             $statusCode = $e->getCode() >= 400 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $statusCode);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $statusCode);
         }
     }
 
@@ -119,7 +121,7 @@ class AuthController extends BaseController
         } catch (Exception $e) {
             $this->sendJsonResponse([
                 'success' => false,
-                'error' => 'Error al procesar la solicitud: ' . $e->getMessage()
+                'error' => 'Error al procesar la solicitud: ' . ErrorPresenter::publicMessage($e, __METHOD__)
             ], 500);
         }
     }
@@ -131,7 +133,7 @@ class AuthController extends BaseController
             $this->userService->performPasswordReset($data['token'] ?? '', $data['newPassword'] ?? '');
             $this->sendJsonResponse(['success' => true, 'message' => '¡Contraseña actualizada con éxito! Ya puedes iniciar sesión.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 

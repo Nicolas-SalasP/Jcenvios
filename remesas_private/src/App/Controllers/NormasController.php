@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers;
 
+use App\Support\ErrorPresenter;
+
 use App\Repositories\NormasRepository;
 use Exception;
 
@@ -69,7 +71,7 @@ class NormasController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Normas actualizadas correctamente.']);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 

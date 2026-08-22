@@ -6,6 +6,8 @@
 * [MEDIO] **Configuración PHP:** Asegurar que `display_errors` esté en `Off` en producción (controlado en `ErrorHandler.php`, pero verificar `php.ini`).
 * [BAJO] **Rate Limiting:** No hay protección contra fuerza bruta en el login más allá de un bloqueo básico en DB.
     * *Acción:* Implementar limitación por IP en `AuthController`.
+* [INFO] **`AUTO_CONFIRM_EMAIL`:** flag en `config.php` (default `false` en `config.php.example`) usado por `EmailReconciliationService::conciliarOrden()`. Si se activa en `true`, los pagos se confirman automáticamente por email sin revisión humana de un admin.
+    * *Acción:* Mantener en `false` en producción salvo decisión explícita del negocio. Si se activa, documentar aquí la fecha y el motivo, y reforzar el monitoreo de conciliaciones automáticas.
 
 ## Recomendaciones
 1.  **Headers de Seguridad:**

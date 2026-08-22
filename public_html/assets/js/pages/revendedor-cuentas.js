@@ -11,6 +11,25 @@
 
     let cuentaModal = null;
 
+    /**
+     * Valida la respuesta de la API y tira un Error con mensaje usable.
+     * Tolera que el servidor conteste HTML (500) en vez de JSON.
+     */
+    async function ensureOk(res, fallbackMsg) {
+        let data = null;
+        try {
+            data = await res.json();
+        } catch (e) {
+            throw new Error(res.ok
+                ? 'El servidor devolvió una respuesta inesperada. Intenta de nuevo.'
+                : 'El servidor no pudo procesar la solicitud (error ' + res.status + ').');
+        }
+        if (!res.ok || !data || !data.success) {
+            throw new Error((data && data.error) || fallbackMsg);
+        }
+        return data;
+    }
+
     async function loadReferralCode() {
         try {
             const res = await fetch('../api/?accion=getResellerReferralCode');
@@ -36,15 +55,15 @@
                 <td>${estado}</td>
                 <td class="text-end">
                     <button class="btn btn-sm btn-outline-primary btn-edit-cuenta"
-                        data-id="${c.CuentaID}" data-banco="${esc(c.Banco)}" data-tipo="${esc(c.TipoCuenta)}"
+                        data-id="${Number(c.CuentaID)}" data-banco="${esc(c.Banco)}" data-tipo="${esc(c.TipoCuenta)}"
                         data-numero="${esc(c.NumeroCuenta)}" data-titular="${esc(c.TitularNombre)}"
                         data-doc="${esc(c.TitularDocumento)}" data-instrucciones="${esc(c.Instrucciones || '')}"
                         title="Editar"><i class="bi bi-pencil"></i></button>
                     <button class="btn btn-sm btn-outline-secondary btn-toggle-cuenta"
-                        data-id="${c.CuentaID}" data-activo="${Number(c.Activo)}"
+                        data-id="${Number(c.CuentaID)}" data-activo="${Number(c.Activo)}"
                         title="${Number(c.Activo) === 1 ? 'Desactivar' : 'Activar'}">
                         <i class="bi bi-${Number(c.Activo) === 1 ? 'pause' : 'play'}"></i></button>
-                    <button class="btn btn-sm btn-outline-danger btn-delete-cuenta" data-id="${c.CuentaID}" title="Eliminar">
+                    <button class="btn btn-sm btn-outline-danger btn-delete-cuenta" data-id="${Number(c.CuentaID)}" title="Eliminar">
                         <i class="bi bi-trash"></i></button>
                 </td>
             </tr>`;
@@ -64,6 +83,10 @@
             tbody.innerHTML = data.data.map(cuentaRow).join('');
         } catch (e) {
             console.error(e);
+            const tbody = document.getElementById('cuentas-body');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">No se pudieron cargar tus cuentas bancarias. Recarga la página.</td></tr>';
+            }
         }
     }
 
@@ -115,12 +138,19 @@
                 const activo = toggleBtn.dataset.activo === '1';
                 toggleBtn.disabled = true;
                 try {
-                    await fetch('../api/?accion=toggleResellerAccount', {
+                    const res = await fetch('../api/?accion=toggleResellerAccount', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ cuentaId: parseInt(toggleBtn.dataset.id, 10), activo: !activo }),
                     });
+                    // Antes se ignoraba la respuesta por completo: si el backend
+                    // rechazaba, el revendedor veía la lista recargarse igual y
+                    // nada cambiaba, sin ningún mensaje.
+                    await ensureOk(res, 'No se pudo cambiar el estado de la cuenta.');
                     await loadCuentas();
+                } catch (err) {
+                    console.error(err);
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo cambiar el estado de la cuenta.'), false);
                 } finally {
                     toggleBtn.disabled = false;
                 }
@@ -130,12 +160,16 @@
                 if (!(await window.showConfirmModal('Eliminar cuenta', '¿Eliminar esta cuenta bancaria?'))) return;
                 deleteBtn.disabled = true;
                 try {
-                    await fetch('../api/?accion=deleteResellerAccount', {
+                    const res = await fetch('../api/?accion=deleteResellerAccount', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ cuentaId: parseInt(deleteBtn.dataset.id, 10) }),
                     });
+                    await ensureOk(res, 'No se pudo eliminar la cuenta.');
                     await loadCuentas();
+                } catch (err) {
+                    console.error(err);
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo eliminar la cuenta.'), false);
                 } finally {
                     deleteBtn.disabled = false;
                 }
@@ -164,15 +198,12 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
-                const data = await res.json();
-                if (data.success) {
-                    cuentaModal.hide();
-                    await loadCuentas();
-                } else {
-                    document.getElementById('cuenta-feedback').textContent = data.error || 'Error al guardar la cuenta.';
-                }
+                await ensureOk(res, 'Error al guardar la cuenta.');
+                cuentaModal.hide();
+                await loadCuentas();
             } catch (e) {
-                document.getElementById('cuenta-feedback').textContent = 'Error de conexión.';
+                document.getElementById('cuenta-feedback').textContent =
+                    window.formatNetworkError(e, 'Error al guardar la cuenta.');
             } finally {
                 btn.disabled = false;
             }

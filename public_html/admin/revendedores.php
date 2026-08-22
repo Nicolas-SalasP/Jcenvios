@@ -23,7 +23,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <h1 class="mb-0 fw-bold h3"><i class="bi bi-people-fill text-primary me-2"></i>Revendedores</h1>
             <p class="text-muted mb-0 small">Gestiona comisiones, liquidaciones y configuración de cada revendedor.</p>
         </div>
-        <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+        <button class="btn btn-outline-secondary btn-sm js-reload-btn">
             <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
         </button>
     </div>
@@ -116,7 +116,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
                     <div>
                         <div class="fw-bold" id="stat-total-ganado">—</div>
-                        <div class="text-muted" style="font-size:.75rem">Total ganado (CLP)</div>
+                        <div class="text-muted" style="font-size:.75rem">Total ganado</div>
                     </div>
                 </div>
             </div>
@@ -184,7 +184,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
 <!-- Modal: Crear liquidación -->
 <div class="modal fade" id="crearLiqModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content border-0 shadow">
             <div class="modal-header border-0">
                 <h5 class="modal-title fw-bold">Crear liquidación</h5>
@@ -203,10 +203,31 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <input type="date" id="liq-hasta" class="form-control">
                     </div>
                 </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold d-block">Modo de liquidación</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="liq-modo" id="liq-modo-por-moneda" value="por_moneda" checked>
+                        <label class="form-check-label small" for="liq-modo-por-moneda">
+                            <strong>Una liquidación por moneda</strong>
+                            <span class="text-muted d-block">Se paga cada moneda por separado, sin convertir. Sin riesgo cambiario.</span>
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="liq-modo" id="liq-modo-consolidado" value="consolidado_clp">
+                        <label class="form-check-label small" for="liq-modo-consolidado">
+                            <strong>Consolidar todo en CLP</strong>
+                            <span class="text-muted d-block">Una sola liquidación en pesos chilenos. Revisá y corregí la tasa de cada moneda antes de confirmar.</span>
+                        </label>
+                    </div>
+                </div>
+
                 <button class="btn btn-outline-secondary btn-sm mb-3" id="btnPreviewLiq">
                     <i class="bi bi-calculator me-1"></i> Calcular monto
                 </button>
-                <div id="liq-preview" class="alert alert-info d-none mb-3"></div>
+
+                <div id="liq-preview" class="d-none mb-3"></div>
+
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Notas (opcional)</label>
                     <textarea id="liq-notas" class="form-control" rows="2" placeholder="Ej: Pago mensual mayo 2026"></textarea>

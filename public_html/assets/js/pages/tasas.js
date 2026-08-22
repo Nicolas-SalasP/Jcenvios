@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let referentialRateValue = 0;
 
+    // window.escapeHtml (domUtils.js) no escapa comillas: para interpolar
+    // dentro de un atributo hay que escapar también " y '.
+    const escAttr = window.escapeAttr;
+
     // --- UTILIDADES DE FORMATO ---
     const parseInput = (val) => {
         if (!val) return 0;
@@ -44,25 +48,37 @@ document.addEventListener('DOMContentLoaded', () => {
             time: document.getElementById('global-adj-time').value
         };
 
+        btnSaveGlobal.disabled = true;
         try {
             const res = await fetch('../api/?accion=saveGlobalAdjustmentSettings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
             const result = await res.json();
-            if (result.success) window.showInfoModal('Éxito', 'Configuración de ajuste global guardada.', true);
-        } catch (e) { window.showInfoModal('Error', 'Error al guardar', false); }
+            // Antes no había else: si el backend rechazaba, el admin no veía
+            // nada y asumía que la configuración había quedado guardada.
+            if (result.success) {
+                window.showInfoModal('Éxito', 'Configuración de ajuste global guardada.', true);
+            } else {
+                window.showInfoModal('Error', result.error || 'No se pudo guardar la configuración.', false);
+            }
+        } catch (e) {
+            window.showInfoModal('Error', window.formatNetworkError(e, 'No se pudo guardar la configuración.'), false);
+        } finally {
+            btnSaveGlobal.disabled = false;
+        }
     });
 
     btnApplyGlobalNow?.addEventListener('click', async () => {
         const percent = document.getElementById('global-adj-percent').value;
-        const confirm = await window.showConfirmModal(
+        const confirmado = await window.showConfirmModal(
             '¡Atención!',
             `¿Estás seguro de modificar TODAS las tasas referenciales un ${percent}%? Esta acción es inmediata e irreversible.`
         );
 
-        if (confirm) {
+        if (confirmado) {
             btnApplyGlobalNow.disabled = true;
             btnApplyGlobalNow.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
             try {
@@ -110,17 +126,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="text-center">${percentLabel}</td>
                 <td class="text-center fw-bold">${formatNumber(item.ValorTasa, 5)}</td>
                 <td class="text-end pe-4">
-                    <button class="btn btn-sm btn-outline-primary edit-rate-btn" 
-                        data-tasa-id="${item.TasaID}" 
-                        data-origen-id="${item.PaisOrigenID}" 
-                        data-destino-id="${item.PaisDestinoID}" 
-                        data-valor="${item.ValorTasa}" 
-                        data-min="${item.MontoMinimo}" 
-                        data-max="${item.MontoMaximo}" 
-                        data-is-ref="${item.EsReferencial}" 
-                        data-is-risky="${item.EsRiesgoso}"
-                        data-percent="${item.PorcentajeAjuste}"><i class="bi bi-pencil-fill"></i></button>
-                    <button class="btn btn-sm btn-outline-danger delete-rate-btn" data-tasa-id="${item.TasaID}"><i class="bi bi-trash-fill"></i></button>
+                    <button class="btn btn-sm btn-outline-primary edit-rate-btn"
+                        data-tasa-id="${escAttr(item.TasaID)}"
+                        data-origen-id="${escAttr(item.PaisOrigenID)}"
+                        data-destino-id="${escAttr(item.PaisDestinoID)}"
+                        data-valor="${escAttr(item.ValorTasa)}"
+                        data-min="${escAttr(item.MontoMinimo)}"
+                        data-max="${escAttr(item.MontoMaximo)}"
+                        data-is-ref="${escAttr(item.EsReferencial)}"
+                        data-is-risky="${escAttr(item.EsRiesgoso)}"
+                        data-percent="${escAttr(item.PorcentajeAjuste)}"><i class="bi bi-pencil-fill"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-rate-btn" data-tasa-id="${escAttr(item.TasaID)}"><i class="bi bi-trash-fill"></i></button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -274,12 +290,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ rate: parseInput(bcvRateInput.value) })
                 });
+                if (!response.ok) throw new Error(`El servidor respondió con un error (${response.status}).`);
                 const result = await response.json();
                 if (result.success) {
                     bcvFeedback.innerHTML = '<div class="alert alert-success py-1 small">Actualizada.</div>';
                     setTimeout(() => bcvFeedback.innerHTML = '', 3000);
+                } else {
+                    // Antes el catch solo hacía console.error y no había else:
+                    // un rechazo del backend era completamente invisible.
+                    window.showInfoModal('Error', result.error || 'No se pudo actualizar la tasa BCV.', false);
                 }
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error(error);
+                window.showInfoModal('Error', window.formatNetworkError(error, 'No se pudo actualizar la tasa BCV.'), false);
+            }
             finally { btnSave.disabled = false; btnSave.innerHTML = 'Actualizar'; }
         });
     }
@@ -321,15 +345,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (delBtn) {
             const confirmed = await window.showConfirmModal('Borrar', '¿Eliminar esta tasa?');
             if (confirmed) {
-                const res = await fetch('../api/?accion=deleteRate', {
-                    method: 'POST',
-                    body: JSON.stringify({ tasaId: delBtn.dataset.tasaId })
-                });
-                const result = await res.json();
-                if (result.success) {
-                    const row = document.getElementById(`tasa-row-${delBtn.dataset.tasaId}`);
-                    if (row) row.remove();
-                    window.showInfoModal('Éxito', 'Tasa eliminada.', true);
+                delBtn.disabled = true;
+                try {
+                    const res = await fetch('../api/?accion=deleteRate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tasaId: delBtn.dataset.tasaId })
+                    });
+                    if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+                    const result = await res.json();
+                    // Antes no había else ni catch: si el borrado fallaba, la
+                    // fila seguía ahí y el admin no recibía ningún aviso.
+                    if (result.success) {
+                        const row = document.getElementById(`tasa-row-${delBtn.dataset.tasaId}`);
+                        if (row) row.remove();
+                        window.showInfoModal('Éxito', 'Tasa eliminada.', true);
+                    } else {
+                        window.showInfoModal('Error', result.error || 'No se pudo eliminar la tasa.', false);
+                        delBtn.disabled = false;
+                    }
+                } catch (err) {
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo eliminar la tasa.'), false);
+                    delBtn.disabled = false;
                 }
             }
         }
@@ -337,7 +374,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const bcvInput = document.getElementById('bcv-rate');
     if (bcvInput) {
-        fetch('../api/?accion=getBcvRate').then(r => r.json()).then(d => { if (d.success) bcvInput.value = formatNumber(d.rate, 2); });
+        fetch('../api/?accion=getBcvRate')
+            .then(r => r.json())
+            .then(d => { if (d.success) bcvInput.value = formatNumber(d.rate, 2); })
+            .catch(err => console.error('No se pudo cargar la tasa BCV actual:', err));
     }
 
     document.querySelectorAll('.toggle-route-active').forEach(toggle => {

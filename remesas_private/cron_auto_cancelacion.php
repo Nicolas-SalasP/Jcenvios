@@ -17,6 +17,11 @@ if (php_sapi_name() !== 'cli' && !isset($_GET['manual_run'])) {
     die("Acceso denegado.");
 }
 
+if (!\App\Support\CronLock::acquire('auto_cancelacion')) {
+    echo "[" . date('Y-m-d H:i:s') . "] Ya hay una instancia de cron_auto_cancelacion.php en ejecución. Saliendo sin hacer nada.\n";
+    exit(0);
+}
+
 try {
     /** @var \App\Services\TransactionService $txService */
     $txService = $container->get(\App\Services\TransactionService::class);
@@ -29,7 +34,8 @@ try {
     } else {
         echo "[{$ts}] Sin órdenes expiradas.\n";
     }
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
+    // \Throwable: un Error de PHP 8 no es Exception y se escaparía del catch.
     error_log("CRON AUTO_CANCEL ERROR: " . $e->getMessage());
     echo "Error: " . $e->getMessage() . "\n";
     exit(1);

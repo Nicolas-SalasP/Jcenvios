@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let iconClass = isWarning ? 'bi-info-circle-fill text-dark' : 'bi-lock-fill';
                 let textClass = isWarning ? 'text-dark fw-bold' : '';
 
-                contentEl.innerHTML = `<i class="bi ${iconClass} me-1"></i><span class="${textClass}">${arg.event.title}</span>`;
+                contentEl.innerHTML = `<i class="bi ${iconClass} me-1"></i><span class="${textClass}">${window.escapeHtml(arg.event.title)}</span>`;
                 return { domNodes: [contentEl] };
             }
         });
@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="overflow-hidden me-2">
                     <div class="d-flex align-items-center mb-1">
                         ${statusBadge}
-                        <strong class="text-dark text-truncate me-2">${h.Motivo}</strong>
+                        <strong class="text-dark text-truncate me-2">${window.escapeHtml(h.Motivo)}</strong>
                         ${lockIcon}
                     </div>
                     <div class="small text-muted">
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <i class="bi bi-arrow-right ms-3 me-1"></i> ${formatDate(new Date(h.FechaFin))}
                     </div>
                 </div>
-                <button class="btn btn-outline-danger btn-sm rounded-circle shadow-sm" style="width: 32px; height: 32px;" onclick="prepareDelete(${h.HolidayID})" title="Eliminar">
+                <button type="button" class="btn btn-outline-danger btn-sm rounded-circle shadow-sm btn-borrar-feriado" style="width: 32px; height: 32px;" data-holiday-id="${window.escapeHtml(h.HolidayID)}" title="Eliminar">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>`;
@@ -165,6 +165,17 @@ document.addEventListener('DOMContentLoaded', () => {
         holidayIdToDelete = id;
         deleteModal.show();
     };
+
+    // La lista lateral se re-renderiza con innerHTML en cada refetch, así que el
+    // botón de borrar se maneja por delegación. Antes era un onclick="" inline,
+    // que la CSP estricta (sin unsafe-inline) bloquea.
+    const listaFeriados = document.getElementById('lista-feriados-compacta');
+    if (listaFeriados) {
+        listaFeriados.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-borrar-feriado');
+            if (btn) window.prepareDelete(btn.dataset.holidayId);
+        });
+    }
 
     btnConfirmDelete.addEventListener('click', async () => {
         if (!holidayIdToDelete) return;
@@ -374,4 +385,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     fetchHorarioOverrideStatus();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const lockSwitch = document.getElementById('holidayLockSwitch');
+    const statusText = document.getElementById('lockStatusText');
+    const statusDesc = document.getElementById('lockStatusDesc');
+
+    if (lockSwitch) {
+        lockSwitch.addEventListener('change', function () {
+            if (this.checked) {
+                statusText.textContent = 'Bloquear Sistema';
+                statusText.className = 'text-danger fw-bold d-block';
+                statusDesc.textContent = 'Nadie podrá acceder.';
+            } else {
+                statusText.textContent = 'Solo Informativo';
+                statusText.className = 'text-success fw-bold d-block';
+                statusDesc.textContent = 'Muestra aviso, permite operar.';
+            }
+        });
+    }
 });

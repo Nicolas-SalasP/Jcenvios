@@ -28,6 +28,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let cuentasData = [];
     let deleteIdTarget = null;
 
+    // window.escapeHtml (domUtils.js) escapa <, > y &, pero NO las comillas:
+    // para interpolar dentro de un atributo hace falta escapar " y ' también.
+    const escAttr = window.escapeAttr;
+
+    // El color viene de la BD y se inyecta dentro de style="": escapar no
+    // alcanza (se podría cerrar la declaración e inyectar otras propiedades).
+    // Solo se acepta un hex válido; cualquier otra cosa cae al gris por defecto.
+    const safeColor = (hex) => (/^#[0-9a-fA-F]{3,8}$/.test(String(hex || '').trim()) ? String(hex).trim() : '#cccccc');
+
     const showMsg = (title, text, type = 'info') => {
         msgTitle.textContent = title;
         msgBody.textContent = text;
@@ -49,17 +58,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const executeDelete = async (id) => {
         try {
-            await fetch('../api/?accion=deleteCuentaAdmin', {
+            const response = await fetch('../api/?accion=deleteCuentaAdmin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id })
             });
+            // Antes se anunciaba "eliminada" sin mirar la respuesta: si el
+            // backend rechazaba (p. ej. cuenta con movimientos), el admin veía
+            // "Éxito" y la cuenta seguía ahí.
+            if (!response.ok) {
+                throw new Error(`El servidor respondió con un error (${response.status}).`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+                showMsg('Error', result.error || 'No se pudo eliminar la cuenta.', 'error');
+                return;
+            }
             loadCuentas();
             showMsg('Éxito', 'Cuenta eliminada correctamente', 'success');
         } catch (error) {
-            showMsg('Error', 'No se pudo eliminar la cuenta', 'error');
+            showMsg('Error', window.formatNetworkError(error, 'No se pudo eliminar la cuenta.'), 'error');
         }
     };
+
+    // Un único listener registrado una sola vez. Antes se clonaba btnConfirm y
+    // se reemplazaba el nodo en cada confirmación: la referencia original
+    // quedaba huérfana y en el segundo borrado btnConfirm.parentNode era null
+    // (TypeError, el modal no abría y el botón quedaba muerto hasta recargar).
+    btnConfirm.addEventListener('click', async () => {
+        const id = deleteIdTarget;
+        deleteIdTarget = null;
+        msgModalInstance.hide();
+        if (id !== null && id !== undefined) await executeDelete(id);
+    });
 
     const showConfirm = (text, callbackId) => {
         msgTitle.textContent = 'Confirmación';
@@ -67,19 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
         deleteIdTarget = callbackId;
 
         msgHeader.className = 'modal-header bg-warning text-dark';
-        
+
         btnCancel.textContent = 'Cancelar';
+        btnCancel.className = 'btn btn-secondary';
         btnConfirm.classList.remove('d-none');
         btnConfirm.className = 'btn btn-danger';
         btnConfirm.textContent = 'Eliminar';
-        
-        const newBtn = btnConfirm.cloneNode(true);
-        btnConfirm.parentNode.replaceChild(newBtn, btnConfirm);
-        
-        newBtn.addEventListener('click', async () => {
-            msgModalInstance.hide();
-            await executeDelete(deleteIdTarget);
-        });
 
         msgModalInstance.show();
     };
@@ -87,15 +111,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadCuentas = async () => {
         try {
             const response = await fetch('../api/?accion=getCuentasAdmin');
+            if (!response.ok) throw new Error(`El servidor respondió con un error (${response.status}).`);
             const result = await response.json();
             if (result.success) {
                 cuentasData = result.cuentas;
                 renderTables();
             } else {
-                showMsg('Error', "Error al cargar datos: " + result.error, 'error');
+                showMsg('Error', "Error al cargar datos: " + (result.error || ''), 'error');
             }
         } catch (error) {
             console.error(error);
+            showMsg('Error', window.formatNetworkError(error, 'No se pudieron cargar las cuentas.'), 'error');
         }
     };
 
@@ -122,24 +148,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const acciones = `
-                <button class="btn btn-sm btn-primary btn-edit" data-id="${c.CuentaAdminID}"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm btn-danger btn-delete" data-id="${c.CuentaAdminID}"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-sm btn-primary btn-edit" data-id="${escAttr(c.CuentaAdminID)}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-danger btn-delete" data-id="${escAttr(c.CuentaAdminID)}"><i class="bi bi-trash"></i></button>
             `;
 
             const rowHTML = `
                 <tr>
-                    <td><strong>${c.NombrePais}</strong></td>
-                    <td><span class="badge bg-info text-dark">${c.FormaPagoNombre || '-'}</span></td>
+                    <td><strong>${window.escapeHtml(c.NombrePais)}</strong></td>
+                    <td><span class="badge bg-info text-dark">${window.escapeHtml(c.FormaPagoNombre || '-')}</span></td>
                     <td>
-                        <strong>${c.Banco}</strong> ${qrBadge}<br>
-                        <small>${c.Titular}</small>
+                        <strong>${window.escapeHtml(c.Banco)}</strong> ${qrBadge}<br>
+                        <small>${window.escapeHtml(c.Titular)}</small>
                     </td>
                     <td>
-                        ${c.TipoCuenta}<br>
-                        ${c.NumeroCuenta}
+                        ${window.escapeHtml(c.TipoCuenta)}<br>
+                        ${window.escapeHtml(c.NumeroCuenta)}
                     </td>
-                    <td class="text-end text-success fw-bold">${saldo}</td>
-                    <td><div style="width: 30px; height: 30px; background-color: ${c.ColorHex}; border-radius: 4px; border: 1px solid #ccc;"></div></td>
+                    <td class="text-end text-success fw-bold">${window.escapeHtml(saldo)}</td>
+                    <td><div style="width: 30px; height: 30px; background-color: ${safeColor(c.ColorHex)}; border-radius: 4px; border: 1px solid #ccc;"></div></td>
                     <td>
                         <span class="badge ${c.Activo == 1 ? 'bg-success' : 'bg-secondary'}">
                             ${c.Activo == 1 ? 'Activo' : 'Inactivo'}
@@ -261,6 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: formData 
             });
             
+            if (!response.ok) throw new Error(`El servidor respondió con un error (${response.status}).`);
             const result = await response.json();
             if(result.success) {
                 modalInstance.hide();
@@ -271,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch(err) {
             console.error(err);
-            showMsg('Error', 'Error de conexión', 'error');
+            showMsg('Error', window.formatNetworkError(err, 'No se pudo guardar la cuenta.'), 'error');
         }
     });
 

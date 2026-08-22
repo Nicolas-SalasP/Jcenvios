@@ -54,11 +54,21 @@
                 </tr>
             `).join('');
 
-            // Summary bar
-            const totalComision = data.data.reduce((s, t) => s + Number(t.ComisionRevendedor), 0);
+            // Summary bar. La comisión está expresada en la moneda de origen de
+            // cada orden, así que se totaliza POR MONEDA: sumar CLP con COP daba
+            // un número que no es plata en ninguna moneda.
+            const porMoneda = {};
+            data.data.forEach(t => {
+                const m = t.MonedaOrigen || '?';
+                porMoneda[m] = (porMoneda[m] || 0) + Number(t.ComisionRevendedor || 0);
+            });
+            const totalTexto = Object.keys(porMoneda).sort()
+                .filter(m => porMoneda[m] > 0)
+                .map(m => `${fmt(porMoneda[m])} ${m}`)
+                .join(' + ') || '—';
             const bar = document.getElementById('summary-bar');
             bar.style.display = '';
-            document.getElementById('period-total').textContent = fmt(totalComision);
+            document.getElementById('period-total').textContent = totalTexto;
             document.getElementById('period-count').textContent = data.total + ' transacciones en total';
 
             renderPagination(data.totalPages);

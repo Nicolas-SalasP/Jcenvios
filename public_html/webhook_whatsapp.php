@@ -42,7 +42,12 @@ require_once $basePrivate . '/src/App/Repositories/RateRepository.php';
 require_once $basePrivate . '/src/App/Repositories/CountryRepository.php';
 require_once $basePrivate . '/src/App/Repositories/SystemSettingsRepository.php';
 require_once $basePrivate . '/src/App/Repositories/CuentasAdminRepository.php';
+require_once $basePrivate . '/src/App/Repositories/HolidayRepository.php';
+require_once $basePrivate . '/src/App/Repositories/HorarioOverrideRepository.php';
+require_once $basePrivate . '/src/App/Repositories/TasasImagenRepository.php';
 require_once $basePrivate . '/src/App/Services/NotificationService.php';
+require_once $basePrivate . '/src/App/Services/SystemSettingsService.php';
+require_once $basePrivate . '/src/App/Services/FileHandlerService.php';
 require_once $basePrivate . '/src/App/Services/PricingService.php';
 require_once $basePrivate . '/src/App/Controllers/BaseController.php';
 require_once $basePrivate . '/src/App/Controllers/BotController.php';
@@ -54,6 +59,11 @@ use App\Repositories\RateRepository;
 use App\Repositories\CountryRepository;
 use App\Repositories\SystemSettingsRepository;
 use App\Repositories\CuentasAdminRepository;
+use App\Repositories\HolidayRepository;
+use App\Repositories\HorarioOverrideRepository;
+use App\Repositories\TasasImagenRepository;
+use App\Services\SystemSettingsService;
+use App\Services\FileHandlerService;
 use App\Services\PricingService;
 use App\Controllers\BotController;
 
@@ -67,9 +77,28 @@ try {
     $settingsRepo = new SystemSettingsRepository($db);
     $cuentasRepo  = new CuentasAdminRepository($db);
 
-    $pricingService = new PricingService($rateRepo, $countryRepo, $settingsRepo, $notifService);
+    // OJO: este es un TERCER punto de armado manual de servicios, aparte de los
+    // contenedores de public_html/api/index.php y remesas_private/src/core/init.php.
+    // Estaba pasando 4 argumentos a un constructor que exige 7, así que el bot
+    // respondía "Error temporal" a TODOS los mensajes. Si volvés a cambiar el
+    // constructor de PricingService, actualizá los tres lugares.
+    $systemService = new SystemSettingsService(
+        $settingsRepo,
+        new HolidayRepository($db),
+        new HorarioOverrideRepository($db),
+        $logService
+    );
 
-    // Pasamos los 3 argumentos requeridos al constructor
+    $pricingService = new PricingService(
+        $rateRepo,
+        $countryRepo,
+        $settingsRepo,
+        $notifService,
+        $systemService,
+        new TasasImagenRepository($db),
+        new FileHandlerService()
+    );
+
     $bot = new BotController($pricingService, $cuentasRepo, $notifService);
     $bot->handleWebhook();
 

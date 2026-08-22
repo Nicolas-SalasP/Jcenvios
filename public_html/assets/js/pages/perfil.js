@@ -583,7 +583,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const j = await r.json();
                 if(j.success) { window.showInfoModal('Éxito','Perfil actualizado.',true); loadUserProfile(); capturedBlob=null; }
                 else window.showInfoModal('Error', j.error, false);
-            } catch(e) {} finally { profileSaveBtn.disabled=false; profileSaveBtn.textContent='Guardar Cambios'; }
+            } catch(e) {
+                // Antes este catch estaba vacío: si fallaba la red el botón se
+                // rehabilitaba sin decir nada y el usuario no sabía si guardó.
+                window.showInfoModal('Error', window.formatNetworkError(e, 'No se pudo guardar el perfil. Intenta de nuevo.'), false);
+            } finally { profileSaveBtn.disabled=false; profileSaveBtn.textContent='Guardar Cambios'; }
         });
     }
 

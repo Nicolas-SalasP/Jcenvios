@@ -13,14 +13,29 @@
             .replace(/"/g, '&quot;');
     }
 
+    /**
+     * Recibe [{Moneda, Total, Cantidad}, ...] y lo muestra como
+     * "CLP 5.000,00 + COP 20.000,00". Nunca suma monedas distintas.
+     */
+    function fmtMonedas(lista) {
+        if (!Array.isArray(lista) || lista.length === 0) return '—';
+        return lista
+            .filter(x => Number(x.Total) > 0)
+            .map(x => `${x.Moneda} ${fmt(x.Total)}`)
+            .join(' + ') || '—';
+    }
+
     async function loadSummary() {
         try {
             const res = await fetch('../api/?accion=getResellerSummary');
             const data = await res.json();
             if (!data.success) return;
 
-            document.getElementById('stat-pendiente').textContent = 'CLP ' + fmt(data.pendiente);
-            document.getElementById('stat-pagado').textContent = 'CLP ' + fmt(data.pagado);
+            // Las comisiones se generan en la moneda de origen de cada orden
+            // (CLP, COP, PEN…). Se muestran desglosadas: sumarlas todas y
+            // rotularlas "CLP" era mentirle al revendedor sobre lo que se le debe.
+            document.getElementById('stat-pendiente').textContent = fmtMonedas(data.pendiente);
+            document.getElementById('stat-pagado').textContent    = fmtMonedas(data.pagado);
 
             const tbody = document.getElementById('liq-body');
             if (!data.liquidaciones || data.liquidaciones.length === 0) {
@@ -30,7 +45,7 @@
             tbody.innerHTML = data.liquidaciones.map(l => `
                 <tr>
                     <td>${l.PeriodoDesde} — ${l.PeriodoHasta}</td>
-                    <td class="text-end fw-bold">CLP ${fmt(l.Monto)}</td>
+                    <td class="text-end fw-bold">${esc(l.Moneda || 'CLP')} ${fmt(l.Monto)}</td>
                     <td class="text-center">${l.CantidadTransacciones}</td>
                     <td>${l.Estado === 'pagada'
                         ? '<span class="badge bg-success">Pagada</span>'

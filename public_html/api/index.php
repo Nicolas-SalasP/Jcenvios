@@ -27,7 +27,8 @@ use App\Repositories\{
     ResellerAccountsRepository,
     ReferralConfigRepository,
     NormasRepository,
-    ContactMessageRepository
+    ContactMessageRepository,
+    TasaEspecialRepository
 };
 use App\Services\{
     LogService,
@@ -53,7 +54,8 @@ use App\Controllers\{
     BotController,
     TutorialController,
     TasasImagenController,
-    NormasController
+    NormasController,
+    CspReportController
 };
 
 header('Content-Type: application/json');
@@ -108,6 +110,7 @@ class Container
             ReferralConfigRepository::class => new ReferralConfigRepository($this->getDb()),
             NormasRepository::class => new NormasRepository($this->getDb()),
             ContactMessageRepository::class => new ContactMessageRepository($this->getDb()),
+            TasaEspecialRepository::class => new TasaEspecialRepository($this->getDb()),
 
                 // Servicios
             LogService::class => new LogService($this->getDb()),
@@ -164,7 +167,8 @@ class Container
                 $this->get(CuentasBeneficiariasRepository::class),
                 $this->get(CuentasAdminRepository::class),
                 $this->get(RateRepository::class),
-                $this->get(ResellerAccountsRepository::class)
+                $this->get(ResellerAccountsRepository::class),
+                $this->get(TasaEspecialRepository::class)
             ),
 
             SystemSettingsService::class => new SystemSettingsService(
@@ -209,7 +213,8 @@ class Container
                 $this->get(LiquidacionRepository::class),
                 $this->get(ResellerAccountsRepository::class),
                 $this->get(ReferralConfigRepository::class),
-                $this->get(ContactMessageRepository::class)
+                $this->get(ContactMessageRepository::class),
+                $this->get(CuentasAdminRepository::class)
             ),
 
             AdminController::class => new AdminController(
@@ -225,7 +230,8 @@ class Container
                 $this->get(TransactionRepository::class),
                 $this->get(LiquidacionRepository::class),
                 $this->get(ResellerAccountsRepository::class),
-                $this->get(ReferralConfigRepository::class)
+                $this->get(ReferralConfigRepository::class),
+                $this->get(TasaEspecialRepository::class)
             ),
 
             DashboardController::class => new DashboardController(
@@ -257,6 +263,10 @@ class Container
                 $this->get(NormasRepository::class)
             ),
 
+            CspReportController::class => new CspReportController(
+                $this->get(LogService::class)
+            ),
+
             default => throw new Exception("Clase no configurada en el contenedor: {$className}")
         };
     }
@@ -270,18 +280,27 @@ const PUBLIC_ACTIONS = [
     'getActiveDestinationCountries', 'getFormasDePago', 'getBeneficiaryTypes',
     'getDocumentTypes', 'checkSystemStatus', 'getBcvRate', 'botWebhook',
     'submitContactForm', 'getTasaImagenPublica', 'getReferralSettingsPublic',
-    'getNormasPublicas',
+    'getNormasPublicas', 'cspReport',
 ];
 
 try {
     $container = new Container();
     $accion = $_GET['accion'] ?? '';
 
-    // Rate limiting por IP
+    // Rate limiting por IP.
+    //
+    // Solo se responde 429 ante la excepción propia del limitador (código 429).
+    // Antes este catch atrapaba cualquier \Exception y devolvía 429 siempre, así
+    // que una caída de la base o un prepare() fallido le mostraban al usuario
+    // "Demasiados intentos" y quedaban enmascarados en producción como si fueran
+    // rate limiting. El resto se relanza para que lo maneje el handler general.
     try {
         $rateLimiter = new RateLimiterService(Database::getInstance());
         $rateLimiter->check($accion);
     } catch (\Exception $e) {
+        if ((int) $e->getCode() !== 429) {
+            throw $e;
+        }
         http_response_code(429);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;
@@ -320,6 +339,7 @@ try {
         'getDocumentTypes' => [ClientController::class, 'getDocumentTypes', 'GET'],
         'getAssignableRoles' => [ClientController::class, 'getAssignableRoles', 'GET'],
         'checkSystemStatus' => [ClientController::class, 'checkSystemStatus', 'GET'],
+        'getDatosBancariosPorPais' => [ClientController::class, 'getDatosBancariosPorPais', 'GET'],
 
         // Client - Gestión de Cuentas y Perfil
         'getCuentas' => [ClientController::class, 'getCuentas', 'GET'],
@@ -379,6 +399,9 @@ try {
         'adminGetUserBeneficiaries' => [AdminController::class, 'getUserBeneficiaries', 'GET'],
         'adminRequestBeneficiaryAccess' => [AdminController::class, 'requestBeneficiaryAccess', 'POST'],
         'adminUpdateBeneficiary' => [AdminController::class, 'adminUpdateBeneficiary', 'POST'],
+        'adminAssignTasaEspecial' => [AdminController::class, 'adminAssignTasaEspecial', 'POST'],
+        'adminGetTasasEspecialesByUser' => [AdminController::class, 'adminGetTasasEspecialesByUser', 'GET'],
+        'adminDeactivateTasaEspecial' => [AdminController::class, 'adminDeactivateTasaEspecial', 'POST'],
 
         // Admin - Transacciones
         'processTransaction' => [AdminController::class, 'processTransaction', 'POST'],
@@ -477,6 +500,9 @@ try {
         // Normas (admin)
         'getNormasAdmin'        => [NormasController::class, 'getNormasAdmin', 'GET'],
         'saveNormas'            => [NormasController::class, 'saveNormas', 'POST'],
+
+        // Reporting API: violaciones de CSP que el navegador reporta solo
+        'cspReport'             => [CspReportController::class, 'receiveCspReport', 'POST'],
     ];
 
     if (isset($routes[$accion])) {
@@ -502,10 +528,14 @@ try {
     if (function_exists('\App\Core\exception_handler')) {
         \App\Core\exception_handler($e);
     } else {
+        // Fallback de ultimo recurso (el handler no se pudo cargar). No se
+        // expone $e->getMessage(): sin el handler no hay filtro por codigo,
+        // asi que un fallo interno filtraria detalles del motor al cliente.
+        error_log('API fallback sin exception_handler: ' . $e->getMessage() . ' en ' . $e->getFile() . ':' . $e->getLine());
         http_response_code(500);
         echo json_encode([
             'success' => false,
-            'error' => $e->getMessage()
+            'error' => 'Ocurrio un error inesperado al procesar la solicitud.'
         ]);
     }
 }

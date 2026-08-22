@@ -202,8 +202,8 @@ foreach ($transacciones as $tx):
 
         <td class="text-center">
             <div class="d-flex justify-content-center gap-1">
-                <button class="btn btn-sm btn-primary d-flex align-items-center gap-1"
-                    onclick="copiarDatosDirecto(this, '<?php echo $textoBase64; ?>')"
+                <button class="btn btn-sm btn-primary d-flex align-items-center gap-1 js-copy-b64-btn"
+                    data-copy-b64="<?php echo $textoBase64; ?>"
                     title="Copiar todos los datos al portapapeles">
                     <i class="bi bi-clipboard-check"></i> <span>Copiar</span>
                 </button>

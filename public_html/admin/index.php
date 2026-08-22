@@ -30,6 +30,14 @@ $f_status = $_GET['f_status'] ?? '';
 $f_origen = $_GET['f_origen'] ?? '';
 $f_confirm = $_GET['f_confirm'] ?? '';
 $f_destino = $_GET['f_destino'] ?? '';
+$f_emision_desde = $_GET['f_emision_desde'] ?? '';
+$f_emision_hasta = $_GET['f_emision_hasta'] ?? '';
+$f_comprobante_desde = $_GET['f_comprobante_desde'] ?? '';
+$f_comprobante_hasta = $_GET['f_comprobante_hasta'] ?? '';
+$f_completado_desde = $_GET['f_completado_desde'] ?? '';
+$f_completado_hasta = $_GET['f_completado_hasta'] ?? '';
+$f_moneda_origen = $_GET['f_moneda_origen'] ?? '';
+$f_moneda_destino = $_GET['f_moneda_destino'] ?? '';
 
 $whereClause = "WHERE 1=1";
 $params = [];
@@ -65,6 +73,46 @@ if (!empty($f_status)) {
 if (!empty($f_confirm) && in_array($f_confirm, ['pendiente', 'recibido', 'no_recibido'], true)) {
     $whereClause .= " AND T.ConfirmacionRecepcion = ?";
     $params[] = $f_confirm;
+    $types .= "s";
+}
+if (!empty($f_emision_desde)) {
+    $whereClause .= " AND DATE(T.FechaTransaccion) >= ?";
+    $params[] = $f_emision_desde;
+    $types .= "s";
+}
+if (!empty($f_emision_hasta)) {
+    $whereClause .= " AND DATE(T.FechaTransaccion) <= ?";
+    $params[] = $f_emision_hasta;
+    $types .= "s";
+}
+if (!empty($f_comprobante_desde)) {
+    $whereClause .= " AND DATE(T.FechaSubidaComprobante) >= ?";
+    $params[] = $f_comprobante_desde;
+    $types .= "s";
+}
+if (!empty($f_comprobante_hasta)) {
+    $whereClause .= " AND DATE(T.FechaSubidaComprobante) <= ?";
+    $params[] = $f_comprobante_hasta;
+    $types .= "s";
+}
+if (!empty($f_completado_desde)) {
+    $whereClause .= " AND DATE(T.FechaCompletado) >= ?";
+    $params[] = $f_completado_desde;
+    $types .= "s";
+}
+if (!empty($f_completado_hasta)) {
+    $whereClause .= " AND DATE(T.FechaCompletado) <= ?";
+    $params[] = $f_completado_hasta;
+    $types .= "s";
+}
+if (!empty($f_moneda_origen)) {
+    $whereClause .= " AND T.MonedaOrigen = ?";
+    $params[] = $f_moneda_origen;
+    $types .= "s";
+}
+if (!empty($f_moneda_destino)) {
+    $whereClause .= " AND T.MonedaDestino = ?";
+    $params[] = $f_moneda_destino;
     $types .= "s";
 }
 
@@ -112,7 +160,7 @@ if (!isset($_GET['ajax'])) {
 }
 
 $sql = "
-    SELECT T.*, U.PrimerNombre, U.PrimerApellido,
+    SELECT T.*, U.PrimerNombre, U.PrimerApellido, U.Telefono AS ClienteTelefono,
         T.BeneficiarioNombre AS BeneficiarioNombreCompleto,
         ET.NombreEstado AS EstadoNombre,
         U.NumeroDocumento AS UsuarioDocumento,
@@ -185,17 +233,22 @@ function getStatusBadgeClass($statusName)
 // --- MODO AJAX (SOLO TABLA) ---
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     if (empty($transacciones)) {
-        echo '<tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>';
+        echo '<tr><td colspan="11" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>';
     } else {
         foreach ($transacciones as $tx) {
             $nombreTitular = !empty($tx['NombreTitularOrigen']) ? $tx['NombreTitularOrigen'] : ($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']);
             $rutTitular = !empty($tx['RutTitularOrigen']) ? $tx['RutTitularOrigen'] : ($tx['UsuarioDocumento'] ?? 'N/A');
             ?>
             <tr>
-                <td><?php echo $tx['TransaccionID']; ?></td>
-                <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
+                <td>
+                    <button type="button" class="btn btn-link btn-sm p-0 btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
+                        #<?php echo $tx['TransaccionID']; ?>
+                    </button>
+                </td>
                 <td class="search-user">
-                    <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-start btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
+                        <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                    </button>
                 </td>
                 <td class="search-beneficiary">
                     <?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?>
@@ -211,6 +264,19 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                                 style="cursor:pointer;font-size:0.7rem;">
                             <i class="bi bi-arrow-repeat"></i> Envío #<?php echo $previos + 1; ?>
                         </button>
+                    <?php endif; ?>
+                </td>
+                <td><?php echo number_format($tx['MontoOrigen'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaOrigen'] ?? ''); ?></span></td>
+                <td><?php echo number_format($tx['MontoDestino'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?></span></td>
+                <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
+                <td><?php echo !empty($tx['FechaSubidaComprobante']) ? date("d/m/y H:i", strtotime($tx['FechaSubidaComprobante'])) : '—'; ?></td>
+                <td>
+                    <?php if (!empty($tx['FechaCompletado'])): ?>
+                        <span class="text-success small">Completada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCompletado'])); ?></span>
+                    <?php elseif (!empty($tx['FechaCancelacion'])): ?>
+                        <span class="text-danger small">Cancelada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCancelacion'])); ?></span>
+                    <?php else: ?>
+                        <span class="text-muted">—</span>
                     <?php endif; ?>
                 </td>
                 <td>
@@ -320,7 +386,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                                 <li>
-                                    <button class="dropdown-item" type="button" onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')">
+                                    <button class="dropdown-item js-copy-b64-btn" type="button" data-copy-b64="<?php echo $textoBase64_a; ?>">
                                         <i class="bi bi-clipboard-check me-2"></i> Copiar datos
                                     </button>
                                 </li>
@@ -375,12 +441,21 @@ function getPaginationUrl($page, $filters)
     $params = array_merge($filters, ['pagina' => $page]);
     return '?' . http_build_query($params);
 }
-$currentFilters = ['f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status, 'f_origen' => $f_origen, 'f_destino' => $f_destino, 'f_confirm' => $f_confirm];
+$currentFilters = [
+    'f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status,
+    'f_origen' => $f_origen, 'f_destino' => $f_destino, 'f_confirm' => $f_confirm,
+    'f_emision_desde' => $f_emision_desde, 'f_emision_hasta' => $f_emision_hasta,
+    'f_comprobante_desde' => $f_comprobante_desde, 'f_comprobante_hasta' => $f_comprobante_hasta,
+    'f_completado_desde' => $f_completado_desde, 'f_completado_hasta' => $f_completado_hasta,
+    'f_moneda_origen' => $f_moneda_origen, 'f_moneda_destino' => $f_moneda_destino,
+];
 
 $pageTitle = 'Panel de Administración';
-$pageScript = 'admin.js';
+$pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
+
+<div id="app-data" class="d-none" data-cuentas-destino='<?php echo htmlspecialchars(json_encode($cuentasDestino), ENT_QUOTES, "UTF-8"); ?>'></div>
 
 <div class="container mt-4">
 
@@ -467,6 +542,52 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                 <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i></button>
                 <a href="index.php" class="btn btn-sm btn-secondary" title="Limpiar"><i class="bi bi-x-lg"></i></a>
             </div>
+
+            <div class="col-12">
+                <button type="button" class="btn btn-sm btn-link px-0" data-bs-toggle="collapse" data-bs-target="#masFiltros">
+                    <i class="bi bi-funnel"></i> Más filtros (fechas por evento, moneda)
+                </button>
+            </div>
+
+            <?php
+            $hayFiltrosExtra = !empty($f_emision_desde) || !empty($f_emision_hasta) || !empty($f_comprobante_desde)
+                || !empty($f_comprobante_hasta) || !empty($f_completado_desde) || !empty($f_completado_hasta)
+                || !empty($f_moneda_origen) || !empty($f_moneda_destino);
+            ?>
+            <div id="masFiltros" class="collapse row g-2 align-items-end <?php echo $hayFiltrosExtra ? 'show' : ''; ?>">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Emisión desde</label>
+                    <input type="date" name="f_emision_desde" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_emision_desde); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Emisión hasta</label>
+                    <input type="date" name="f_emision_hasta" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_emision_hasta); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Comprobante desde</label>
+                    <input type="date" name="f_comprobante_desde" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_comprobante_desde); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Comprobante hasta</label>
+                    <input type="date" name="f_comprobante_hasta" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_comprobante_hasta); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Completada desde</label>
+                    <input type="date" name="f_completado_desde" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_completado_desde); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Completada hasta</label>
+                    <input type="date" name="f_completado_hasta" class="form-control form-control-sm" value="<?php echo htmlspecialchars($f_completado_hasta); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Moneda origen</label>
+                    <input type="text" name="f_moneda_origen" maxlength="10" class="form-control form-control-sm" placeholder="CLP" value="<?php echo htmlspecialchars($f_moneda_origen); ?>">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold mb-1">Moneda destino</label>
+                    <input type="text" name="f_moneda_destino" maxlength="10" class="form-control form-control-sm" placeholder="VES" value="<?php echo htmlspecialchars($f_moneda_destino); ?>">
+                </div>
+            </div>
         </form>
     </div>
 
@@ -475,9 +596,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <thead class="table-light">
                 <tr>
                     <th>ID</th>
-                    <th>Fecha</th>
-                    <th>Usuario</th>
+                    <th>Cliente</th>
                     <th>Beneficiario</th>
+                    <th>Monto Origen</th>
+                    <th>Monto Destino</th>
+                    <th>F. Emisión</th>
+                    <th>F. Comprobante</th>
+                    <th>F. Completado/Cancelado</th>
                     <th>Estado</th>
                     <th>Comisión</th>
                     <th class="text-center">Acciones</th>
@@ -486,7 +611,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
             <tbody id="transactionsTableBody">
                 <?php if (empty($transacciones)): ?>
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados.</td>
+                        <td colspan="11" class="text-center py-4 text-muted">No se encontraron resultados.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($transacciones as $tx):
@@ -494,12 +619,30 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         $rutTitular = !empty($tx['RutTitularOrigen']) ? $tx['RutTitularOrigen'] : ($tx['UsuarioDocumento'] ?? 'N/A');
                         ?>
                         <tr>
-                            <td><?php echo $tx['TransaccionID']; ?></td>
-                            <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
+                            <td>
+                                <button type="button" class="btn btn-link btn-sm p-0 btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
+                                    #<?php echo $tx['TransaccionID']; ?>
+                                </button>
+                            </td>
                             <td class="search-user">
-                                <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-start btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
+                                    <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
+                                </button>
                             </td>
                             <td class="search-beneficiary"><?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?>
+                            </td>
+                            <td><?php echo number_format($tx['MontoOrigen'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaOrigen'] ?? ''); ?></span></td>
+                            <td><?php echo number_format($tx['MontoDestino'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?></span></td>
+                            <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
+                            <td><?php echo !empty($tx['FechaSubidaComprobante']) ? date("d/m/y H:i", strtotime($tx['FechaSubidaComprobante'])) : '—'; ?></td>
+                            <td>
+                                <?php if (!empty($tx['FechaCompletado'])): ?>
+                                    <span class="text-success small">Completada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCompletado'])); ?></span>
+                                <?php elseif (!empty($tx['FechaCancelacion'])): ?>
+                                    <span class="text-danger small">Cancelada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCancelacion'])); ?></span>
+                                <?php else: ?>
+                                    <span class="text-muted">—</span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <span class="badge <?php echo getStatusBadgeClass($tx['EstadoNombre'] ?? ''); ?>">
@@ -578,7 +721,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                                             <li>
-                                                <button class="dropdown-item" type="button" onclick="copiarDatosDirecto(this, '<?php echo $textoBase64_a; ?>')">
+                                                <button class="dropdown-item js-copy-b64-btn" type="button" data-copy-b64="<?php echo $textoBase64_a; ?>">
                                                     <i class="bi bi-clipboard-check me-2"></i> Copiar datos
                                                 </button>
                                             </li>
@@ -712,38 +855,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const selOrigin = document.getElementById('exportOrigin');
-        const selDest = document.getElementById('exportDest');
-
-        const updateOptions = () => {
-            const valOrigin = selOrigin.value;
-            const valDest = selDest.value;
-            Array.from(selDest.options).forEach(opt => {
-                if (opt.value !== "" && opt.value === valOrigin) {
-                    opt.disabled = true;
-                    if (opt.selected) selDest.value = "";
-                } else {
-                    opt.disabled = false;
-                }
-            });
-            Array.from(selOrigin.options).forEach(opt => {
-                if (opt.value !== "" && opt.value === valDest) {
-                    opt.disabled = true;
-                } else {
-                    opt.disabled = false;
-                }
-            });
-        };
-
-        if (selOrigin && selDest) {
-            selOrigin.addEventListener('change', updateOptions);
-            selDest.addEventListener('change', updateOptions);
-        }
-    });
-</script>
-
 <div class="modal fade" id="editCommissionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -842,6 +953,28 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
+<div class="modal fade" id="clienteInfoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-person-badge me-2"></i>Datos del Cliente</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-5">Orden ID</dt><dd class="col-7" id="cliente-info-tx-id"></dd>
+                    <dt class="col-5">Nombre</dt><dd class="col-7" id="cliente-info-nombre"></dd>
+                    <dt class="col-5">Teléfono</dt><dd class="col-7" id="cliente-info-telefono"></dd>
+                    <dt class="col-5">Documento</dt><dd class="col-7" id="cliente-info-doc"></dd>
+                </dl>
+            </div>
+            <div class="modal-footer justify-content-center py-2 bg-light border-0">
+                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="adminUploadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -894,8 +1027,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     <strong class="fs-5 text-muted">Monto a Pagar:</strong>
                     <div class="d-flex align-items-center">
                         <span class="fs-3 fw-bold text-success me-3" id="copy-monto-display"></span>
-                        <button class="btn btn-outline-success btn-sm"
-                            onclick="copyToClipboard('copy-monto-value', this)"><i class="bi bi-clipboard"></i></button>
+                        <button class="btn btn-outline-success btn-sm js-copy-btn"
+                            data-copy-target="copy-monto-value"><i class="bi bi-clipboard"></i></button>
                         <input type="hidden" id="copy-monto-value">
                     </div>
                 </div>
@@ -905,7 +1038,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Banco / Billetera</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-banco" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-banco"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -914,7 +1047,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Cuenta Bancaria</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-cuenta" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-cuenta"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -923,8 +1056,8 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Teléfono (Pago Móvil/Billetera)</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-telefono" readonly>
-                            <button class="btn btn-outline-secondary"
-                                onclick="copyToClipboard('copy-telefono', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn"
+                                data-copy-target="copy-telefono"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -933,7 +1066,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Documento</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-doc" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-doc', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-doc"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -941,7 +1074,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                         <label class="small text-muted fw-bold">Beneficiario</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-nombre" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-nombre', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-nombre"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -953,70 +1086,5 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
         </div>
     </div>
 </div>
-
-<script>
-    window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
-
-    document.addEventListener('DOMContentLoaded', () => {
-        document.body.addEventListener('click', function (e) {
-            const btn = e.target.closest('.view-pause-reason-btn');
-            if (btn) {
-                e.preventDefault();
-                const reason = btn.getAttribute('data-reason');
-                const modalBody = document.getElementById('pause-reason-text');
-                if (modalBody) modalBody.textContent = reason;
-                const modalEl = document.getElementById('viewPauseReasonModal');
-                if (modalEl) {
-                    const modal = new bootstrap.Modal(modalEl);
-                    modal.show();
-                }
-            }
-        });
-
-        document.body.addEventListener('click', function (e) {
-            const btn = e.target.closest('.view-comprobante-btn-admin');
-            if (btn) {
-                e.preventDefault();
-
-                document.getElementById('visor-nombre-titular').textContent = btn.dataset.nombreTitular || 'No registrado';
-                document.getElementById('visor-rut-titular').textContent = btn.dataset.rutTitular || 'No registrado';
-
-                const urlUser = btn.dataset.comprobanteUrl;
-                const urlAdmin = btn.dataset.envioUrl;
-                const startType = btn.dataset.startType || 'user';
-                const urlToLoad = (startType === 'admin' && urlAdmin) ? urlAdmin : urlUser;
-                const imgEl = document.getElementById('comprobante-img-full');
-                const pdfEl = document.getElementById('comprobante-pdf-full');
-                const placeholder = document.getElementById('comprobante-placeholder');
-                const downloadBtn = document.getElementById('download-comprobante-btn');
-
-                imgEl.classList.add('d-none');
-                pdfEl.classList.add('d-none');
-                placeholder.classList.remove('d-none');
-
-                let extension = '';
-                if (urlToLoad.includes('?')) {
-                    const urlParams = new URLSearchParams(urlToLoad.split('?')[1]);
-                    const fileParam = urlParams.get('file');
-                    if (fileParam) extension = fileParam.split('.').pop().toLowerCase();
-                } else {
-                    extension = urlToLoad.split('.').pop().toLowerCase();
-                }
-
-                setTimeout(() => {
-                    placeholder.classList.add('d-none');
-                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
-                        imgEl.src = urlToLoad;
-                        imgEl.classList.remove('d-none');
-                    } else {
-                        pdfEl.src = urlToLoad;
-                        pdfEl.classList.remove('d-none');
-                    }
-                    if (downloadBtn) downloadBtn.href = urlToLoad;
-                }, 500);
-            }
-        });
-    });
-</script>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

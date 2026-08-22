@@ -56,28 +56,53 @@ class TransactionProofRepository
         return $rows;
     }
 
+    /**
+     * Máximo de órdenes distintas que pueden usar el mismo hash de archivo,
+     * contando canceladas. 2 = el intento original + 1 reintento legítimo
+     * tras cancelación. Sin este tope, cancelar repetidamente libera el
+     * hash cada vez y el mismo comprobante se puede reciclar sin límite.
+     */
+    private const MAX_USOS_POR_HASH = 2;
+
     public function findByHash(string $hash): ?array
     {
+        // 1) ¿Hay una orden activa (no cancelada) usando este hash ahora mismo?
         $stmt = $this->db->prepare(
-            "SELECT ProofID, TransaccionID, Tipo FROM transaction_proofs WHERE FileHash = ? LIMIT 1"
+            "SELECT tp.ProofID, tp.TransaccionID, tp.Tipo
+             FROM transaction_proofs tp
+             JOIN transacciones t ON t.TransaccionID = tp.TransaccionID
+             WHERE tp.FileHash = ? AND t.EstadoID != 5 LIMIT 1"
         );
         $stmt->bind_param("s", $hash);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $active = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return $row ?: null;
-    }
+        if ($active) {
+            return $active;
+        }
 
-    // Libera los hashes de los comprobantes de una transacción cancelada, permitiendo
-    // reutilizar el mismo archivo en una orden nueva. Conserva el registro de auditoría
-    // (FilePath, SubidoPor, FechaSubida), solo se limpia FileHash.
-    public function clearHashesForTransaction(int $txId): void
-    {
-        $stmt = $this->db->prepare(
-            "UPDATE transaction_proofs SET FileHash = NULL WHERE TransaccionID = ?"
+        // 2) Sin orden activa: ¿ya se usó este hash el máximo de veces permitido
+        // en total (contando canceladas)? Si sí, sigue bloqueado aunque todas
+        // las órdenes previas estén canceladas.
+        $stmtCount = $this->db->prepare(
+            "SELECT COUNT(DISTINCT TransaccionID) AS total FROM transaction_proofs WHERE FileHash = ?"
         );
-        $stmt->bind_param("i", $txId);
-        $stmt->execute();
-        $stmt->close();
+        $stmtCount->bind_param("s", $hash);
+        $stmtCount->execute();
+        $total = (int) ($stmtCount->get_result()->fetch_assoc()['total'] ?? 0);
+        $stmtCount->close();
+
+        if ($total < self::MAX_USOS_POR_HASH) {
+            return null;
+        }
+
+        $stmtLast = $this->db->prepare(
+            "SELECT ProofID, TransaccionID, Tipo FROM transaction_proofs WHERE FileHash = ? ORDER BY ProofID DESC LIMIT 1"
+        );
+        $stmtLast->bind_param("s", $hash);
+        $stmtLast->execute();
+        $last = $stmtLast->get_result()->fetch_assoc();
+        $stmtLast->close();
+        return $last ?: null;
     }
 }

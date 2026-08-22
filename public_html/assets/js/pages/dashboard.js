@@ -6,6 +6,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const C_VENEZUELA = 3;
     const C_PERU = 4;
 
+    // Escapa texto libre de un Revendedor (Banco, TitularNombre, Instrucciones)
+    // antes de mostrarlo al cliente referido (XSS almacenado, ver auditoría
+    // 2026-08-21). Vive en utils/domUtils.js, cargado por footer.php.
+    const escapeHtml = window.escapeHtml;
+
     // =========================================================
     // 2. REFERENCIAS DOM GENERALES
     // =========================================================
@@ -437,11 +442,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const cr = res.cuentaRevendedor;
                         htmlCuentaRevendedor = `
                             <div class="text-center mb-4 p-3 bg-white rounded border border-primary shadow-sm">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-bank"></i> Deposita directamente a tu asesor: ${cr.Banco}</h6>
-                                <div class="small text-muted">Tipo de cuenta: <strong>${cr.TipoCuenta}</strong></div>
-                                <div class="small text-muted">Número: <strong>${cr.NumeroCuenta}</strong></div>
-                                <div class="small text-muted">Titular: <strong>${cr.TitularNombre}</strong> (${cr.TitularDocumento})</div>
-                                ${cr.Instrucciones ? `<div class="small text-muted mt-2">${cr.Instrucciones}</div>` : ''}
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-bank"></i> Deposita directamente a tu asesor: ${escapeHtml(cr.Banco)}</h6>
+                                <div class="small text-muted">Tipo de cuenta: <strong>${escapeHtml(cr.TipoCuenta)}</strong></div>
+                                <div class="small text-muted">Número: <strong>${escapeHtml(cr.NumeroCuenta)}</strong></div>
+                                <div class="small text-muted">Titular: <strong>${escapeHtml(cr.TitularNombre)}</strong> (${escapeHtml(cr.TitularDocumento)})</div>
+                                ${cr.Instrucciones ? `<div class="small text-muted mt-2">${escapeHtml(cr.Instrucciones)}</div>` : ''}
                             </div>
                         `;
                     }
@@ -502,7 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <i class="bi bi-cloud-upload-fill me-2"></i> Subir y Finalizar
                                     </button>
                                     
-                                    <button type="button" class="btn btn-link text-muted mt-3 btn-sm" onclick="window.location.href='historial.php'">
+                                    <button type="button" class="btn btn-link text-muted mt-3 btn-sm" id="btn-subir-mas-tarde">
                                         Lo subiré más tarde
                                     </button>
                                 </form>
@@ -542,19 +547,82 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
+                    // Misma compresión que historial.js: reduce a max 1280px/calidad 0.8
+                    // antes de subir, para no depender del límite de post_max_size del
+                    // servidor con fotos 4K de celular (8-15MB sin comprimir).
+                    const compressImageExpress = (file) => {
+                        return new Promise((resolve, reject) => {
+                            if (!file.type.match(/image.*/)) {
+                                resolve(file);
+                                return;
+                            }
+                            const maxWidth = 1280;
+                            const quality = 0.8;
+                            const reader = new FileReader();
+                            reader.readAsDataURL(file);
+                            reader.onload = (event) => {
+                                const img = new Image();
+                                img.src = event.target.result;
+                                img.onload = () => {
+                                    let width = img.width;
+                                    let height = img.height;
+                                    if (width > maxWidth) {
+                                        height = Math.round((height * maxWidth) / width);
+                                        width = maxWidth;
+                                    }
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0, width, height);
+                                    canvas.toBlob((blob) => {
+                                        if (!blob) { reject(new Error('Error al comprimir')); return; }
+                                        resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+                                    }, 'image/jpeg', quality);
+                                };
+                                img.onerror = (err) => reject(err);
+                            };
+                            reader.onerror = (err) => reject(err);
+                        });
+                    };
+
+                    // El "Lo subiré más tarde" tenía un onclick="" inline, que la CSP
+                    // estricta (script-src 'self', sin unsafe-inline) bloquea: el botón
+                    // no hacía absolutamente nada.
+                    const btnMasTarde = document.getElementById('btn-subir-mas-tarde');
+                    if (btnMasTarde) {
+                        btnMasTarde.addEventListener('click', () => {
+                            window.location.href = 'historial.php';
+                        });
+                    }
+
                     document.getElementById('form-comprobante-express').addEventListener('submit', async function (ev) {
                         ev.preventDefault();
                         const btnUp = document.getElementById('btn-subir-express');
                         const originalTxt = btnUp.innerHTML;
+
+                        const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+                        const rawFile = expressFileInput.files[0];
+                        if (rawFile && !rawFile.type.startsWith('image/') && rawFile.size > MAX_UPLOAD_BYTES) {
+                            window.showInfoModal('Archivo muy pesado', `El comprobante pesa ${(rawFile.size / 1024 / 1024).toFixed(1)}MB. El máximo permitido es 10MB — si es un PDF escaneado, intenta con una foto en su lugar.`, false);
+                            return;
+                        }
+
                         btnUp.disabled = true;
                         btnUp.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Subiendo...';
 
-                        const fd = new FormData(this);
-                        if (!requiereRut) {
-                            fd.set('rutTitularOrigen', 'N/A');
-                        }
-
                         try {
+                            let fileToUpload = rawFile;
+                            if (rawFile && rawFile.type.startsWith('image/')) {
+                                fileToUpload = await compressImageExpress(rawFile);
+                            }
+
+                            const fd = new FormData(this);
+                            if (fileToUpload) fd.set('receiptFile', fileToUpload, fileToUpload.name);
+                            if (!requiereRut) {
+                                fd.set('rutTitularOrigen', 'N/A');
+                            }
+
                             const upResp = await fetch('../api/?accion=uploadReceipt', { method: 'POST', body: fd });
                             const upJson = await upResp.json();
 
@@ -565,7 +633,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 throw new Error(upJson.error || 'Este comprobante ya fue utilizado.');
                             }
                         } catch (errUp) {
-                            Swal.fire('Error', errUp.message, 'error');
+                            // 'Failed to fetch' = conexión caída a mitad de subida, no dice
+                            // nada útil al usuario tal cual (ver historial.js, mismo fix).
+                            const msg = errUp.message === 'Failed to fetch'
+                                ? 'No se pudo subir el archivo. Verifica tu conexión a internet e intenta de nuevo con una foto más liviana si el problema persiste.'
+                                : errUp.message;
+                            Swal.fire('Error', msg, 'error');
                             btnUp.disabled = false;
                             btnUp.innerHTML = originalTxt;
                         }
@@ -606,10 +679,18 @@ document.addEventListener('DOMContentLoaded', () => {
         formaDePagoSelect.parentNode.appendChild(formaPagoHelper);
     }
 
+    // Descarta respuestas que llegan fuera de orden: si el usuario cambia el
+    // país de origen dos veces rápido, la respuesta de la primera puede llegar
+    // después de la segunda y dejar el select de forma de pago mostrando
+    // opciones que no corresponden al país realmente seleccionado.
+    let formasReqId = 0;
+
     const loadFormasDePago = async (origenId) => {
+        const myReq = ++formasReqId;
         try {
             const respF = await fetch(`../api/?accion=getFormasDePago&origenId=${origenId}`);
             const opts = await respF.json();
+            if (myReq !== formasReqId) return; // llegó tarde, ya hay otra en curso
 
             if (Array.isArray(opts)) {
                 if (opts.length === 1) {
@@ -635,6 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formaPagoHelper.textContent = '';
             }
         } catch (e) {
+            if (myReq !== formasReqId) return; // no pisar con un error viejo
             console.error(e);
             formaDePagoSelect.innerHTML = '<option value="">Error conexión</option>';
             formaDePagoSelect.disabled = false;
@@ -643,27 +725,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const onOrigenChange = (selectElement) => {
+        filterDestinations();
+        loadFormasDePago(selectElement.value);
+        updateReferentialRateStep1();
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const monedaOrigen = selectedOption ? (selectedOption.dataset.currency || '---') : '---';
+        const spanOrigen = document.getElementById('currency-label-origen');
+        if (spanOrigen) spanOrigen.textContent = monedaOrigen;
+        const labelOrigen = document.getElementById('label-monto-origen');
+        if (labelOrigen) labelOrigen.textContent = `Tú envías (${monedaOrigen})`;
+    };
+
+    // El listener se registra UNA sola vez, fuera de loadPaises: antes estaba
+    // adentro, así que cada recarga de la lista de países agregaba otro handler
+    // y un solo cambio del usuario terminaba disparando N peticiones.
+    if (paisOrigenSelect) {
+        paisOrigenSelect.addEventListener('change', () => onOrigenChange(paisOrigenSelect));
+    }
+
     const loadPaises = async (rol, selectElement) => {
         try {
             const responseP = await fetch(`../api/?accion=getPaises&rol=${rol}`);
             const paises = await responseP.json();
-            selectElement.innerHTML = '<option value="">Selecciona un país</option>';
+            // createElement y no innerHTML: NombrePais y CodigoMoneda los edita el
+            // admin y aca irian dentro de un atributo, donde escapeHtml no alcanza
+            // (no escapa comillas). Es el mismo tratamiento que ya recibio home.js.
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Selecciona un país';
+            const opciones = [placeholder];
             paises.forEach(pais => {
-                selectElement.innerHTML += `<option value="${pais.PaisID}" data-currency="${pais.CodigoMoneda}">${pais.NombrePais}</option>`;
+                const opt = document.createElement('option');
+                opt.value = pais.PaisID;
+                opt.dataset.currency = pais.CodigoMoneda || '';
+                opt.textContent = pais.NombrePais || '';
+                opciones.push(opt);
             });
-            if (rol === 'Origen') {
-                selectElement.addEventListener('change', () => {
-                    filterDestinations();
-                    loadFormasDePago(selectElement.value);
-                    updateReferentialRateStep1();
-                    const selectedOption = selectElement.options[selectElement.selectedIndex];
-                    const monedaOrigen = selectedOption.dataset.currency || '---';
-                    const spanOrigen = document.getElementById('currency-label-origen');
-                    if (spanOrigen) spanOrigen.textContent = monedaOrigen;
-                    const labelOrigen = document.getElementById('label-monto-origen');
-                    if (labelOrigen) labelOrigen.textContent = `Tú envías (${monedaOrigen})`;
-                });
-            }
+            selectElement.replaceChildren(...opciones);
         } catch (error) { console.error('Error loadPaises', error); }
     };
 
@@ -693,8 +792,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     beneficiaryListDiv.innerHTML += `
                     <label class="list-group-item list-group-item-action d-flex align-items-center" style="cursor:pointer;">
                         <input type="radio" name="beneficiary-radio" value="${c.CuentaID}" 
-                               data-banco="${c.NombreBanco || ''}" class="form-check-input me-3">
-                        <div><strong>${c.Alias || 'Sin Alias'}</strong> ${iconLock} <small class="text-muted">(${bancoDisplay} - ${num})</small></div>
+                               data-banco="${window.escapeAttr(c.NombreBanco || '')}" class="form-check-input me-3">
+                        <div><strong>${window.escapeHtml(c.Alias || 'Sin Alias')}</strong> ${iconLock} <small class="text-muted">(${bancoDisplay} - ${num})</small></div>
                     </label>`;
                 });
 
@@ -724,8 +823,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="modal-body text-center p-4">
                         <p class="mb-3">El administrador indica que hay datos incorrectos en el beneficiario:</p>
-                        <h5 class="fw-bold mb-1">${cuenta.Alias || cuenta.NombreBanco}</h5>
-                        <p class="text-muted small mb-4">${cuenta.BeneficiarioNombre || ''}</p>
+                        <h5 class="fw-bold mb-1">${window.escapeHtml(cuenta.Alias || cuenta.NombreBanco)}</h5>
+                        <p class="text-muted small mb-4">${window.escapeHtml(cuenta.BeneficiarioNombre || '')}</p>
                         <p>¿Autorizas al soporte técnico para corregir esta cuenta?</p>
                     </div>
                     <div class="modal-footer justify-content-center border-0 pb-4">
@@ -975,7 +1074,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ops.forEach(o => benefBankSelect.add(new Option(o.text, o.val)));
             }
             else if (paisId === C_VENEZUELA) {
-                if (containerBankInputText) containerBankInputText.classList.remove('d-none');
+                if (containerBankSelect) containerBankSelect.classList.remove('d-none');
+                const opsVe = [
+                    { val: 'Banesco', text: 'Banesco' },
+                    { val: 'Provincial', text: 'Provincial' },
+                    { val: 'Mercantil', text: 'Mercantil' },
+                    { val: 'BNC', text: 'BNC' },
+                    { val: 'Bancamiga', text: 'Bancamiga' },
+                    { val: 'BDT', text: 'BDT' },
+                    { val: 'Otro Banco', text: 'Otro Banco' }
+                ];
+                opsVe.forEach(o => benefBankSelect.add(new Option(o.text, o.val)));
                 if (walletPhonePrefix) {
                     walletPhonePrefix.classList.add('d-none');
                     walletPhonePrefix.textContent = '';
@@ -1020,6 +1129,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const val = this.value;
                 const paisId = parseInt(benefPaisIdInput.value);
                 if (containerOtherBank) containerOtherBank.classList.add('d-none');
+                if (inputOtherBank) inputOtherBank.required = false;
+
+                if (paisId === C_VENEZUELA) {
+                    // Venezuela maneja cuenta bancaria/pago móvil con los checkboxes
+                    // check-include-bank/mobile, independientes del select de banco —
+                    // a diferencia de Perú/Colombia no hay que resetearlos acá.
+                    if (val === 'Otro Banco') {
+                        if (containerOtherBank) containerOtherBank.classList.remove('d-none');
+                        if (inputOtherBank) inputOtherBank.required = true;
+                    }
+                    return;
+                }
+
                 if (containerCCI) containerCCI.classList.add('d-none');
                 if (inputCCI) inputCCI.required = false;
                 if (containerBankFields) containerBankFields.classList.add('d-none');
@@ -1142,7 +1264,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // CuentasBeneficiariasService), pero el input no tiene "required" en el HTML.
             // Sin este chequeo, el usuario podía dejarlo vacío y el submit fallaba recién
             // en el servidor con un 400 poco claro (visto repetido en el error_log real).
-            const nombreBancoActual = (paisId === C_PERU || paisId === C_COLOMBIA)
+            const nombreBancoActual = (paisId === C_PERU || paisId === C_COLOMBIA || paisId === C_VENEZUELA)
                 ? (benefBankSelect && benefBankSelect.value === 'Otro Banco' && inputOtherBank
                     ? inputOtherBank.value.trim()
                     : (benefBankSelect ? benefBankSelect.value : ''))
@@ -1207,7 +1329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (paisId === C_PERU || paisId === C_COLOMBIA) {
+            if (paisId === C_PERU || paisId === C_COLOMBIA || paisId === C_VENEZUELA) {
                 if (benefBankSelect.value === 'Otro Banco' && inputOtherBank && inputOtherBank.value) {
                     formData.set('nombreBanco', inputOtherBank.value.trim());
                 } else if (benefBankSelect.value) {
@@ -1397,14 +1519,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="modal-body p-4">
                         <div class="alert alert-light border shadow-sm text-center mb-4">
-                            <h6 class="fw-bold mb-1">${request.Alias || request.NombreBanco}</h6>
-                            <p class="text-muted small mb-0">${request.BeneficiarioNombre}</p>
+                            <h6 class="fw-bold mb-1">${window.escapeHtml(request.Alias || request.NombreBanco)}</h6>
+                            <p class="text-muted small mb-0">${window.escapeHtml(request.BeneficiarioNombre)}</p>
                         </div>
-                        <p>El administrador <strong>${request.AdminNombre}</strong> ha solicitado permiso para modificar los datos de este beneficiario.</p>
+                        <p>El administrador <strong>${window.escapeHtml(request.AdminNombre)}</strong> ha solicitado permiso para modificar los datos de este beneficiario.</p>
                         
                         <div class="bg-light p-3 rounded mb-3 border border-warning-subtle border-start-3">
-                            <p class="mb-1 text-dark"><strong>Motivo:</strong> ${request.Motivo}</p>
-                            <p class="mb-0 text-muted small"><i class="bi bi-pencil-square"></i> Campos a editar: <span class="fw-medium">${camposText}</span></p>
+                            <p class="mb-1 text-dark"><strong>Motivo:</strong> ${window.escapeHtml(request.Motivo)}</p>
+                            <p class="mb-0 text-muted small"><i class="bi bi-pencil-square"></i> Campos a editar: <span class="fw-medium">${window.escapeHtml(camposText)}</span></p>
                         </div>
                         
                         <p class="small text-danger fw-bold text-center mt-4"><i class="bi bi-exclamation-triangle"></i> Tu autorización explícita es obligatoria. Nadie puede alterar tus datos sin tu consentimiento.</p>
@@ -1478,3 +1600,6 @@ document.addEventListener('DOMContentLoaded', () => {
         checkPendingBeneficiaryRequests();
     }
 });
+
+// El guard del paso 1 (tasa no disponible) vive ahora en
+// pages/dashboard-tasa-guard.js — ya estaba en su propio DOMContentLoaded.

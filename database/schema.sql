@@ -317,6 +317,11 @@ CREATE TABLE `liquidaciones_revendedor` (
   `LiquidacionID` int(11) NOT NULL AUTO_INCREMENT,
   `UserID` int(11) NOT NULL,
   `Monto` decimal(15,2) NOT NULL,
+  `MontoBase` decimal(15,2) DEFAULT NULL COMMENT 'Monto calculado por el sistema, antes del ajuste manual',
+  `MontoAjuste` decimal(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Delta manual del admin, en la Moneda de esta liquidacion. Monto = MontoBase + MontoAjuste',
+  `MotivoAjuste` varchar(255) DEFAULT NULL COMMENT 'Obligatorio (app) si MontoAjuste <> 0',
+  `Moneda` varchar(3) NOT NULL DEFAULT 'CLP',
+  `ModoLiquidacion` varchar(20) NOT NULL DEFAULT 'por_moneda',
   `PeriodoDesde` date NOT NULL,
   `PeriodoHasta` date NOT NULL,
   `CantidadTransacciones` int(11) DEFAULT 0,
@@ -332,6 +337,28 @@ CREATE TABLE `liquidaciones_revendedor` (
   CONSTRAINT `liquidaciones_revendedor_ibfk_1` FOREIGN KEY (`UserID`) REFERENCES `usuarios` (`UserID`),
   CONSTRAINT `liquidaciones_revendedor_ibfk_2` FOREIGN KEY (`AdminUserID`) REFERENCES `usuarios` (`UserID`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `liquidacion_detalle_moneda`
+--
+
+DROP TABLE IF EXISTS `liquidacion_detalle_moneda`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `liquidacion_detalle_moneda` (
+  `DetalleID` int(11) NOT NULL AUTO_INCREMENT,
+  `LiquidacionID` int(11) NOT NULL,
+  `Moneda` varchar(3) NOT NULL,
+  `MontoOriginal` decimal(15,2) NOT NULL,
+  `TasaConversion` decimal(18,8) DEFAULT NULL COMMENT 'CLP por 1 unidad de Moneda. NULL = no aplica.',
+  `MontoConvertido` decimal(15,2) NOT NULL,
+  `Cantidad` int(11) NOT NULL DEFAULT 0 COMMENT 'Nro de transacciones de esta moneda',
+  PRIMARY KEY (`DetalleID`),
+  UNIQUE KEY `uk_liq_moneda` (`LiquidacionID`,`Moneda`),
+  KEY `idx_liquidacion` (`LiquidacionID`),
+  CONSTRAINT `fk_liq_detalle_liquidacion` FOREIGN KEY (`LiquidacionID`) REFERENCES `liquidaciones_revendedor` (`LiquidacionID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -421,7 +448,7 @@ CREATE TABLE `rate_limit` (
   `hits` smallint(5) unsigned NOT NULL DEFAULT 1,
   `ventana_fin` datetime NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ip_accion_ventana` (`ip`,`accion`,`ventana_fin`),
+  UNIQUE KEY `uq_ip_accion` (`ip`,`accion`),
   KEY `idx_ventana_fin` (`ventana_fin`)
 ) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -894,6 +921,75 @@ CREATE TABLE `usuarios` (
 --
 -- Dumping routines for database 'jcenvios'
 --
+
+--
+-- Tablas de las migraciones 018 y 019, que se habian creado en produccion pero
+-- nunca se agregaron aqui. El pipeline de CI carga este archivo en vez de correr
+-- las migraciones, asi que sin ellas los tests corren contra un esquema que no
+-- existe en produccion: en particular, crear una orden consulta
+-- tasas_especiales_cliente y fallaba con "table doesn't exist".
+--
+
+CREATE TABLE IF NOT EXISTS `mensajes_contacto` (
+  `Id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `Nombre` varchar(100) NOT NULL,
+  `Email` varchar(255) NOT NULL,
+  `Asunto` varchar(200) NOT NULL,
+  `Mensaje` text NOT NULL,
+  `EmailEnviado` tinyint(1) NOT NULL DEFAULT 0,
+  `FechaEnvio` datetime NOT NULL DEFAULT current_timestamp(),
+  `Leido` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`Id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `tasas_especiales_cliente` (
+  `TasaEspecialID` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `UserID` int(11) NOT NULL,
+  `PaisOrigenID` int(11) NOT NULL,
+  `PaisDestinoID` int(11) NOT NULL,
+  `ValorTasa` decimal(15,5) NOT NULL,
+  `Activa` tinyint(1) NOT NULL DEFAULT 1,
+  `AdminID` int(11) NOT NULL,
+  `FechaCreacion` datetime NOT NULL DEFAULT current_timestamp(),
+  `FechaUso` datetime DEFAULT NULL,
+  `TransaccionID` int(11) DEFAULT NULL,
+  PRIMARY KEY (`TasaEspecialID`),
+  KEY `idx_user_activa_ruta` (`UserID`,`Activa`,`PaisOrigenID`,`PaisDestinoID`),
+  KEY `fk_tec_admin` (`AdminID`),
+  KEY `fk_tec_pais_origen` (`PaisOrigenID`),
+  KEY `fk_tec_pais_destino` (`PaisDestinoID`),
+  KEY `fk_tec_transaccion` (`TransaccionID`),
+  CONSTRAINT `fk_tec_admin` FOREIGN KEY (`AdminID`) REFERENCES `usuarios` (`UserID`),
+  CONSTRAINT `fk_tec_pais_destino` FOREIGN KEY (`PaisDestinoID`) REFERENCES `paises` (`PaisID`),
+  CONSTRAINT `fk_tec_pais_origen` FOREIGN KEY (`PaisOrigenID`) REFERENCES `paises` (`PaisID`),
+  CONSTRAINT `fk_tec_transaccion` FOREIGN KEY (`TransaccionID`) REFERENCES `transacciones` (`TransaccionID`) ON DELETE SET NULL,
+  CONSTRAINT `fk_tec_user` FOREIGN KEY (`UserID`) REFERENCES `usuarios` (`UserID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+--
+-- Alineacion con las migraciones 016, 017 y 020, que ya corrieron en produccion
+-- pero cuyos cambios nunca se reflejaron aqui. El CI carga este archivo en vez de
+-- correr las migraciones, asi que sin esto los tests validan un esquema que no
+-- existe en produccion.
+--
+-- El indice unico uk_tasas_imagen_tipo se elimina porque las tasas visuales
+-- pasaron de una imagen por tipo a una galeria multi-imagen: con el indice
+-- puesto, subir una segunda imagen del mismo tipo falla por clave duplicada.
+--
+
+ALTER TABLE `tasas_imagen` DROP INDEX `uk_tasas_imagen_tipo`;
+ALTER TABLE `tasas_imagen`
+  ADD COLUMN `Titulo` varchar(150) DEFAULT NULL,
+  ADD COLUMN `Descripcion` text DEFAULT NULL;
+
+ALTER TABLE `transacciones`
+  ADD COLUMN `FechaCompletado` datetime DEFAULT NULL,
+  ADD COLUMN `FechaCancelacion` datetime DEFAULT NULL;
+
+ALTER TABLE `usuarios`
+  ADD COLUMN `FechaVerificacion` datetime DEFAULT NULL;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

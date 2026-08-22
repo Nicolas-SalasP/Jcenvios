@@ -10,6 +10,7 @@ use App\Repositories\CuentasAdminRepository;
 use App\Repositories\RateRepository;
 use App\Repositories\TransactionProofRepository;
 use App\Repositories\ResellerAccountsRepository;
+use App\Repositories\TasaEspecialRepository;
 use App\Services\NotificationService;
 use App\Services\PDFService;
 use App\Services\FileHandlerService;
@@ -31,6 +32,7 @@ class TransactionService
     private RateRepository $rateRepository;
     private TransactionProofRepository $proofRepository;
     private ResellerAccountsRepository $resellerAccountsRepo;
+    private TasaEspecialRepository $tasaEspecialRepo;
 
     private const ESTADO_PENDIENTE_PAGO = 'Pendiente de Pago';
     private const ESTADO_EN_VERIFICACION = 'En Verificación';
@@ -57,7 +59,8 @@ class TransactionService
         CuentasBeneficiariasRepository $cuentasRepo,
         CuentasAdminRepository $cuentasAdminRepo,
         RateRepository $rateRepository,
-        ResellerAccountsRepository $resellerAccountsRepo
+        ResellerAccountsRepository $resellerAccountsRepo,
+        TasaEspecialRepository $tasaEspecialRepo
     ) {
         $this->txRepository = $txRepository;
         $this->userRepository = $userRepository;
@@ -72,6 +75,7 @@ class TransactionService
         $this->rateRepository = $rateRepository;
         $this->proofRepository = new TransactionProofRepository();
         $this->resellerAccountsRepo = $resellerAccountsRepo;
+        $this->tasaEspecialRepo = $tasaEspecialRepo;
     }
 
     public function getEstadoIdByName(string $nombreEstado): int
@@ -111,7 +115,7 @@ class TransactionService
 
         if ($beneficiaryData) {
             if (empty(trim($beneficiaryData['nombre']))) {
-                throw new Exception("El nombre del beneficiario es obligatorio para corregir la orden.");
+                throw new Exception("El nombre del beneficiario es obligatorio para corregir la orden.", 400);
             }
             $this->txRepository->updateBeneficiarySnapshot($txId, $beneficiaryData);
         }
@@ -148,10 +152,50 @@ class TransactionService
         }
 
         $this->txRepository->clearComprobanteHash($txId);
-        $this->proofRepository->clearHashesForTransaction($txId);
+
+        // Si la orden ya había pasado por adminConfirmPayment (estado "En
+        // Proceso"), el ingreso de venta ya está sumado al saldo de la cuenta
+        // admin y hay que revertirlo. Es no-op si nunca hubo ingreso.
+        $this->revertirIngresoSiCorresponde($txId, $userId, 'cancelación de cliente');
 
         $this->notificationService->logAdminAction($userId, 'Usuario canceló transacción', "TX ID: $txId");
         return true;
+    }
+
+    /**
+     * Envoltorio de ContabilidadService::revertirIngresoVenta que deja rastro
+     * visible del resultado.
+     *
+     * Deliberadamente NO lanza excepción si la reversión falla: para cuando se
+     * ejecuta, el cambio de estado ya está comiteado (mysqli en autocommit).
+     * Abortar acá dejaría la orden cancelada + error al usuario + sin reversión,
+     * y los reintentos devolverían 409 para siempre, así que la reversión nunca
+     * llegaría a correr. Como la operación es idempotente, es preferible dejarla
+     * pendiente y reintentable: el peor caso es un saldo temporalmente inflado,
+     * nunca un doble descuento.
+     */
+    private function revertirIngresoSiCorresponde(int $txId, int $actorId, string $motivo): void
+    {
+        $ok = $this->contabilidadService->revertirIngresoVenta($txId, $actorId);
+
+        if (!$ok) {
+            $this->notificationService->logAdminAction(
+                null,
+                'ALERTA: Reversa contable fallida',
+                "TX ID: $txId ($motivo). El ingreso por venta NO pudo revertirse — revisar el saldo de la cuenta admin a mano."
+            );
+            return;
+        }
+
+        // Aviso al admin cuando la reversa la disparó el cliente (él no puede
+        // ver la contabilidad, pero el admin necesita enterarse del movimiento).
+        if ($motivo === 'cancelación de cliente') {
+            $this->notificationService->logAdminAction(
+                null,
+                'Reversa por cancelación de cliente',
+                "TX ID: $txId. Se revirtió el ingreso por venta de la cuenta admin (si lo había)."
+            );
+        }
     }
 
 
@@ -205,6 +249,25 @@ class TransactionService
             throw new Exception("Esta ruta está temporalmente desactivada. Contacta al administrador.", 403);
         }
 
+        // Tasa especial de uso único: si el admin le asignó una tasa
+        // preferencial a este cliente para esta ruta exacta, se usa en vez
+        // de la tasa pública. El TasaID_Al_Momento sigue siendo el de la
+        // ruta real (FK a `tasas`, tasas_especiales_cliente no tiene fila
+        // propia ahí) — lo que cambia es el valor con el que se calcula y
+        // se guarda en TasaCapturada.
+        // Reclamar (claim) ANTES de usar su valor para el cálculo, no después
+        // de crear la orden: si dos requests llegan casi simultáneas, solo una
+        // logra el UPDATE atómico (Activa=1 -> 0); la otra sigue con la tasa
+        // pública. Evita que la misma tasa especial de uso único se aplique a
+        // 2 órdenes (hallado en auditoría 2026-08-21).
+        $tasaEspecial = $this->tasaEspecialRepo->findActiveForUserAndRoute((int) $data['userID'], $paisOrigenID, $paisDestinoID);
+        if ($tasaEspecial && !$this->tasaEspecialRepo->claim((int) $tasaEspecial['TasaEspecialID'])) {
+            $tasaEspecial = null;
+        }
+        if ($tasaEspecial) {
+            $tasaInfo['ValorTasa'] = $tasaEspecial['ValorTasa'];
+        }
+
         $inverseRoutes = [
             '2-3', // Col -> Ven
             '4-1', // Peru -> Chile
@@ -219,7 +282,7 @@ class TransactionService
 
         if (in_array($routeKey, $inverseRoutes)) {
             if ($tasaValor == 0)
-                throw new Exception("Error crítico: Tasa 0 en ruta inversa.");
+                throw new Exception("Error crítico: Tasa 0 en ruta inversa.", 500);
             $calculoBackend = (float) $data['montoOrigen'] / $tasaValor;
         } else {
             $calculoBackend = (float) $data['montoOrigen'] * $tasaValor;
@@ -283,6 +346,12 @@ class TransactionService
 
         try {
             $transactionId = $this->txRepository->create($data);
+
+            if ($tasaEspecial) {
+                // Ya se reclamó (Activa=0) antes de calcular el monto; acá solo
+                // se asocia el TransaccionID resultante para el historial.
+                $this->tasaEspecialRepo->attachTransaccion((int) $tasaEspecial['TasaEspecialID'], $transactionId);
+            }
 
             if ($statusKey === 'requires_approval') {
                 $this->notificationService->logAdminAction($data['userID'], 'Orden Riesgosa Creada', "TX ID: $transactionId - Esperando aprobación.");
@@ -502,11 +571,16 @@ class TransactionService
         }
 
         $this->txRepository->clearComprobanteHash($txId);
-        if (!$isSoftReject) {
-            // Cancelación definitiva: libera el hash para permitir resubir el mismo archivo en otra orden.
-            // En soft-reject (retry) la orden sigue activa, así que el mismo archivo debe seguir bloqueado.
-            $this->proofRepository->clearHashesForTransaction($txId);
-        }
+        // No hace falta liberar transaction_proofs.FileHash acá: TransactionProofRepository::
+        // findByHash() ya resuelve la reutilización tras cancelar (EstadoID != 5) con tope de
+        // MAX_USOS_POR_HASH, sin necesidad de destruir el hash original del registro de auditoría.
+
+        // Incondicional, cubre tanto el rechazo duro (-> Cancelado) como el
+        // soft-reject (-> Pendiente de Pago). El soft-reject importa: la orden
+        // vuelve al circuito y al re-confirmarse se registra un SEGUNDO
+        // INGRESO_VENTA, así que sin revertir acá el ingreso quedaba duplicado.
+        // Es no-op si la orden nunca llegó a "En Proceso".
+        $this->revertirIngresoSiCorresponde($txId, $adminId, $isSoftReject ? 'soft-reject' : 'rechazo de admin');
 
         if ($isSoftReject) {
             $this->notificationService->sendCorrectionRequestEmail($txData['Email'], $txData['PrimerNombre'], $txId, $reason);
@@ -594,9 +668,11 @@ class TransactionService
         }
 
         if ($cuentaSalidaId && $cuentaAdmin) {
-            $nuevoSaldo = (float) $cuentaAdmin['SaldoActual'] - (float) $txData['MontoDestino'];
-            $this->cuentasAdminRepo->updateSaldo($cuentaSalidaId, $nuevoSaldo);
-
+            // NO restar el saldo acá manualmente: registrarEgresoPago() ya lee el
+            // saldo actual y lo descuenta + registra el movimiento contable. Restarlo
+            // acá TAMBIÉN causaba doble descuento en CADA pago con cuenta de salida
+            // (bug real, no una race condition — pasaba siempre, no solo bajo
+            // concurrencia). Ver auditoría 2026-08-21.
             $this->txRepository->updateCuentaSalida($txId, $cuentaSalidaId);
 
             $this->contabilidadService->registrarEgresoPago(
@@ -683,7 +759,7 @@ class TransactionService
     {
         $tx = $this->txRepository->getById($txId);
         if (!$tx) {
-            throw new Exception("Transacción no encontrada.");
+            throw new Exception("Transacción no encontrada.", 404);
         }
         if ($tx['EstadoID'] == 7 && $newState == 1) {
             $adminId = $_SESSION['user_id'] ?? 0;
@@ -693,6 +769,13 @@ class TransactionService
         $affected = $this->txRepository->updateStatus($txId, $newState, $estadoActual);
 
         if ($affected > 0) {
+            // Sacar la orden de "En Proceso" (3) a mano también deja el ingreso
+            // de venta sumado. Se excluye 3 -> 4 (Exitoso): ese es el camino
+            // normal de completado, donde el ingreso debe quedar.
+            if ($estadoActual === 3 && in_array($newState, [1, 2, 5, 7], true)) {
+                $adminId = (int) ($_SESSION['user_id'] ?? 0);
+                $this->revertirIngresoSiCorresponde($txId, $adminId, 'cambio manual de estado');
+            }
             return true;
         }
 
@@ -707,7 +790,7 @@ class TransactionService
     {
         $tx = $this->txRepository->getById($txId);
         if (!$tx) {
-            throw new Exception("Transacción no encontrada.");
+            throw new Exception("Transacción no encontrada.", 404);
         }
 
         $this->txRepository->updateMontoEditPermission($txId, $estado);
@@ -721,19 +804,19 @@ class TransactionService
         $tx = $this->txRepository->getById($txId);
 
         if (!$tx || $tx['UserID'] != $userId) {
-            throw new Exception("Transacción no encontrada o no pertenece a tu usuario.");
+            throw new Exception("Transacción no encontrada o no pertenece a tu usuario.", 404);
         }
 
         if (($tx['PermitirEdicionMonto'] ?? 0) != 1) {
-            throw new Exception("Bloqueo de Seguridad: No posees autorización del administrador para modificar el monto de esta orden.");
+            throw new Exception("Bloqueo de Seguridad: No posees autorización del administrador para modificar el monto de esta orden.", 403);
         }
 
         if ($nuevoMontoOrigen <= 0) {
-            throw new Exception("El monto a enviar debe ser mayor a 0.");
+            throw new Exception("El monto a enviar debe ser mayor a 0.", 400);
         }
 
         if ($nuevoMontoOrigen > 50000) {
-            throw new Exception("El monto máximo permitido por orden es 50.000.");
+            throw new Exception("El monto máximo permitido por orden es 50.000.", 400);
         }
         $montoOrigenOriginal = (float) $tx['MontoOrigen'];
         $montoDestinoOriginal = (float) $tx['MontoDestino'];
@@ -745,7 +828,7 @@ class TransactionService
             $factorComision = $comisionOriginal / $montoOrigenOriginal;
             $factorComisionRevendedor = $comisionRevendedorOriginal / $montoOrigenOriginal;
         } else {
-            throw new Exception("Error lógico en la base de datos: El monto original de la transacción es 0.");
+            throw new Exception("Error lógico en la base de datos: El monto original de la transacción es 0.", 500);
         }
 
         $nuevoMontoDestino = round($nuevoMontoOrigen * $factorDestino, 2);
@@ -766,7 +849,7 @@ class TransactionService
         $updated = $this->txRepository->updateTransactionAmounts($txId, $nuevoMontoOrigen, $nuevoMontoDestino, $nuevaComision, $nuevaComisionRevendedor);
 
         if (!$updated) {
-            throw new Exception("Error al actualizar la base de datos.");
+            throw new Exception("Error al actualizar la base de datos.", 409);
         }
     }
 

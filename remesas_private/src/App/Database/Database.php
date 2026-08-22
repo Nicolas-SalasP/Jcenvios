@@ -15,7 +15,7 @@ class Database
             $this->connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
             if ($this->connection->connect_error) {
-                throw new Exception("Error de conexión: " . $this->connection->connect_error);
+                throw new Exception("Error de conexión: " . $this->connection->connect_error, 500);
             }
 
             // Fijar utf8mb4: sin esto la conexión queda en latin1 (default) y los datos
@@ -24,7 +24,7 @@ class Database
             $this->connection->set_charset('utf8mb4');
         } catch (\Throwable $e) {
             error_log("DB Connection Error: " . $e->getMessage());
-            throw new Exception("Error interno de conexión a base de datos.");
+            throw new Exception("Error interno de conexión a base de datos.", 500);
         }
     }
 
@@ -53,7 +53,7 @@ class Database
     {
         $stmt = $this->connection->prepare($sql);
         if ($stmt === false) {
-            throw new Exception("Error al preparar la consulta: " . $this->connection->error);
+            throw new Exception("Error al preparar la consulta: " . $this->connection->error, 500);
         }
         return $stmt;
     }

@@ -29,11 +29,16 @@ $estadosOperador = $conexion->query("SELECT EstadoID, NombreEstado FROM estados_
 $listaPaises = $conexion->query("SELECT PaisID, NombrePais FROM paises WHERE Activo = 1 ORDER BY NombrePais ASC")->fetch_all(MYSQLI_ASSOC);
 
 $pageTitle = 'Órdenes por Pagar';
-$pageScript = 'admin.js';
+$pageScripts = array_merge(
+    require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php',
+    ['operador-pendientes.js']
+);
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
 $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
 ?>
+
+<div id="app-data" class="d-none" data-cuentas-destino='<?php echo htmlspecialchars(json_encode($cuentasDestino), ENT_QUOTES, "UTF-8"); ?>'></div>
 
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -41,7 +46,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
             <?php echo $isOperator ? 'Órdenes por Pagar' : 'Gestión de Pendientes'; ?>
         </h1>
 
-        <button id="btnRefresh" class="btn btn-primary" onclick="cargarTablaPendientes()">
+        <button id="btnRefresh" class="btn btn-primary">
             <i class="bi bi-arrow-clockwise"></i> Actualizar Lista
         </button>
     </div>
@@ -150,8 +155,8 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                     <strong class="fs-5 text-muted">Monto a Pagar:</strong>
                     <div class="d-flex align-items-center">
                         <span class="fs-3 fw-bold text-success me-3" id="copy-monto-display"></span>
-                        <button class="btn btn-outline-success btn-sm"
-                            onclick="copyToClipboard('copy-monto-value', this)"><i class="bi bi-clipboard"></i></button>
+                        <button class="btn btn-outline-success btn-sm js-copy-btn"
+                            data-copy-target="copy-monto-value"><i class="bi bi-clipboard"></i></button>
                         <input type="hidden" id="copy-monto-value">
                     </div>
                 </div>
@@ -161,7 +166,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                         <label class="small text-muted fw-bold">Banco / Billetera</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-banco" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-banco', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-banco"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -170,7 +175,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                         <label class="small text-muted fw-bold">Cuenta Bancaria</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-cuenta" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-cuenta', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-cuenta"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -179,8 +184,8 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                         <label class="small text-muted fw-bold">Teléfono (Pago Móvil/Billetera)</label>
                         <div class="input-group">
                             <input type="text" class="form-control fw-bold" id="copy-telefono" readonly>
-                            <button class="btn btn-outline-secondary"
-                                onclick="copyToClipboard('copy-telefono', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn"
+                                data-copy-target="copy-telefono"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -189,7 +194,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                         <label class="small text-muted fw-bold">Documento</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-doc" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-doc', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-doc"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -197,7 +202,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
                         <label class="small text-muted fw-bold">Beneficiario</label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="copy-nombre" readonly>
-                            <button class="btn btn-outline-secondary" onclick="copyToClipboard('copy-nombre', this)"><i
+                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-nombre"><i
                                     class="bi bi-clipboard"></i></button>
                         </div>
                     </div>
@@ -397,84 +402,5 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
     }
 </style>
 
-<script>
-    function cargarTablaPendientes() {
-        const btn = document.getElementById('btnRefresh');
-        const icon = btn ? btn.querySelector('i') : null;
-        if (icon) icon.classList.add('spin-anim');
-        if (btn) btn.disabled = true;
-        const form = document.getElementById('op-filter-form');
-        const qs = form ? new URLSearchParams(new FormData(form)).toString() : '';
-        fetch('get_pendientes.php' + (qs ? ('?' + qs) : ''))
-            .then(r => r.text())
-            .then(html => { document.getElementById('tablaPendientesBody').innerHTML = html; })
-            .catch(e => console.error('Error recargando tabla:', e))
-            .finally(() => { if (icon) icon.classList.remove('spin-anim'); if (btn) btn.disabled = false; });
-    }
-
-    const style = document.createElement('style');
-    style.innerHTML = `
-        .spin-anim { animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-    `;
-    document.head.appendChild(style);
-
-    document.addEventListener('DOMContentLoaded', () => {
-        cargarTablaPendientes();
-        setInterval(cargarTablaPendientes, 10000);
-
-        const opForm = document.getElementById('op-filter-form');
-        if (opForm) {
-            opForm.addEventListener('submit', function (e) {
-                e.preventDefault();
-                cargarTablaPendientes();
-            });
-        }
-        const opClear = document.getElementById('op-clear-filters');
-        if (opClear && opForm) {
-            opClear.addEventListener('click', function () {
-                opForm.reset();
-                cargarTablaPendientes();
-            });
-        }
-
-        document.body.addEventListener('click', function (e) {
-            const btn = e.target.closest('.view-pause-reason-btn');
-            if (btn) {
-                e.preventDefault();
-                const reason = btn.getAttribute('data-reason');
-                const modalBodyText = document.getElementById('pause-reason-text');
-                if (modalBodyText) modalBodyText.textContent = reason;
-
-                const modalEl = document.getElementById('viewPauseReasonModal');
-                if (modalEl) {
-                    let modalInstance = bootstrap.Modal.getInstance(modalEl);
-                    if (!modalInstance) {
-                        modalInstance = new bootstrap.Modal(modalEl);
-                    }
-                    modalInstance.show();
-                }
-            }
-        });
-    });
-
-    if (typeof window.copyToClipboard === 'undefined') {
-        window.copyToClipboard = (elementId, btnElement) => {
-            const input = document.getElementById(elementId);
-            if (!input) return;
-            input.select();
-            input.setSelectionRange(0, 99999);
-            navigator.clipboard.writeText(input.value).then(() => {
-                const orig = btnElement.innerHTML;
-                btnElement.innerHTML = '<i class="bi bi-check"></i>';
-                setTimeout(() => btnElement.innerHTML = orig, 1000);
-            });
-        };
-    }
-</script>
-
-<script>
-    window.cuentasDestino = <?php echo json_encode($cuentasDestino); ?>;
-</script>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

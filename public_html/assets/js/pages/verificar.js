@@ -261,3 +261,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// Lógica para alternar entre "Pendiente" y "Formulario"
+document.addEventListener('DOMContentLoaded', () => {
+    const btnEnable = document.getElementById('btn-enable-edit');
+    const btnCancel = document.getElementById('btn-cancel-edit');
+    const statePending = document.getElementById('state-pending');
+    const stateForm = document.getElementById('state-form');
+
+    if (btnEnable) {
+        btnEnable.addEventListener('click', () => {
+            statePending.classList.add('d-none');
+            stateForm.classList.remove('d-none');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+
+    if (btnCancel) {
+        btnCancel.addEventListener('click', () => {
+            stateForm.classList.add('d-none');
+            statePending.classList.remove('d-none');
+        });
+    }
+
+    if (statePending && statePending.dataset.pending === '1') {
+        setInterval(async () => {
+            try {
+                const res = await fetch('../api/?accion=checkSessionStatus');
+                const data = await res.json();
+                // Si cambia el estado (ej. a Verificado o Rechazado), recargar.
+                if (data.success && data.needs_refresh) {
+                    window.location.reload();
+                }
+            } catch (e) {}
+        }, 5000);
+    }
+});
