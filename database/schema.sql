@@ -421,7 +421,7 @@ CREATE TABLE `rate_limit` (
   `hits` smallint(5) unsigned NOT NULL DEFAULT 1,
   `ventana_fin` datetime NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_ip_accion_ventana` (`ip`,`accion`,`ventana_fin`),
+  UNIQUE KEY `uq_ip_accion` (`ip`,`accion`),
   KEY `idx_ventana_fin` (`ventana_fin`)
 ) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
