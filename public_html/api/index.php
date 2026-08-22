@@ -287,11 +287,20 @@ try {
     $container = new Container();
     $accion = $_GET['accion'] ?? '';
 
-    // Rate limiting por IP
+    // Rate limiting por IP.
+    //
+    // Solo se responde 429 ante la excepción propia del limitador (código 429).
+    // Antes este catch atrapaba cualquier \Exception y devolvía 429 siempre, así
+    // que una caída de la base o un prepare() fallido le mostraban al usuario
+    // "Demasiados intentos" y quedaban enmascarados en producción como si fueran
+    // rate limiting. El resto se relanza para que lo maneje el handler general.
     try {
         $rateLimiter = new RateLimiterService(Database::getInstance());
         $rateLimiter->check($accion);
     } catch (\Exception $e) {
+        if ((int) $e->getCode() !== 429) {
+            throw $e;
+        }
         http_response_code(429);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;

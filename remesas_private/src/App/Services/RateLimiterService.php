@@ -96,16 +96,28 @@ class RateLimiterService
         );
     }
 
+    /**
+     * IP real del cliente.
+     *
+     * SOLO se usa REMOTE_ADDR, que lo escribe el servidor web y el cliente no
+     * puede falsificar. Antes se leían primero HTTP_CF_CONNECTING_IP y
+     * HTTP_X_FORWARDED_FOR, que son headers que manda el propio cliente: bastaba
+     * enviar un X-Forwarded-For distinto en cada request para tener intentos
+     * ilimitados, o mandar el de otra persona para dejarla bloqueada.
+     *
+     * Confiar en esos headers solo es válido detrás de un proxy de confianza que
+     * los reescriba. El hosting actual es cPanel directo, sin proxy delante
+     * (confirmado con el usuario el 2026-08-22).
+     *
+     * SI ALGÚN DÍA SE PONE CLOUDFLARE (u otro proxy) DELANTE: REMOTE_ADDR pasa a
+     * ser la IP del proxy y todos los usuarios compartirían el mismo contador.
+     * En ese caso hay que leer HTTP_CF_CONNECTING_IP, pero únicamente cuando
+     * REMOTE_ADDR esté dentro de los rangos publicados de Cloudflare; nunca
+     * confiar en el header por sí solo.
+     */
     private function getClientIp(): string
     {
-        foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {
-            if (!empty($_SERVER[$key])) {
-                $ip = trim(explode(',', $_SERVER[$key])[0]);
-                if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                    return $ip;
-                }
-            }
-        }
-        return '0.0.0.0';
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '0.0.0.0';
     }
 }
