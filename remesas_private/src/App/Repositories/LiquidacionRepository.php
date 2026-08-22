@@ -20,14 +20,38 @@ class LiquidacionRepository
      * TransactionRepository::getResellerCommissionInRange). $modo es
      * 'por_moneda' (una liquidación por moneda, sin conversión) o
      * 'consolidado_clp' (una sola liquidación en CLP con conversión).
+     *
+     * AJUSTE MANUAL: $monto es SIEMPRE el monto efectivamente pagado, o sea
+     * $montoBase + $montoAjuste. Se guardan los tres por separado para poder
+     * responder "¿de dónde salió esta cifra?" (ver migración 024). $montoBase
+     * null significa "sin ajuste": se guarda igual al monto pagado.
+     * La validación del ajuste (motivo obligatorio, monto final > 0) vive en
+     * LiquidacionService; acá sólo se persiste.
      */
-    public function create(int $userId, float $monto, string $desde, string $hasta, int $cantidad, ?string $notas = null, string $moneda = 'CLP', string $modo = 'por_moneda'): int
-    {
+    public function create(
+        int $userId,
+        float $monto,
+        string $desde,
+        string $hasta,
+        int $cantidad,
+        ?string $notas = null,
+        string $moneda = 'CLP',
+        string $modo = 'por_moneda',
+        ?float $montoBase = null,
+        float $montoAjuste = 0.0,
+        ?string $motivoAjuste = null
+    ): int {
+        $montoBase = $montoBase ?? $monto;
+
         $stmt = $this->db->prepare(
-            "INSERT INTO liquidaciones_revendedor (UserID, Monto, Moneda, ModoLiquidacion, PeriodoDesde, PeriodoHasta, CantidadTransacciones, Notas)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO liquidaciones_revendedor (UserID, Monto, MontoBase, MontoAjuste, MotivoAjuste, Moneda, ModoLiquidacion, PeriodoDesde, PeriodoHasta, CantidadTransacciones, Notas)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
-        $stmt->bind_param("idssssis", $userId, $monto, $moneda, $modo, $desde, $hasta, $cantidad, $notas);
+        $stmt->bind_param(
+            "idddsssssis",
+            $userId, $monto, $montoBase, $montoAjuste, $motivoAjuste,
+            $moneda, $modo, $desde, $hasta, $cantidad, $notas
+        );
         $stmt->execute();
         $id = $stmt->insert_id;
         $stmt->close();

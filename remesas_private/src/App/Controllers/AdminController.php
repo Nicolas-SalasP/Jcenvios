@@ -950,13 +950,22 @@ class AdminController extends BaseController
      * a tocar los DOS contenedores de DI del proyecto (public_html/api/index.php
      * y remesas_private/src/core/init.php), que ya se desincronizaron y
      * rompieron cosas antes. Sus tres dependencias ya están inyectadas acá.
+     *
+     * NotificationService (para la bitácora del ajuste manual) se arma acá por
+     * el mismo motivo: Database es singleton, así que se reusa la misma conexión
+     * y el log entra en la misma transacción que crea la liquidación.
      */
     private function liquidacionService(): \App\Services\LiquidacionService
     {
+        $notificationService = new \App\Services\NotificationService(
+            new \App\Services\LogService(\App\Database\Database::getInstance())
+        );
+
         return new \App\Services\LiquidacionService(
             $this->txRepository,
             $this->liquidacionRepo,
-            $this->pricingService
+            $this->pricingService,
+            $notificationService
         );
     }
 
@@ -986,6 +995,11 @@ class AdminController extends BaseController
         $notas  = trim($data['notas'] ?? '');
         $modo   = trim((string) ($data['modo'] ?? \App\Services\LiquidacionService::MODO_POR_MONEDA));
         $tasas  = is_array($data['tasas'] ?? null) ? $data['tasas'] : [];
+        // Ajuste manual con motivo, por moneda de liquidación. El service valida
+        // (motivo obligatorio si el ajuste no es cero, monto final > 0) y rechaza
+        // con 422; acá no se filtra ni se "arregla" nada del input.
+        $ajustes = is_array($data['ajustes'] ?? null) ? $data['ajustes'] : [];
+        $adminId = (int) ($_SESSION['user_id'] ?? 0);
 
         if (!$userId || !$desde || !$hasta) {
             $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
@@ -993,7 +1007,9 @@ class AdminController extends BaseController
         }
 
         try {
-            $resultado = $this->liquidacionService()->crear($userId, $desde, $hasta, $modo, $tasas, $notas ?: null);
+            $resultado = $this->liquidacionService()->crear(
+                $userId, $desde, $hasta, $modo, $tasas, $notas ?: null, $ajustes, $adminId ?: null
+            );
         } catch (Exception $e) {
             // publicMessage conserva el mensaje real en los 4xx (los rechazos de
             // negocio de la liquidación: tasa faltante, tasa no positiva, modo
