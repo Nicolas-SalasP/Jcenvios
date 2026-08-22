@@ -62,6 +62,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error('No se pudo cargar la configuración de referidos:', e);
+            // Antes esto moría en el console.error y el campo de referido no
+            // aparecía nunca, sin ningún aviso: alguien que entró por un link
+            // "?ref=XXXX" perdía el referido sin enterarse. Ahora se muestra el
+            // campo igual (precargado si venía en la URL) y se avisa del fallo.
+            container.classList.remove('d-none');
+            if (refCode) {
+                input.value = refCode.toUpperCase();
+                const registerTab = document.getElementById('register-tab');
+                if (registerTab) new bootstrap.Tab(registerTab).show();
+            }
+            if (window.showInfoModal) {
+                window.showInfoModal(
+                    'Aviso',
+                    'No se pudo verificar la configuración de referidos. Puedes registrarte igual; si tienes un código de referido, ingrésalo manualmente.',
+                    false
+                );
+            }
         }
     })();
 
@@ -119,9 +136,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Error al cargar tipos de documento');
             const tiposDesdeDB = await response.json();
 
+            // Los nombres de tipo de documento salen de la BD (el admin los
+            // edita): se crean como nodos, no como HTML interpolado.
             docTypeSelect.innerHTML = '<option value="">Selecciona...</option>';
             tiposDesdeDB.forEach(tipo => {
-                docTypeSelect.innerHTML += `<option value="${tipo.NombreDocumento}">${tipo.NombreDocumento}</option>`;
+                const opt = document.createElement('option');
+                opt.value = tipo.NombreDocumento;
+                opt.textContent = tipo.NombreDocumento;
+                docTypeSelect.appendChild(opt);
             });
         } catch (error) {
             console.error(error);
@@ -199,6 +221,18 @@ document.addEventListener('DOMContentLoaded', () => {
     loginForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         loginFeedback.textContent = '';
+
+        // Sin deshabilitar el botón, un doble click mandaba dos POST a
+        // loginUser (dos intentos contra el rate limiter por un solo click
+        // real del usuario). Mismo patrón que el form de registro.
+        const submitButton = loginForm.querySelector('button[type="submit"]');
+        const originalText = submitButton ? submitButton.textContent : '';
+        if (submitButton) {
+            if (submitButton.disabled) return;
+            submitButton.disabled = true;
+            submitButton.textContent = 'Ingresando...';
+        }
+
         const formData = new FormData(loginForm);
         const data = Object.fromEntries(formData.entries());
 
@@ -211,21 +245,34 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (response.ok && result.success) {
+                // Éxito: se navega a otra página, el botón queda deshabilitado
+                // a propósito para que no se pueda reenviar mientras redirige.
                 window.location.href = result.redirect;
+                return;
+            }
+
+            const errorMsg = result.error || 'Error desconocido';
+            if (window.showInfoModal) {
+                window.showInfoModal('Error de Inicio de Sesión', errorMsg, false);
             } else {
-                const errorMsg = result.error || 'Error desconocido';
-                if (window.showInfoModal) {
-                    window.showInfoModal('Error de Inicio de Sesión', errorMsg, false);
-                } else {
-                    loginFeedback.textContent = errorMsg;
-                }
+                loginFeedback.textContent = errorMsg;
+            }
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
             }
         } catch (error) {
-            const errorMsg = 'Error de conexión. Inténtalo de nuevo.';
+            const errorMsg = window.formatNetworkError
+                ? window.formatNetworkError(error, 'Error de conexión. Inténtalo de nuevo.')
+                : 'Error de conexión. Inténtalo de nuevo.';
             if (window.showInfoModal) {
                 window.showInfoModal('Error de Conexión', errorMsg, false);
             } else {
                 loginFeedback.textContent = errorMsg;
+            }
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
             }
         }
     });

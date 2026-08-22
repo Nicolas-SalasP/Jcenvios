@@ -11,6 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return div.innerHTML;
     };
 
+    // El color va dentro de un atributo `style`, y escapeHtml NO escapa
+    // comillas: un valor tipo `red" onmouseover="...` se saldría del atributo.
+    // Solo se aceptan colores hex, cualquier otra cosa cae al negro.
+    const safeHexColor = (value) => {
+        const v = String(value || '').trim();
+        return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? v : '#000000';
+    };
+
     const renderCuentas = (cuentas) => {
         container.innerHTML = '';
         if (!cuentas.length) {
@@ -20,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
         emptyMsg.classList.add('d-none');
         container.innerHTML = cuentas.map((c) => `
             <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm" style="border-top: 4px solid ${escapeHtml(c.ColorHex || '#000000')};">
+                <div class="card h-100 shadow-sm" style="border-top: 4px solid ${safeHexColor(c.ColorHex)};">
                     <div class="card-body">
                         <h6 class="card-subtitle mb-2 text-muted">${escapeHtml(c.FormaPagoNombre)}</h6>
                         <h5 class="card-title mb-3">${escapeHtml(c.Banco)}</h5>
@@ -42,6 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
         emptyMsg.classList.add('d-none');
         try {
             const res = await fetch('../api/?accion=getDatosBancariosPorPais&paisId=' + encodeURIComponent(paisId));
+            if (!res.ok && res.status >= 500) {
+                throw new Error('El servidor no pudo procesar la solicitud (error ' + res.status + ').');
+            }
             const data = await res.json();
             if (data.success) {
                 renderCuentas(data.cuentas || []);
@@ -50,8 +61,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.showInfoModal('Error', data.error || 'No se pudieron cargar las cuentas.', false);
             }
         } catch (e) {
+            console.error(e);
             container.innerHTML = '';
-            window.showInfoModal('Error', 'Error de conexión al cargar las cuentas.', false);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'Error de conexión al cargar las cuentas.'), false);
         }
     };
 
@@ -65,11 +77,40 @@ document.addEventListener('DOMContentLoaded', () => {
     (async () => {
         try {
             const res = await fetch('../api/?accion=getPaises&rol=Origen');
+            if (!res.ok) throw new Error('El servidor respondió ' + res.status);
             const paises = await res.json();
-            selectPais.innerHTML = '<option value="">Selecciona un país...</option>' +
-                paises.map((p) => `<option value="${p.PaisID}">${escapeHtml(p.NombrePais)}</option>`).join('');
+            if (!Array.isArray(paises)) throw new Error('Respuesta inesperada del servidor.');
+
+            // Se arma con nodos en vez de innerHTML: el nombre del país sale de
+            // la BD y escapeHtml no escapa comillas, así que interpolarlo en un
+            // atributo no sería seguro.
+            selectPais.replaceChildren();
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Selecciona un país...';
+            selectPais.appendChild(placeholder);
+
+            paises.forEach((p) => {
+                const opt = document.createElement('option');
+                opt.value = p.PaisID;
+                opt.textContent = p.NombrePais || '';
+                selectPais.appendChild(opt);
+            });
         } catch (e) {
+            // Antes esto moría en el console.error y el select quedaba vacío
+            // sin ninguna explicación para el usuario.
             console.error('Error cargando países', e);
+            selectPais.replaceChildren();
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Error al cargar los países';
+            selectPais.appendChild(opt);
+            selectPais.disabled = true;
+            window.showInfoModal(
+                'Error',
+                window.formatNetworkError(e, 'No se pudo cargar la lista de países. Recarga la página e intenta de nuevo.'),
+                false
+            );
         }
     })();
 });

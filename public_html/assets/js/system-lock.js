@@ -6,6 +6,13 @@ document.addEventListener('DOMContentLoaded', () => {
 let logoutTimer = null;
 let countdownInterval = null;
 
+// Estado de la interfaz bloqueada. `interfaceDisabled` evita que
+// enableInterface() corra en cada poll (45s) pisando estilos de otros scripts;
+// `disabledElements` guarda SOLO lo que este archivo deshabilitó, con su valor
+// previo, para poder devolverlo tal cual estaba.
+let interfaceDisabled = false;
+let disabledElements = [];
+
 async function checkSystemStatus() {
     try {
         const isInSubfolder = window.location.pathname.includes('/dashboard/') ||
@@ -118,7 +125,17 @@ async function checkSystemStatus() {
 }
 
 function showLockModal(status) {
-    if (document.getElementById('system-lock-modal')) return; 
+    if (document.getElementById('system-lock-modal')) return;
+
+    // `status.message` es el campo "Motivo" del feriado: texto libre que escribe
+    // el admin y que checkSystemStatus devuelve tal cual. Este modal se inyecta
+    // con innerHTML en el navegador de TODOS los clientes durante un bloqueo,
+    // así que sin escapar es XSS almacenado directo.
+    const esc = window.escapeHtml || ((s) => {
+        const d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    });
 
     const modalHtml = `
         <div id="system-lock-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9998; backdrop-filter: blur(8px);"></div>
@@ -128,7 +145,7 @@ function showLockModal(status) {
             </div>
             <h3 style="color: #111827; font-weight: 400; margin-bottom: 16px; font-size: 1.5rem;">Sistema en Mantenimiento</h3>
             <p style="color: #1f2937; font-weight: 700; font-size: 1.1rem; line-height: 1.5; margin-bottom: 24px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
-                ${status.message}
+                ${esc(status.message)}
             </p>
             <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
                 <p style="color: #6b7280; font-size: 0.95rem; margin-bottom: 16px;">
@@ -187,18 +204,47 @@ function cleanupLockState() {
 }
 
 function disableInterface() {
+    // Idempotente: el polling llama a esto cada 45s mientras dure el bloqueo.
+    if (interfaceDisabled) return;
+
     const elements = document.querySelectorAll('button, input, select, textarea, a');
+    disabledElements = [];
+
     elements.forEach(el => {
         if (el.closest('#system-lock-modal')) return;
+        // Guardamos el estado previo real para poder restaurarlo idéntico:
+        // `hasTabIndexAttr` distingue un tabIndex explícito en el HTML del
+        // implícito del navegador (que NO hay que forzar a 0 al restaurar,
+        // porque eso destroza el orden de tabulación natural).
+        disabledElements.push({
+            el,
+            prevPointerEvents: el.style.pointerEvents,
+            hasTabIndexAttr: el.hasAttribute('tabindex'),
+            prevTabIndexAttr: el.getAttribute('tabindex')
+        });
         el.style.pointerEvents = 'none';
         el.tabIndex = -1;
     });
+
+    interfaceDisabled = true;
 }
 
 function enableInterface() {
-    const elements = document.querySelectorAll('button, input, select, textarea, a');
-    elements.forEach(el => {
-        el.style.pointerEvents = '';
-        el.tabIndex = 0;
+    // Solo corre en la transición real bloqueado → desbloqueado. Antes se
+    // ejecutaba en CADA poll sobre toda la página, pisando cualquier
+    // `pointer-events:none` inline puesto por otro script y reseteando el
+    // tabIndex de todos los elementos a 0.
+    if (!interfaceDisabled) return;
+
+    disabledElements.forEach(({ el, prevPointerEvents, hasTabIndexAttr, prevTabIndexAttr }) => {
+        el.style.pointerEvents = prevPointerEvents || '';
+        if (hasTabIndexAttr) {
+            el.setAttribute('tabindex', prevTabIndexAttr);
+        } else {
+            el.removeAttribute('tabindex');
+        }
     });
+
+    disabledElements = [];
+    interfaceDisabled = false;
 }

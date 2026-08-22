@@ -13,23 +13,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let currentMethod = '';
 
+    // HTML original de cada botón de método, capturado UNA vez al cargar.
+    // Antes se guardaba en una variable local del handler y solo se restauraba
+    // en la rama de fallo: si el envío salía bien y el usuario tocaba "Volver",
+    // btnBack re-habilitaba los botones pero el texto se quedaba pegado en
+    // "<spinner> Enviando...". Repro: elegir "Email" → Volver.
+    const originalMethodHtml = new Map();
+    methodButtons.forEach(b => originalMethodHtml.set(b, b.innerHTML));
+
+    const restoreMethodButtons = () => {
+        methodButtons.forEach(b => {
+            b.disabled = false;
+            if (originalMethodHtml.has(b)) b.innerHTML = originalMethodHtml.get(b);
+        });
+    };
+
     methodButtons.forEach(btn => {
         btn.addEventListener('click', async () => {
             currentMethod = btn.getAttribute('data-method');
-            
+
             if (currentMethod === 'email' || currentMethod === 'whatsapp' || currentMethod === 'sms') {
+                if (btn.disabled) return;
                 btn.disabled = true;
-                const originalHTML = btn.innerHTML;
                 btn.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div> Enviando...';
 
                 const success = await sendCode(currentMethod);
-                
+
                 if (!success) {
                     btn.disabled = false;
-                    btn.innerHTML = originalHTML;
+                    btn.innerHTML = originalMethodHtml.get(btn);
                     return;
                 }
-                
+
                 descMethod.innerHTML = `Hemos enviado un código a tu <strong>${currentMethod === 'email' ? 'correo' : 'teléfono'}</strong> registrado.`;
                 resendContainer.style.display = 'block';
             } else {
@@ -47,7 +62,9 @@ document.addEventListener('DOMContentLoaded', function() {
     btnBack.addEventListener('click', () => {
         stepCode.style.display = 'none';
         stepSelection.style.display = 'block';
-        methodButtons.forEach(b => b.disabled = false);
+        // Devuelve texto Y estado: re-habilitar sin restaurar el innerHTML
+        // dejaba el botón con el spinner de "Enviando..." para siempre.
+        restoreMethodButtons();
         resendStatus.innerHTML = '';
     });
 

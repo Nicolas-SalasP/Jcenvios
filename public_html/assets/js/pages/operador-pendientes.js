@@ -1,4 +1,16 @@
-function cargarTablaPendientes() {
+/**
+ * Recarga el cuerpo de la tabla de pendientes.
+ *
+ * @param {{auto?: boolean}} opts  auto=true cuando viene del polling de 10s.
+ *        En ese caso NO se refresca si el operador tiene un modal de trabajo
+ *        abierto: reemplazar el <tbody> le borraba de abajo la fila con la que
+ *        estaba operando (mismo bug ya arreglado en admin.js). El refresh
+ *        manual y el de los filtros siempre corren.
+ */
+function cargarTablaPendientes(opts) {
+    const isAuto = !!(opts && opts.auto);
+    if (isAuto && document.querySelector('.modal.show')) return;
+
     const btn = document.getElementById('btnRefresh');
     const icon = btn ? btn.querySelector('i') : null;
     if (icon) icon.classList.add('spin-anim');
@@ -6,9 +18,27 @@ function cargarTablaPendientes() {
     const form = document.getElementById('op-filter-form');
     const qs = form ? new URLSearchParams(new FormData(form)).toString() : '';
     fetch('get_pendientes.php' + (qs ? ('?' + qs) : ''))
-        .then(r => r.text())
+        .then(r => {
+            // Sin este chequeo, un 500 de PHP se inyectaba tal cual (página de
+            // error completa) dentro del <tbody>.
+            if (!r.ok) throw new Error('El servidor respondió ' + r.status);
+            return r.text();
+        })
         .then(html => { document.getElementById('tablaPendientesBody').innerHTML = html; })
-        .catch(e => console.error('Error recargando tabla:', e))
+        .catch(e => {
+            console.error('Error recargando tabla:', e);
+            // El refresh automático falla en silencio (reintenta en 10s); el
+            // manual sí avisa, porque el operador está esperando el resultado.
+            if (!isAuto && window.showInfoModal) {
+                window.showInfoModal(
+                    'Error al actualizar',
+                    window.formatNetworkError
+                        ? window.formatNetworkError(e, 'No se pudo actualizar la lista de pendientes.')
+                        : 'No se pudo actualizar la lista de pendientes.',
+                    false
+                );
+            }
+        })
         .finally(() => { if (icon) icon.classList.remove('spin-anim'); if (btn) btn.disabled = false; });
 }
 
@@ -26,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     cargarTablaPendientes();
-    setInterval(cargarTablaPendientes, 10000);
+    setInterval(() => cargarTablaPendientes({ auto: true }), 10000);
 
     const opForm = document.getElementById('op-filter-form');
     if (opForm) {

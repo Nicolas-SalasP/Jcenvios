@@ -234,7 +234,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST',
                     body: formData
                 });
-                const result = await response.json();
+                // Un 500 de PHP contesta HTML: .json() tiraría
+                // "Unexpected token '<'" y el catch se lo mostraba al cliente.
+                let result = null;
+                try {
+                    result = await response.json();
+                } catch (parseError) {
+                    throw new Error('El servidor no pudo procesar la subida (error ' + response.status + '). Intenta de nuevo en unos minutos.');
+                }
 
                 if (response.ok && result.success) {
                     const activeModal = bootstrap.Modal.getInstance(uploadModalElement);
@@ -273,39 +280,89 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    /**
+     * Lee la respuesta de la API tolerando que el servidor devuelva HTML.
+     *
+     * Un 500 de PHP contesta la página de error completa; hacer .json() sobre
+     * eso tira `SyntaxError: Unexpected token '<'` y el catch se lo mostraba
+     * crudo al cliente.
+     */
+    const parseApiResponse = async (res) => {
+        let result = null;
+        try {
+            result = await res.json();
+        } catch (e) {
+            throw new Error(res.ok
+                ? 'El servidor devolvió una respuesta inesperada. Intenta de nuevo.'
+                : 'El servidor no pudo procesar la solicitud (error ' + res.status + '). Intenta de nuevo en unos minutos.');
+        }
+        if (!res.ok || !result || !result.success) {
+            throw new Error((result && result.error) || 'No se pudo completar la operación.');
+        }
+        return result;
+    };
+
     // --- CANCELAR ORDEN ---
+    // OJO: cancelar dispara una reversión contable en el backend. Cada click
+    // extra era otro POST a cancelTransaction, así que el botón se bloquea
+    // apenas se confirma y NO se re-habilita si la operación salió bien (la
+    // orden ya no es cancelable; la tabla se recarga sola).
     document.addEventListener('click', async (e) => {
         const btn = e.target.closest('.cancel-btn');
-        if (!btn) return;
+        if (!btn || btn.disabled || btn.dataset.busy === '1') return;
         const txId = btn.getAttribute('data-tx-id');
-        if (await window.showConfirmModal('Cancelar', `¿Cancelar orden #${txId}?`)) {
-            try {
-                const res = await fetch('../api/?accion=cancelTransaction', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactionId: txId })
-                });
-                const result = await res.json();
-                if (result.success) window.showInfoModal('Cancelada', 'Orden cancelada.', true, window.reloadHistorial);
-                else throw new Error(result.error);
-            } catch (err) { window.showInfoModal('Error', err.message || 'Error conexión', false); }
+        if (!(await window.showConfirmModal('Cancelar', `¿Cancelar orden #${txId}?`))) return;
+
+        // Se re-chequea después del await del modal: entre que se abrió la
+        // confirmación y se aceptó, pudo haberse disparado otra.
+        if (btn.dataset.busy === '1') return;
+        btn.dataset.busy = '1';
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const res = await fetch('../api/?accion=cancelTransaction', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactionId: txId })
+            });
+            await parseApiResponse(res);
+            window.showInfoModal('Cancelada', 'Orden cancelada.', true, window.reloadHistorial);
+        } catch (err) {
+            console.error(err);
+            window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo cancelar la orden.'), false);
+            btn.dataset.busy = '0';
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         }
     });
 
     // --- EXTENDER PLAZO DE PAGO ("Sí, voy a pagar") ---
     document.addEventListener('click', async (e) => {
         const btn = e.target.closest('.extend-deadline-btn');
-        if (!btn) return;
+        if (!btn || btn.disabled || btn.dataset.busy === '1') return;
         const txId = btn.getAttribute('data-tx-id');
-        if (await window.showConfirmModal('Extender plazo', `¿Confirmas que vas a pagar la orden #${txId}? Tendrás 4 horas más para subir el comprobante.`)) {
-            try {
-                const res = await fetch('../api/?accion=extendPaymentDeadline', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactionId: txId })
-                });
-                const result = await res.json();
-                if (result.success) window.showInfoModal('Plazo extendido', result.message || 'Tienes 4 horas más para pagar.', true, window.reloadHistorial);
-                else throw new Error(result.error);
-            } catch (err) { window.showInfoModal('Error', err.message || 'Error de conexión', false); }
+        if (!(await window.showConfirmModal('Extender plazo', `¿Confirmas que vas a pagar la orden #${txId}? Tendrás 4 horas más para subir el comprobante.`))) return;
+
+        if (btn.dataset.busy === '1') return;
+        btn.dataset.busy = '1';
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const res = await fetch('../api/?accion=extendPaymentDeadline', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactionId: txId })
+            });
+            const result = await parseApiResponse(res);
+            window.showInfoModal('Plazo extendido', result.message || 'Tienes 4 horas más para pagar.', true, window.reloadHistorial);
+        } catch (err) {
+            console.error(err);
+            window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo extender el plazo.'), false);
+            btn.dataset.busy = '0';
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         }
     });
 

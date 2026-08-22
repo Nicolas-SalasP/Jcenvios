@@ -116,11 +116,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const descEl = document.getElementById('rate-description');
     let chartInstance = null;
 
+    // Token de secuencia: fetchRates() y renderChart() se disparan tanto desde
+    // el debounce de 600ms del input como desde el `change` de ambos selects.
+    // Cambiando origen/destino rápido quedan dos requests en vuelo y la vieja
+    // puede contestar última, dejando commercialRate (y el monto convertido que
+    // ve el visitante) con la tasa de la ruta anterior. No usamos AbortController
+    // a propósito: el abort cae en el catch, que escribe un texto de error en
+    // pantalla y le mostraría un falso "sin tasa" al usuario.
+    let ratesReqId = 0;
+    let chartReqId = 0;
+
     const renderChart = async (origenId, destinoId) => {
         if (!ctx) return;
+        const myReq = ++chartReqId;
         try {
             const respChart = await fetch(`api/?accion=getDolarBcv&origenId=${origenId}&destinoId=${destinoId}&days=30`);
             const dataChart = await respChart.json();
+            if (myReq !== chartReqId) return; // llegó tarde, ya hay otra en curso
             if (!dataChart.success) return;
             const valorCon5Decimales = formatDisplay(dataChart.valorActual, 5);
             
@@ -182,7 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             });
-        } catch (e) { console.warn("Gráfico error", e); }
+        } catch (e) {
+            if (myReq !== chartReqId) return; // no pisar con un error viejo
+            console.warn("Gráfico error", e);
+        }
     };
 
     const fetchRates = async () => {
@@ -190,15 +205,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const dID = selectDestino.value;
         if (!oID || !dID) return;
 
+        const myReq = ++ratesReqId;
+
         updateUiForCountry();
 
         if (isVenezuelaDest) {
             try {
                 const responseBcv = await fetch('api/?accion=getBcvRate');
                 const dataBcv = await responseBcv.json();
+                if (myReq !== ratesReqId) return;
                 bcvRate = dataBcv.success ? parseFloat(dataBcv.rate) : 0;
                 if (bcvRateDisplayCalc) bcvRateDisplayCalc.textContent = `1 USD = ${formatDisplay(bcvRate)} VES`;
-            } catch (e) { bcvRate = 0; }
+            } catch (e) {
+                if (myReq !== ratesReqId) return;
+                bcvRate = 0;
+            }
         }
 
         let montoParaTasa = 0;
@@ -236,6 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const respRate = await fetch(`api/?accion=getCurrentRate&origen=${oID}&destino=${dID}&monto=${montoParaTasa}`);
             const dataRate = await respRate.json();
+            if (myReq !== ratesReqId) return; // respuesta de una ruta que ya no está seleccionada
             if (dataRate.success && dataRate.tasa) {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
                 calculationMode = dataRate.tasa.operation || 'multiply';
@@ -254,6 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
+            if (myReq !== ratesReqId) return; // no mostrar un error de una ruta vieja
             commercialRate = 0;
             if (tasaInfo) {
                 tasaInfo.textContent = 'Monto fuera de rango';
@@ -321,21 +344,40 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         try {
+            // Nombre y moneda del país vienen de la BD (el admin los edita).
+            // Se construyen con createElement en vez de innerHTML: así el texto
+            // y los data-* quedan seteados como valores, no como HTML, y no hay
+            // forma de romper el atributo con una comilla.
+            const buildOption = (p, selected) => {
+                const opt = document.createElement('option');
+                opt.value = p.PaisID;
+                opt.dataset.currency = p.CodigoMoneda || '';
+                opt.textContent = p.NombrePais || '';
+                if (selected) opt.selected = true;
+                return opt;
+            };
+
             const rO = await fetch('api/?accion=getPaises&rol=Origen');
             const dataO = await rO.json();
-            selectOrigen.innerHTML = dataO.map(p => `<option value="${p.PaisID}" data-currency="${p.CodigoMoneda}">${p.NombrePais}</option>`).join('');
+            selectOrigen.replaceChildren(...dataO.map(p => buildOption(p, false)));
 
             const rD = await fetch('api/?accion=getPaises&rol=Destino');
             const dataD = await rD.json();
-            selectDestino.innerHTML = dataD.map(p => {
-                const isV = p.NombrePais.toLowerCase().includes('venezuela');
-                return `<option value="${p.PaisID}" data-currency="${p.CodigoMoneda}" ${isV ? 'selected' : ''}>${p.NombrePais}</option>`;
-            }).join('');
+            selectDestino.replaceChildren(...dataD.map(p => {
+                const isV = String(p.NombrePais || '').toLowerCase().includes('venezuela');
+                return buildOption(p, isV);
+            }));
 
             filterDestinations();
             fetchRates();
             renderChart(selectOrigen.value, selectDestino.value);
-        } catch (e) { console.error("Init Error"); }
+        } catch (e) {
+            console.error("Init Error", e);
+            if (tasaInfo) {
+                tasaInfo.textContent = 'No se pudo cargar la lista de países. Recarga la página.';
+                tasaInfo.classList.replace('text-primary', 'text-danger');
+            }
+        }
     };
 
     init();
@@ -344,8 +386,15 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const response = await fetch('api/?accion=checkSystemStatus');
+        if (!response.ok) return;
         const data = await response.json();
-        if (data.success && data.status && data.status.available === false) {
+        // checkSystemStatus (ClientController) devuelve { active, logged_in,
+        // is_staff, horario_override, horario_mensaje } y, en bloqueo por
+        // feriado, agrega { reason, message, ends_at }. NUNCA devuelve
+        // `success` ni `status.available`: la condición anterior
+        // (data.success && data.status.available === false) era código muerto
+        // y el botón "Enviar ahora" quedaba habilitado durante un bloqueo total.
+        if (data && data.active === false) {
             const btnEnviar = document.getElementById('btn-enviar-ahora');
             if (btnEnviar) {
                 btnEnviar.classList.replace('btn-warning', 'btn-secondary');

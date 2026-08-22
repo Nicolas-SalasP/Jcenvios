@@ -37,6 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const response = await fetch(url);
+                // Sin este chequeo, un 403/500 de view_secure_file.php se
+                // empaquetaba igual como "comprobante_123.jpg" y el cliente
+                // terminaba compartiendo/descargando un archivo corrupto (en
+                // realidad la página de error del servidor).
+                if (!response.ok) {
+                    throw new Error(response.status === 403
+                        ? 'No tienes permiso para acceder a este comprobante.'
+                        : 'El servidor no pudo entregar el archivo (error ' + response.status + ').');
+                }
                 const blob = await response.blob();
 
                 const mimeType = current.ext === 'pdf' ? 'application/pdf' : blob.type;
@@ -60,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error("Error al compartir:", error);
                 if (error.name !== 'AbortError') {
-                    window.showInfoModal('Error', 'No se pudo compartir el archivo.', false);
+                    window.showInfoModal('Error', window.formatNetworkError(error, 'No se pudo compartir el archivo.'), false);
                 }
             } finally {
                 btnShare.disabled = false;
