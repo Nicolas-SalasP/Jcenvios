@@ -29,7 +29,10 @@ $estadosOperador = $conexion->query("SELECT EstadoID, NombreEstado FROM estados_
 $listaPaises = $conexion->query("SELECT PaisID, NombrePais FROM paises WHERE Activo = 1 ORDER BY NombrePais ASC")->fetch_all(MYSQLI_ASSOC);
 
 $pageTitle = 'Órdenes por Pagar';
-$pageScripts = ['admin.js', 'operador-pendientes.js'];
+$pageScripts = array_merge(
+    require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php',
+    ['operador-pendientes.js']
+);
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
 $isOperator = ($_SESSION['user_rol_name'] === 'Operador');

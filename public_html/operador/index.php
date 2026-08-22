@@ -6,7 +6,10 @@ if (!isset($_SESSION['user_rol_name']) || $_SESSION['user_rol_name'] !== 'Operad
 }
 
 $pageTitle = 'Historial de Operaciones';
-$pageScripts = ['admin.js', 'operador-index.js'];
+$pageScripts = array_merge(
+    require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php',
+    ['operador-index.js']
+);
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
 $registrosPorPagina = 50;

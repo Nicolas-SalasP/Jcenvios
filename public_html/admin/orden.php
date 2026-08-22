@@ -36,7 +36,7 @@ $cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
 // --- Manejo de ID inválido (sin fatal) ---
 if ($txId <= 0) {
     $pageTitle = 'Orden no encontrada';
-    $pageScript = 'admin.js';
+    $pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
     require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     ?>
     <div class="container mt-5 mb-5">
@@ -119,7 +119,7 @@ $stmt->close();
 // --- Orden inexistente (sin fatal) ---
 if (!$orden) {
     $pageTitle = 'Orden no encontrada';
-    $pageScript = 'admin.js';
+    $pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
     require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     ?>
     <div class="container mt-5 mb-5">
@@ -177,7 +177,7 @@ if ($comprobanteURL !== '') {
 $esImagen = in_array($extComprobante, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
 
 $pageTitle = 'Orden #' . $txId;
-$pageScript = 'admin.js';
+$pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 

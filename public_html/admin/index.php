@@ -451,7 +451,7 @@ $currentFilters = [
 ];
 
 $pageTitle = 'Panel de Administración';
-$pageScript = 'admin.js';
+$pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
