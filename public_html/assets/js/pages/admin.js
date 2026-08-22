@@ -11,15 +11,10 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // Escapa texto libre ingresado por usuarios (nombre, alias, cuenta, etc.)
-    // antes de insertarlo como HTML — sin esto, un beneficiario/cuenta con
-    // "<img src=x onerror=...>" como nombre corre JS en la sesión del admin
-    // que lo ve (XSS almacenado, encontrado en auditoría 2026-08-21).
-    const escapeHtml = (str) => {
-        const div = document.createElement('div');
-        div.textContent = str == null ? '' : String(str);
-        return div.innerHTML;
-    };
+    // Escapa texto libre del usuario antes de insertarlo como HTML (XSS
+    // almacenado, ver auditoría 2026-08-21). Vive en utils/domUtils.js, que
+    // footer.php carga antes de cualquier script de página.
+    const escapeHtml = window.escapeHtml;
 
     window.refreshAdminTable = async () => {
         const tbody = document.getElementById('transactionsTableBody');

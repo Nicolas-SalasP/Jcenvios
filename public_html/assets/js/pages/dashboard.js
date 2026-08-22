@@ -6,16 +6,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const C_VENEZUELA = 3;
     const C_PERU = 4;
 
-    // Escapa texto libre ingresado por un Revendedor (Banco, TitularNombre,
-    // Instrucciones, etc. de su cuenta) antes de mostrarlo al cliente
-    // referido — sin esto, un revendedor malicioso podía inyectar JS que
-    // corre en la sesión de sus propios clientes (XSS almacenado, hallado
-    // en auditoría 2026-08-21).
-    const escapeHtml = (str) => {
-        const div = document.createElement('div');
-        div.textContent = str == null ? '' : String(str);
-        return div.innerHTML;
-    };
+    // Escapa texto libre de un Revendedor (Banco, TitularNombre, Instrucciones)
+    // antes de mostrarlo al cliente referido (XSS almacenado, ver auditoría
+    // 2026-08-21). Vive en utils/domUtils.js, cargado por footer.php.
+    const escapeHtml = window.escapeHtml;
 
     // =========================================================
     // 2. REFERENCIAS DOM GENERALES
@@ -1586,21 +1580,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-    const nextBtn = document.getElementById('next-btn');
-    const tasaInput = document.getElementById('selected-tasa-id');
-    const modalTasaEl = document.getElementById('modalTasaNoDisponible');
-    if (!nextBtn || !tasaInput || !modalTasaEl) return;
-    const modalTasa = new bootstrap.Modal(modalTasaEl);
-    nextBtn.addEventListener('click', (e) => {
-        const pasoActual = document.querySelector('.form-step.active');
-        if (pasoActual && pasoActual.id === 'step-1') {
-            const tasaId = tasaInput.value;
-            if (!tasaId || tasaId == '0' || tasaId === '') {
-                e.preventDefault();
-                e.stopPropagation();
-                modalTasa.show();
-            }
-        }
-    }, true);
-});
+// El guard del paso 1 (tasa no disponible) vive ahora en
+// pages/dashboard-tasa-guard.js — ya estaba en su propio DOMContentLoaded.

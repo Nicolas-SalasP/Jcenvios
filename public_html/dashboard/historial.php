@@ -7,7 +7,8 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $pageTitle = 'Mi Historial';
-$pageScript = 'historial.js';
+// historial.js primero: expone window.reloadHistorial, que los otros dos usan.
+$pageScripts = ['historial.js', 'historial-comprobantes.js', 'historial-visor.js'];
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 

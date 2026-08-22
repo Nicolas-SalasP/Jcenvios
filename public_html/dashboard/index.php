@@ -23,7 +23,7 @@ if (!isset($_SESSION['verification_status']) || in_array($_SESSION['verification
 }
 
 $pageTitle = 'Realizar Transacción';
-$pageScript = 'dashboard.js';
+$pageScripts = ['dashboard.js', 'dashboard-tasa-guard.js'];
 require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 ?>
 
