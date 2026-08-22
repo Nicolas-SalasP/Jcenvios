@@ -1,7 +1,7 @@
 {
     "require": {
         "php": "^8.2",
-        "phpmailer/phpmailer": "^6.10",
+        "phpmailer/phpmailer": "^7.1",
         "twilio/sdk": "^6.0",
         "ramsey/uuid": "^4.9",
         "pragmarx/google2fa": "^8.0",
