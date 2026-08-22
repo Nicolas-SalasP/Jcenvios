@@ -15,58 +15,39 @@
     const escAttr = window.escapeAttr;
 
     /**
-     * Calls calculateConversion API to convert an amount from a source country to CLP.
-     * Returns the converted amount or null on error.
+     * Renderiza [{Moneda, Total, Cantidad}, …] como "CLP 5.000,00 + COP 20.000,00".
+     *
+     * La comisión del revendedor se calcula sobre el monto de origen de cada
+     * orden, así que está expresada en la moneda de esa orden. NUNCA se suman
+     * monedas distintas acá: antes se sumaban y el resultado se mostraba (y se
+     * pagaba) como pesos chilenos.
      */
-    async function convertToCLP(monto, paisOrigenID) {
-        if (!monto || monto <= 0) return 0;
-        try {
-            const res  = await fetch(`../api/?accion=calculateConversion&monto=${monto}&paisOrigenID=${paisOrigenID}&paisDestinoID=1`);
-            const data = await res.json();
-            return data.success ? data.montoConvertido : null;
-        } catch {
-            return null;
-        }
+    function fmtMonedas(lista, extraClass) {
+        if (!Array.isArray(lista)) return '<span class="text-muted">—</span>';
+        const partes = lista.filter(x => Number(x.Total) > 0).map(x => `${x.Moneda} ${fmt(x.Total)}`);
+        if (!partes.length) return '<span class="text-muted">—</span>';
+        return `<span class="${extraClass || ''}">${esc(partes.join(' + '))}</span>`;
     }
 
-    // Country ID mapping (origin → PaisID)
-    const COUNTRY_IDS = { COP: 2, PEN: 4, ECU: 10 };
-
-    // ── Feature 3 helper: build pending-cobro display string ────────────────
-
     /**
-     * Builds a display string for pending commissions, broken down by currency.
-     * Non-CLP amounts are converted asynchronously; the cell is updated in-place.
+     * Junta varias listas [{Moneda, Total}] en un solo total por moneda.
+     * Se usa para las tarjetas de resumen (suma sobre revendedores, no sobre monedas).
      */
-    async function buildPendienteCell(r, cell) {
-        const parts = [];
-        if (Number(r.PendienteCLP) > 0) parts.push(`CLP ${fmt(r.PendienteCLP)}`);
-        if (Number(r.PendienteCOP) > 0) parts.push(`COP ${fmt(r.PendienteCOP)}`);
-        if (Number(r.PendientePEN) > 0) parts.push(`PEN ${fmt(r.PendientePEN)}`);
+    function totalizarPorMoneda(listas) {
+        const acc = {};
+        listas.forEach(lista => {
+            (Array.isArray(lista) ? lista : []).forEach(x => {
+                const m = x.Moneda || '?';
+                acc[m] = (acc[m] || 0) + Number(x.Total || 0);
+            });
+        });
+        return Object.keys(acc).sort().map(m => ({ Moneda: m, Total: acc[m] }));
+    }
 
-        if (!parts.length) {
-            cell.innerHTML = '<span class="text-muted">—</span>';
-            return;
-        }
-
-        // Show base amounts first
-        cell.innerHTML = `<span class="fw-bold text-warning">${esc(parts.join(' + '))}</span>`;
-
-        // Compute CLP equivalents for non-CLP amounts in background
-        const clpEquivParts = [];
-        if (Number(r.PendienteCLP) > 0) clpEquivParts.push(Number(r.PendienteCLP));
-
-        const conversions = [];
-        if (Number(r.PendienteCOP) > 0) conversions.push(convertToCLP(r.PendienteCOP, COUNTRY_IDS.COP));
-        if (Number(r.PendientePEN) > 0) conversions.push(convertToCLP(r.PendientePEN, COUNTRY_IDS.PEN));
-
-        if (conversions.length > 0) {
-            const results = await Promise.all(conversions);
-            let totalCLPEquiv = Number(r.PendienteCLP) || 0;
-            results.forEach(v => { if (v !== null) totalCLPEquiv += v; });
-            const equiv = `<br><small class="text-muted">≈ CLP ${esc(fmt(totalCLPEquiv))} total</small>`;
-            cell.innerHTML = `<span class="fw-bold text-warning">${esc(parts.join(' + '))}</span>${equiv}`;
-        }
+    function textoMonedas(lista) {
+        if (!Array.isArray(lista)) return '—';
+        const partes = lista.filter(x => Number(x.Total) > 0).map(x => `${x.Moneda} ${fmt(x.Total)}`);
+        return partes.length ? partes.join(' + ') : '—';
     }
 
     // ── Avatar initials helper ───────────────────────────────────────────────
@@ -90,7 +71,7 @@
             ? new Date(r.FechaRegistro).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
             : '';
 
-        const liquidarBtn = Number(r.PendienteCobro) > 0
+        const liquidarBtn = r.TienePendiente
             ? `<button class="btn btn-sm btn-primary btn-crear-liq"
                    data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}" title="Crear liquidación">
                    <i class="bi bi-cash-stack me-1"></i>Liquidar
@@ -118,11 +99,11 @@
                 <td class="text-center">
                     <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold">${parseFloat(r.PorcentajeComision)}%</span>
                 </td>
-                <td class="text-end">
-                    <span class="fw-semibold small">CLP ${esc(fmt(r.TotalGanado))}</span>
+                <td class="text-end small">
+                    ${fmtMonedas(r.Ganado, 'fw-semibold')}
                 </td>
-                <td class="text-end" id="pendiente-cell-${escAttr(r.UserID)}">
-                    <span class="spinner-border spinner-border-sm text-secondary"></span>
+                <td class="text-end small">
+                    ${fmtMonedas(r.Pendiente, 'fw-bold text-warning')}
                 </td>
                 <td class="text-center">
                     <span class="badge bg-light text-dark border">${esc(r.TotalOrdenes)}</span>
@@ -172,26 +153,21 @@
 
             _resellersData = data.data;
 
-            // Populate summary stats cards
+            // Tarjetas de resumen: se suma POR MONEDA entre revendedores, nunca
+            // entre monedas distintas.
             const totalOrdenes = data.data.reduce((s, r) => s + Number(r.TotalOrdenes), 0);
-            const totalGanado  = data.data.reduce((s, r) => s + Number(r.TotalGanado),  0);
-            const totalPend    = data.data.reduce((s, r) => s + Number(r.PendienteCobro || 0), 0);
+            const totalGanado  = totalizarPorMoneda(data.data.map(r => r.Ganado));
+            const totalPend    = totalizarPorMoneda(data.data.map(r => r.Pendiente));
             const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
             setEl('stat-total-resellers', data.data.length);
             setEl('stat-total-ordenes',   totalOrdenes.toLocaleString('es-CL'));
-            setEl('stat-pendiente-total', 'CLP ' + fmt(totalPend));
-            setEl('stat-total-ganado',    'CLP ' + fmt(totalGanado));
+            setEl('stat-pendiente-total', textoMonedas(totalPend));
+            setEl('stat-total-ganado',    textoMonedas(totalGanado));
             const countBadge = document.getElementById('badge-count-resellers');
             if (countBadge) countBadge.textContent = data.data.length;
 
             tbody.innerHTML = data.data.map(resellerRow).join('');
             wireResellerButtons();
-
-            // Populate pending-cobro cells (Feature 3) asynchronously
-            data.data.forEach(r => {
-                const cell = document.getElementById(`pendiente-cell-${r.UserID}`);
-                if (cell) buildPendienteCell(r, cell);
-            });
 
         } catch (e) {
             console.error(e);
@@ -207,8 +183,8 @@
                 const now = new Date();
                 document.getElementById('liq-desde').value  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
                 document.getElementById('liq-hasta').value  = now.toISOString().split('T')[0];
-                document.getElementById('liq-preview').classList.add('d-none');
-                document.getElementById('btnConfirmLiq').disabled = true;
+                document.getElementById('liq-modo-por-moneda').checked = true;
+                resetPreview();
                 document.getElementById('liq-notas').value = '';
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('crearLiqModal')).show();
             });
@@ -231,6 +207,21 @@
         applyResellerFilter();
     });
 
+    /**
+     * Muestra a qué cambio se pagó cada moneda de una liquidación consolidada.
+     * Es el rastro auditable: sin esto, dentro de seis meses nadie puede
+     * reconstruir el pago.
+     */
+    function detalleConversion(l) {
+        if (l.ModoLiquidacion !== 'consolidado_clp' || !Array.isArray(l.Detalle) || l.Detalle.length === 0) {
+            return '';
+        }
+        const lineas = l.Detalle.map(d =>
+            `${d.Moneda} ${fmt(d.MontoOriginal)} × ${Number(d.TasaConversion)} = CLP ${fmt(d.MontoConvertido)}`
+        );
+        return `<br><small class="text-muted fw-normal" style="font-size:.7rem">${esc(lineas.join(' · '))}</small>`;
+    }
+
     async function loadLiquidaciones() {
         const tbody = document.getElementById('liq-body');
         try {
@@ -248,7 +239,10 @@
                 <tr>
                     <td><strong>${esc(l.RevendedorNombre)}</strong><br><small class="text-muted">${esc(l.RevendedorEmail)}</small></td>
                     <td class="small">${esc(l.PeriodoDesde)} — ${esc(l.PeriodoHasta)}</td>
-                    <td class="text-end fw-bold">${esc(fmt(l.Monto))}</td>
+                    <td class="text-end fw-bold">
+                        ${esc(l.Moneda || 'CLP')} ${esc(fmt(l.Monto))}
+                        ${detalleConversion(l)}
+                    </td>
                     <td class="text-center">${esc(l.CantidadTransacciones)}</td>
                     <td>${l.Estado === 'pagada'
                         ? '<span class="badge bg-success">Pagada</span>'
@@ -258,7 +252,7 @@
                         ${l.Estado !== 'pagada' ? `
                         <button class="btn btn-sm btn-success btn-pagar-liq"
                             data-id="${escAttr(l.LiquidacionID)}"
-                            data-monto="${escAttr(fmt(l.Monto))}"
+                            data-monto="${escAttr((l.Moneda || 'CLP') + ' ' + fmt(l.Monto))}"
                             data-nombre="${escAttr(l.RevendedorNombre)}">
                             <i class="bi bi-check-circle me-1"></i> Pagar
                         </button>` :
@@ -285,12 +279,201 @@
 
     // ── Preview / Crear liquidacion ──────────────────────────────────────────
 
+    // Último desglose calculado. Se limpia al abrir el modal y al cambiar de
+    // modo: confirmar con un desglose viejo sería pagar un monto que el admin
+    // no está viendo.
+    let _liqPreview = null;
+
+    function modoSeleccionado() {
+        const el = document.querySelector('input[name="liq-modo"]:checked');
+        return el ? el.value : 'por_moneda';
+    }
+
+    function resetPreview() {
+        _liqPreview = null;
+        const preview = document.getElementById('liq-preview');
+        preview.classList.add('d-none');
+        preview.innerHTML = '';
+        document.getElementById('btnConfirmLiq').disabled = true;
+    }
+
+    /**
+     * Fila editable de conversión (solo en modo consolidado).
+     * La tasa se expresa como CLP por 1 unidad de la moneda:
+     *   montoCLP = montoOriginal * tasa
+     * Se muestra además la equivalencia inversa (1 CLP = X moneda) porque es
+     * como el admin está acostumbrado a leer las tasas del panel.
+     */
+    function filaConversion(d) {
+        const sinTasa = d.tasaSugerida === null || d.tasaSugerida === undefined;
+        const valor   = sinTasa ? '' : d.tasaSugerida;
+        const origen  = d.sentidoTasa === 'inversa'
+            ? `sugerida desde la ruta CLP→${d.moneda} (invertida)`
+            : d.sentidoTasa === 'directa'
+                ? `sugerida desde la ruta ${d.moneda}→CLP`
+                : d.moneda === 'CLP' ? 'sin conversión' : '';
+
+        if (d.moneda === 'CLP') {
+            return `
+                <tr data-moneda="CLP" data-monto="${escAttr(d.total)}">
+                    <td class="fw-semibold">CLP</td>
+                    <td class="text-end">${esc(fmt(d.total))}</td>
+                    <td class="text-center small text-muted">${esc(d.cantidad)}</td>
+                    <td class="text-center small text-muted">1 (sin conversión)</td>
+                    <td class="text-end fw-semibold liq-clp-cell">${esc(fmt(d.total))}</td>
+                </tr>`;
+        }
+
+        return `
+            <tr data-moneda="${escAttr(d.moneda)}">
+                <td class="fw-semibold">${esc(d.moneda)}</td>
+                <td class="text-end">${esc(fmt(d.total))}</td>
+                <td class="text-center small text-muted">${esc(d.cantidad)}</td>
+                <td>
+                    <input type="number" step="any" min="0"
+                           class="form-control form-control-sm text-end liq-tasa-input"
+                           data-moneda="${escAttr(d.moneda)}"
+                           data-monto="${escAttr(d.total)}"
+                           value="${escAttr(valor)}"
+                           placeholder="CLP por 1 ${escAttr(d.moneda)}">
+                    <small class="${sinTasa ? 'text-danger' : 'text-muted'}" style="font-size:.7rem">
+                        ${sinTasa
+                            ? 'Sin ruta de tasas activa: escribí la tasa a mano.'
+                            : esc(origen)}
+                    </small>
+                </td>
+                <td class="text-end fw-semibold liq-clp-cell">—</td>
+            </tr>`;
+    }
+
+    function recalcularConsolidado() {
+        const preview = document.getElementById('liq-preview');
+        const btn     = document.getElementById('btnConfirmLiq');
+        let total     = 0;
+        let valido    = true;
+        const faltan  = [];
+
+        preview.querySelectorAll('tr[data-moneda]').forEach(tr => {
+            const moneda = tr.dataset.moneda;
+            const celda  = tr.querySelector('.liq-clp-cell');
+            if (moneda === 'CLP') {
+                // Monto crudo del data-attr, no el texto formateado de la celda.
+                total += parseFloat(tr.dataset.monto) || 0;
+                return;
+            }
+            const input = tr.querySelector('.liq-tasa-input');
+            const tasa  = parseFloat(input.value);
+            const monto = parseFloat(input.dataset.monto);
+
+            if (!isFinite(tasa) || tasa <= 0) {
+                valido = false;
+                faltan.push(moneda);
+                celda.innerHTML = '<span class="text-danger">falta tasa</span>';
+                input.classList.add('is-invalid');
+                return;
+            }
+            input.classList.remove('is-invalid');
+            const convertido = monto * tasa;
+            total += convertido;
+            celda.textContent = fmt(convertido);
+        });
+
+        const totalEl = preview.querySelector('#liq-total-clp');
+        const avisoEl = preview.querySelector('#liq-total-aviso');
+        if (totalEl) totalEl.textContent = valido ? 'CLP ' + fmt(total) : '—';
+        if (avisoEl) {
+            avisoEl.innerHTML = valido
+                ? ''
+                : `<div class="alert alert-danger py-2 px-3 mb-0 mt-2 small">
+                       Falta la tasa de conversión de <strong>${esc(faltan.join(', '))}</strong>.
+                       No se puede consolidar sin ella; también podés liquidar por moneda.
+                   </div>`;
+        }
+        btn.disabled = !valido;
+    }
+
+    function renderPreview() {
+        const preview = document.getElementById('liq-preview');
+        const btn     = document.getElementById('btnConfirmLiq');
+        const data    = _liqPreview;
+
+        if (!data || !data.desglose.length) {
+            preview.classList.remove('d-none');
+            preview.innerHTML = '<div class="alert alert-warning mb-0">No hay comisiones pendientes en ese período.</div>';
+            btn.disabled = true;
+            return;
+        }
+
+        const modo = modoSeleccionado();
+        preview.classList.remove('d-none');
+
+        if (modo === 'por_moneda') {
+            const filas = data.desglose.map(d => `
+                <tr>
+                    <td class="fw-semibold">${esc(d.moneda)}</td>
+                    <td class="text-end fw-bold">${esc(fmt(d.total))}</td>
+                    <td class="text-center small text-muted">${esc(d.cantidad)}</td>
+                </tr>`).join('');
+
+            preview.innerHTML = `
+                <div class="alert alert-info mb-2 py-2 px-3 small">
+                    Se van a crear <strong>${esc(data.desglose.length)}</strong> liquidación(es),
+                    una por moneda. Cada una marca solo las órdenes de su propia moneda.
+                </div>
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-light">
+                        <tr><th>Moneda</th><th class="text-end">Monto a pagar</th><th class="text-center">Órdenes</th></tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>`;
+            btn.disabled = false;
+            return;
+        }
+
+        // Modo consolidado: tasas visibles y editables.
+        const filas = data.desglose.map(filaConversion).join('');
+        preview.innerHTML = `
+            <div class="alert alert-warning mb-2 py-2 px-3 small">
+                Revisá la tasa de cada moneda antes de confirmar. La tasa es
+                <strong>CLP por 1 unidad</strong> de esa moneda y queda guardada con la liquidación.
+            </div>
+            <table class="table table-sm table-bordered align-middle mb-2">
+                <thead class="table-light">
+                    <tr>
+                        <th>Moneda</th>
+                        <th class="text-end">Comisión</th>
+                        <th class="text-center">Órdenes</th>
+                        <th style="min-width:170px">Tasa (CLP por 1)</th>
+                        <th class="text-end">Equivale a (CLP)</th>
+                    </tr>
+                </thead>
+                <tbody>${filas}</tbody>
+                <tfoot>
+                    <tr class="table-light">
+                        <th colspan="4" class="text-end">Total a pagar</th>
+                        <th class="text-end" id="liq-total-clp">—</th>
+                    </tr>
+                </tfoot>
+            </table>
+            <div id="liq-total-aviso"></div>`;
+
+        preview.querySelectorAll('.liq-tasa-input').forEach(inp => {
+            inp.addEventListener('input', recalcularConsolidado);
+        });
+        recalcularConsolidado();
+    }
+
+    document.querySelectorAll('input[name="liq-modo"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (_liqPreview) renderPreview();
+        });
+    });
+
     document.getElementById('btnPreviewLiq').addEventListener('click', async () => {
         const userId  = document.getElementById('liq-user-id').value;
         const desde   = document.getElementById('liq-desde').value;
         const hasta   = document.getElementById('liq-hasta').value;
         const preview = document.getElementById('liq-preview');
-        const btn     = document.getElementById('btnConfirmLiq');
 
         if (!desde || !hasta) { window.showInfoModal('Falta el período', 'Selecciona período.', false); return; }
         if (desde > hasta) { window.showInfoModal('Período inválido', 'La fecha "desde" no puede ser posterior a "hasta".', false); return; }
@@ -299,6 +482,7 @@
         const previewOriginal = btnPreview.innerHTML;
         btnPreview.disabled = true;
         btnPreview.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        resetPreview();
 
         try {
             const params = new URLSearchParams({ userId, desde, hasta });
@@ -310,17 +494,14 @@
             // pasaba nada visible y el botón "Crear liquidación" quedaba
             // deshabilitado sin explicación.
             if (data.success) {
-                preview.classList.remove('d-none');
-                preview.innerHTML = `Monto a liquidar: <strong>${esc(fmt(data.total))}</strong> (${esc(data.cantidad)} transacciones) <small class="text-muted">* suma de todas las monedas</small>`;
-                btn.disabled = (Number(data.total) <= 0);
+                _liqPreview = data;
+                renderPreview();
             } else {
                 preview.classList.add('d-none');
-                btn.disabled = true;
                 window.showInfoModal('Error', data.error || 'No se pudo calcular la previsualización.', false);
             }
         } catch (err) {
             preview.classList.add('d-none');
-            btn.disabled = true;
             window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo calcular la previsualización.'), false);
         } finally {
             btnPreview.disabled = false;
@@ -333,8 +514,40 @@
         const desde  = document.getElementById('liq-desde').value;
         const hasta  = document.getElementById('liq-hasta').value;
         const notas  = document.getElementById('liq-notas').value;
+        const modo   = modoSeleccionado();
+
+        if (!_liqPreview) {
+            window.showInfoModal('Falta calcular', 'Calculá el monto antes de crear la liquidación.', false);
+            return;
+        }
+
+        // Tasas solo en modo consolidado. El backend igual valida y rechaza si
+        // falta alguna o no es positiva: esto es la primera barrera, no la única.
+        const tasas = {};
+        if (modo === 'consolidado_clp') {
+            let faltante = null;
+            document.querySelectorAll('#liq-preview .liq-tasa-input').forEach(inp => {
+                const t = parseFloat(inp.value);
+                if (!isFinite(t) || t <= 0) { faltante = faltante || inp.dataset.moneda; return; }
+                tasas[inp.dataset.moneda] = t;
+            });
+            if (faltante) {
+                window.showInfoModal(
+                    'Falta una tasa',
+                    `No se puede consolidar en CLP sin la tasa de ${faltante}. Escribila a mano o liquidá por moneda.`,
+                    false
+                );
+                return;
+            }
+        }
+
+        // No se abre un modal de confirmación acá a propósito: showConfirmModal
+        // usa el #confirmModal genérico de footer.php y anidarlo dentro de
+        // #crearLiqModal deja backdrops de Bootstrap superpuestos. El control
+        // es la previsualización, que ya muestra el desglose y las tasas.
 
         const btn = document.getElementById('btnConfirmLiq');
+        // Deshabilitar YA: un doble click crearía dos liquidaciones.
         btn.disabled = true;
         btn.textContent = 'Creando…';
 
@@ -342,18 +555,19 @@
             const res  = await fetch('../api/?accion=crearLiquidacion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: parseInt(userId), desde, hasta, notas }),
+                body: JSON.stringify({ userId: parseInt(userId), desde, hasta, notas, modo, tasas }),
             });
-            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
-            const data = await res.json();
-            if (data.success) {
-                bootstrap.Modal.getInstance(document.getElementById('crearLiqModal')).hide();
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                throw new Error((data && data.error) || `El servidor respondió con un error (${res.status}).`);
+            }
+            if (data && data.success) {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('crearLiqModal')).hide();
+                resetPreview();
                 await loadResellers();
                 await loadLiquidaciones();
             } else {
-                window.showInfoModal('Error', data.error || 'Error al crear liquidación.', false);
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Crear liquidación';
+                throw new Error((data && data.error) || 'Error al crear liquidación.');
             }
         } catch (e) {
             window.showInfoModal('Error', window.formatNetworkError(e, 'Error al crear liquidación.'), false);

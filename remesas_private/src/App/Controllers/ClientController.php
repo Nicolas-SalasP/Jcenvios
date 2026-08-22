@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers;
 
+use App\Support\ErrorPresenter;
+
 use App\Services\TransactionService;
 use App\Services\PricingService;
 use App\Services\CuentasBeneficiariasService;
@@ -139,7 +141,7 @@ class ClientController extends BaseController
             $this->sendJsonResponse($response);
 
         } catch (Exception $e) {
-            $this->sendJsonResponse(['active' => false, 'error' => $e->getMessage()]);
+            $this->sendJsonResponse(['active' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)]);
         }
     }
 
@@ -167,7 +169,7 @@ class ClientController extends BaseController
             $rate = $this->pricingService->getBcvRate();
             $this->sendJsonResponse(['success' => true, 'rate' => $rate]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -197,7 +199,7 @@ class ClientController extends BaseController
                 'transacciones' => $transacciones
             ]);
         } catch (\Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -214,7 +216,7 @@ class ClientController extends BaseController
             $tipos = $this->tipoDocumentoRepo->getAll();
             $this->sendJsonResponse($tipos);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -278,7 +280,7 @@ class ClientController extends BaseController
             $this->cuentasBeneficiariasService->deleteAccount($userId, $cuentaId);
             $this->sendJsonResponse(['success' => true, 'message' => 'Beneficiario eliminado con éxito']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -332,7 +334,7 @@ class ClientController extends BaseController
                 'extensionesUsadas' => $result['extensionesUsadas'],
             ]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $e->getCode() >= 400 ? $e->getCode() : 500);
         }
     }
 
@@ -353,7 +355,7 @@ class ClientController extends BaseController
             $this->txService->handleUserReceiptUpload($transactionId, $userId, $fileData, $rutTitular, $nombreTitular);
             $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $e->getCode() >= 400 ? $e->getCode() : 500);
         }
     }
 
@@ -408,7 +410,7 @@ class ClientController extends BaseController
             ]);
 
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -521,12 +523,12 @@ class ClientController extends BaseController
             $monto = (float) ($_GET['monto'] ?? 0);
 
             if ($origenId <= 0 || $destinoId <= 0) {
-                throw new Exception("IDs de países inválidos.");
+                throw new Exception("IDs de países inválidos.", 400);
             }
             $tasa = $this->pricingService->getCurrentRate($origenId, $destinoId, $monto);
             $this->sendJsonResponse(['success' => true, 'tasa' => $tasa]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 404);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 404);
         }
     }
 
@@ -548,7 +550,7 @@ class ClientController extends BaseController
             $this->sendJsonResponse(['success' => true] + $result);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 
@@ -575,23 +577,23 @@ class ClientController extends BaseController
             }
 
             if ($txId <= 0) {
-                throw new Exception("Identificador de transacción inválido.");
+                throw new Exception("Identificador de transacción inválido.", 400);
             }
 
             if (empty($mensaje) && empty($beneficiaryData)) {
-                throw new Exception("Debes ingresar un mensaje o corregir algún dato.");
+                throw new Exception("Debes ingresar un mensaje o corregir algún dato.", 400);
             }
 
             $estadoEnProcesoID = $this->txService->getEstadoIdByName('En Proceso');
             $success = $this->txService->requestResume($txId, $userId, $mensaje, $estadoEnProcesoID, $beneficiaryData);
 
             if (!$success) {
-                throw new Exception("No se pudo actualizar la orden. Intente nuevamente.");
+                throw new Exception("No se pudo actualizar la orden. Intente nuevamente.", 409);
             }
 
             $this->sendJsonResponse(['success' => true, 'message' => 'Corrección aplicada y orden enviada a revisión.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -622,7 +624,7 @@ class ClientController extends BaseController
 
             $stmt = $db->prepare($sql);
             if (!$stmt) {
-                throw new Exception("Error en preparación SQL: " . $db->error);
+                throw new Exception("Error en preparación SQL: " . $db->error, 500);
             }
 
             $stmt->bind_param("i", $userId);
@@ -685,7 +687,7 @@ class ClientController extends BaseController
             $valorTasa = (float) $tasaInfo['tasa'];
 
             if ($valorTasa <= 0)
-                throw new Exception("Tasa no válida");
+                throw new Exception("Tasa no válida", 500);
             $montoConvertido = $montoGanancia / $valorTasa;
 
             $this->sendJsonResponse([
@@ -697,7 +699,7 @@ class ClientController extends BaseController
             ]);
 
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()]);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)]);
         }
     }
 
@@ -720,7 +722,7 @@ class ClientController extends BaseController
             $msg = $newState ? "Permiso de soporte activado." : "Permiso de soporte revocado.";
             $this->sendJsonResponse(['success' => true, 'message' => $msg]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -735,7 +737,7 @@ class ClientController extends BaseController
             $requests = $this->auditService->getPendingRequestsForUser($userId);
             $this->sendJsonResponse(['success' => true, 'requests' => $requests]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -756,7 +758,7 @@ class ClientController extends BaseController
             $this->auditService->respondToRequest($userId, $solicitudId, $respuesta);
             $this->sendJsonResponse(['success' => true, 'message' => 'Tu respuesta ha sido registrada exitosamente.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -780,7 +782,7 @@ class ClientController extends BaseController
             $this->auditService->requestModification($adminId, $cuentaId, $userId, $campos, $motivo);
             $this->sendJsonResponse(['success' => true, 'message' => 'Solicitud enviada al cliente. Esperando su aprobación.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -799,7 +801,7 @@ class ClientController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Beneficiario actualizado y guardado en la bitácora de auditoría.']);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 ? $e->getCode() : 500;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
     public function getBeneficiaryHistory(): void
@@ -813,7 +815,7 @@ class ClientController extends BaseController
             $history = $this->auditService->getBeneficiaryHistory($cuentaId);
             $this->sendJsonResponse(['success' => true, 'history' => $history]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -850,7 +852,7 @@ class ClientController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Monto actualizado y auditado correctamente.']);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 
@@ -870,6 +872,8 @@ class ClientController extends BaseController
         $total   = $this->txRepository->countResellerTransactions($userId, $search, $desde, $hasta);
         $pending = $this->txRepository->getResellerPendingCommission($userId);
 
+        // Desglosado por moneda: la comisión se genera en la moneda de origen
+        // de cada orden, sumar CLP con COP daría un número que no es plata.
         $this->sendJsonResponse([
             'success'           => true,
             'data'              => $txs,
@@ -882,17 +886,30 @@ class ClientController extends BaseController
     public function getResellerSummary(): void
     {
         $userId       = $this->ensureReseller();
-        $pending      = $this->txRepository->getResellerPendingCommission($userId);
-        $liquidaciones = $this->liquidacionRepo->getByUser($userId);
-        $pagado = array_sum(array_column(
-            array_filter($liquidaciones, fn($l) => $l['Estado'] === 'pagada'),
-            'Monto'
-        ));
+        $pending       = $this->txRepository->getResellerPendingCommission($userId);
+        $liquidaciones = $this->liquidacionRepo->attachDetalles($this->liquidacionRepo->getByUser($userId));
+
+        // "Pagado" también va por moneda: cada liquidación se paga en su propia
+        // moneda (liquidaciones_revendedor.Moneda). Sumarlas todas juntas
+        // mezclaría CLP con COP y mostraría un total falso.
+        $pagadoPorMoneda = [];
+        foreach ($liquidaciones as $l) {
+            if (($l['Estado'] ?? '') !== 'pagada') {
+                continue;
+            }
+            $m = strtoupper((string) ($l['Moneda'] ?? 'CLP'));
+            if (!isset($pagadoPorMoneda[$m])) {
+                $pagadoPorMoneda[$m] = ['Moneda' => $m, 'Total' => 0.0, 'Cantidad' => 0];
+            }
+            $pagadoPorMoneda[$m]['Total']    += (float) $l['Monto'];
+            $pagadoPorMoneda[$m]['Cantidad'] += 1;
+        }
+        ksort($pagadoPorMoneda);
 
         $this->sendJsonResponse([
-            'success'      => true,
-            'pendiente'    => $pending,
-            'pagado'       => $pagado,
+            'success'       => true,
+            'pendiente'     => $pending,
+            'pagado'        => array_values($pagadoPorMoneda),
             'liquidaciones' => $liquidaciones,
         ]);
     }

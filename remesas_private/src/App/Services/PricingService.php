@@ -187,14 +187,14 @@ class PricingService
         // Política negocio: ajustes solo Lun-Sáb. Domingo (date('N') === 7) bloqueado.
         $diaSemana = (int) date('N');
         if ($diaSemana === 7) {
-            throw new Exception("Los ajustes automáticos de tasa están deshabilitados los domingos por política comercial.");
+            throw new Exception("Los ajustes automáticos de tasa están deshabilitados los domingos por política comercial.", 403);
         }
 
         $this->validateAdjustmentPercentage($percentage);
 
         $status = $this->systemService->checkSystemAvailability();
         if (!$status['available']) {
-            throw new Exception("Operación Bloqueada: El sistema está en modo '{$status['reason']}' ({$status['message']}). Las tasas están congeladas.");
+            throw new Exception("Operación Bloqueada: El sistema está en modo '{$status['reason']}' ({$status['message']}). Las tasas están congeladas.", 403);
         }
 
         $tasasRef = $this->rateRepository->findAllReferentialRates();
@@ -214,7 +214,8 @@ class PricingService
                 // que pase con el porcentaje o con el valor que había en la BD.
                 if (!is_finite($nuevoValor) || $nuevoValor <= 0) {
                     throw new Exception(
-                        "El ajuste dejaría la tasa en un valor inválido (" . $nuevoValor . "). Operación cancelada para esta ruta."
+                        "El ajuste dejaría la tasa en un valor inválido (" . $nuevoValor . "). Operación cancelada para esta ruta.",
+                        422
                     );
                 }
 
@@ -387,6 +388,86 @@ class PricingService
         return $tasaInfo;
     }
 
+    /**
+     * Factor de conversión "CLP por 1 unidad de $moneda", para liquidar
+     * comisiones de revendedor en modo consolidado.
+     *
+     * Devuelve null si NO se puede determinar una tasa. Nunca inventa una tasa
+     * ni asume 1:1: si esto devuelve null, el llamador tiene que exigirle al
+     * admin que la escriba a mano, o rechazar la operación. Es dinero real.
+     *
+     * CRITERIO DE SELECCIÓN cuando la ruta tiene varias tasas activas
+     * (ej. Chile→Colombia tiene 3.42 para montos < 300.000 y 3.43778 para el
+     * resto, escalonadas por MontoMinimo/MontoMaximo):
+     *   se usa la TASA REFERENCIAL de la ruta (EsReferencial = 1 AND Activa = 1),
+     *   que es exactamente lo que devuelve getCurrentRate($o, $d, 0) vía
+     *   findReferentialRate(), y es única por ruta por construcción
+     *   (adminUpsertRate llama a clearReferentialFlag antes de marcar una nueva).
+     * Razones para no usar las tasas escalonadas:
+     *   1. Los rangos MontoMinimo/MontoMaximo están expresados en la moneda de
+     *      ORIGEN DE LA RUTA. Para una ruta invertida (ver abajo) el monto que
+     *      queremos convertir NO está en esa moneda, así que el escalón elegido
+     *      sería arbitrario.
+     *   2. La referencial es la tasa base sin el margen comercial
+     *      (PorcentajeAjuste), que es lo correcto para pagarle a un revendedor:
+     *      el margen es ganancia del negocio, no parte del tipo de cambio.
+     *
+     * RUTA DIRECTA vs INVERTIDA: hoy no existe ninguna ruta activa hacia Chile
+     * (COP→CLP y PEN→CLP no existen o están con Activa = 0). Por eso, si no hay
+     * ruta directa Moneda→CLP, se busca la inversa CLP→Moneda y se invierte la
+     * operación: si la ruta directa multiplica, la inversa divide y viceversa
+     * (getCalculationMode ya codifica qué rutas se dividen).
+     *
+     * @return array{factor: float, tasaId: int, valorTasa: float, sentido: string, paisId: int}|null
+     */
+    public function getFactorConversionACLP(string $moneda): ?array
+    {
+        $moneda = strtoupper(trim($moneda));
+        if ($moneda === '') {
+            return null;
+        }
+        if ($moneda === 'CLP') {
+            return ['factor' => 1.0, 'tasaId' => 0, 'valorTasa' => 1.0, 'sentido' => 'identidad', 'paisId' => 1];
+        }
+
+        $paisId = $this->countryRepository->findIdByMoneda($moneda);
+        if ($paisId === null || $paisId === 1) {
+            return null;
+        }
+
+        // 1) Ruta directa Moneda → CLP.
+        $directa = $this->rateRepository->findReferentialRate($paisId, 1);
+        if ($directa && (int) ($directa['RutaActiva'] ?? 1) === 1 && (float) $directa['ValorTasa'] > 0) {
+            $valor = (float) $directa['ValorTasa'];
+            $factor = ($this->getCalculationMode($paisId, 1) === 'divide') ? (1 / $valor) : $valor;
+            return [
+                'factor'    => $factor,
+                'tasaId'    => (int) $directa['TasaID'],
+                'valorTasa' => $valor,
+                'sentido'   => 'directa',
+                'paisId'    => $paisId,
+            ];
+        }
+
+        // 2) Ruta inversa CLP → Moneda, con la operación dada vuelta.
+        $inversa = $this->rateRepository->findReferentialRate(1, $paisId);
+        if ($inversa && (int) ($inversa['RutaActiva'] ?? 1) === 1 && (float) $inversa['ValorTasa'] > 0) {
+            $valor = (float) $inversa['ValorTasa'];
+            // Ruta CLP→Moneda 'multiply' significa monto_moneda = monto_clp * valor,
+            // por lo tanto monto_clp = monto_moneda / valor.
+            $factor = ($this->getCalculationMode(1, $paisId) === 'divide') ? $valor : (1 / $valor);
+            return [
+                'factor'    => $factor,
+                'tasaId'    => (int) $inversa['TasaID'],
+                'valorTasa' => $valor,
+                'sentido'   => 'inversa',
+                'paisId'    => $paisId,
+            ];
+        }
+
+        return null;
+    }
+
     public function adminUpsertRate(int $adminId, array $data): array
     {
         $tasaId = ($data['tasaId'] === 'new') ? 0 : (int) $data['tasaId'];
@@ -460,7 +541,7 @@ class PricingService
 
         $status = $this->systemService->checkSystemAvailability();
         if (!$status['available']) {
-            throw new Exception("BLOQUEO AUTOMÁTICO: El sistema está en feriado ({$status['message']}). No se permite actualizar la tasa BCV.");
+            throw new Exception("BLOQUEO AUTOMÁTICO: El sistema está en feriado ({$status['message']}). No se permite actualizar la tasa BCV.", 403);
         }
 
         $success = $this->settingsRepository->updateValue('tasa_dolar_bcv', (string) $newValue);

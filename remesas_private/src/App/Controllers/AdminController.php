@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers;
 
+use App\Support\ErrorPresenter;
+
 use App\Services\TransactionService;
 use App\Services\PricingService;
 use App\Services\UserService;
@@ -152,7 +154,7 @@ class AdminController extends BaseController
             $status = $this->settingsService->toggleHorarioOverride($adminId, $activo);
             $this->sendJsonResponse(['success' => true] + $status);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -165,7 +167,7 @@ class AdminController extends BaseController
             $this->settingsService->clearHorarioOverride($adminId);
             $this->sendJsonResponse(['success' => true, 'active' => null]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -181,7 +183,7 @@ class AdminController extends BaseController
             $status = $this->settingsService->updateMensajeHorario($adminId, $mensaje);
             $this->sendJsonResponse(['success' => true] + $status);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -211,7 +213,7 @@ class AdminController extends BaseController
             
             $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -226,7 +228,7 @@ class AdminController extends BaseController
             $this->settingsService->deleteHoliday($holidayId, $adminId);
             $this->sendJsonResponse(['success' => true, 'message' => 'Feriado eliminado.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -249,7 +251,7 @@ class AdminController extends BaseController
             $this->txService->adminRejectPayment($adminId, $txId, $reason, $actionType === 'retry');
             $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -261,7 +263,7 @@ class AdminController extends BaseController
             $this->txService->adminConfirmPayment($adminId, (int) ($data['transactionId'] ?? 0));
             $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -293,7 +295,7 @@ class AdminController extends BaseController
                 $this->sendJsonResponse(['success' => false, 'error' => 'No se pudo actualizar la orden.'], 500);
             }
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $e->getCode() >= 400 ? $e->getCode() : 500);
         }
     }
 
@@ -307,18 +309,18 @@ class AdminController extends BaseController
             $motivo = trim($data['motivo'] ?? '');
 
             if ($txId <= 0 || empty($motivo)) {
-                throw new Exception("ID de transacción o motivo no válidos.");
+                throw new Exception("ID de transacción o motivo no válidos.", 400);
             }
 
             $success = $this->txService->pause($txId, $motivo, 6);
 
             if (!$success) {
-                throw new Exception("No se pudo pausar. Verifique que la orden esté 'En Proceso' (ID 3).");
+                throw new Exception("No se pudo pausar. Verifique que la orden esté 'En Proceso' (ID 3).", 409);
             }
 
             $this->sendJsonResponse(['success' => true, 'message' => 'Orden pausada correctamente.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -332,7 +334,7 @@ class AdminController extends BaseController
             $nota = trim($data['nota'] ?? '');
 
             if ($txId <= 0) {
-                throw new Exception("ID inválido");
+                throw new Exception("ID inválido", 400);
             }
 
             $success = $this->txService->adminResumeTransaction($txId, $adminId, $nota);
@@ -340,10 +342,10 @@ class AdminController extends BaseController
             if ($success) {
                 $this->sendJsonResponse(['success' => true, 'message' => 'Orden reanudada.']);
             } else {
-                throw new Exception("No se pudo reanudar. Verifique que esté en estado 'Pausado' (ID 6).");
+                throw new Exception("No se pudo reanudar. Verifique que esté en estado 'Pausado' (ID 6).", 409);
             }
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -355,17 +357,17 @@ class AdminController extends BaseController
             $data = $this->getJsonInput();
             $txId = (int) ($data['transactionId'] ?? 0);
 
-            if ($txId <= 0) throw new Exception("ID inválido");
+            if ($txId <= 0) throw new Exception("ID inválido", 400);
 
             $success = $this->txService->authorizeRiskyTransaction($txId, $adminId);
 
             if ($success) {
                 $this->sendJsonResponse(['success' => true, 'message' => 'Riesgo autorizado.']);
             } else {
-                throw new Exception("No se pudo autorizar. Verifique el estado.");
+                throw new Exception("No se pudo autorizar. Verifique el estado.", 409);
             }
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -390,7 +392,7 @@ class AdminController extends BaseController
             $this->txService->adminUpdateCommission($adminId, $txId, $newCommission);
             $this->sendJsonResponse(['success' => true, 'message' => 'Comisión actualizada correctamente.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -410,7 +412,7 @@ class AdminController extends BaseController
             ]);
         } catch (Exception $e) {
             $code = $e->getCode() ?: 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 
@@ -425,7 +427,7 @@ class AdminController extends BaseController
             $this->pricingService->adminDeleteRate($adminId, $tasaId);
             $this->sendJsonResponse(['success' => true, 'message' => 'Tasa eliminada correctamente.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -447,7 +449,7 @@ class AdminController extends BaseController
             ]);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 ? $e->getCode() : 500;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 
@@ -460,7 +462,7 @@ class AdminController extends BaseController
             $this->pricingService->adminAddCountry($adminId, $data['nombrePais'] ?? '', $data['codigoMoneda'] ?? '', $data['rol'] ?? '');
             $this->sendJsonResponse(['success' => true], 201);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -473,7 +475,7 @@ class AdminController extends BaseController
             $this->pricingService->adminUpdateCountry($adminId, (int) ($data['paisId'] ?? 0), $data['nombrePais'] ?? '', $data['codigoMoneda'] ?? '');
             $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -537,7 +539,7 @@ class AdminController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Rol actualizado.']);
         } catch (Exception $e) {
             $code = $e->getCode() ?: 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 
@@ -566,7 +568,7 @@ class AdminController extends BaseController
             $this->userService->adminUpdateUserData($adminId, $data);
             $this->sendJsonResponse(['success' => true, 'message' => 'Datos del usuario actualizados.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -622,12 +624,12 @@ class AdminController extends BaseController
                 $newPath = $this->fileHandler->saveVerificationDoc($fileData, $userId, $docType);
                 $this->userService->updateVerificationDocPath($userId, $docType, $newPath, $adminId, $motivo);
             } else {
-                throw new Exception("Tipo de documento no válido.");
+                throw new Exception("Tipo de documento no válido.", 400);
             }
 
             $this->sendJsonResponse(['success' => true, 'newPath' => $newPath]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -742,7 +744,7 @@ class AdminController extends BaseController
             
             $this->sendJsonResponse(['success' => true]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -773,7 +775,7 @@ class AdminController extends BaseController
             $this->pricingService->updateBcvRate($adminId, $newValue);
             $this->sendJsonResponse(['success' => true, 'message' => 'Tasa BCV actualizada.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -809,7 +811,7 @@ class AdminController extends BaseController
             ]);
         } catch (Exception $e) {
             $codigo = ($e->getCode() >= 400 && $e->getCode() < 500) ? (int) $e->getCode() : 500;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $codigo);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $codigo);
         }
     }
 
@@ -825,7 +827,7 @@ class AdminController extends BaseController
             $this->pricingService->saveGlobalAdjustmentSettings($adminId, $percent, $time);
             $this->sendJsonResponse(['success' => true, 'message' => 'Configuración de ajuste global guardada.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -862,7 +864,7 @@ class AdminController extends BaseController
             $sends = $this->txService->getPreviousSendsToSameAccount($txId);
             $this->sendJsonResponse(['success' => true, 'sends' => $sends, 'total' => count($sends)]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -882,7 +884,7 @@ class AdminController extends BaseController
         try {
             $this->sendJsonResponse(['success' => true, 'message' => 'Solicitud enviada al usuario.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -896,7 +898,7 @@ class AdminController extends BaseController
             $this->cuentasService->adminUpdateBeneficiary($adminId, $data);
             $this->sendJsonResponse(['success' => true, 'message' => 'Beneficiario corregido exitosamente.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -918,7 +920,7 @@ class AdminController extends BaseController
             $this->txService->toggleMontoEditPermission($txId, $adminId, $estado);
             $this->sendJsonResponse(['success' => true, 'message' => 'Permiso actualizado correctamente.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
         }
     }
 
@@ -929,7 +931,7 @@ class AdminController extends BaseController
             $data = $this->txService->getAdminAlerts();
             $this->sendJsonResponse(['success' => true, 'data' => $data]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -942,14 +944,36 @@ class AdminController extends BaseController
         $this->sendJsonResponse(['success' => true, 'data' => $data]);
     }
 
+    /**
+     * LiquidacionService se arma acá y no se inyecta por constructor a
+     * propósito: agregar un parámetro al constructor de AdminController obliga
+     * a tocar los DOS contenedores de DI del proyecto (public_html/api/index.php
+     * y remesas_private/src/core/init.php), que ya se desincronizaron y
+     * rompieron cosas antes. Sus tres dependencias ya están inyectadas acá.
+     */
+    private function liquidacionService(): \App\Services\LiquidacionService
+    {
+        return new \App\Services\LiquidacionService(
+            $this->txRepository,
+            $this->liquidacionRepo,
+            $this->pricingService
+        );
+    }
+
     public function getResellerCommissionPreview(): void
     {
         $this->ensureAdmin();
         $userId = (int) ($_GET['userId'] ?? 0);
         $desde  = $_GET['desde'] ?? date('Y-m-01');
         $hasta  = $_GET['hasta'] ?? date('Y-m-d');
-        $info   = $this->txRepository->getResellerCommissionInRange($userId, $desde, $hasta);
-        $this->sendJsonResponse(['success' => true, 'total' => $info['total'], 'cantidad' => $info['cantidad']]);
+
+        if (!$userId) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Falta el revendedor.'], 400);
+            return;
+        }
+
+        $preview = $this->liquidacionService()->previsualizar($userId, $desde, $hasta);
+        $this->sendJsonResponse(['success' => true] + $preview);
     }
 
     public function crearLiquidacion(): void
@@ -960,34 +984,33 @@ class AdminController extends BaseController
         $desde  = $data['desde'] ?? '';
         $hasta  = $data['hasta'] ?? '';
         $notas  = trim($data['notas'] ?? '');
+        $modo   = trim((string) ($data['modo'] ?? \App\Services\LiquidacionService::MODO_POR_MONEDA));
+        $tasas  = is_array($data['tasas'] ?? null) ? $data['tasas'] : [];
 
         if (!$userId || !$desde || !$hasta) {
             $this->sendJsonResponse(['success' => false, 'error' => 'Datos incompletos.'], 400);
             return;
         }
 
-        $info     = $this->txRepository->getResellerCommissionInRange($userId, $desde, $hasta);
-        $monto    = (float) $info['total'];
-        $cantidad = (int) $info['cantidad'];
-
-        if ($monto <= 0) {
-            $this->sendJsonResponse(['success' => false, 'error' => 'No hay comisiones pendientes en ese período.'], 422);
-            return;
-        }
-
-        $conn = $this->liquidacionRepo->getConnection();
-        $conn->begin_transaction();
         try {
-            $liqId = $this->liquidacionRepo->create($userId, $monto, $desde, $hasta, $cantidad, $notas ?: null);
-            $this->txRepository->assignLiquidacionToTransactions($userId, $desde, $hasta, $liqId);
-            $conn->commit();
-        } catch (\Throwable $e) {
-            $conn->rollback();
-            $this->sendJsonResponse(['success' => false, 'error' => 'Error al crear la liquidación.'], 500);
+            $resultado = $this->liquidacionService()->crear($userId, $desde, $hasta, $modo, $tasas, $notas ?: null);
+        } catch (Exception $e) {
+            // publicMessage conserva el mensaje real en los 4xx (los rechazos de
+            // negocio de la liquidación: tasa faltante, tasa no positiva, modo
+            // desconocido) y oculta los 5xx, que acá pueden ser un error de MySQL
+            // con el nombre de la tabla adentro.
+            $this->sendJsonResponse(
+                ['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)],
+                ErrorPresenter::httpStatus($e)
+            );
             return;
         }
 
-        $this->sendJsonResponse(['success' => true, 'liquidacionId' => $liqId, 'monto' => $monto]);
+        $this->sendJsonResponse([
+            'success'       => true,
+            'modo'          => $resultado['modo'],
+            'liquidaciones' => $resultado['liquidaciones'],
+        ]);
     }
 
     public function pagarLiquidacion(): void
@@ -1034,7 +1057,7 @@ class AdminController extends BaseController
     public function getLiquidacionesList(): void
     {
         $this->ensureAdmin();
-        $data = $this->liquidacionRepo->getAll();
+        $data = $this->liquidacionRepo->attachDetalles($this->liquidacionRepo->getAll());
         $this->sendJsonResponse(['success' => true, 'data' => $data]);
     }
 

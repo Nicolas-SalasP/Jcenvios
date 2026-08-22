@@ -46,6 +46,26 @@ class CountryRepository
         return $result['CodigoMoneda'] ?? null;
     }
 
+    /**
+     * PaisID a partir del código de moneda (CLP, COP, PEN…).
+     *
+     * Se usa para convertir comisiones de revendedor: la comisión se guarda en
+     * transacciones.MonedaOrigen (un código de moneda) pero la tabla `tasas`
+     * está indexada por PaisOrigenID/PaisDestinoID, así que hay que traducir.
+     * Devuelve null si ningún país usa esa moneda — el llamador NO debe asumir
+     * ninguna tasa en ese caso (es dinero real).
+     */
+    public function findIdByMoneda(string $codigoMoneda): ?int
+    {
+        $sql = "SELECT PaisID FROM paises WHERE CodigoMoneda = ? ORDER BY PaisID ASC LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("s", $codigoMoneda);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return isset($result['PaisID']) ? (int) $result['PaisID'] : null;
+    }
+
     public function findByRoleAndStatus(string $rol, bool $activo = true): array
     {
         $sql = "SELECT PaisID, NombrePais, CodigoMoneda FROM paises 
@@ -69,7 +89,8 @@ class CountryRepository
         $stmt->bind_param("sss", $nombrePais, $codigoMoneda, $rol);
         
         if (!$stmt->execute()) {
-             throw new Exception("Error al crear país. Podría ser un nombre duplicado: " . $stmt->error);
+             error_log("CountryRepository::create fallo: " . $stmt->error);
+             throw new Exception("Error al crear el país. Podría ser un nombre duplicado.", 409);
         }
         $newId = $stmt->insert_id;
         $stmt->close();
@@ -83,7 +104,8 @@ class CountryRepository
         $stmt->bind_param("ssi", $nombrePais, $codigoMoneda, $paisId);
         
         if (!$stmt->execute()) {
-             throw new Exception("Error al actualizar el país. Podría ser un nombre duplicado: " . $stmt->error);
+             error_log("CountryRepository::update fallo: " . $stmt->error);
+             throw new Exception("Error al actualizar el país. Podría ser un nombre duplicado.", 409);
         }
         $success = $stmt->affected_rows > 0;
         $stmt->close();

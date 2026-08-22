@@ -317,6 +317,8 @@ CREATE TABLE `liquidaciones_revendedor` (
   `LiquidacionID` int(11) NOT NULL AUTO_INCREMENT,
   `UserID` int(11) NOT NULL,
   `Monto` decimal(15,2) NOT NULL,
+  `Moneda` varchar(3) NOT NULL DEFAULT 'CLP',
+  `ModoLiquidacion` varchar(20) NOT NULL DEFAULT 'por_moneda',
   `PeriodoDesde` date NOT NULL,
   `PeriodoHasta` date NOT NULL,
   `CantidadTransacciones` int(11) DEFAULT 0,
@@ -332,6 +334,28 @@ CREATE TABLE `liquidaciones_revendedor` (
   CONSTRAINT `liquidaciones_revendedor_ibfk_1` FOREIGN KEY (`UserID`) REFERENCES `usuarios` (`UserID`),
   CONSTRAINT `liquidaciones_revendedor_ibfk_2` FOREIGN KEY (`AdminUserID`) REFERENCES `usuarios` (`UserID`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `liquidacion_detalle_moneda`
+--
+
+DROP TABLE IF EXISTS `liquidacion_detalle_moneda`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `liquidacion_detalle_moneda` (
+  `DetalleID` int(11) NOT NULL AUTO_INCREMENT,
+  `LiquidacionID` int(11) NOT NULL,
+  `Moneda` varchar(3) NOT NULL,
+  `MontoOriginal` decimal(15,2) NOT NULL,
+  `TasaConversion` decimal(18,8) DEFAULT NULL COMMENT 'CLP por 1 unidad de Moneda. NULL = no aplica.',
+  `MontoConvertido` decimal(15,2) NOT NULL,
+  `Cantidad` int(11) NOT NULL DEFAULT 0 COMMENT 'Nro de transacciones de esta moneda',
+  PRIMARY KEY (`DetalleID`),
+  UNIQUE KEY `uk_liq_moneda` (`LiquidacionID`,`Moneda`),
+  KEY `idx_liquidacion` (`LiquidacionID`),
+  CONSTRAINT `fk_liq_detalle_liquidacion` FOREIGN KEY (`LiquidacionID`) REFERENCES `liquidaciones_revendedor` (`LiquidacionID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
