@@ -124,6 +124,11 @@ class ContabilidadTest extends TestCase
             'SaldoActual' => 1000000.00,
             'PaisID' => 3
         ]);
+        $contabRepo->method('getSaldoPorPaisForUpdate')->willReturn([
+            'SaldoID' => 1,
+            'SaldoActual' => 1000000.00,
+            'PaisID' => 3
+        ]);
         $contabRepo->expects($this->once())
             ->method('actualizarSaldo')
             ->with($this->equalTo(1), $this->equalTo(799950.00));
@@ -138,6 +143,7 @@ class ContabilidadTest extends TestCase
         $contabRepo = $this->createMock(ContabilidadRepository::class);
         // montoTx <= 0 corta antes de tocar la BD, ni siquiera abre transacción.
         $contabRepo->expects($this->never())->method('getSaldoPorPais');
+        $contabRepo->expects($this->never())->method('getSaldoPorPaisForUpdate');
         $contabRepo->expects($this->never())->method('actualizarSaldo');
 
         $service = $this->buildService(['contabRepo' => $contabRepo]);
@@ -155,6 +161,11 @@ class ContabilidadTest extends TestCase
             'SaldoActual' => 1000000.00,
             'PaisID' => 3
         ]);
+        $contabRepo->method('getSaldoPorPaisForUpdate')->willReturn([
+            'SaldoID' => 1,
+            'SaldoActual' => 1000000.00,
+            'PaisID' => 3
+        ]);
         $contabRepo->method('registrarMovimiento')->willThrowException(new Exception("Error simulado de BD"));
 
         $service = $this->buildService(['contabRepo' => $contabRepo]);
@@ -168,6 +179,11 @@ class ContabilidadTest extends TestCase
     {
         $contabRepo = $this->createMock(ContabilidadRepository::class);
         $contabRepo->method('getSaldoPorPais')->willReturn([
+            'SaldoID' => 1,
+            'SaldoActual' => 1000000.00,
+            'PaisID' => 3
+        ]);
+        $contabRepo->method('getSaldoPorPaisForUpdate')->willReturn([
             'SaldoID' => 1,
             'SaldoActual' => 1000000.00,
             'PaisID' => 3
@@ -255,6 +271,7 @@ class ContabilidadTest extends TestCase
     {
         $contabRepo = $this->createMock(ContabilidadRepository::class);
         $contabRepo->method('getSaldoPorPais')->willReturn(['SaldoID' => 1, 'SaldoActual' => 500]);
+        $contabRepo->method('getSaldoPorPaisForUpdate')->willReturn(['SaldoID' => 1, 'SaldoActual' => 500]);
         $contabRepo->method('getMovimientosDelMes')->willReturn([
             ['TipoMovimiento' => 'GASTO_TX', 'Monto' => 1000],
             ['TipoMovimiento' => 'GASTO_COMISION', 'Monto' => 50],
@@ -273,6 +290,7 @@ class ContabilidadTest extends TestCase
     {
         $contabRepo = $this->createMock(ContabilidadRepository::class);
         $contabRepo->method('getSaldoPorPais')->willReturn(['SaldoID' => 1, 'SaldoActual' => 500]);
+        $contabRepo->method('getSaldoPorPaisForUpdate')->willReturn(['SaldoID' => 1, 'SaldoActual' => 500]);
         $contabRepo->method('getMovimientosDelMes')->willReturn([]);
 
         $service = $this->buildService(['contabRepo' => $contabRepo]);
@@ -303,6 +321,7 @@ class ContabilidadTest extends TestCase
     {
         $contabRepo = $this->createMock(ContabilidadRepository::class);
         $contabRepo->method('getSaldoPorPais')->willReturn(['SaldoID' => 1, 'SaldoActual' => 500]);
+        $contabRepo->method('getSaldoPorPaisForUpdate')->willReturn(['SaldoID' => 1, 'SaldoActual' => 500]);
         $contabRepo->method('getMovimientosDelMes')->willReturn([
             ['TipoMovimiento' => 'RETIRO_DIVISAS', 'Monto' => 300],
             ['TipoMovimiento' => 'COMPRA_DIVISA', 'Monto' => 9999], // no es un tipo de gasto, no debe sumarse
@@ -319,6 +338,7 @@ class ContabilidadTest extends TestCase
     {
         $contabRepo = $this->createMock(ContabilidadRepository::class);
         $contabRepo->method('getSaldoPorPais')->willReturn(['SaldoID' => 1, 'SaldoActual' => 500]);
+        $contabRepo->method('getSaldoPorPaisForUpdate')->willReturn(['SaldoID' => 1, 'SaldoActual' => 500]);
         $contabRepo->method('getMovimientosDelMes')->willReturn([]);
 
         $service = $this->buildService(['contabRepo' => $contabRepo]);

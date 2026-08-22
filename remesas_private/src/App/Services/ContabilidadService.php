@@ -32,9 +32,16 @@ class ContabilidadService
         $this->dbConnection = $db->getConnection();
     }
 
-    private function getOrCreateSaldo(int $paisId): array
+    /**
+     * @param bool $paraEscribir true cuando el llamador va a modificar el saldo:
+     *        bloquea la fila hasta el fin de la transacción para que dos
+     *        operaciones simultáneas sobre el mismo país no se pisen el saldo.
+     */
+    private function getOrCreateSaldo(int $paisId, bool $paraEscribir = false): array
     {
-        $saldo = $this->contabilidadRepo->getSaldoPorPais($paisId);
+        $saldo = $paraEscribir
+            ? $this->contabilidadRepo->getSaldoPorPaisForUpdate($paisId)
+            : $this->contabilidadRepo->getSaldoPorPais($paisId);
         if ($saldo) {
             return $saldo;
         }
@@ -60,7 +67,11 @@ class ContabilidadService
 
         $this->dbConnection->begin_transaction();
         try {
-            $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
+            // ForUpdate y no getById: updateSaldo escribe un valor absoluto
+            // calculado a partir de esta lectura, así que sin bloquear la fila
+            // dos operaciones simultáneas sobre la misma cuenta leen el mismo
+            // saldo y la segunda pisa el movimiento de la primera (lost update).
+            $cuenta = $this->cuentasAdminRepo->getByIdForUpdate($cuentaAdminId);
             if (!$cuenta) {
                 throw new Exception("Cuenta bancaria no encontrada.", 404);
             }
@@ -97,7 +108,11 @@ class ContabilidadService
 
         $this->dbConnection->begin_transaction();
         try {
-            $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
+            // ForUpdate y no getById: updateSaldo escribe un valor absoluto
+            // calculado a partir de esta lectura, así que sin bloquear la fila
+            // dos operaciones simultáneas sobre la misma cuenta leen el mismo
+            // saldo y la segunda pisa el movimiento de la primera (lost update).
+            $cuenta = $this->cuentasAdminRepo->getByIdForUpdate($cuentaAdminId);
             if (!$cuenta) {
                 throw new Exception("Cuenta bancaria no encontrada.", 404);
             }
@@ -146,9 +161,25 @@ class ContabilidadService
 
     public function registrarTransferencia(int $origenId, int $destinoId, float $salida, float $entrada, int $adminId): void
     {
+        if ($origenId === $destinoId) {
+            throw new Exception("La cuenta de origen y la de destino no pueden ser la misma.", 400);
+        }
+
         $this->dbConnection->begin_transaction();
         try {
-            $bancoOri = $this->cuentasAdminRepo->getById($origenId);
+            // Se bloquean AMBAS cuentas por adelantado y SIEMPRE en el mismo
+            // orden (ID ascendente). Bloquearlas en el orden en que aparecen en
+            // los argumentos hace que dos transferencias cruzadas simultáneas
+            // (A->B y B->A) se esperen mutuamente y MySQL mate una por deadlock.
+            // Con un orden fijo, la segunda espera a que la primera termine.
+            $idsOrdenados = [$origenId, $destinoId];
+            sort($idsOrdenados);
+            $bloqueadas = [];
+            foreach ($idsOrdenados as $idCuenta) {
+                $bloqueadas[$idCuenta] = $this->cuentasAdminRepo->getByIdForUpdate($idCuenta);
+            }
+
+            $bancoOri = $bloqueadas[$origenId];
             if (!$bancoOri)
                 throw new Exception("Cuenta origen no encontrada.", 404);
 
@@ -167,7 +198,11 @@ class ContabilidadService
             );
             $this->cuentasAdminRepo->updateSaldo($origenId, $saldoOriNew);
 
-            $bancoDes = $this->cuentasAdminRepo->getById($destinoId);
+            // Ya viene bloqueada del prefetch de arriba; leerla de nuevo acá
+            // devolvería el saldo sin el descuento recién aplicado al origen,
+            // que no importa porque son cuentas distintas (garantizado por el
+            // guard de origen != destino).
+            $bancoDes = $bloqueadas[$destinoId];
             if (!$bancoDes)
                 throw new Exception("Cuenta destino no encontrada.", 404);
 
@@ -222,7 +257,11 @@ class ContabilidadService
     {
         $this->dbConnection->begin_transaction();
         try {
-            $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
+            // ForUpdate y no getById: updateSaldo escribe un valor absoluto
+            // calculado a partir de esta lectura, así que sin bloquear la fila
+            // dos operaciones simultáneas sobre la misma cuenta leen el mismo
+            // saldo y la segunda pisa el movimiento de la primera (lost update).
+            $cuenta = $this->cuentasAdminRepo->getByIdForUpdate($cuentaAdminId);
             if (!$cuenta) {
                 $this->dbConnection->rollback();
                 return;
@@ -257,7 +296,7 @@ class ContabilidadService
 
         $this->dbConnection->begin_transaction();
         try {
-            $saldo = $this->getOrCreateSaldo($paisId);
+            $saldo = $this->getOrCreateSaldo($paisId, true);
             $saldoId = $saldo['SaldoID'];
             $saldoAnt = (float) $saldo['SaldoActual'];
 
@@ -308,7 +347,7 @@ class ContabilidadService
 
         $this->dbConnection->begin_transaction();
         try {
-            $saldo = $this->getOrCreateSaldo($paisId);
+            $saldo = $this->getOrCreateSaldo($paisId, true);
             $saldoId = $saldo['SaldoID'];
             $ant = (float) $saldo['SaldoActual'];
             $new = $ant - $diff;
@@ -337,7 +376,11 @@ class ContabilidadService
     {
         $this->dbConnection->begin_transaction();
         try {
-            $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
+            // ForUpdate y no getById: updateSaldo escribe un valor absoluto
+            // calculado a partir de esta lectura, así que sin bloquear la fila
+            // dos operaciones simultáneas sobre la misma cuenta leen el mismo
+            // saldo y la segunda pisa el movimiento de la primera (lost update).
+            $cuenta = $this->cuentasAdminRepo->getByIdForUpdate($cuentaAdminId);
             if (!$cuenta) {
                 $this->dbConnection->rollback();
                 return;
