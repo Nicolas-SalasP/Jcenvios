@@ -167,7 +167,15 @@ final class ErrorPresenter
             $depth++;
         }
 
-        return $prefix . 'Excepcion no expuesta al cliente: ' . implode('', $parts);
+        // El prefijo dice si el mensaje se le mostró al cliente o no. Antes decía
+        // siempre "no expuesta al cliente", incluso para los 4xx de negocio que sí
+        // se muestran: leyendo el log en producción parecía que un mensaje visible
+        // había quedado oculto, que es justo lo contrario de lo que pasó.
+        $etiqueta = self::isUserFacing($e)
+            ? 'Excepcion mostrada al cliente'
+            : 'Excepcion NO expuesta al cliente';
+
+        return $prefix . $etiqueta . ': ' . implode('', $parts);
     }
 
     /**

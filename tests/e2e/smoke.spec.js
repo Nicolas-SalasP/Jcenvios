@@ -45,14 +45,25 @@ test('login falla con contrasena incorrecta', async ({ page }) => {
     await expect(page).toHaveURL(/login\.php/);
 });
 
+// OJO al correr esto localmente: este test NO es idempotente. Crea una orden
+// real y el backend rechaza una segunda orden al mismo beneficiario poco
+// después ("Ya tienes una orden activa reciente...", 409), así que una segunda
+// corrida contra la misma base falla. En el pipeline no se nota porque cada run
+// levanta un MySQL nuevo. Local: recargar el seed antes de repetir.
 test('flujo critico: el cliente crea una orden de envio de punta a punta', async ({ page }) => {
     await login(page, CLIENTE);
     await expect(page).toHaveURL(/\/dashboard\//);
 
-    // El CSRF token real de la sesión ya autenticada vive en el HTML de esta
-    // página (ver footer.php) — se reusa para el POST de creación de orden,
+    // El CSRF token real de la sesión ya autenticada viaja en un data attribute
+    // del <body> (ver header.php) — se reusa para el POST de creación de orden,
     // igual que hace el propio front (interceptor global de fetch).
-    const csrfToken = await page.evaluate(() => CSRF_TOKEN);
+    //
+    // Se lee del DOM y no de una variable global: al sacar 'unsafe-inline' del
+    // script-src, el token dejó de publicarse como global de página y pasó a
+    // vivir dentro del closure de csrf-interceptor.js, donde page.evaluate no
+    // lo ve. `document.body.dataset.csrfToken` es la fuente real, la misma que
+    // lee el interceptor.
+    const csrfToken = await page.evaluate(() => document.body.dataset.csrfToken);
 
     const response = await page.request.post('/api/?accion=createTransaccion', {
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
