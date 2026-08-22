@@ -14,6 +14,17 @@ if (PHP_SAPI !== 'cli') {
     exit('Solo se puede correr por CLI.');
 }
 
+// Desde PHP 8.1 mysqli reporta los errores lanzando mysqli_sql_exception en vez
+// de devolver false. Sin esto, el `if (!$mysqli->multi_query(...))` de abajo
+// NUNCA se evaluaba: la excepción salía sin capturar, el script moría con exit
+// 255 y no imprimía qué migración ni qué error. Fue exactamente lo que pasó en
+// el deploy del 2026-08-22: "Aplicando 023 ..." y nada más.
+//
+// Se apaga el modo excepción para que el manejo de errores explícito de este
+// archivo (que sí informa el archivo y el mensaje) vuelva a tener efecto, y
+// igual se envuelve todo en un catch por si algo más falla.
+mysqli_report(MYSQLI_REPORT_OFF);
+
 require_once __DIR__ . '/../config.php';
 
 $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
@@ -50,6 +61,7 @@ if (empty($pending)) {
 echo count($pending) . " migración(es) pendiente(s):\n";
 
 $hadError = false;
+try {
 foreach ($pending as $file) {
     $name = basename($file);
     echo "-> Aplicando $name ... ";
@@ -85,6 +97,15 @@ foreach ($pending as $file) {
     $stmt->close();
 
     echo "OK\n";
+}
+
+} catch (\Throwable $e) {
+    // Red de seguridad: cualquier cosa que se escape del manejo explícito de
+    // arriba (un Error de PHP, una excepción de una extensión) tiene que decir
+    // QUÉ pasó. Morir en silencio con exit 255 deja el deploy sin diagnóstico.
+    echo "ERROR INESPERADO: " . get_class($e) . ": " . $e->getMessage()
+       . " (" . $e->getFile() . ':' . $e->getLine() . ")\n";
+    $hadError = true;
 }
 
 $mysqli->close();
