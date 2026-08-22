@@ -7,6 +7,13 @@
         return Number(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    // Nombre/email/teléfono los escribe el propio revendedor: van escapados
+    // siempre que se interpolen en innerHTML.
+    const esc = (s) => window.escapeHtml(s);
+    // window.escapeHtml (domUtils.js) NO escapa comillas; dentro de un atributo
+    // (data-nombre="...") hacen falta o se puede romper el atributo.
+    const escAttr = window.escapeAttr;
+
     /**
      * Calls calculateConversion API to convert an amount from a source country to CLP.
      * Returns the converted amount or null on error.
@@ -43,7 +50,7 @@
         }
 
         // Show base amounts first
-        cell.innerHTML = `<span class="fw-bold text-warning">${parts.join(' + ')}</span>`;
+        cell.innerHTML = `<span class="fw-bold text-warning">${esc(parts.join(' + '))}</span>`;
 
         // Compute CLP equivalents for non-CLP amounts in background
         const clpEquivParts = [];
@@ -57,8 +64,8 @@
             const results = await Promise.all(conversions);
             let totalCLPEquiv = Number(r.PendienteCLP) || 0;
             results.forEach(v => { if (v !== null) totalCLPEquiv += v; });
-            const equiv = `<br><small class="text-muted">≈ CLP ${fmt(totalCLPEquiv)} total</small>`;
-            cell.innerHTML = `<span class="fw-bold text-warning">${parts.join(' + ')}</span>${equiv}`;
+            const equiv = `<br><small class="text-muted">≈ CLP ${esc(fmt(totalCLPEquiv))} total</small>`;
+            cell.innerHTML = `<span class="fw-bold text-warning">${esc(parts.join(' + '))}</span>${equiv}`;
         }
     }
 
@@ -85,7 +92,7 @@
 
         const liquidarBtn = Number(r.PendienteCobro) > 0
             ? `<button class="btn btn-sm btn-primary btn-crear-liq"
-                   data-id="${r.UserID}" data-nombre="${nombre}" title="Crear liquidación">
+                   data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}" title="Crear liquidación">
                    <i class="bi bi-cash-stack me-1"></i>Liquidar
                </button>`
             : `<button class="btn btn-sm btn-outline-secondary" disabled title="Sin comisión pendiente">
@@ -93,18 +100,18 @@
                </button>`;
 
         return `
-            <tr data-search="${nombre.toLowerCase()} ${(r.Email || '').toLowerCase()}">
+            <tr data-search="${escAttr(nombre.toLowerCase() + ' ' + (r.Email || '').toLowerCase())}">
                 <td>
                     <div class="d-flex align-items-center gap-2">
                         <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold text-white"
                              style="width:32px;height:32px;font-size:.75rem;background:${color}">
-                            ${inits}
+                            ${esc(inits)}
                         </div>
                         <div>
-                            <div class="fw-semibold lh-sm">${nombre}</div>
-                            <small class="text-muted"><i class="bi bi-envelope me-1"></i>${r.Email || '—'}</small>
-                            ${r.Telefono ? `<br><small class="text-muted"><i class="bi bi-whatsapp me-1 text-success"></i>${r.Telefono}</small>` : ''}
-                            ${regDate ? `<br><span class="text-muted" style="font-size:.7rem">Desde ${regDate}</span>` : ''}
+                            <div class="fw-semibold lh-sm">${esc(nombre)}</div>
+                            <small class="text-muted"><i class="bi bi-envelope me-1"></i>${esc(r.Email || '—')}</small>
+                            ${r.Telefono ? `<br><small class="text-muted"><i class="bi bi-whatsapp me-1 text-success"></i>${esc(r.Telefono)}</small>` : ''}
+                            ${regDate ? `<br><span class="text-muted" style="font-size:.7rem">Desde ${esc(regDate)}</span>` : ''}
                         </div>
                     </div>
                 </td>
@@ -112,33 +119,33 @@
                     <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold">${parseFloat(r.PorcentajeComision)}%</span>
                 </td>
                 <td class="text-end">
-                    <span class="fw-semibold small">CLP ${fmt(r.TotalGanado)}</span>
+                    <span class="fw-semibold small">CLP ${esc(fmt(r.TotalGanado))}</span>
                 </td>
-                <td class="text-end" id="pendiente-cell-${r.UserID}">
+                <td class="text-end" id="pendiente-cell-${escAttr(r.UserID)}">
                     <span class="spinner-border spinner-border-sm text-secondary"></span>
                 </td>
                 <td class="text-center">
-                    <span class="badge bg-light text-dark border">${r.TotalOrdenes}</span>
+                    <span class="badge bg-light text-dark border">${esc(r.TotalOrdenes)}</span>
                 </td>
                 <td>
                     <div class="d-flex gap-1 justify-content-end flex-wrap">
                         ${liquidarBtn}
                         <button class="btn btn-sm btn-outline-secondary btn-edit-comision"
-                            data-id="${r.UserID}" data-nombre="${nombre}" data-pct="${r.PorcentajeComision}"
+                            data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}" data-pct="${escAttr(r.PorcentajeComision)}"
                             title="Editar comisión">
                             <i class="bi bi-percent"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-info btn-config-paises"
-                            data-id="${r.UserID}" data-nombre="${nombre}"
+                            data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}"
                             title="Comisión por país">
                             <i class="bi bi-globe"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-warning btn-limite-cuentas"
-                            data-id="${r.UserID}" data-nombre="${nombre}"
+                            data-id="${escAttr(r.UserID)}" data-nombre="${escAttr(nombre)}"
                             title="Límite de cuentas bancarias">
                             <i class="bi bi-bank"></i>
                         </button>
-                        <a href="transacciones.php?revendedorId=${r.UserID}" class="btn btn-sm btn-outline-dark"
+                        <a href="transacciones.php?revendedorId=${encodeURIComponent(r.UserID)}" class="btn btn-sm btn-outline-dark"
                            title="Ver órdenes">
                             <i class="bi bi-receipt"></i>
                         </a>
@@ -155,8 +162,10 @@
         const tbody = document.getElementById('resellers-body');
         try {
             const res  = await fetch('../api/?accion=getResellerList');
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
             const data = await res.json();
-            if (!data.success || !data.data.length) {
+            if (!data.success) throw new Error(data.error || 'No se pudo obtener la lista de revendedores.');
+            if (!data.data.length) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No hay revendedores registrados.</td></tr>';
                 return;
             }
@@ -186,7 +195,7 @@
 
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-danger">Error al cargar revendedores.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-danger">${esc(window.formatNetworkError(e, 'Error al cargar revendedores.'))}</td></tr>`;
         }
     }
 
@@ -201,7 +210,7 @@
                 document.getElementById('liq-preview').classList.add('d-none');
                 document.getElementById('btnConfirmLiq').disabled = true;
                 document.getElementById('liq-notas').value = '';
-                new bootstrap.Modal(document.getElementById('crearLiqModal')).show();
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('crearLiqModal')).show();
             });
         });
     }
@@ -226,8 +235,10 @@
         const tbody = document.getElementById('liq-body');
         try {
             const res  = await fetch('../api/?accion=getLiquidacionesList');
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
             const data = await res.json();
-            if (!data.success || !data.data.length) {
+            if (!data.success) throw new Error(data.error || 'No se pudo obtener el listado de liquidaciones.');
+            if (!data.data.length) {
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Sin liquidaciones creadas.</td></tr>';
                 return;
             }
@@ -235,20 +246,20 @@
             if (liqBadge) liqBadge.textContent = data.data.length;
             tbody.innerHTML = data.data.map(l => `
                 <tr>
-                    <td><strong>${l.RevendedorNombre}</strong><br><small class="text-muted">${l.RevendedorEmail}</small></td>
-                    <td class="small">${l.PeriodoDesde} — ${l.PeriodoHasta}</td>
-                    <td class="text-end fw-bold">${fmt(l.Monto)}</td>
-                    <td class="text-center">${l.CantidadTransacciones}</td>
+                    <td><strong>${esc(l.RevendedorNombre)}</strong><br><small class="text-muted">${esc(l.RevendedorEmail)}</small></td>
+                    <td class="small">${esc(l.PeriodoDesde)} — ${esc(l.PeriodoHasta)}</td>
+                    <td class="text-end fw-bold">${esc(fmt(l.Monto))}</td>
+                    <td class="text-center">${esc(l.CantidadTransacciones)}</td>
                     <td>${l.Estado === 'pagada'
                         ? '<span class="badge bg-success">Pagada</span>'
                         : '<span class="badge bg-warning text-dark">Pendiente</span>'}</td>
-                    <td class="small">${l.FechaPago ? new Date(l.FechaPago).toLocaleDateString('es-CL') : '—'}</td>
+                    <td class="small">${l.FechaPago ? esc(new Date(l.FechaPago).toLocaleDateString('es-CL')) : '—'}</td>
                     <td class="text-end">
                         ${l.Estado !== 'pagada' ? `
                         <button class="btn btn-sm btn-success btn-pagar-liq"
-                            data-id="${l.LiquidacionID}"
-                            data-monto="${fmt(l.Monto)}"
-                            data-nombre="${l.RevendedorNombre}">
+                            data-id="${escAttr(l.LiquidacionID)}"
+                            data-monto="${escAttr(fmt(l.Monto))}"
+                            data-nombre="${escAttr(l.RevendedorNombre)}">
                             <i class="bi bi-check-circle me-1"></i> Pagar
                         </button>` :
                         l.ComprobanteURL
@@ -263,12 +274,12 @@
                     document.getElementById('pagar-liq-id').value     = btn.dataset.id;
                     document.getElementById('pagar-liq-monto').textContent  = btn.dataset.monto;
                     document.getElementById('pagar-liq-nombre').textContent = btn.dataset.nombre;
-                    new bootstrap.Modal(document.getElementById('pagarLiqModal')).show();
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('pagarLiqModal')).show();
                 });
             });
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">Error al cargar liquidaciones.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger">${esc(window.formatNetworkError(e, 'Error al cargar liquidaciones.'))}</td></tr>`;
         }
     }
 
@@ -284,14 +295,36 @@
         if (!desde || !hasta) { window.showInfoModal('Falta el período', 'Selecciona período.', false); return; }
         if (desde > hasta) { window.showInfoModal('Período inválido', 'La fecha "desde" no puede ser posterior a "hasta".', false); return; }
 
-        const params = new URLSearchParams({ userId, desde, hasta });
-        const res    = await fetch('../api/?accion=getResellerCommissionPreview&' + params);
-        const data   = await res.json();
+        const btnPreview = document.getElementById('btnPreviewLiq');
+        const previewOriginal = btnPreview.innerHTML;
+        btnPreview.disabled = true;
+        btnPreview.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
-        if (data.success) {
-            preview.classList.remove('d-none');
-            preview.innerHTML = `Monto a liquidar: <strong>${fmt(data.total)}</strong> (${data.cantidad} transacciones) <small class="text-muted">* suma de todas las monedas</small>`;
-            btn.disabled = (Number(data.total) <= 0);
+        try {
+            const params = new URLSearchParams({ userId, desde, hasta });
+            const res    = await fetch('../api/?accion=getResellerCommissionPreview&' + params);
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+            const data   = await res.json();
+
+            // Antes no había else ni catch: si la previsualización fallaba, no
+            // pasaba nada visible y el botón "Crear liquidación" quedaba
+            // deshabilitado sin explicación.
+            if (data.success) {
+                preview.classList.remove('d-none');
+                preview.innerHTML = `Monto a liquidar: <strong>${esc(fmt(data.total))}</strong> (${esc(data.cantidad)} transacciones) <small class="text-muted">* suma de todas las monedas</small>`;
+                btn.disabled = (Number(data.total) <= 0);
+            } else {
+                preview.classList.add('d-none');
+                btn.disabled = true;
+                window.showInfoModal('Error', data.error || 'No se pudo calcular la previsualización.', false);
+            }
+        } catch (err) {
+            preview.classList.add('d-none');
+            btn.disabled = true;
+            window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo calcular la previsualización.'), false);
+        } finally {
+            btnPreview.disabled = false;
+            btnPreview.innerHTML = previewOriginal;
         }
     });
 
@@ -311,6 +344,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: parseInt(userId), desde, hasta, notas }),
             });
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
             const data = await res.json();
             if (data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('crearLiqModal')).hide();
@@ -322,7 +356,7 @@
                 btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Crear liquidación';
             }
         } catch (e) {
-            window.showInfoModal('Error', 'Error de red al crear liquidación.', false);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'Error al crear liquidación.'), false);
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Crear liquidación';
         }
@@ -339,6 +373,7 @@
 
         try {
             const res  = await fetch('../api/?accion=pagarLiquidacion', { method: 'POST', body: formData });
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}). Es posible que el archivo sea demasiado pesado.`);
             const data = await res.json();
             if (data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('pagarLiqModal')).hide();
@@ -350,7 +385,7 @@
                 submitBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Confirmar pago';
             }
         } catch (e) {
-            window.showInfoModal('Error', 'Error de red al registrar pago.', false);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'Error al registrar el pago.'), false);
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Confirmar pago';
         }
@@ -364,7 +399,7 @@
         document.getElementById('edit-comision-user-id').value      = btn.dataset.id;
         document.getElementById('edit-comision-nombre').textContent = btn.dataset.nombre;
         document.getElementById('edit-comision-pct').value          = btn.dataset.pct;
-        new bootstrap.Modal(document.getElementById('editComisionModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editComisionModal')).show();
     });
 
     document.getElementById('btnSaveComision').addEventListener('click', async () => {
@@ -412,7 +447,7 @@
 
         const list = document.getElementById('paises-config-list');
         list.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
-        new bootstrap.Modal(document.getElementById('configPaisesModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('configPaisesModal')).show();
 
         try {
             const res  = await fetch('../api/?accion=getResellerPaises&userId=' + btn.dataset.id);
@@ -425,21 +460,21 @@
             list.innerHTML = data.data.map(p => `
                 <div class="row align-items-center border-bottom py-2 g-2">
                     <div class="col-4 fw-semibold">
-                        ${p.NombrePais} <small class="text-muted">(${p.CodigoMoneda})</small>
+                        ${esc(p.NombrePais)} <small class="text-muted">(${esc(p.CodigoMoneda)})</small>
                     </div>
                     <div class="col-3">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" role="switch"
-                                   id="pais-activo-${p.PaisID}" data-pais="${p.PaisID}"
+                                   id="pais-activo-${escAttr(p.PaisID)}" data-pais="${escAttr(p.PaisID)}"
                                    ${p.Activo ? 'checked' : ''}>
-                            <label class="form-check-label small" for="pais-activo-${p.PaisID}">Habilitado</label>
+                            <label class="form-check-label small" for="pais-activo-${escAttr(p.PaisID)}">Habilitado</label>
                         </div>
                     </div>
                     <div class="col-5">
                         <div class="input-group input-group-sm">
-                            <input type="number" class="form-control pais-pct-input" data-pais="${p.PaisID}"
+                            <input type="number" class="form-control pais-pct-input" data-pais="${escAttr(p.PaisID)}"
                                    min="0" max="100" step="0.01"
-                                   value="${p.PorcentajeComision !== null ? p.PorcentajeComision : ''}"
+                                   value="${escAttr(p.PorcentajeComision !== null ? p.PorcentajeComision : '')}"
                                    placeholder="% (vacío = global)">
                             <span class="input-group-text">%</span>
                         </div>
@@ -506,7 +541,7 @@
         document.getElementById('limite-user-nombre').textContent = btn.dataset.nombre;
         document.getElementById('limite-cuentas-input').value = '';
         document.getElementById('limite-actual-info').textContent = '';
-        new bootstrap.Modal(document.getElementById('limiteCuentasModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('limiteCuentasModal')).show();
 
         try {
             const res = await fetch('../api/?accion=getResellerMaxCuentas&userId=' + btn.dataset.id);
@@ -560,16 +595,33 @@
     }
 
     async function saveReferralSettings() {
-        const formaManualActiva = document.getElementById('toggle-referido-manual').checked;
-        const formaLinkActiva = document.getElementById('toggle-referido-link').checked;
+        const manualEl = document.getElementById('toggle-referido-manual');
+        const linkEl = document.getElementById('toggle-referido-link');
+        const formaManualActiva = manualEl.checked;
+        const formaLinkActiva = linkEl.checked;
+        manualEl.disabled = true;
+        linkEl.disabled = true;
         try {
-            await fetch('../api/?accion=updateReferralSettings', {
+            const res = await fetch('../api/?accion=updateReferralSettings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ formaManualActiva, formaLinkActiva }),
             });
+            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+            const data = await res.json();
+            // Antes no se leía nada de la respuesta: el switch quedaba en la
+            // posición nueva aunque el backend hubiera rechazado el cambio.
+            if (!data.success) {
+                window.showInfoModal('Error', data.error || 'No se pudo guardar la configuración de referidos.', false);
+                loadReferralSettings();
+            }
         } catch (e) {
             console.error(e);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'No se pudo guardar la configuración de referidos.'), false);
+            loadReferralSettings();
+        } finally {
+            manualEl.disabled = false;
+            linkEl.disabled = false;
         }
     }
 

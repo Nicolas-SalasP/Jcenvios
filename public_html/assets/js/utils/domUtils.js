@@ -21,6 +21,21 @@ window.escapeHtml = (str) => {
 };
 
 /**
+ * Escapa texto libre del usuario antes de insertarlo dentro de un ATRIBUTO HTML.
+ *
+ * `escapeHtml` no alcanza acá: se apoya en `textContent -> innerHTML`, que solo
+ * convierte &, < y >. Las comillas pasan intactas, así que en un contexto como
+ * `data-nombre="${valor}"` un valor con " cierra el atributo y permite inyectar
+ * otros nuevos (onmouseover=...) sin necesidad de un solo `<`.
+ *
+ * Usar en todo `innerHTML` que interpole datos de usuario dentro de comillas;
+ * `escapeHtml` sigue siendo el correcto para posiciones de texto.
+ */
+window.escapeAttr = (str) => window.escapeHtml(str)
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
  * Convierte el error crudo de un fetch en un mensaje que el usuario entienda.
  *
  * "Failed to fetch" es lo que tira el navegador cuando la request no llega a

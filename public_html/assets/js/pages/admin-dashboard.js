@@ -99,12 +99,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     tableTopUsers.innerHTML = '<tr><td colspan="4" class="text-center">No hay datos de usuarios para mostrar.</td></tr>';
                 } else {
                     stats.tables.topUsers.forEach(user => {
+                        // XSS almacenado: NombreCompleto/Email los elige cualquiera
+                        // que se registre desde el formulario público y se ejecutaban
+                        // en la sesión del admin con solo abrir el dashboard.
                         const row = `
                             <tr>
-                                <td>${user.UserID}</td>
-                                <td>${user.NombreCompleto || ''}</td>
-                                <td>${user.Email || ''}</td>
-                                <td>${user.TotalTransacciones}</td>
+                                <td>${window.escapeHtml(user.UserID)}</td>
+                                <td>${window.escapeHtml(user.NombreCompleto || '')}</td>
+                                <td>${window.escapeHtml(user.Email || '')}</td>
+                                <td>${window.escapeHtml(user.TotalTransacciones)}</td>
                             </tr>
                         `;
                         tableTopUsers.innerHTML += row;
@@ -117,7 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error al cargar el dashboard:", error);
-            loadingEl.innerHTML = `<p class="text-center text-danger p-5">${error.message}</p>`;
+            const msg = window.formatNetworkError(error, 'No se pudieron cargar las estadísticas.');
+            loadingEl.innerHTML = `<p class="text-center text-danger p-5">${window.escapeHtml(msg)}</p>`;
         }
     };
 

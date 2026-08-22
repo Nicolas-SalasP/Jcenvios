@@ -120,10 +120,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ paisId, newStatus })
                     });
-                    if ((await res.json()).success) {
+                    if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+                    const result = await res.json();
+                    if (result.success) {
                         window.location.reload();
+                    } else {
+                        window.showInfoModal('Error', result.error || 'No se pudo cambiar el estado del país.', false);
                     }
-                } catch (e) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                } catch (err) {
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo cambiar el estado del país.'), false);
+                }
             }
         });
     });
@@ -139,13 +145,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ paisId: e.target.dataset.paisId, newRole: e.target.value })
                     });
-                    if ((await res.json()).success) {
+                    if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+                    const result = await res.json();
+                    if (result.success) {
                         original = e.target.value;
                         window.showInfoModal('Éxito', 'Rol actualizado.', true);
                     } else {
                         e.target.value = original;
+                        window.showInfoModal('Error', result.error || 'No se pudo actualizar el rol del país.', false);
                     }
-                } catch (e) { e.target.value = original; }
+                } catch (err) {
+                    // `catch (e)` sombreaba el `e` del evento: e.target quedaba
+                    // undefined y el propio catch tiraba TypeError.
+                    e.target.value = original;
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo actualizar el rol del país.'), false);
+                }
             } else {
                 e.target.value = original;
             }
@@ -291,14 +305,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const userId = blockBtn.dataset.userId;
             const newStatus = blockBtn.dataset.currentStatus === 'active' ? 'blocked' : 'active';
             if (await window.showConfirmModal('Confirmar', `¿${newStatus === 'blocked' ? 'Bloquear' : 'Desbloquear'} usuario?`)) {
+                blockBtn.disabled = true;
                 try {
                     const res = await fetch('../api/?accion=toggleUserBlock', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userId, newStatus })
                     });
-                    if ((await res.json()).success) loadTableData(window.location.href);
-                } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                    if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+                    const result = await res.json();
+                    // Antes: si el backend rechazaba, no pasaba absolutamente
+                    // nada y el admin creía que el bloqueo se había aplicado.
+                    if (result.success) {
+                        loadTableData(window.location.href);
+                    } else {
+                        window.showInfoModal('Error', result.error || 'No se pudo cambiar el estado del usuario.', false);
+                    }
+                } catch (err) {
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo cambiar el estado del usuario.'), false);
+                } finally {
+                    blockBtn.disabled = false;
+                }
             }
         }
 
@@ -307,17 +334,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (deleteBtn) {
             const userId = deleteBtn.dataset.userId;
             if (await window.showConfirmModal('Eliminar', '¿Seguro? Esta acción enviará al usuario a la papelera.')) {
+                deleteBtn.disabled = true;
                 try {
                     const res = await fetch('../api/?accion=deleteUser', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userId })
                     });
-                    if ((await res.json()).success) {
+                    if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+                    const result = await res.json();
+                    if (result.success) {
                         window.showInfoModal('Éxito', 'Usuario eliminado.', true);
                         loadTableData(window.location.href);
+                    } else {
+                        window.showInfoModal('Error', result.error || 'No se pudo eliminar el usuario.', false);
                     }
-                } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                } catch (err) {
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo eliminar el usuario.'), false);
+                } finally {
+                    deleteBtn.disabled = false;
+                }
             }
         }
 
@@ -344,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const modalEl = document.getElementById('editUserModal');
             if (modalEl) {
-                new bootstrap.Modal(modalEl).show();
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
         }
 
@@ -394,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateImg('docsImgFrente', 'btnFrenteView', 'btnFrenteDown', d.imgFrente, 'frente');
             updateImg('docsImgReverso', 'btnReversoView', 'btnReversoDown', d.imgReverso, 'reverso');
 
-            new bootstrap.Modal(document.getElementById('userDocsModal')).show();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('userDocsModal')).show();
         }
     });
 
@@ -435,14 +471,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(Object.fromEntries(new FormData(editUserForm).entries()))
                 });
+                if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
                 const result = await res.json();
                 if (result.success) {
                     bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
                     window.showInfoModal('Éxito', 'Datos de usuario actualizados.', true, () => loadTableData(window.location.href));
                 } else {
-                    window.showInfoModal('Error', result.error, false);
+                    window.showInfoModal('Error', result.error || 'No se pudieron guardar los datos.', false);
                 }
-            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+            } catch (err) {
+                window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudieron guardar los datos.'), false);
+            }
         });
     }
 });

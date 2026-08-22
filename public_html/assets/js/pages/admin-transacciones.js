@@ -75,23 +75,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 5.3 AUTORIZAR RIESGO
-    document.querySelectorAll('.authorize-risk-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const txId = e.currentTarget.dataset.txId;
-            if (await window.showConfirmModal('Autorizar', '¿Autorizas esta orden de riesgo? El usuario podrá proceder al pago.')) {
-                try {
-                    const res = await fetch('../api/?accion=authorizeTransaction', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ transactionId: txId })
-                    });
-                    const r = await res.json();
-                    if (r.success) window.location.reload();
-                    else window.showInfoModal('Error', r.error, false);
-                } catch (e) { window.showInfoModal('Error', 'Error de red', false); }
-            }
-        });
-    });
+    // El handler vive en la sección 7 (delegado en document). Antes había
+    // además un querySelectorAll().forEach acá: los dos se disparaban con el
+    // mismo click y salían DOS modales de confirmación encimados. El directo
+    // encima moría en el primer refresh del tbody (cada 5s), así que el bug
+    // parecía intermitente.
 
     // 5.4 SUBIR COMPROBANTE (PAGAR) - ACTUALIZADO CON SELECCIÓN DE BANCO
     const adminUploadModalEl = document.getElementById('adminUploadModal');
@@ -110,13 +98,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const monto = parseFloat(btn.dataset.montoDestino);
             const paisDestinoId = parseInt(btn.dataset.paisId, 10);
 
+            // Guard: las páginas de operador no tienen #cuentaSalidaSelect
+            // (más abajo, en L172, sí se validaba) — sin esto tiraba TypeError.
             if (!paisDestinoId || isNaN(paisDestinoId)) {
-                cuentaSelect.innerHTML = '<option value="">⚠️ País destino no válido</option>';
-                cuentaSelect.disabled = true;
+                if (cuentaSelect) {
+                    cuentaSelect.innerHTML = '<option value="">⚠️ País destino no válido</option>';
+                    cuentaSelect.disabled = true;
+                }
                 return;
             }
 
-            cuentaSelect.disabled = false;
+            if (cuentaSelect) cuentaSelect.disabled = false;
 
             if (txIdField) txIdField.value = txId;
             if (txIdLabel) txIdLabel.textContent = txId;
@@ -256,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 previewImg.classList.add('d-none');
                 previewPdf.classList.add('d-none');
                 previewContainer.classList.remove('d-none');
-                previewInfo.innerHTML = `<i class="bi bi-file-earmark-check text-success"></i> ${file.name} <span class="text-muted">(${(file.size / 1024).toFixed(1)} KB)</span>`;
+                previewInfo.innerHTML = `<i class="bi bi-file-earmark-check text-success"></i> ${window.escapeHtml(file.name)} <span class="text-muted">(${(file.size / 1024).toFixed(1)} KB)</span>`;
 
                 if (fileType.startsWith('image/')) {
                     previewImg.src = currentObjectURL;
@@ -329,8 +321,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('../api/?accion=updateTxCommission', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
                 });
-                if ((await res.json()).success) window.showInfoModal('Éxito', 'Comisión actualizada.', true, () => window.location.reload());
-            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
+                const result = await res.json();
+                // Antes no había `else`: si el backend rechazaba, no salía
+                // ningún mensaje y el admin creía que había guardado.
+                if (result.success) {
+                    window.showInfoModal('Éxito', 'Comisión actualizada.', true, () => window.location.reload());
+                } else {
+                    window.showInfoModal('Error', result.error || 'No se pudo actualizar la comisión.', false);
+                }
+            } catch (err) {
+                window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo actualizar la comisión.'), false);
+            }
             finally { submitBtn.disabled = false; submitBtn.textContent = 'Guardar'; }
         });
     }

@@ -17,9 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminImageToCrop = document.getElementById('admin-image-to-crop');
     let currentEditDocType = null;
     let currentEditingUserId = null;
+    // Solo se vuelve a abrir el modal de documentos si el admin CONFIRMÓ el
+    // recorte; antes se reabría también al cancelar.
+    let recorteConfirmado = false;
 
     if (adminCropModalEl) {
-        const adminCropModal = new bootstrap.Modal(adminCropModalEl);
+        const adminCropModal = bootstrap.Modal.getOrCreateInstance(adminCropModalEl);
         document.addEventListener('click', (e) => {
             const editBtn = e.target.closest('.btn-edit-admin-doc');
             if (editBtn) {
@@ -42,7 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const imgEl = document.getElementById(imgSourceId);
                 if (imgEl && imgEl.src && !imgEl.src.includes('SoloLogo') && imgEl.src !== window.location.href) {
                     adminImageToCrop.src = imgEl.src;
-                    bootstrap.Modal.getInstance(document.getElementById('userDocsModal')).hide();
+                    recorteConfirmado = false;
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('userDocsModal')).hide();
                     adminCropModal.show();
                 } else {
                     window.showInfoModal('Error', 'No hay una imagen válida cargada para editar.', false);
@@ -75,8 +79,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 adminCropper = null;
             }
             adminImageToCrop.src = '';
-            const userDocsModal = new bootstrap.Modal(document.getElementById('userDocsModal'));
-            userDocsModal.show();
+
+            // getOrCreateInstance en vez de `new bootstrap.Modal(...)`: cada
+            // `new` sobre el mismo elemento creaba otra instancia con sus
+            // propios listeners y dejaba backdrops pegados (de ahí venía el
+            // parche manual que borraba .modal-backdrop sobrantes).
+            if (recorteConfirmado) {
+                recorteConfirmado = false;
+                const docsEl = document.getElementById('userDocsModal');
+                if (docsEl) bootstrap.Modal.getOrCreateInstance(docsEl).show();
+            }
         });
 
         const rotateLeft = document.getElementById('admin-rotate-left');
@@ -156,16 +168,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 else if (currentEditDocType === 'reverso') tableBtn.dataset.imgReverso = cleanPath;
                             }
                             
+                            recorteConfirmado = true;
                             adminCropModal.hide();
                             setTimeout(() => {
                                 window.showInfoModal('Éxito', 'Documento actualizado y registrado en la bitácora de auditoría.', true);
-                                const modalesAbiertos = document.querySelectorAll('.modal.show').length;
-                                const fondosOscuros = document.querySelectorAll('.modal-backdrop');
-                                if (fondosOscuros.length > modalesAbiertos) {
-                                    fondosOscuros.forEach((fondo, index) => {
-                                        if (index >= modalesAbiertos) fondo.remove();
-                                    });
-                                }
                             }, 400);
 
                         } else {
@@ -217,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const cropModalEl = document.getElementById('adminCropModal');
                 if (cropModalEl) {
+                    recorteConfirmado = false;
                     bootstrap.Modal.getOrCreateInstance(cropModalEl).show();
                 }
             };
@@ -240,11 +247,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const modalElement = document.getElementById('modalBeneficiariosUser');
             if (!modalElement) return;
 
-            const modal = new bootstrap.Modal(modalElement);
+            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
             const tbody = document.querySelector('#tablaBeneficiariosUser tbody');
             const loader = document.getElementById('listaBeneficiariosLoader');
             const modalTitle = modalElement.querySelector('.modal-title');
-            modalTitle.innerHTML = `Beneficiarios de: <span class="text-primary fw-bold">${userName}</span>`;
+            // userName sale de un innerText de la tabla: PHP lo escapó al
+            // renderizar, pero innerText lo devuelve crudo y al reinyectarlo
+            // como HTML vuelve a ser ejecutable.
+            modalTitle.innerHTML = `Beneficiarios de: <span class="text-primary fw-bold">${window.escapeHtml(userName)}</span>`;
 
             modal.show();
             tbody.innerHTML = '';
@@ -292,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 actionBtns = `<button class="btn btn-sm btn-warning btn-admin-edit-ben mb-1 w-100 shadow-sm" data-json="${jsonSafe}"><i class="bi bi-pencil-square"></i> Editar</button>
                                               <div class="text-success small text-center fw-bold"><i class="bi bi-unlock-fill"></i> Habilitado</div>`;
                             } else {
-                                actionBtns = `<button class="btn btn-sm btn-outline-primary btn-request-access mb-1 w-100" data-id="${ben.CuentaID}" data-user="${ben.UserID}">
+                                actionBtns = `<button class="btn btn-sm btn-outline-primary btn-request-access mb-1 w-100" data-id="${window.escapeHtml(ben.CuentaID)}" data-user="${window.escapeHtml(ben.UserID)}">
                                                 <i class="bi bi-bell"></i> Solicitar
                                               </button>
                                               <div class="text-muted small text-center"><i class="bi bi-lock-fill"></i> Bloqueado</div>`;
@@ -310,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         tbody.innerHTML = htmlRows;
                     }
                 } else {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger text-center p-3">Error: ${data.error}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-danger text-center p-3">Error: ${window.escapeHtml(data.error || 'No se pudieron cargar los beneficiarios.')}</td></tr>`;
                 }
             } catch (error) {
                 console.error(error);
@@ -327,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('reqBenId').value = btnRequest.dataset.id;
                 document.getElementById('reqBenUserId').value = btnRequest.dataset.user;
                 document.getElementById('formSolicitarEdicion').reset();
-                new bootstrap.Modal(modalEl).show();
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
         }
 
@@ -335,9 +345,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btnEditBen) {
             let data;
             try {
-                const rawJson = btnEditBen.dataset.json.replace(/&quot;/g, '"');
+                const rawJson = (btnEditBen.dataset.json || '').replace(/&quot;/g, '"');
                 data = JSON.parse(rawJson);
-            } catch (err) { return; }
+            } catch (err) {
+                // Antes era un `return` mudo: el botón "Editar" simplemente no
+                // hacía nada y no había forma de saber por qué.
+                console.error('data-json inválido en el botón de editar beneficiario:', err);
+                window.showInfoModal('Error', 'No se pudieron leer los datos del beneficiario. Vuelve a abrir la lista e intenta de nuevo.', false);
+                return;
+            }
 
             const modalEl = document.getElementById('modalAdminEditarBeneficiario');
             if (modalEl) {
@@ -353,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('editBenCCI').value = data.CCI || '';
                 document.getElementById('divEditBenCCI').style.display = (parseInt(data.PaisID) === 4) ? 'block' : 'none';
 
-                new bootstrap.Modal(modalEl).show();
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
         }
     });
@@ -498,8 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (modalBody) modalBody.textContent = reason;
             const modalEl = document.getElementById('viewPauseReasonModal');
             if (modalEl) {
-                const modal = new bootstrap.Modal(modalEl);
-                modal.show();
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
         }
     });
@@ -513,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('cliente-info-nombre').textContent = btn.dataset.nombre || '';
         document.getElementById('cliente-info-telefono').textContent = btn.dataset.telefono || 'No registrado';
         document.getElementById('cliente-info-doc').textContent = btn.dataset.doc || 'No registrado';
-        new bootstrap.Modal(modalEl).show();
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
     });
 
     document.body.addEventListener('click', function (e) {
@@ -575,11 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selDestino = document.getElementById('tasa-especial-destino');
         const historialEl = document.getElementById('tasa-especial-historial');
 
-        const escapeHtmlTe = (s) => {
-            const div = document.createElement('div');
-            div.textContent = s == null ? '' : String(s);
-            return div.innerHTML;
-        };
+        const escapeHtmlTe = window.escapeHtml;
 
         const cargarPaisesSelect = async (selectEl, rol) => {
             try {
@@ -605,7 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <strong>${escapeHtmlTe(t.ValorTasa)}</strong>
                             ${t.Activa == 1 ? '<span class="badge bg-success ms-1">Activa</span>' : '<span class="badge bg-secondary ms-1">Usada/Inactiva</span>'}
                         </span>
-                        ${t.Activa == 1 ? `<button type="button" class="btn btn-sm btn-outline-danger btn-desactivar-tasa-especial" data-id="${t.TasaEspecialID}">Desactivar</button>` : ''}
+                        ${t.Activa == 1 ? `<button type="button" class="btn btn-sm btn-outline-danger btn-desactivar-tasa-especial" data-id="${window.escapeAttr(t.TasaEspecialID)}">Desactivar</button>` : ''}
                     </div>
                 `).join('');
             } catch (e) {

@@ -30,6 +30,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UTILIDADES ---
 
+    const esc = (s) => window.escapeHtml(s);
+    // window.escapeHtml no escapa comillas; dentro de un atributo hacen falta.
+    const escAttr = window.escapeAttr;
+
     const requiereDecimales = (currencyCode) => {
         const conDecimales = ['USD', 'PEN', 'EUR', 'BRL', 'GBP'];
         return conDecimales.includes(currencyCode);
@@ -54,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (DOM.containerDestino) DOM.containerDestino.innerHTML = '<div class="col-12 text-center p-4"><div class="spinner-border text-success"></div></div>';
 
             const response = await fetch('../api/?accion=getContabilidadGlobal');
+            if (!response.ok) throw new Error(`El servidor respondió con un error (${response.status}).`);
             const result = await response.json();
 
             if (!result.success) throw new Error(result.error);
@@ -62,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderizarInterfaz();
         } catch (error) {
             console.error("Error al cargar datos:", error);
-            if (window.showInfoModal) window.showInfoModal('Error', 'No se pudieron cargar los saldos.', false);
+            if (window.showInfoModal) window.showInfoModal('Error', window.formatNetworkError(error, 'No se pudieron cargar los saldos.'), false);
         }
     };
 
@@ -94,9 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="col-md-4 mb-3">
                     <div class="card shadow-sm border-primary border-start border-4 h-100">
                         <div class="card-body">
-                            <h6 class="text-primary fw-bold text-truncate mb-1" title="${acc.Banco}">${acc.Banco}</h6>
-                            <h4 class="text-dark mb-1">${numberFormatter(acc.CodigoMoneda, acc.SaldoActual)}</h4>
-                            <small class="text-muted d-block text-truncate small">${acc.Titular}</small>
+                            <h6 class="text-primary fw-bold text-truncate mb-1" title="${escAttr(acc.Banco)}">${esc(acc.Banco)}</h6>
+                            <h4 class="text-dark mb-1">${esc(numberFormatter(acc.CodigoMoneda, acc.SaldoActual))}</h4>
+                            <small class="text-muted d-block text-truncate small">${esc(acc.Titular)}</small>
                         </div>
                     </div>
                 </div>`;
@@ -134,11 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="card shadow-sm ${alerta} border-start border-4 h-100">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start mb-1">
-                                <h6 class="text-dark fw-bold text-truncate mb-0" style="max-width: 70%">${acc.Banco}</h6>
-                                <span class="badge bg-light text-dark border small" style="font-size: 0.65rem;">${acc.NombrePais}</span>
+                                <h6 class="text-dark fw-bold text-truncate mb-0" style="max-width: 70%">${esc(acc.Banco)}</h6>
+                                <span class="badge bg-light text-dark border small" style="font-size: 0.65rem;">${esc(acc.NombrePais)}</span>
                             </div>
-                            <h4 class="${colorSaldo} mb-1">${numberFormatter(acc.CodigoMoneda, acc.SaldoActual)}</h4>
-                            <small class="text-muted d-block text-truncate small">${acc.Titular}</small>
+                            <h4 class="${colorSaldo} mb-1">${esc(numberFormatter(acc.CodigoMoneda, acc.SaldoActual))}</h4>
+                            <small class="text-muted d-block text-truncate small">${esc(acc.Titular)}</small>
                         </div>
                     </div>
                 </div>`;
@@ -147,11 +152,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LÓGICA DE SELECTS ---
 
+    /**
+     * Reconstruye un <select> preservando la opción que el admin tenía elegida.
+     *
+     * cargarDatosGenerales() corre después de cada transferencia/recarga/retiro
+     * y antes reseteaba la selección a "Seleccione cuenta...", obligando a
+     * elegir de nuevo. Se relee el value ANTES de tocar el innerHTML y se
+     * restaura si la opción sigue existiendo.
+     */
+    const rebuildSelect = (el, html) => {
+        if (!el) return;
+        const previo = el.value;
+        el.innerHTML = html;
+        if (previo && el.querySelector(`option[value="${CSS.escape(previo)}"]`)) {
+            el.value = previo;
+        }
+    };
+
     const actualizarTodosLosSelects = () => {
         const buildOptions = (list) => {
             return '<option value="">Seleccione cuenta...</option>' +
-                list.map(acc => `<option value="${acc.CuentaAdminID}" data-saldo="${acc.SaldoActual}" data-moneda="${acc.CodigoMoneda}">
-                        ${acc.Banco} - ${acc.Titular} - ${acc.NombrePais}
+                list.map(acc => `<option value="${escAttr(acc.CuentaAdminID)}" data-saldo="${escAttr(acc.SaldoActual)}" data-moneda="${escAttr(acc.CodigoMoneda)}">
+                        ${esc(acc.Banco)} - ${esc(acc.Titular)} - ${esc(acc.NombrePais)}
                 </option>`).join('');
         };
 
@@ -165,8 +187,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return r === 2 || r === 3 || acc.Rol === 'Destino';
         });
 
-        if (DOM.txOrigen) DOM.txOrigen.innerHTML = buildOptions(origen);
-        if (DOM.txDestino) DOM.txDestino.innerHTML = buildOptions(destino);
+        rebuildSelect(DOM.txOrigen, buildOptions(origen));
+        rebuildSelect(DOM.txDestino, buildOptions(destino));
 
         const mapaModales = {
             'recarga-origen-select': origen, 'retiro-origen-select': origen,
@@ -174,19 +196,17 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         Object.keys(mapaModales).forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.innerHTML = buildOptions(mapaModales[id]);
+            rebuildSelect(document.getElementById(id), buildOptions(mapaModales[id]));
         });
 
         actualizarDropdownHistorial();
     };
 
     const actualizarDropdownHistorial = () => {
-        const tipo = document.getElementById('resumen-tipo').value;
+        const tipoEl = document.getElementById('resumen-tipo');
         const select = document.getElementById('resumen-entidad-id');
-        if (!select) return;
-
-        select.innerHTML = '<option value="">Seleccione...</option>';
+        if (!tipoEl || !select) return;
+        const tipo = tipoEl.value;
 
         const list = tipo === 'banco'
             ? STATE.todasLasCuentas.filter(acc => {
@@ -198,9 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return r === 2 || r === 3 || acc.Rol === 'Destino';
             });
 
-        list.forEach(acc => {
-            select.innerHTML += `<option value="${acc.CuentaAdminID}">${acc.Banco} - ${acc.Titular} (${acc.NombrePais})</option>`;
-        });
+        const html = '<option value="">Seleccione...</option>' + list.map(acc =>
+            `<option value="${escAttr(acc.CuentaAdminID)}">${esc(acc.Banco)} - ${esc(acc.Titular)} (${esc(acc.NombrePais)})</option>`
+        ).join('');
+        rebuildSelect(select, html);
     };
 
     [DOM.txOrigen, DOM.txDestino].forEach((sel, i) => {
@@ -209,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const opt = sel.options[sel.selectedIndex];
             const info = i === 0 ? DOM.txSaldoOrigen : DOM.txSaldoDestino;
             if (opt && opt.value) {
-                info.innerHTML = `Saldo: <strong>${numberFormatter(opt.dataset.moneda, opt.dataset.saldo)}</strong>`;
+                info.innerHTML = `Saldo: <strong>${esc(numberFormatter(opt.dataset.moneda, opt.dataset.saldo))}</strong>`;
             } else { info.innerText = 'Saldo: -'; }
         });
     });
@@ -261,6 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+                if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
                 const result = await res.json();
 
                 if (result.success) {
@@ -270,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     cargarDatosGenerales();
                 } else throw new Error(result.error);
             } catch (err) {
-                if (window.showInfoModal) window.showInfoModal('Error', err.message, false);
+                if (window.showInfoModal) window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo completar la operación.'), false);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -299,7 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
             try {
-                const res = await fetch(`../api/?accion=getResumenContable&id=${id}&mes=${mes}&anio=${anio}`);
+                const res = await fetch(`../api/?accion=getResumenContable&id=${encodeURIComponent(id)}&mes=${encodeURIComponent(mes)}&anio=${encodeURIComponent(anio)}`);
+                if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
                 const result = await res.json();
 
                 if (result.success) {
@@ -318,16 +341,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             DOM.resumenMovimientosTbody.innerHTML += `
                                 <tr>
-                                    <td><small>${new Date(m.Timestamp).toLocaleString('es-CL')}</small></td>
-                                    <td><span class="badge bg-light text-dark border small">${m.NombreVisible || m.TipoMovimiento}</span></td>
-                                    <td>${m.TransaccionID ? '<strong>#' + m.TransaccionID + '</strong>' : '-'}</td>
-                                    <td><small>${m.Descripcion || ''}</small></td>
+                                    <td><small>${esc(new Date(m.Timestamp).toLocaleString('es-CL'))}</small></td>
+                                    <td><span class="badge bg-light text-dark border small">${esc(m.NombreVisible || m.TipoMovimiento)}</span></td>
+                                    <td>${m.TransaccionID ? '<strong>#' + esc(m.TransaccionID) + '</strong>' : '-'}</td>
+                                    <td><small>${esc(m.Descripcion || '')}</small></td>
                                     <td>
-                                        <div class="fw-bold small">${m.AdminNombre || 'Sistema'} ${m.AdminApellido || ''}</div>
-                                        <div class="text-muted" style="font-size: 0.65rem;">${m.AdminEmail || ''}</div>
+                                        <div class="fw-bold small">${esc(m.AdminNombre || 'Sistema')} ${esc(m.AdminApellido || '')}</div>
+                                        <div class="text-muted" style="font-size: 0.65rem;">${esc(m.AdminEmail || '')}</div>
                                     </td>
                                     <td class="text-end fw-bold ${esIngreso ? 'text-success' : 'text-danger'}">
-                                        ${esIngreso ? '+' : '-'}${numberFormatter(data.Moneda, m.Monto)}
+                                        ${esIngreso ? '+' : '-'}${esc(numberFormatter(data.Moneda, m.Monto))}
                                     </td>
                                 </tr>`;
                         });
@@ -336,7 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else throw new Error(result.error);
             } catch (err) {
-                if (window.showInfoModal) window.showInfoModal('Error', err.message, false);
+                if (window.showInfoModal) window.showInfoModal('Error', window.formatNetworkError(err, 'No se pudo cargar el resumen.'), false);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = 'Consultar';
