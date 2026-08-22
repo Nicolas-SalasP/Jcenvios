@@ -213,12 +213,30 @@ $jsUtilsVersion = file_exists($jsUtilsFilePath) ? hash_file('md5', $jsUtilsFileP
 $domUtilsPath = '/assets/js/utils/domUtils.js';
 $domUtilsFilePath = __DIR__ . '/../../../public_html' . $domUtilsPath;
 $domUtilsVersion = file_exists($domUtilsFilePath) ? hash_file('md5', $domUtilsFilePath) : '1.0.0';
+
+// system-lock, session-watch y csrf-interceptor se servían SIN ?v=, a diferencia
+// del resto: el navegador se quedaba con la copia cacheada para siempre y ningún
+// cambio en ellos llegaba a un usuario que ya hubiera visitado el sitio. Se
+// detectó porque el fix de XSS de system-lock.js no aparecía en el navegador
+// aunque estuviera en el archivo. Aplica a los tres, incluido el interceptor CSRF.
+$fixedScripts = [
+    '/assets/js/system-lock.js',
+    '/assets/js/session-watch.js',
+    '/assets/js/csrf-interceptor.js',
+];
+$fixedScriptVersions = [];
+foreach ($fixedScripts as $fixedScriptPath) {
+    $fixedScriptFile = __DIR__ . '/../../../public_html' . $fixedScriptPath;
+    $fixedScriptVersions[$fixedScriptPath] = file_exists($fixedScriptFile)
+        ? hash_file('md5', $fixedScriptFile)
+        : '1.0.0';
+}
 ?>
-<script src="<?php echo BASE_URL; ?>/assets/js/system-lock.js"></script>
-<script src="<?php echo BASE_URL; ?>/assets/js/session-watch.js"></script>
+<script src="<?php echo BASE_URL; ?>/assets/js/system-lock.js?v=<?php echo $fixedScriptVersions['/assets/js/system-lock.js']; ?>"></script>
+<script src="<?php echo BASE_URL; ?>/assets/js/session-watch.js?v=<?php echo $fixedScriptVersions['/assets/js/session-watch.js']; ?>"></script>
 <script src="<?php echo BASE_URL . $jsUtilsPath; ?>?v=<?php echo $jsUtilsVersion; ?>" charset="UTF-8"></script>
 <script src="<?php echo BASE_URL . $domUtilsPath; ?>?v=<?php echo $domUtilsVersion; ?>" charset="UTF-8"></script>
-<script src="<?php echo BASE_URL; ?>/assets/js/csrf-interceptor.js"></script>
+<script src="<?php echo BASE_URL; ?>/assets/js/csrf-interceptor.js?v=<?php echo $fixedScriptVersions['/assets/js/csrf-interceptor.js']; ?>"></script>
 
 <?php
 

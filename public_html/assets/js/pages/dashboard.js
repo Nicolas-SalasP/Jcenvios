@@ -507,7 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <i class="bi bi-cloud-upload-fill me-2"></i> Subir y Finalizar
                                     </button>
                                     
-                                    <button type="button" class="btn btn-link text-muted mt-3 btn-sm" onclick="window.location.href='historial.php'">
+                                    <button type="button" class="btn btn-link text-muted mt-3 btn-sm" id="btn-subir-mas-tarde">
                                         Lo subiré más tarde
                                     </button>
                                 </form>
@@ -585,6 +585,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             reader.onerror = (err) => reject(err);
                         });
                     };
+
+                    // El "Lo subiré más tarde" tenía un onclick="" inline, que la CSP
+                    // estricta (script-src 'self', sin unsafe-inline) bloquea: el botón
+                    // no hacía absolutamente nada.
+                    const btnMasTarde = document.getElementById('btn-subir-mas-tarde');
+                    if (btnMasTarde) {
+                        btnMasTarde.addEventListener('click', () => {
+                            window.location.href = 'historial.php';
+                        });
+                    }
 
                     document.getElementById('form-comprobante-express').addEventListener('submit', async function (ev) {
                         ev.preventDefault();
