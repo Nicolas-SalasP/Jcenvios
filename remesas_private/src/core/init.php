@@ -150,6 +150,55 @@ try {
 }
 $conexion->set_charset("utf8mb4");
 
+// --- SESIÓN HUÉRFANA: el usuario de la sesión ya no existe ---
+//
+// Si un usuario se elimina mientras tiene la sesión abierta, su navegador sigue
+// mandando un user_id que ya no está en `usuarios`. Todo lo que guarde ese ID en
+// una columna con FK hacia `usuarios` revienta con error 1452: la bitácora
+// (logs.UserID), los movimientos contables (AdminUserID), las liquidaciones y
+// las tasas especiales. En `tasas_especiales_cliente.AdminID` ni siquiera se
+// puede degradar a NULL, porque la columna es NOT NULL.
+//
+// Cortar la sesión acá ataca la causa en vez de parchear cada destino. No
+// reemplaza a las defensas de escritura (una carrera puede borrar al usuario
+// entre este chequeo y el INSERT), pero saca del medio el caso real y repetido.
+//
+// Deliberadamente conservador: solo se cierra la sesión si la consulta se pudo
+// ejecutar Y devolvió cero filas. Ante cualquier fallo de la consulta no se
+// toca nada — un problema transitorio de BD no puede desloguear a todo el mundo.
+if (isset($_SESSION['user_id'])) {
+    $stmtSesion = $conexion->prepare("SELECT UserID FROM usuarios WHERE UserID = ? LIMIT 1");
+    if ($stmtSesion) {
+        $idSesion = (int) $_SESSION['user_id'];
+        $stmtSesion->bind_param("i", $idSesion);
+        if ($stmtSesion->execute()) {
+            $existeUsuario = $stmtSesion->get_result()->num_rows > 0;
+            $stmtSesion->close();
+
+            if (!$existeUsuario) {
+                error_log("Sesión huérfana: UserID {$idSesion} ya no existe en usuarios. Se cierra la sesión.");
+                session_unset();
+                session_destroy();
+
+                if (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false) {
+                    header('Content-Type: application/json');
+                    http_response_code(401);
+                    die(json_encode([
+                        'success'  => false,
+                        'error'    => 'Tu sesión ya no es válida. Vuelve a iniciar sesión.',
+                        'redirect' => BASE_URL . '/login.php?expired=1'
+                    ]));
+                }
+
+                header('Location: ' . BASE_URL . '/login.php?expired=1');
+                exit();
+            }
+        } else {
+            $stmtSesion->close();
+        }
+    }
+}
+
 $container = new class($conexion) {
     private $mysqli;
     public function __construct($m) { $this->mysqli = $m; }

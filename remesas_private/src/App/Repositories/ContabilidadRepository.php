@@ -14,6 +14,34 @@ class ContabilidadRepository
     }
 
     // --- SALDOS ---
+
+    /**
+     * Igual que getSaldoPorPais(), pero bloqueando la fila del saldo hasta el fin
+     * de la transacción en curso. Debe usarse DENTRO de una transacción siempre
+     * que se vaya a leer SaldoActual para después escribirlo: actualizarSaldo()
+     * guarda un valor absoluto precalculado, así que sin el lock dos operaciones
+     * simultáneas sobre el mismo país leen el mismo saldo y la segunda pisa el
+     * movimiento de la primera.
+     *
+     * Se bloquea solo `contabilidad_saldos` (no el JOIN con `paises`, que es
+     * catálogo de lectura y bloquearlo sería contención inútil).
+     */
+    public function getSaldoPorPaisForUpdate(int $paisId): ?array
+    {
+        $sql = "SELECT SaldoID FROM contabilidad_saldos WHERE PaisID = ? LIMIT 1 FOR UPDATE";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $paisId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            return null;
+        }
+
+        return $this->getSaldoPorPais($paisId);
+    }
+
     public function getSaldoPorPais(int $paisId): ?array
     {
         $sql = "SELECT s.*, p.NombrePais 

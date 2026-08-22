@@ -36,6 +36,57 @@ window.escapeAttr = (str) => window.escapeHtml(str)
     .replace(/'/g, '&#39;');
 
 /**
+ * Mensaje legible para un código HTTP de error.
+ */
+window.httpStatusMessage = (status) => {
+    if (status === 400) return 'La solicitud no es válida. Revisa los datos e intenta de nuevo.';
+    if (status === 401) return 'Tu sesión expiró. Vuelve a iniciar sesión.';
+    if (status === 403) return 'No tienes permiso para hacer esto, o el token de seguridad venció. Recarga la página.';
+    if (status === 404) return 'El recurso solicitado no existe.';
+    if (status === 413) return 'El archivo es demasiado grande para el servidor.';
+    if (status === 429) return 'Demasiados intentos. Espera un momento e intenta de nuevo.';
+    if (status >= 500) return 'El servidor tuvo un error interno (' + status + '). Intenta de nuevo en unos minutos.';
+    return 'El servidor respondió con un error (' + status + ').';
+};
+
+/**
+ * Reemplaza a `await response.json()` en TODO fetch que espere JSON.
+ *
+ * Problema que resuelve: cuando la API devuelve un 500 con cuerpo HTML (un
+ * fatal de PHP, una página de error del hosting), `response.json()` explota con
+ * "SyntaxError: Unexpected token '<'" — un error críptico que además no
+ * distingue "falló la red" de "el servidor se cayó".
+ *
+ * Ojo con el orden: NO se puede cortar en `!response.ok` antes de leer el
+ * cuerpo, porque la API sí manda JSON útil con status de error (429 rate limit,
+ * 403 de CSRF, 500 del exception_handler, todos con un campo `error`). Se
+ * intenta parsear primero y recién si no hay mensaje del servidor se cae al
+ * texto genérico por código.
+ *
+ * Siempre lanza `Error` en el camino de fallo, así el `catch` que ya existe en
+ * el llamador lo muestra en un modal sin cambios extra.
+ */
+window.parseJsonResponse = async (response, fallback = 'No se pudo procesar la respuesta del servidor.') => {
+    let data = null;
+    try {
+        data = await response.json();
+    } catch (_) {
+        data = null;
+    }
+
+    if (!response.ok) {
+        const serverMsg = data && (data.error || data.message);
+        throw new Error(serverMsg || window.httpStatusMessage(response.status));
+    }
+
+    if (data === null || typeof data !== 'object') {
+        throw new Error(fallback);
+    }
+
+    return data;
+};
+
+/**
  * Convierte el error crudo de un fetch en un mensaje que el usuario entienda.
  *
  * "Failed to fetch" es lo que tira el navegador cuando la request no llega a

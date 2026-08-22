@@ -33,11 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data)
                     });
-                    const result = await res.json();
+                    const result = await window.parseJsonResponse(res);
                     bootstrap.Modal.getInstance(pauseModalEl).hide();
                     if (result.success) window.location.reload();
-                    else window.showInfoModal('Error', result.error, false);
-                } catch (err) { window.showInfoModal('Error', 'Error de conexión', false); }
+                    else window.showInfoModal('Error', result.error || 'No se pudo completar la accion.', false);
+                } catch (err) {
+                    console.error(err);
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión'), false);
+                }
                 finally { btn.disabled = false; }
             });
         }
@@ -64,11 +67,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data)
                     });
-                    const result = await res.json();
+                    const result = await window.parseJsonResponse(res);
                     bootstrap.Modal.getInstance(resumeModalEl).hide();
                     if (result.success) window.location.reload();
-                    else window.showInfoModal('Error', result.error, false);
-                } catch (err) { window.showInfoModal('Error', 'Error de conexión', false); }
+                    else window.showInfoModal('Error', result.error || 'No se pudo completar la accion.', false);
+                } catch (err) {
+                    console.error(err);
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión'), false);
+                }
                 finally { btn.disabled = false; }
             });
         }
@@ -296,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5.5 EDITAR COMISIÓN (Si existe el modal)
     const editCommissionModalElement = document.getElementById('editCommissionModal');
     if (editCommissionModalElement) {
-        const editCommissionModal = new bootstrap.Modal(editCommissionModalElement);
+        const editCommissionModal = bootstrap.Modal.getOrCreateInstance(editCommissionModalElement);
         const form = document.getElementById('edit-commission-form');
         const txIdInput = document.getElementById('commission-tx-id');
         const commissionInput = document.getElementById('new-commission-input');
@@ -364,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: JSON.stringify({ transactionId: txId })
                     });
 
-                    const data = await res.json();
+                    const data = await window.parseJsonResponse(res);
 
                     if (data.success) {
                         window.location.reload();
@@ -375,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (err) {
                     console.error(err);
-                    window.showInfoModal('Error', 'Error de conexión', false);
+                    window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión'), false);
                     btn.disabled = false;
                     btn.innerHTML = originalContent;
                 }
@@ -386,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5.7 RECHAZAR PAGO (MODAL)
     const rejectionModalEl = document.getElementById('rejectionModal');
     if (rejectionModalEl) {
-        const rejectionModalInstance = new bootstrap.Modal(rejectionModalEl);
+        const rejectionModalInstance = bootstrap.Modal.getOrCreateInstance(rejectionModalEl);
         const rejectTxIdInput = document.getElementById('reject-tx-id');
         const rejectReasonInput = document.getElementById('reject-reason');
         rejectionModalEl.addEventListener('show.bs.modal', (e) => {
@@ -423,12 +429,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ transactionId: txId, reason: reason, actionType: type })
                     });
-                    const result = await response.json();
+                    const result = await window.parseJsonResponse(response);
                     rejectionModalInstance.hide();
 
                     if (result.success) window.location.reload();
-                    else window.showInfoModal('Error', result.error, false);
-                } catch (error) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                    else window.showInfoModal('Error', result.error || 'No se pudo rechazar la orden.', false);
+                } catch (error) {
+                    console.error(error);
+                    window.showInfoModal('Error', window.formatNetworkError(error, 'Error de conexión.'), false);
+                }
                 finally { allBtns.forEach(b => b.disabled = false); }
             });
         });
@@ -618,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ txId: txId, estado: newStatus })
                 });
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
 
                 if (data.success) {
                     window.showInfoModal('Éxito', data.message, true, () => {
@@ -629,12 +638,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 } else {
-                    window.showInfoModal('Error', data.error, false);
+                    window.showInfoModal('Error', data.error || 'No se pudo cambiar el permiso.', false);
                     btnToggleMonto.disabled = false;
                     btnToggleMonto.innerHTML = originalHtml;
                 }
             } catch (err) {
-                window.showInfoModal('Error', 'Error de conexión', false);
+                console.error(err);
+                window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión'), false);
                 btnToggleMonto.disabled = false;
                 btnToggleMonto.innerHTML = originalHtml;
             }
@@ -668,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         })
                     });
 
-                    const data = await res.json();
+                    const data = await window.parseJsonResponse(res);
 
                     if (data.success) {
                         window.showInfoModal('Éxito', 'Orden autorizada correctamente.', true, () => {
@@ -681,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (error) {
                     console.error(error);
-                    window.showInfoModal('Error', 'Error de conexión.', false);
+                    window.showInfoModal('Error', window.formatNetworkError(error, 'Error de conexión.'), false);
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-shield-check"></i> Autorizar';
                 }

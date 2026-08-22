@@ -139,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             method: 'POST',
                             body: formData
                         });
-                        const result = await res.json();
+                        const result = await window.parseJsonResponse(res);
 
                         if (result.success) {
                             const cleanPath = result.newPath.split('?')[0];
@@ -178,8 +178,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             window.showInfoModal('Error al Guardar', result.error || 'Ocurrió un error desconocido.', false);
                         }
                     } catch (e) {
-                        console.error(e);
-                        window.showInfoModal('Error de Conexión', 'No se pudo contactar con el servidor. Revisa tu red.', false);
+                        console.error('adminUpdateUserDoc:', e);
+                        window.showInfoModal('Error de Conexión', window.formatNetworkError(e, 'No se pudo contactar con el servidor. Revisa tu red.'), false);
                     } finally {
                         newSaveBtn.disabled = false;
                         newSaveBtn.innerHTML = originalText;
@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const response = await fetch(`../api/?accion=adminGetUserBeneficiaries&userId=${userId}`);
-                const data = await response.json();
+                const data = await window.parseJsonResponse(response);
 
                 if (data.success) {
                     if (!data.beneficiarios || data.beneficiarios.length === 0) {
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (error) {
                 console.error(error);
-                tbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center p-3">Error de conexión con la API.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="5" class="text-danger text-center p-3">${window.escapeHtml(window.formatNetworkError(error, 'Error de conexión con la API.'))}</td></tr>`;
             } finally {
                 if (loader) loader.classList.add('d-none');
             }
@@ -398,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('../api/?accion=requestBeneficiaryEdit', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
                 });
-                const result = await res.json();
+                const result = await window.parseJsonResponse(res);
 
                 if (result.success) {
                     bootstrap.Modal.getInstance(document.getElementById('modalSolicitarEdicion')).hide();
@@ -412,7 +412,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.showInfoModal("Error", result.error || "No se pudo enviar la solicitud.", false);
                 }
             } catch (err) {
-                window.showInfoModal("Error de Conexión", "No se pudo contactar con el servidor.", false);
+                console.error('requestBeneficiaryEdit:', err);
+                window.showInfoModal("Error de Conexión", window.formatNetworkError(err, "No se pudo contactar con el servidor."), false);
             } finally {
                 btn.disabled = false; btn.innerHTML = originalText;
             }
@@ -454,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(payload)
                 });
 
-                const result = await res.json();
+                const result = await window.parseJsonResponse(res);
 
                 if (result.success) {
                     bootstrap.Modal.getInstance(document.getElementById('modalAdminEditarBeneficiario')).hide();
@@ -464,10 +465,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (btnVer) btnVer.click();
 
                 } else {
-                    window.showInfoModal('Bloqueo de Seguridad', result.error, false);
+                    window.showInfoModal('Bloqueo de Seguridad', result.error || 'No se pudo guardar el beneficiario.', false);
                 }
             } catch (error) {
-                window.showInfoModal('Error Crítico', 'Error de conexión al guardar.', false);
+                console.error('executeBeneficiaryEdit:', error);
+                window.showInfoModal('Error Crítico', window.formatNetworkError(error, 'Error de conexión al guardar.'), false);
             } finally {
                 btn.disabled = false; btn.innerHTML = originalText;
             }
@@ -582,7 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Tasas Especiales por Cliente (admin/usuarios.php) ---
     const tasaEspecialModalEl = document.getElementById('tasaEspecialModal');
     if (tasaEspecialModalEl) {
-        const tasaEspecialModal = new bootstrap.Modal(tasaEspecialModalEl);
+        const tasaEspecialModal = bootstrap.Modal.getOrCreateInstance(tasaEspecialModalEl);
         const tasaEspecialForm = document.getElementById('tasa-especial-form');
         const tasaEspecialUserId = document.getElementById('tasa-especial-user-id');
         const tasaEspecialUserName = document.getElementById('tasa-especial-user-name');
@@ -595,16 +597,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const cargarPaisesSelect = async (selectEl, rol) => {
             try {
                 const res = await fetch('../api/?accion=getPaises&rol=' + rol);
-                const paises = await res.json();
+                const paises = await window.parseJsonResponse(res);
                 selectEl.innerHTML = paises.map(p => `<option value="${p.PaisID}">${escapeHtmlTe(p.NombrePais)}</option>`).join('');
-            } catch (e) { console.error('Error cargando países', e); }
+            } catch (e) {
+                // Un select de paises vacio deja el formulario de tasa especial
+                // sin poder completarse, y antes no avisaba nada.
+                console.error('Error cargando países', e);
+                selectEl.innerHTML = '<option value="">Error al cargar</option>';
+                window.showInfoModal('Error', window.formatNetworkError(e, 'No se pudieron cargar los países.'), false);
+            }
         };
 
         const cargarHistorial = async (userId) => {
             historialEl.innerHTML = '<span class="text-muted">Cargando...</span>';
             try {
                 const res = await fetch('../api/?accion=adminGetTasasEspecialesByUser&userId=' + userId);
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
                 if (!data.success || !data.tasas.length) {
                     historialEl.innerHTML = '<span class="text-muted">Sin tasas especiales previas.</span>';
                     return;
@@ -620,7 +628,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `).join('');
             } catch (e) {
-                historialEl.innerHTML = '<span class="text-danger">Error al cargar historial.</span>';
+                console.error('cargarHistorial tasas especiales:', e);
+                historialEl.innerHTML = `<span class="text-danger">${window.escapeHtml(window.formatNetworkError(e, 'Error al cargar historial.'))}</span>`;
             }
         };
 
@@ -646,15 +655,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: btn.dataset.id })
                 });
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
                 if (data.success) {
                     cargarHistorial(tasaEspecialUserId.value);
                 } else {
-                    window.showInfoModal('Error', 'No se pudo desactivar.', false);
+                    window.showInfoModal('Error', data.error || 'No se pudo desactivar.', false);
                     btn.disabled = false;
                 }
             } catch (e2) {
-                window.showInfoModal('Error', 'Error de conexión.', false);
+                console.error('adminDeactivateTasaEspecial:', e2);
+                window.showInfoModal('Error', window.formatNetworkError(e2, 'Error de conexión.'), false);
                 btn.disabled = false;
             }
         });
@@ -674,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
                 if (data.success) {
                     document.getElementById('tasa-especial-valor').value = '';
                     cargarHistorial(tasaEspecialUserId.value);
@@ -683,7 +693,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.showInfoModal('Error', data.error || 'No se pudo asignar la tasa.', false);
                 }
             } catch (e3) {
-                window.showInfoModal('Error', 'Error de conexión.', false);
+                console.error('adminAssignTasaEspecial:', e3);
+                window.showInfoModal('Error', window.formatNetworkError(e3, 'Error de conexión.'), false);
             } finally {
                 submitBtn.disabled = false;
             }

@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingDiv = document.getElementById('beneficiarios-loading');
     const addAccountModalEl = document.getElementById('addAccountModal');
     let addAccountModal = null;
-    if(addAccountModalEl) addAccountModal = new bootstrap.Modal(addAccountModalEl);
+    if(addAccountModalEl) addAccountModal = bootstrap.Modal.getOrCreateInstance(addAccountModalEl);
     
     const addBeneficiaryForm = document.getElementById('add-beneficiary-form');
     const addAccountModalLabel = document.getElementById('addAccountModalLabel');
@@ -104,8 +104,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadUserProfile = async () => {
         try {
             const r = await fetch('../api/?accion=getUserProfile');
-            const res = await r.json();
-            if (res.success && res.profile) {
+            const res = await window.parseJsonResponse(r);
+            if (!res.success || !res.profile) {
+                throw new Error(res.error || 'No se pudo cargar tu perfil.');
+            }
+            {
                 const p = res.profile;
                 const setVal = (id, v) => { const e = document.getElementById(id); if(e) e.value = v; }
                 
@@ -138,7 +141,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(profileLoading) profileLoading.classList.add('d-none');
                 if(profileForm) profileForm.classList.remove('d-none');
             }
-        } catch(e) { console.error("Error perfil", e); }
+        } catch(e) {
+            // Sin esto el spinner de "cargando perfil" se quedaba girando para
+            // siempre y el usuario no sabia que habia fallado.
+            console.error("Error perfil", e);
+            if(profileLoading) {
+                profileLoading.innerHTML = '<p class="text-danger mb-2">No se pudo cargar tu perfil.</p>'
+                    + '<button type="button" class="btn btn-sm btn-outline-primary js-reload-btn">Reintentar</button>';
+            }
+            window.showInfoModal('Error', window.formatNetworkError(e, 'No se pudo cargar tu perfil.'), false);
+        }
     };
 
     const configureModalForCountry = (paisId) => {
@@ -219,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         listContainer.innerHTML = '';
         try {
             const r = await fetch('../api/?accion=getCuentas&paisID=0');
-            const d = await r.json();
+            const d = await window.parseJsonResponse(r, 'No se pudo cargar la lista de beneficiarios.');
             if(loadingDiv) loadingDiv.classList.add('d-none');
             
             if(d.length > 0) {
@@ -234,13 +246,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <i class="bi bi-person-fill fs-5"></i>
                             </div>
                             <div>
-                                <h6 class="mb-0 fw-bold text-dark">${c.Alias}</h6>
-                                <small class="text-muted">${c.NombreBanco} • ${num}</small>
+                                <h6 class="mb-0 fw-bold text-dark">${window.escapeHtml(c.Alias)}</h6>
+                                <small class="text-muted">${window.escapeHtml(c.NombreBanco)} • ${window.escapeHtml(num)}</small>
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-sm btn-outline-primary me-1 btn-edit rounded-circle" data-json='${JSON.stringify(c).replace(/'/g, "&apos;")}'><i class="bi bi-pencil-fill"></i></button>
-                            <button class="btn btn-sm btn-outline-danger rounded-circle btn-delete" data-id="${c.CuentaID}"><i class="bi bi-trash-fill"></i></button>
+                            <button class="btn btn-sm btn-outline-primary me-1 btn-edit rounded-circle" data-json="${window.escapeAttr(JSON.stringify(c))}"><i class="bi bi-pencil-fill"></i></button>
+                            <button class="btn btn-sm btn-outline-danger rounded-circle btn-delete" data-id="${window.escapeAttr(c.CuentaID)}"><i class="bi bi-trash-fill"></i></button>
                         </div>
                     `;
                     listContainer.appendChild(div);
@@ -249,18 +261,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.btn-edit').forEach(b => b.addEventListener('click', e => openEditModal(JSON.parse(e.currentTarget.dataset.json))));
                 
                 document.querySelectorAll('.btn-delete').forEach(b => b.addEventListener('click', async e => {
-                    const idToDelete = e.currentTarget.dataset.id; 
+                    // Capturado ANTES del await: `e.currentTarget` vuelve a null
+                    // apenas termina el despacho del evento, así que leerlo
+                    // después del showConfirmModal tira TypeError.
+                    const delBtn = e.currentTarget;
+                    const idToDelete = delBtn.dataset.id;
                     if(await window.showConfirmModal('Eliminar', '¿Estás seguro de eliminar este beneficiario?')) {
-                        await fetch('../api/?accion=deleteBeneficiary', {
-                            method:'POST', 
-                            body:JSON.stringify({id: idToDelete}), 
-                            headers:{'Content-Type':'application/json'}
-                        });
+                        if (delBtn.disabled) return;
+                        delBtn.disabled = true;
+                        try {
+                            const rDel = await fetch('../api/?accion=deleteBeneficiary', {
+                                method:'POST',
+                                body:JSON.stringify({id: idToDelete}),
+                                headers:{'Content-Type':'application/json'}
+                            });
+                            // Antes era fire-and-forget: si el borrado fallaba,
+                            // la lista se recargaba igual con el beneficiario
+                            // todavía ahí y sin ningún aviso.
+                            const dDel = await window.parseJsonResponse(rDel);
+                            if (dDel.success === false) {
+                                throw new Error(dDel.error || 'No se pudo eliminar el beneficiario.');
+                            }
+                        } catch (errDel) {
+                            console.error('deleteBeneficiary:', errDel);
+                            delBtn.disabled = false;
+                            window.showInfoModal('Error', window.formatNetworkError(errDel, 'No se pudo eliminar el beneficiario.'), false);
+                            return;
+                        }
                         loadBeneficiaries();
                     }
                 }));
             } else listContainer.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-person-badge fs-1 d-block mb-2"></i>No tienes beneficiarios registrados.</div>';
-        } catch(e) { if(loadingDiv) loadingDiv.classList.add('d-none'); }
+        } catch(e) {
+            console.error('loadBeneficiaries:', e);
+            if(loadingDiv) loadingDiv.classList.add('d-none');
+            listContainer.innerHTML = '<div class="text-center py-4 text-danger">'
+                + '<i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>'
+                + window.escapeHtml(window.formatNetworkError(e, 'No se pudo cargar la lista de beneficiarios.'))
+                + '</div>';
+        }
     };
 
     const openEditModal = (d) => {
@@ -555,15 +594,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = await fetch(`../api/?accion=${act}`, { 
                 method: 'POST', body: JSON.stringify(Object.fromEntries(fd)), headers:{'Content-Type':'application/json'} 
             });
-            const j = await r.json();
+            const j = await window.parseJsonResponse(r);
             if(j.success) {
                 if(addAccountModal) addAccountModal.hide();
                 loadBeneficiaries();
                 window.showInfoModal('Éxito', 'Guardado correctamente.', true);
             } else {
-                window.showInfoModal('Error', j.error, false);
+                window.showInfoModal('Error', j.error || 'No se pudo guardar el beneficiario.', false);
             }
-        } catch(e) { window.showInfoModal('Error', 'Error de conexión.', false); }
+        } catch(e) {
+            console.error('guardar beneficiario:', e);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'Error de conexión.'), false);
+        }
         finally { btn.disabled = false; btn.textContent = txt; }
     });
 
@@ -580,9 +622,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if(capturedBlob) fd.append('fotoPerfil', capturedBlob, 'perfil.jpg');
             try {
                 const r = await fetch('../api/?accion=updateUserProfile', {method:'POST', body:fd});
-                const j = await r.json();
+                const j = await window.parseJsonResponse(r);
                 if(j.success) { window.showInfoModal('Éxito','Perfil actualizado.',true); loadUserProfile(); capturedBlob=null; }
-                else window.showInfoModal('Error', j.error, false);
+                else window.showInfoModal('Error', j.error || 'No se pudo actualizar el perfil.', false);
             } catch(e) {
                 // Antes este catch estaba vacío: si fallaba la red el botón se
                 // rehabilitaba sin decir nada y el usuario no sabía si guardó.
@@ -613,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadSelect = async (act, el, txt, val) => {
         try {
             const r = await fetch(`../api/?accion=${act}`);
-            const d = await r.json();
+            const d = await window.parseJsonResponse(r, `No se pudo cargar la lista (${act}).`);
             
             // Si estamos cargando documentos, guárdalos globalmente para poder filtrarlos después
             if (act === 'getDocumentTypes') {
@@ -624,7 +666,14 @@ document.addEventListener('DOMContentLoaded', () => {
             el.innerHTML = '<option value="">Seleccione...</option>';
             d.forEach(i => el.innerHTML+=`<option value="${i[val]||i.PaisID||i.TipoDocumentoID}">${i[txt]||i.NombrePais||i.NombreDocumento}</option>`);
             return d;
-        }catch(e){ console.error(e); }
+        }catch(e){
+            // Un select vacio sin explicacion deja el formulario inutilizable
+            // (no se puede elegir pais/documento) sin que nada lo indique.
+            console.error('loadSelect ' + act + ':', e);
+            if (el) el.innerHTML = '<option value="">Error al cargar</option>';
+            window.showInfoModal('Error', window.formatNetworkError(e, 'No se pudieron cargar los datos del formulario. Recarga la página.'), false);
+            return [];
+        }
     };
 
     // =========================================================
@@ -633,7 +682,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const checkPendingBeneficiaryRequests = async () => {
         try {
             const resp = await fetch('../api/?accion=getPendingBeneficiaryRequests');
-            const data = await resp.json();
+            // Chequeo en segundo plano al cargar la pagina: si falla se calla y
+            // se reintenta en la proxima pasada (mismo criterio que
+            // operador-pendientes.js). No abrir un modal por esto.
+            const data = await window.parseJsonResponse(resp);
 
             if (data.success && data.requests && data.requests.length > 0) {
                 showZeroTrustAuthorizationModal(data.requests[0]);
@@ -686,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
         const modalEl = document.getElementById('modalZeroTrustAuth');
-        const modal = new bootstrap.Modal(modalEl);
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
         modalEl.querySelectorAll('.auth-response-btn').forEach(btn => {
             btn.addEventListener('click', async function () {
@@ -702,7 +754,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ solicitudId: reqId, respuesta: responseType })
                     });
-                    const data = await res.json();
+                    const data = await window.parseJsonResponse(res);
 
                     if (data.success) {
                         modal.hide();
@@ -715,12 +767,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         setTimeout(checkPendingBeneficiaryRequests, 1000);
 
                     } else {
-                        window.showInfoModal('Error', data.error, false);
                         modal.hide();
+                        window.showInfoModal('Error', data.error || 'No se pudo registrar tu respuesta.', false);
                     }
                 } catch (e) {
-                    window.showInfoModal('Error', 'Error de conexión al registrar respuesta.', false);
+                    console.error('respondBeneficiaryRequest:', e);
+                    // hide() ANTES de showInfoModal: al reves quedaban dos
+                    // modales encimados y un backdrop huerfano.
                     modal.hide();
+                    modalEl.querySelectorAll('.auth-response-btn').forEach(b => b.disabled = false);
+                    window.showInfoModal('Error', window.formatNetworkError(e, 'Error de conexión al registrar respuesta.'), false);
                 }
             });
         });
