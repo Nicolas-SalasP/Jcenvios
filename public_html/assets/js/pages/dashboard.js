@@ -748,10 +748,21 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const responseP = await fetch(`../api/?accion=getPaises&rol=${rol}`);
             const paises = await responseP.json();
-            selectElement.innerHTML = '<option value="">Selecciona un país</option>';
+            // createElement y no innerHTML: NombrePais y CodigoMoneda los edita el
+            // admin y aca irian dentro de un atributo, donde escapeHtml no alcanza
+            // (no escapa comillas). Es el mismo tratamiento que ya recibio home.js.
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Selecciona un país';
+            const opciones = [placeholder];
             paises.forEach(pais => {
-                selectElement.innerHTML += `<option value="${pais.PaisID}" data-currency="${pais.CodigoMoneda}">${pais.NombrePais}</option>`;
+                const opt = document.createElement('option');
+                opt.value = pais.PaisID;
+                opt.dataset.currency = pais.CodigoMoneda || '';
+                opt.textContent = pais.NombrePais || '';
+                opciones.push(opt);
             });
+            selectElement.replaceChildren(...opciones);
         } catch (error) { console.error('Error loadPaises', error); }
     };
 
@@ -781,8 +792,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     beneficiaryListDiv.innerHTML += `
                     <label class="list-group-item list-group-item-action d-flex align-items-center" style="cursor:pointer;">
                         <input type="radio" name="beneficiary-radio" value="${c.CuentaID}" 
-                               data-banco="${c.NombreBanco || ''}" class="form-check-input me-3">
-                        <div><strong>${c.Alias || 'Sin Alias'}</strong> ${iconLock} <small class="text-muted">(${bancoDisplay} - ${num})</small></div>
+                               data-banco="${window.escapeAttr(c.NombreBanco || '')}" class="form-check-input me-3">
+                        <div><strong>${window.escapeHtml(c.Alias || 'Sin Alias')}</strong> ${iconLock} <small class="text-muted">(${bancoDisplay} - ${num})</small></div>
                     </label>`;
                 });
 
@@ -812,8 +823,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="modal-body text-center p-4">
                         <p class="mb-3">El administrador indica que hay datos incorrectos en el beneficiario:</p>
-                        <h5 class="fw-bold mb-1">${cuenta.Alias || cuenta.NombreBanco}</h5>
-                        <p class="text-muted small mb-4">${cuenta.BeneficiarioNombre || ''}</p>
+                        <h5 class="fw-bold mb-1">${window.escapeHtml(cuenta.Alias || cuenta.NombreBanco)}</h5>
+                        <p class="text-muted small mb-4">${window.escapeHtml(cuenta.BeneficiarioNombre || '')}</p>
                         <p>¿Autorizas al soporte técnico para corregir esta cuenta?</p>
                     </div>
                     <div class="modal-footer justify-content-center border-0 pb-4">
@@ -1508,14 +1519,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="modal-body p-4">
                         <div class="alert alert-light border shadow-sm text-center mb-4">
-                            <h6 class="fw-bold mb-1">${request.Alias || request.NombreBanco}</h6>
-                            <p class="text-muted small mb-0">${request.BeneficiarioNombre}</p>
+                            <h6 class="fw-bold mb-1">${window.escapeHtml(request.Alias || request.NombreBanco)}</h6>
+                            <p class="text-muted small mb-0">${window.escapeHtml(request.BeneficiarioNombre)}</p>
                         </div>
-                        <p>El administrador <strong>${request.AdminNombre}</strong> ha solicitado permiso para modificar los datos de este beneficiario.</p>
+                        <p>El administrador <strong>${window.escapeHtml(request.AdminNombre)}</strong> ha solicitado permiso para modificar los datos de este beneficiario.</p>
                         
                         <div class="bg-light p-3 rounded mb-3 border border-warning-subtle border-start-3">
-                            <p class="mb-1 text-dark"><strong>Motivo:</strong> ${request.Motivo}</p>
-                            <p class="mb-0 text-muted small"><i class="bi bi-pencil-square"></i> Campos a editar: <span class="fw-medium">${camposText}</span></p>
+                            <p class="mb-1 text-dark"><strong>Motivo:</strong> ${window.escapeHtml(request.Motivo)}</p>
+                            <p class="mb-0 text-muted small"><i class="bi bi-pencil-square"></i> Campos a editar: <span class="fw-medium">${window.escapeHtml(camposText)}</span></p>
                         </div>
                         
                         <p class="small text-danger fw-bold text-center mt-4"><i class="bi bi-exclamation-triangle"></i> Tu autorización explícita es obligatoria. Nadie puede alterar tus datos sin tu consentimiento.</p>

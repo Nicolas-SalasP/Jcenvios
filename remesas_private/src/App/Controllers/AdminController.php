@@ -995,6 +995,9 @@ class AdminController extends BaseController
         $notas  = trim($data['notas'] ?? '');
         $modo   = trim((string) ($data['modo'] ?? \App\Services\LiquidacionService::MODO_POR_MONEDA));
         $tasas  = is_array($data['tasas'] ?? null) ? $data['tasas'] : [];
+        // Base por moneda que el admin vio en la previsualización. Sirve para
+        // abortar si las comisiones se movieron entre el cálculo y el confirm.
+        $bases  = is_array($data['bases'] ?? null) ? $data['bases'] : [];
         // Ajuste manual con motivo, por moneda de liquidación. El service valida
         // (motivo obligatorio si el ajuste no es cero, monto final > 0) y rechaza
         // con 422; acá no se filtra ni se "arregla" nada del input.
@@ -1008,7 +1011,7 @@ class AdminController extends BaseController
 
         try {
             $resultado = $this->liquidacionService()->crear(
-                $userId, $desde, $hasta, $modo, $tasas, $notas ?: null, $ajustes, $adminId ?: null
+                $userId, $desde, $hasta, $modo, $tasas, $notas ?: null, $ajustes, $adminId ?: null, $bases
             );
         } catch (Exception $e) {
             // publicMessage conserva el mensaje real en los 4xx (los rechazos de

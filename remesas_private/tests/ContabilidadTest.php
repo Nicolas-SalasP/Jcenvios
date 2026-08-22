@@ -65,7 +65,7 @@ class ContabilidadTest extends TestCase
             ->willReturn(true);
 
         $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
-        $cuentasAdminRepo->method('getById')->willReturn(['SaldoActual' => '500000.00']);
+        $cuentasAdminRepo->method('getByIdForUpdate')->willReturn(['SaldoActual' => '500000.00']);
         $cuentasAdminRepo->expects($this->once())->method('updateSaldo')->with(7, 400000.00);
 
         $service = $this->buildService([
@@ -86,7 +86,7 @@ class ContabilidadTest extends TestCase
         $contabRepo->method('registrarMovimientoBanco')->willReturn(false);
 
         $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
-        $cuentasAdminRepo->method('getById')->willReturn(['SaldoActual' => '500000.00']);
+        $cuentasAdminRepo->method('getByIdForUpdate')->willReturn(['SaldoActual' => '500000.00']);
         $cuentasAdminRepo->expects($this->never())->method('updateSaldo');
 
         $service = $this->buildService([
@@ -105,7 +105,7 @@ class ContabilidadTest extends TestCase
         $contabRepo->expects($this->never())->method('registrarMovimientoBanco');
 
         $cuentasAdminRepo = $this->createMock(CuentasAdminRepository::class);
-        $cuentasAdminRepo->method('getById')->willReturn(null);
+        $cuentasAdminRepo->method('getByIdForUpdate')->willReturn(null);
         $cuentasAdminRepo->expects($this->never())->method('updateSaldo');
 
         $service = $this->buildService([

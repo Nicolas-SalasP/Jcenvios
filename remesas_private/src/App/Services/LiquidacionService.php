@@ -174,7 +174,8 @@ class LiquidacionService
         array $tasas = [],
         ?string $notas = null,
         array $ajustes = [],
-        ?int $adminId = null
+        ?int $adminId = null,
+        array $basesAprobadas = []
     ): array {
         if (!in_array($modo, self::MODOS_VALIDOS, true)) {
             throw new Exception(
@@ -196,6 +197,14 @@ class LiquidacionService
             if (empty($porMoneda)) {
                 throw new Exception('No hay comisiones pendientes en ese período.', 422);
             }
+
+            // El admin dimensionó su ajuste contra la base que vio en la
+            // previsualización, que se calculó SIN lock y puede haberse movido
+            // (otra orden del mismo revendedor pasando a Exitosa dentro del
+            // período). Aplicar el delta a ciegas sobre la base nueva pagaría un
+            // monto que nadie aprobó, así que si la base cambió se aborta y el
+            // admin vuelve a calcular.
+            $this->verificarBasesAprobadas($basesAprobadas, $porMoneda);
 
             $resultado = ($modo === self::MODO_POR_MONEDA)
                 ? $this->crearPorMoneda($userId, $desde, $hasta, $porMoneda, $notas, $ajustesNorm, $adminId)
@@ -536,6 +545,63 @@ class LiquidacionService
      *
      * @param array<int, array> $creadas Liquidaciones creadas (cada una con 'moneda').
      */
+    /**
+     * Compara la base que el admin aprobó en la previsualización contra la que se
+     * acaba de calcular bajo lock. Si no coinciden, aborta.
+     *
+     * Se acepta un mapa vacío (llamadores que no previsualizan, como los tests o
+     * un script) para no romper el uso programático; el guard solo actúa cuando
+     * el cliente declara qué base vio.
+     *
+     * @param array<string, mixed> $basesAprobadas  moneda => base vista por el admin
+     * @param array<int, array{Moneda: string, Total: float, Cantidad: int}> $porMoneda
+     */
+    private function verificarBasesAprobadas(array $basesAprobadas, array $porMoneda): void
+    {
+        if (empty($basesAprobadas)) {
+            return;
+        }
+
+        $actual = [];
+        foreach ($porMoneda as $fila) {
+            $actual[strtoupper(trim((string) $fila['Moneda']))] = round((float) $fila['Total'], 2);
+        }
+
+        $aprobadas = [];
+        foreach ($basesAprobadas as $moneda => $monto) {
+            if (!is_scalar($monto) || !is_numeric($monto)) {
+                continue;
+            }
+            $aprobadas[strtoupper(trim((string) $moneda))] = round((float) $monto, 2);
+        }
+
+        $monedas = array_unique(array_merge(array_keys($actual), array_keys($aprobadas)));
+        sort($monedas);
+
+        $difs = [];
+        foreach ($monedas as $moneda) {
+            $vio  = $aprobadas[$moneda] ?? null;
+            $hay  = $actual[$moneda]    ?? null;
+            if ($vio === null || $hay === null || abs($vio - $hay) >= 0.01) {
+                $difs[] = sprintf(
+                    '%s (viste %s, ahora hay %s)',
+                    $moneda,
+                    $vio === null ? 'nada' : number_format($vio, 2, ',', '.'),
+                    $hay === null ? 'nada' : number_format($hay, 2, ',', '.')
+                );
+            }
+        }
+
+        if ($difs) {
+            throw new Exception(
+                'Las comisiones pendientes cambiaron desde que calculaste el monto: '
+                . implode('; ', $difs)
+                . '. No se creó ninguna liquidación. Volvé a calcular y revisá el ajuste antes de confirmar.',
+                409
+            );
+        }
+    }
+
     private function verificarAjustesAplicados(array $ajustesNorm, array $creadas, string $modo): void
     {
         $monedasCreadas = array_map(fn($l) => strtoupper((string) $l['moneda']), $creadas);

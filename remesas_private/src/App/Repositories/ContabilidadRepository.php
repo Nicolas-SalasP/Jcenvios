@@ -109,6 +109,27 @@ class ContabilidadRepository
      *
      * @return array<int, array{CuentaAdminID:int, Neto:string}>
      */
+    /**
+     * Bloquea los movimientos de esta transacción hasta el fin de la transacción
+     * SQL en curso. Debe llamarse DENTRO de una transacción y ANTES de leer el
+     * neto con getNetoIngresoVentaPorCuenta().
+     *
+     * Sin esto, dos reversas concurrentes de la misma transacción (por ejemplo el
+     * cliente cancelando y el admin rechazando a la vez) leen ambas Neto > 0 y
+     * descuentan las dos: doble descuento de plata real. Con el lock, la segunda
+     * espera a que la primera comitee su REVERSA_VENTA y entonces lee neto 0.
+     */
+    public function lockMovimientosDeTransaccion(int $txId): void
+    {
+        $sql = "SELECT MovimientoID FROM contabilidad_movimientos
+                WHERE TransaccionID = ? FOR UPDATE";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $txId);
+        $stmt->execute();
+        $stmt->get_result();
+        $stmt->close();
+    }
+
     public function getNetoIngresoVentaPorCuenta(int $txId): array
     {
         $sql = "SELECT m.CuentaAdminID,

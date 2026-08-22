@@ -381,18 +381,32 @@ class ContabilidadService
      */
     public function revertirIngresoVenta(int $txId, int $actorId): bool
     {
-        $pendientes = $this->contabilidadRepo->getNetoIngresoVentaPorCuenta($txId);
-        if (empty($pendientes)) {
-            return true; // Nada que revertir: no hubo ingreso, o ya se revirtió.
-        }
-
         $this->dbConnection->begin_transaction();
         try {
+            // El lock y la lectura del neto van DENTRO de la transacción: el
+            // "SUM(INGRESO_VENTA) - SUM(REVERSA_VENTA)" es lo que hace idempotente
+            // a esta operación, y leerlo afuera y sin lock permitía que dos
+            // reversas concurrentes de la misma transacción (cliente cancelando y
+            // admin rechazando a la vez) vieran ambas Neto > 0 y descontaran las
+            // dos.
+            $this->contabilidadRepo->lockMovimientosDeTransaccion($txId);
+
+            $pendientes = $this->contabilidadRepo->getNetoIngresoVentaPorCuenta($txId);
+            if (empty($pendientes)) {
+                // Nada que revertir: no hubo ingreso, o ya se revirtió.
+                $this->dbConnection->commit();
+                return true;
+            }
+
             foreach ($pendientes as $fila) {
                 $cuentaAdminId = (int) $fila['CuentaAdminID'];
                 $montoRevertir = (float) $fila['Neto'];
 
-                $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
+                // ForUpdate: updateSaldo escribe un valor absoluto calculado a
+                // partir de esta lectura, así que sin bloquear la fila un
+                // registrarIngresoVenta concurrente sobre la misma cuenta se
+                // perdería (last write wins).
+                $cuenta = $this->cuentasAdminRepo->getByIdForUpdate($cuentaAdminId);
                 if (!$cuenta) {
                     throw new Exception("Cuenta admin #$cuentaAdminId no encontrada al revertir TX #$txId.", 500);
                 }

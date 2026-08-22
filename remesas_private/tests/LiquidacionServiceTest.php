@@ -743,4 +743,90 @@ class LiquidacionServiceTest extends TestCase
 
         $this->assertSame(5100.0, $r['liquidaciones'][0]['monto']);
     }
+
+    // ─── Base aprobada en la previsualización ───────────────────────────────
+    //
+    // La previsualización calcula la base SIN lock, y contra ese número el admin
+    // dimensiona su ajuste. Si entre el cálculo y el confirm otra orden del mismo
+    // revendedor pasa a Exitosa dentro del período, la base cambia y el delta se
+    // aplicaría sobre un monto que nadie aprobó.
+
+    public function testRechazaSiLaBaseCambioDesdeLaPrevisualizacion()
+    {
+        $this->txRepo->method('lockResellerCommissionInRange')
+            ->willReturn([$this->fila('CLP', 140000.0, 4)]);
+        $this->liqRepo->expects($this->never())->method('create');
+        $this->txRepo->expects($this->never())->method('assignLiquidacionToTransactions');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(409);
+        $this->expectExceptionMessageMatches('/cambiaron desde que calculaste/');
+
+        $this->service()->crear(
+            100, '2026-01-01', '2026-01-31', 'por_moneda', [], null,
+            ['CLP' => ['monto' => -30000, 'motivo' => 'Anticipo ya entregado']],
+            9,
+            ['CLP' => 100000.0] // lo que el admin vio
+        );
+    }
+
+    public function testRechazaSiAparecioUnaMonedaNuevaDespuesDeLaPrevisualizacion()
+    {
+        $this->txRepo->method('lockResellerCommissionInRange')
+            ->willReturn([$this->fila('CLP', 5000.0, 1), $this->fila('COP', 20000.0, 1)]);
+        $this->liqRepo->expects($this->never())->method('create');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(409);
+
+        $this->service()->crear(
+            100, '2026-01-01', '2026-01-31', 'por_moneda', [], null, [], 9,
+            ['CLP' => 5000.0] // el admin nunca vio la caja de COP
+        );
+    }
+
+    public function testAceptaCuandoLaBaseCoincide()
+    {
+        $this->txRepo->method('lockResellerCommissionInRange')
+            ->willReturn([$this->fila('CLP', 5000.0, 2)]);
+        $this->txRepo->method('assignLiquidacionToTransactions')->willReturn(2);
+        $this->liqRepo->method('create')->willReturn(910);
+
+        $r = $this->service()->crear(
+            100, '2026-01-01', '2026-01-31', 'por_moneda', [], null, [], 9,
+            ['CLP' => 5000.0]
+        );
+
+        $this->assertSame(5000.0, $r['liquidaciones'][0]['monto']);
+    }
+
+    public function testDiferenciaDeMenosDeUnCentavoNoBloquea()
+    {
+        // El front manda lo que mostró; no queremos que un decimal de más aborte
+        // una liquidación por lo demás idéntica.
+        $this->txRepo->method('lockResellerCommissionInRange')
+            ->willReturn([$this->fila('CLP', 5000.004, 2)]);
+        $this->txRepo->method('assignLiquidacionToTransactions')->willReturn(2);
+        $this->liqRepo->method('create')->willReturn(911);
+
+        $r = $this->service()->crear(
+            100, '2026-01-01', '2026-01-31', 'por_moneda', [], null, [], 9,
+            ['CLP' => 5000.0]
+        );
+
+        $this->assertSame(5000.0, $r['liquidaciones'][0]['monto']);
+    }
+
+    public function testSinBasesAprobadasNoSeAplicaElGuard()
+    {
+        // Llamadores programáticos (crons, scripts) que no previsualizan.
+        $this->txRepo->method('lockResellerCommissionInRange')
+            ->willReturn([$this->fila('CLP', 7777.0, 1)]);
+        $this->txRepo->method('assignLiquidacionToTransactions')->willReturn(1);
+        $this->liqRepo->method('create')->willReturn(912);
+
+        $r = $this->service()->crear(100, '2026-01-01', '2026-01-31', 'por_moneda');
+
+        $this->assertSame(7777.0, $r['liquidaciones'][0]['monto']);
+    }
 }

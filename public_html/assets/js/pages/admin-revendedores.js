@@ -420,6 +420,17 @@
         }
         delta = round2(delta);
 
+        // Un input[type=number] devuelve cadena vacía cuando lo que se tipeó no es
+        // un número válido para el navegador: escribir "1500,50" con coma decimal
+        // deja value === '' y sin este chequeo el ajuste se descartaba en silencio.
+        // El admin escribía el motivo, veía el botón habilitado, confirmaba, y se
+        // pagaba el monto SIN el descuento. Si hay motivo, hubo intención de
+        // ajustar: no se puede tratar como "sin ajuste".
+        if (delta === 0 && motivo !== '') {
+            return { ok: false, delta: 0, motivo, final: round2(base),
+                error: `Escribiste un motivo para la liquidación en ${moneda}, pero el ajuste está vacío o no es un número válido. Usá punto como separador decimal (por ejemplo 1500.50).` };
+        }
+
         // Sin ajuste no hay nada que justificar: el motivo se ignora.
         if (delta === 0) {
             return { ok: true, delta: 0, motivo: '', final: round2(base), error: '' };
@@ -504,7 +515,11 @@
                 return;
             }
             input.classList.remove('is-invalid');
-            const convertido = monto * tasa;
+            // Se redondea POR FILA, igual que LiquidacionService::crearConsolidado,
+            // que hace round($monto * $factor, 2) antes de acumular. Sumando sin
+            // redondear, el total mostrado podía diferir en centavos del MontoBase
+            // que se guarda, y además las filas no sumaban el total en pantalla.
+            const convertido = round2(monto * tasa);
             total += convertido;
             celda.textContent = fmt(convertido);
         });
@@ -788,6 +803,11 @@
         const ajustes = recolectarAjustes(pares);
         if (ajustes === null) return; // ya se avisó cuál es el problema
 
+        // Base por moneda tal como la devolvió la previsualización: es contra
+        // estos números que el admin dimensionó las tasas y los ajustes.
+        const bases = {};
+        (_liqPreview.desglose || []).forEach(d => { bases[d.moneda] = d.total; });
+
         // No se abre un modal de confirmación acá a propósito: showConfirmModal
         // usa el #confirmModal genérico de footer.php y anidarlo dentro de
         // #crearLiqModal deja backdrops de Bootstrap superpuestos. El control
@@ -802,7 +822,11 @@
             const res  = await fetch('../api/?accion=crearLiquidacion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: parseInt(userId), desde, hasta, notas, modo, tasas, ajustes }),
+                // `bases` es la base por moneda que se mostró en la
+                // previsualización. El backend recalcula bajo lock y rechaza con
+                // 409 si se movió: sin esto, el ajuste que el admin dimensionó
+                // contra un número se aplicaría sobre otro.
+                body: JSON.stringify({ userId: parseInt(userId), desde, hasta, notas, modo, tasas, ajustes, bases }),
             });
             const data = await res.json().catch(() => null);
             if (!res.ok) {
@@ -819,6 +843,11 @@
         } catch (e) {
             window.showInfoModal('Error', window.formatNetworkError(e, 'Error al crear liquidación.'), false);
             btn.disabled = false;
+        } finally {
+            // En el camino de éxito el label quedaba en "Creando…" para siempre:
+            // al abrir el modal del siguiente revendedor el botón decía que había
+            // algo en curso cuando no lo había. Sobre un flujo de plata eso hace
+            // dudar o apretar dos veces, así que se restaura siempre.
             btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Crear liquidación';
         }
     });

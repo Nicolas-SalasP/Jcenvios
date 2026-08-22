@@ -86,6 +86,24 @@ class CuentasAdminRepository
         return $res;
     }
 
+    /**
+     * Igual que getById(), pero bloqueando la fila hasta el fin de la transacción
+     * SQL en curso. Debe usarse DENTRO de una transacción siempre que se vaya a
+     * leer SaldoActual para después escribirlo: updateSaldo() guarda un valor
+     * absoluto precalculado, así que sin el lock dos procesos leen el mismo saldo
+     * y el segundo pisa el descuento del primero (lost update).
+     */
+    public function getByIdForUpdate(int $id): ?array
+    {
+        $sql = "SELECT * FROM cuentas_bancarias_admin WHERE CuentaAdminID = ? FOR UPDATE";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $res ?: null;
+    }
+
     public function getById(int $id): ?array
     {
         $sql = "SELECT * FROM cuentas_bancarias_admin WHERE CuentaAdminID = ?";
