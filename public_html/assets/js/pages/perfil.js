@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const labelWallet = document.getElementById('label-wallet-phone');
 
     // Datos Auxiliares
-    const venezuelaPrefixes = ['0412', '0414', '0424', '0416', '0426'];
+    const venezuelaPrefixes = ['0412', '0414', '0424', '0416', '0426', '0422'];
     const countryPhoneCodes = [
         { code: '+56', name: 'Chile' }, { code: '+58', name: 'Venezuela' },
         { code: '+57', name: 'Colombia' }, { code: '+51', name: 'Perú' },
@@ -314,7 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(inputPhoneNum && d.NumeroTelefono) {
             let ph = d.NumeroTelefono;
             if(parseInt(d.PaisID)===3 && selectPhoneCode) {
-                const pre = ['0412','0414','0424','0416','0426'].find(x=>ph.startsWith(x));
+                const pre = ['0412','0414','0424','0416','0426','0422'].find(x=>ph.startsWith(x));
                 if(pre) { selectPhoneCode.value=pre; ph=ph.replace(pre,''); }
             }
             inputPhoneNum.value = ph;

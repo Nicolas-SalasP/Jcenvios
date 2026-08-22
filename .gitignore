@@ -30,3 +30,4 @@ CLAUDE.md
 remesas_private/.phpunit.result.cache
 remesas_private/coverage-html/
 remesas_private/coverage.xml
+/graphify-out/

@@ -520,6 +520,9 @@ class TransactionService
         }
 
         $this->txRepository->clearComprobanteHash($txId);
+        // No hace falta liberar transaction_proofs.FileHash acá: TransactionProofRepository::
+        // findByHash() ya resuelve la reutilización tras cancelar (EstadoID != 5) con tope de
+        // MAX_USOS_POR_HASH, sin necesidad de destruir el hash original del registro de auditoría.
 
         if ($isSoftReject) {
             $this->notificationService->sendCorrectionRequestEmail($txData['Email'], $txData['PrimerNombre'], $txId, $reason);
