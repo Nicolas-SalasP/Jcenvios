@@ -829,16 +829,19 @@ class TransactionRepository
 
     public function getResellerStats(int $userId, string $fechaInicio, string $fechaFin): array
     {
-        $sql = "SELECT 
-                T.MonedaOrigen, 
+        // Solo EstadoID=4 (Exitoso): una orden Cancelada (5) nunca pagó comisión
+        // real, sumarla acá la mostraba como "Ganado" en el panel del revendedor
+        // sin haberse pagado nunca (hallado en auditoría 2026-08-21).
+        $sql = "SELECT
+                T.MonedaOrigen,
                 P.NombrePais as PaisDestino,
                 SUM(T.ComisionRevendedor) as TotalGanado,
                 COUNT(T.TransaccionID) as CantidadEnvios
             FROM transacciones T
             JOIN cuentas_beneficiarias CB ON T.CuentaBeneficiariaID = CB.CuentaID
             JOIN paises P ON CB.PaisID = P.PaisID
-            WHERE T.UserID = ? 
-            AND T.EstadoID IN (4, 5)
+            WHERE T.UserID = ?
+            AND T.EstadoID = 4
             AND T.FechaTransaccion BETWEEN ? AND ?
             GROUP BY T.MonedaOrigen, P.NombrePais";
 
