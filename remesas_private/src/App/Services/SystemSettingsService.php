@@ -35,29 +35,29 @@ class SystemSettingsService
     public function addHoliday(int $adminId, string $inicio, string $fin, string $motivo, int $bloqueo = 1): void
     {
         if (empty($inicio) || empty($fin) || empty($motivo)) {
-            throw new Exception("Todos los campos son obligatorios.");
+            throw new Exception("Todos los campos son obligatorios.", 400);
         }
 
         $startTs = strtotime($inicio);
         $endTs = strtotime($fin);
 
         if ($startTs === false || $endTs === false) {
-            throw new Exception("Formato de fecha inválido.");
+            throw new Exception("Formato de fecha inválido.", 400);
         }
 
         if ($startTs >= $endTs) {
-            throw new Exception("La fecha de inicio debe ser anterior a la fecha de fin.");
+            throw new Exception("La fecha de inicio debe ser anterior a la fecha de fin.", 400);
         }
 
         if ($endTs < time()) {
-            throw new Exception("No puedes crear un feriado que ya terminó.");
+            throw new Exception("No puedes crear un feriado que ya terminó.", 400);
         }
 
         $sqlInicio = date('Y-m-d H:i:s', $startTs);
         $sqlFin = date('Y-m-d H:i:s', $endTs);
 
         if (!$this->holidayRepo->create($sqlInicio, $sqlFin, $motivo, $adminId, $bloqueo)) {
-            throw new Exception("Error al guardar el feriado en la base de datos.");
+            throw new Exception("Error al guardar el feriado en la base de datos.", 409);
         }
 
         $tipoBloqueo = $bloqueo ? "BLOQUEANTE" : "INFORMATIVO";
@@ -77,7 +77,7 @@ class SystemSettingsService
     {
         $info = "ID #$id";
         if (!$this->holidayRepo->delete($id)) {
-            throw new Exception("Error al eliminar el feriado.");
+            throw new Exception("Error al eliminar el feriado.", 409);
         }
 
         $this->logService->logAction(
@@ -154,7 +154,7 @@ class SystemSettingsService
         $expiraEn = $this->getBusinessHoursEndForToday($now)->format('Y-m-d H:i:s');
 
         if (!$this->horarioOverrideRepo->setOverride($activo, $adminId, $expiraEn)) {
-            throw new Exception("Error al guardar el override de horario en la base de datos.");
+            throw new Exception("Error al guardar el override de horario en la base de datos.", 409);
         }
 
         $this->logService->logAction(
@@ -175,7 +175,7 @@ class SystemSettingsService
     public function clearHorarioOverride(int $adminId): void
     {
         if (!$this->horarioOverrideRepo->clear()) {
-            throw new Exception("Error al limpiar el override de horario.");
+            throw new Exception("Error al limpiar el override de horario.", 409);
         }
 
         $this->logService->logAction(
@@ -228,14 +228,14 @@ class SystemSettingsService
     {
         $mensaje = trim($mensaje);
         if ($mensaje === '') {
-            throw new Exception("El mensaje no puede estar vacío.");
+            throw new Exception("El mensaje no puede estar vacío.", 400);
         }
         if (mb_strlen($mensaje) > 500) {
-            throw new Exception("El mensaje no puede superar los 500 caracteres.");
+            throw new Exception("El mensaje no puede superar los 500 caracteres.", 400);
         }
 
         if (!$this->horarioOverrideRepo->updateMensaje($mensaje)) {
-            throw new Exception("Error al guardar el mensaje en la base de datos.");
+            throw new Exception("Error al guardar el mensaje en la base de datos.", 409);
         }
 
         $this->logService->logAction($adminId, "Modificó Override de Horario", "Actualizó el mensaje del aviso: \"$mensaje\"");

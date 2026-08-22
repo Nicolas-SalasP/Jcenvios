@@ -528,10 +528,14 @@ try {
     if (function_exists('\App\Core\exception_handler')) {
         \App\Core\exception_handler($e);
     } else {
+        // Fallback de ultimo recurso (el handler no se pudo cargar). No se
+        // expone $e->getMessage(): sin el handler no hay filtro por codigo,
+        // asi que un fallo interno filtraria detalles del motor al cliente.
+        error_log('API fallback sin exception_handler: ' . $e->getMessage() . ' en ' . $e->getFile() . ':' . $e->getLine());
         http_response_code(500);
         echo json_encode([
             'success' => false,
-            'error' => $e->getMessage()
+            'error' => 'Ocurrio un error inesperado al procesar la solicitud.'
         ]);
     }
 }

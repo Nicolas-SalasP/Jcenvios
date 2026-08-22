@@ -2,22 +2,26 @@
 
 namespace App\Core;
 
+use App\Support\ErrorPresenter;
+
 function exception_handler(\Throwable $exception): void
 {
     error_reporting(0);
     ini_set('display_errors', 0);
 
-    $statusCode = method_exists($exception, 'getCode') ? $exception->getCode() : 500;
-    if ($statusCode < 400 || $statusCode >= 600) {
-        $statusCode = 500; 
-    }
+    $statusCode = ErrorPresenter::httpStatus($exception, 500);
 
+    // El detalle completo va SIEMPRE al log, se muestre o no al cliente.
+    ErrorPresenter::logException($exception, 'exception_handler');
+
+    // 4xx lanzado por la app -> mensaje real (la UX del proyecto depende de el).
+    // 5xx / sin codigo / clase inesperada -> generico. Ver ErrorPresenter.
     $response = [
         'success' => false,
-        'error' => $exception->getMessage()
+        'error' => ErrorPresenter::publicMessage($exception, 'exception_handler')
     ];
 
-    if (defined('IS_DEV_ENVIRONMENT') && IS_DEV_ENVIRONMENT) {
+    if (ErrorPresenter::isDevEnvironment()) {
         $response['trace'] = explode("\n", $exception->getTraceAsString());
         $response['file'] = $exception->getFile() . ':' . $exception->getLine();
     }
@@ -31,20 +35,16 @@ function exception_handler(\Throwable $exception): void
     $json = json_encode($response, JSON_UNESCAPED_UNICODE);
 
     if ($json === false) {
-        $safeResponse = [
-            'success' => false,
-            'error' => 'Ocurrio un error en el servidor (Fallo de codificacion JSON). Revise los logs.',
-            'raw_error' => utf8_encode($exception->getMessage())
-        ];
-        echo json_encode($safeResponse);
+        // Antes este fallback devolvia `raw_error` con el mensaje crudo, lo que
+        // filtraba exactamente lo que el resto del handler ya estaba ocultando.
+        error_log(
+            'exception_handler: json_encode fallo (' . json_last_error_msg() . '). ' .
+            ErrorPresenter::describe($exception, 'exception_handler')
+        );
+        echo '{"success":false,"error":"Ocurrio un error en el servidor. Revise los logs."}';
     } else {
         echo $json;
     }
-    error_log(
-        "Excepcion API ($statusCode): " . $exception->getMessage() .
-        " en " . $exception->getFile() .
-        " linea " . $exception->getLine()
-    );
 
     exit();
 }

@@ -62,7 +62,7 @@ class ContabilidadService
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
             if (!$cuenta) {
-                throw new Exception("Cuenta bancaria no encontrada.");
+                throw new Exception("Cuenta bancaria no encontrada.", 404);
             }
 
             $saldoAnterior = (float) $cuenta['SaldoActual'];
@@ -85,7 +85,7 @@ class ContabilidadService
 
         } catch (Exception $e) {
             $this->dbConnection->rollback();
-            throw new Exception("Error al recargar cuenta: " . $e->getMessage());
+            throw new Exception("Error al recargar cuenta: " . $e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
@@ -99,7 +99,7 @@ class ContabilidadService
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
             if (!$cuenta) {
-                throw new Exception("Cuenta bancaria no encontrada.");
+                throw new Exception("Cuenta bancaria no encontrada.", 404);
             }
 
             $saldoAnterior = (float) $cuenta['SaldoActual'];
@@ -123,7 +123,7 @@ class ContabilidadService
 
         } catch (Exception $e) {
             $this->dbConnection->rollback();
-            throw new Exception("Error al retirar fondos de la cuenta: " . $e->getMessage());
+            throw new Exception("Error al retirar fondos de la cuenta: " . $e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
@@ -150,7 +150,7 @@ class ContabilidadService
         try {
             $bancoOri = $this->cuentasAdminRepo->getById($origenId);
             if (!$bancoOri)
-                throw new Exception("Cuenta origen no encontrada.");
+                throw new Exception("Cuenta origen no encontrada.", 404);
 
             $saldoOriAnt = (float) $bancoOri['SaldoActual'];
             $saldoOriNew = $saldoOriAnt - $salida;
@@ -169,7 +169,7 @@ class ContabilidadService
 
             $bancoDes = $this->cuentasAdminRepo->getById($destinoId);
             if (!$bancoDes)
-                throw new Exception("Cuenta destino no encontrada.");
+                throw new Exception("Cuenta destino no encontrada.", 404);
 
             $saldoDesAnt = (float) $bancoDes['SaldoActual'];
             $saldoDesNew = $saldoDesAnt + $entrada;
@@ -191,7 +191,7 @@ class ContabilidadService
 
         } catch (Exception $e) {
             $this->dbConnection->rollback();
-            throw new Exception("Error en transferencia: " . $e->getMessage());
+            throw new Exception("Error en transferencia: " . $e->getMessage(), $e->getCode() ?: 500);
         }
     }
 
@@ -208,7 +208,7 @@ class ContabilidadService
         }
 
         if (!$cuentaDestinoId) {
-            throw new Exception("No existe una cuenta bancaria de destino configurada para este país.");
+            throw new Exception("No existe una cuenta bancaria de destino configurada para este país.", 409);
         }
 
         $this->registrarTransferencia($bancoOrigenId, $cuentaDestinoId, $montoSalida, $montoEntrada, $adminId);
@@ -394,7 +394,7 @@ class ContabilidadService
 
                 $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
                 if (!$cuenta) {
-                    throw new Exception("Cuenta admin #$cuentaAdminId no encontrada al revertir TX #$txId.");
+                    throw new Exception("Cuenta admin #$cuentaAdminId no encontrada al revertir TX #$txId.", 500);
                 }
 
                 $saldoAnt = (float) $cuenta['SaldoActual'];
@@ -414,7 +414,7 @@ class ContabilidadService
                     "Reversa por cancelación TX #$txId"
                 );
                 if (!$ok) {
-                    throw new Exception("No se pudo registrar el movimiento de reversa para TX #$txId.");
+                    throw new Exception("No se pudo registrar el movimiento de reversa para TX #$txId.", 500);
                 }
 
                 $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNew);
@@ -464,7 +464,7 @@ class ContabilidadService
         if ($tipo === 'banco') {
             $cuenta = $this->cuentasAdminRepo->getById($id);
             if (!$cuenta)
-                throw new Exception("Cuenta bancaria no encontrada.");
+                throw new Exception("Cuenta bancaria no encontrada.", 404);
 
             $entidadNombre = $cuenta['Banco'] . ' - ' . $cuenta['Titular'];
             $moneda = $this->countryRepo->findMonedaById($cuenta['PaisID']) ?? '???';

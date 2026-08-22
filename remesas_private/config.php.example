@@ -26,6 +26,20 @@ define('SESSION_DOMAIN', 'localhost');
 // Producción usaría 'true'; en local con XAMPP HTTP, dejar 'false':
 define('IS_HTTPS', false);
 
+// Modo desarrollo. NUNCA activarlo en producción.
+//
+// Con esto en 'true' la API devuelve, además del mensaje genérico:
+//   - el mensaje REAL de cualquier excepción (incluidos errores de MySQL,
+//     rutas de archivos y detalles del motor),
+//   - el stack trace completo,
+//   - el archivo:línea donde se lanzó.
+//
+// Con esto apagado (o sin definir, que es el default) solo salen al cliente
+// los mensajes de excepciones de negocio — \Exception pelada con código HTTP
+// 4xx. Todo lo demás se reemplaza por un genérico y el detalle va al
+// error_log. Ver App\Support\ErrorPresenter.
+// define('IS_DEV_ENVIRONMENT', true);
+
 
 // ============================================================
 //  BASE DE DATOS (MySQL/MariaDB de XAMPP)

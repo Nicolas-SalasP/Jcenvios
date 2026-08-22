@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers;
 
+use App\Support\ErrorPresenter;
+
 use App\Repositories\TutorialRepository;
 use App\Services\FileHandlerService;
 use Exception;
@@ -98,7 +100,7 @@ class TutorialController extends BaseController
             }
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 

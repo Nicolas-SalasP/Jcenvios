@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers;
 
+use App\Support\ErrorPresenter;
+
 use App\Services\ContabilidadService;
 use Exception;
 
@@ -122,7 +124,7 @@ class ContabilidadController extends BaseController
             ]);
 
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 
@@ -138,7 +140,7 @@ class ContabilidadController extends BaseController
             $input = $this->getJsonInput();
 
             if (empty($input['origen_id']) || empty($input['destino_id']) || empty($input['monto_salida'])) {
-                throw new Exception("Faltan datos para la transferencia");
+                throw new Exception("Faltan datos para la transferencia", 400);
             }
 
             $this->contabilidadService->registrarTransferencia(
@@ -152,7 +154,7 @@ class ContabilidadController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Transferencia registrada correctamente']);
 
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
         }
     }
 }

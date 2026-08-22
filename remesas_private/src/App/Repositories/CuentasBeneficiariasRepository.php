@@ -153,7 +153,7 @@ class CuentasBeneficiariasRepository
 
         if (!$stmt->execute()) {
             error_log("Error crear cuenta beneficiaria: " . $stmt->error);
-            throw new Exception("No se pudo guardar el beneficiario.");
+            throw new Exception("No se pudo guardar el beneficiario.", 409);
         }
 
         $id = $stmt->insert_id;

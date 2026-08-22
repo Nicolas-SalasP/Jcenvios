@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers;
 
+use App\Support\ErrorPresenter;
+
 use App\Services\DashboardService;
 use App\Repositories\CountryRepository;
 use Exception;
@@ -24,7 +26,7 @@ class DashboardController extends BaseController
             $stats = $this->dashboardService->getAdminDashboardStats();
             $this->sendJsonResponse(['success' => true, 'stats' => $stats]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() ?: 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $e->getCode() ?: 500);
         }
     }
 
@@ -50,7 +52,7 @@ class DashboardController extends BaseController
 
         } catch (Exception $e) {
              error_log("Error en DashboardController::getDolarBcvData: " . $e->getMessage());
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $e->getCode() >= 400 ? $e->getCode() : 500);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $e->getCode() >= 400 ? $e->getCode() : 500);
         }
     }
 

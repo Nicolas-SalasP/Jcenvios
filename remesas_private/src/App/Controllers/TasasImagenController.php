@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers;
 
+use App\Support\ErrorPresenter;
+
 use App\Repositories\TasasImagenRepository;
 use App\Services\FileHandlerService;
 use Exception;
@@ -85,7 +87,7 @@ class TasasImagenController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Imagen de tasa subida correctamente.']);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 
@@ -114,7 +116,7 @@ class TasasImagenController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Imagen editada correctamente.']);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 
@@ -146,7 +148,7 @@ class TasasImagenController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Imagen reemplazada correctamente.']);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 
@@ -169,7 +171,7 @@ class TasasImagenController extends BaseController
             $this->sendJsonResponse(['success' => true, 'message' => 'Imagen eliminada correctamente.']);
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 400;
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $code);
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 

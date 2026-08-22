@@ -115,7 +115,7 @@ class TransactionService
 
         if ($beneficiaryData) {
             if (empty(trim($beneficiaryData['nombre']))) {
-                throw new Exception("El nombre del beneficiario es obligatorio para corregir la orden.");
+                throw new Exception("El nombre del beneficiario es obligatorio para corregir la orden.", 400);
             }
             $this->txRepository->updateBeneficiarySnapshot($txId, $beneficiaryData);
         }
@@ -282,7 +282,7 @@ class TransactionService
 
         if (in_array($routeKey, $inverseRoutes)) {
             if ($tasaValor == 0)
-                throw new Exception("Error crítico: Tasa 0 en ruta inversa.");
+                throw new Exception("Error crítico: Tasa 0 en ruta inversa.", 500);
             $calculoBackend = (float) $data['montoOrigen'] / $tasaValor;
         } else {
             $calculoBackend = (float) $data['montoOrigen'] * $tasaValor;
@@ -759,7 +759,7 @@ class TransactionService
     {
         $tx = $this->txRepository->getById($txId);
         if (!$tx) {
-            throw new Exception("Transacción no encontrada.");
+            throw new Exception("Transacción no encontrada.", 404);
         }
         if ($tx['EstadoID'] == 7 && $newState == 1) {
             $adminId = $_SESSION['user_id'] ?? 0;
@@ -790,7 +790,7 @@ class TransactionService
     {
         $tx = $this->txRepository->getById($txId);
         if (!$tx) {
-            throw new Exception("Transacción no encontrada.");
+            throw new Exception("Transacción no encontrada.", 404);
         }
 
         $this->txRepository->updateMontoEditPermission($txId, $estado);
@@ -804,19 +804,19 @@ class TransactionService
         $tx = $this->txRepository->getById($txId);
 
         if (!$tx || $tx['UserID'] != $userId) {
-            throw new Exception("Transacción no encontrada o no pertenece a tu usuario.");
+            throw new Exception("Transacción no encontrada o no pertenece a tu usuario.", 404);
         }
 
         if (($tx['PermitirEdicionMonto'] ?? 0) != 1) {
-            throw new Exception("Bloqueo de Seguridad: No posees autorización del administrador para modificar el monto de esta orden.");
+            throw new Exception("Bloqueo de Seguridad: No posees autorización del administrador para modificar el monto de esta orden.", 403);
         }
 
         if ($nuevoMontoOrigen <= 0) {
-            throw new Exception("El monto a enviar debe ser mayor a 0.");
+            throw new Exception("El monto a enviar debe ser mayor a 0.", 400);
         }
 
         if ($nuevoMontoOrigen > 50000) {
-            throw new Exception("El monto máximo permitido por orden es 50.000.");
+            throw new Exception("El monto máximo permitido por orden es 50.000.", 400);
         }
         $montoOrigenOriginal = (float) $tx['MontoOrigen'];
         $montoDestinoOriginal = (float) $tx['MontoDestino'];
@@ -828,7 +828,7 @@ class TransactionService
             $factorComision = $comisionOriginal / $montoOrigenOriginal;
             $factorComisionRevendedor = $comisionRevendedorOriginal / $montoOrigenOriginal;
         } else {
-            throw new Exception("Error lógico en la base de datos: El monto original de la transacción es 0.");
+            throw new Exception("Error lógico en la base de datos: El monto original de la transacción es 0.", 500);
         }
 
         $nuevoMontoDestino = round($nuevoMontoOrigen * $factorDestino, 2);
@@ -849,7 +849,7 @@ class TransactionService
         $updated = $this->txRepository->updateTransactionAmounts($txId, $nuevoMontoOrigen, $nuevoMontoDestino, $nuevaComision, $nuevaComisionRevendedor);
 
         if (!$updated) {
-            throw new Exception("Error al actualizar la base de datos.");
+            throw new Exception("Error al actualizar la base de datos.", 409);
         }
     }
 
