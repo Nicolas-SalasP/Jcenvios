@@ -921,6 +921,75 @@ CREATE TABLE `usuarios` (
 --
 -- Dumping routines for database 'jcenvios'
 --
+
+--
+-- Tablas de las migraciones 018 y 019, que se habian creado en produccion pero
+-- nunca se agregaron aqui. El pipeline de CI carga este archivo en vez de correr
+-- las migraciones, asi que sin ellas los tests corren contra un esquema que no
+-- existe en produccion: en particular, crear una orden consulta
+-- tasas_especiales_cliente y fallaba con "table doesn't exist".
+--
+
+CREATE TABLE IF NOT EXISTS `mensajes_contacto` (
+  `Id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `Nombre` varchar(100) NOT NULL,
+  `Email` varchar(255) NOT NULL,
+  `Asunto` varchar(200) NOT NULL,
+  `Mensaje` text NOT NULL,
+  `EmailEnviado` tinyint(1) NOT NULL DEFAULT 0,
+  `FechaEnvio` datetime NOT NULL DEFAULT current_timestamp(),
+  `Leido` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`Id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `tasas_especiales_cliente` (
+  `TasaEspecialID` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `UserID` int(11) NOT NULL,
+  `PaisOrigenID` int(11) NOT NULL,
+  `PaisDestinoID` int(11) NOT NULL,
+  `ValorTasa` decimal(15,5) NOT NULL,
+  `Activa` tinyint(1) NOT NULL DEFAULT 1,
+  `AdminID` int(11) NOT NULL,
+  `FechaCreacion` datetime NOT NULL DEFAULT current_timestamp(),
+  `FechaUso` datetime DEFAULT NULL,
+  `TransaccionID` int(11) DEFAULT NULL,
+  PRIMARY KEY (`TasaEspecialID`),
+  KEY `idx_user_activa_ruta` (`UserID`,`Activa`,`PaisOrigenID`,`PaisDestinoID`),
+  KEY `fk_tec_admin` (`AdminID`),
+  KEY `fk_tec_pais_origen` (`PaisOrigenID`),
+  KEY `fk_tec_pais_destino` (`PaisDestinoID`),
+  KEY `fk_tec_transaccion` (`TransaccionID`),
+  CONSTRAINT `fk_tec_admin` FOREIGN KEY (`AdminID`) REFERENCES `usuarios` (`UserID`),
+  CONSTRAINT `fk_tec_pais_destino` FOREIGN KEY (`PaisDestinoID`) REFERENCES `paises` (`PaisID`),
+  CONSTRAINT `fk_tec_pais_origen` FOREIGN KEY (`PaisOrigenID`) REFERENCES `paises` (`PaisID`),
+  CONSTRAINT `fk_tec_transaccion` FOREIGN KEY (`TransaccionID`) REFERENCES `transacciones` (`TransaccionID`) ON DELETE SET NULL,
+  CONSTRAINT `fk_tec_user` FOREIGN KEY (`UserID`) REFERENCES `usuarios` (`UserID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+--
+-- Alineacion con las migraciones 016, 017 y 020, que ya corrieron en produccion
+-- pero cuyos cambios nunca se reflejaron aqui. El CI carga este archivo en vez de
+-- correr las migraciones, asi que sin esto los tests validan un esquema que no
+-- existe en produccion.
+--
+-- El indice unico uk_tasas_imagen_tipo se elimina porque las tasas visuales
+-- pasaron de una imagen por tipo a una galeria multi-imagen: con el indice
+-- puesto, subir una segunda imagen del mismo tipo falla por clave duplicada.
+--
+
+ALTER TABLE `tasas_imagen` DROP INDEX `uk_tasas_imagen_tipo`;
+ALTER TABLE `tasas_imagen`
+  ADD COLUMN `Titulo` varchar(150) DEFAULT NULL,
+  ADD COLUMN `Descripcion` text DEFAULT NULL;
+
+ALTER TABLE `transacciones`
+  ADD COLUMN `FechaCompletado` datetime DEFAULT NULL,
+  ADD COLUMN `FechaCancelacion` datetime DEFAULT NULL;
+
+ALTER TABLE `usuarios`
+  ADD COLUMN `FechaVerificacion` datetime DEFAULT NULL;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
