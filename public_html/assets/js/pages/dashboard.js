@@ -675,10 +675,18 @@ document.addEventListener('DOMContentLoaded', () => {
         formaDePagoSelect.parentNode.appendChild(formaPagoHelper);
     }
 
+    // Descarta respuestas que llegan fuera de orden: si el usuario cambia el
+    // país de origen dos veces rápido, la respuesta de la primera puede llegar
+    // después de la segunda y dejar el select de forma de pago mostrando
+    // opciones que no corresponden al país realmente seleccionado.
+    let formasReqId = 0;
+
     const loadFormasDePago = async (origenId) => {
+        const myReq = ++formasReqId;
         try {
             const respF = await fetch(`../api/?accion=getFormasDePago&origenId=${origenId}`);
             const opts = await respF.json();
+            if (myReq !== formasReqId) return; // llegó tarde, ya hay otra en curso
 
             if (Array.isArray(opts)) {
                 if (opts.length === 1) {
@@ -704,6 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formaPagoHelper.textContent = '';
             }
         } catch (e) {
+            if (myReq !== formasReqId) return; // no pisar con un error viejo
             console.error(e);
             formaDePagoSelect.innerHTML = '<option value="">Error conexión</option>';
             formaDePagoSelect.disabled = false;
@@ -711,6 +720,25 @@ document.addEventListener('DOMContentLoaded', () => {
             formaPagoHelper.textContent = '';
         }
     };
+
+    const onOrigenChange = (selectElement) => {
+        filterDestinations();
+        loadFormasDePago(selectElement.value);
+        updateReferentialRateStep1();
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const monedaOrigen = selectedOption ? (selectedOption.dataset.currency || '---') : '---';
+        const spanOrigen = document.getElementById('currency-label-origen');
+        if (spanOrigen) spanOrigen.textContent = monedaOrigen;
+        const labelOrigen = document.getElementById('label-monto-origen');
+        if (labelOrigen) labelOrigen.textContent = `Tú envías (${monedaOrigen})`;
+    };
+
+    // El listener se registra UNA sola vez, fuera de loadPaises: antes estaba
+    // adentro, así que cada recarga de la lista de países agregaba otro handler
+    // y un solo cambio del usuario terminaba disparando N peticiones.
+    if (paisOrigenSelect) {
+        paisOrigenSelect.addEventListener('change', () => onOrigenChange(paisOrigenSelect));
+    }
 
     const loadPaises = async (rol, selectElement) => {
         try {
@@ -720,19 +748,6 @@ document.addEventListener('DOMContentLoaded', () => {
             paises.forEach(pais => {
                 selectElement.innerHTML += `<option value="${pais.PaisID}" data-currency="${pais.CodigoMoneda}">${pais.NombrePais}</option>`;
             });
-            if (rol === 'Origen') {
-                selectElement.addEventListener('change', () => {
-                    filterDestinations();
-                    loadFormasDePago(selectElement.value);
-                    updateReferentialRateStep1();
-                    const selectedOption = selectElement.options[selectElement.selectedIndex];
-                    const monedaOrigen = selectedOption.dataset.currency || '---';
-                    const spanOrigen = document.getElementById('currency-label-origen');
-                    if (spanOrigen) spanOrigen.textContent = monedaOrigen;
-                    const labelOrigen = document.getElementById('label-monto-origen');
-                    if (labelOrigen) labelOrigen.textContent = `Tú envías (${monedaOrigen})`;
-                });
-            }
         } catch (error) { console.error('Error loadPaises', error); }
     };
 

@@ -525,12 +525,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const ajaxUrl = url.includes('?') ? `${url}&ajax=1` : `${url}?ajax=1`;
             tableContent.style.opacity = '0.5';
             const response = await fetch(ajaxUrl);
+            // Sin este chequeo, un 500 con el HTML de error de PHP se inyectaba
+            // crudo en la tabla como si fueran resultados.
+            if (!response.ok) {
+                throw new Error(`El servidor respondió con un error (${response.status}).`);
+            }
             const html = await response.text();
             tableContent.innerHTML = html;
-            tableContent.style.opacity = '1';
             window.history.pushState({}, '', url);
         } catch (error) {
             console.error('Error AJAX:', error);
+            // Antes solo se logueaba: la tabla volvía a la normalidad con los
+            // datos viejos y parecía que el filtro simplemente "no hizo nada".
+            window.showInfoModal('Error', window.formatNetworkError(error, 'No se pudieron cargar los datos.'), false);
+        } finally {
             if (tableContent) tableContent.style.opacity = '1';
         }
     }
@@ -852,6 +860,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const submitBtn = uploadForm?.querySelector('button[type="submit"]');
             const replaceWarning = document.getElementById('replace-proof-warning');
             if (submitBtn) {
+                // Estado limpio ANTES del fetch: si esta llamada fallaba, el
+                // botón se quedaba con el disabled/title de la orden anterior
+                // (el hidden.bs.modal nunca los reseteaba), y el admin veía el
+                // botón bloqueado sin motivo en una orden nueva.
+                submitBtn.disabled = false;
+                submitBtn.title = '';
+                if (replaceWarning) replaceWarning.classList.add('d-none');
+
                 fetch(`../api/?accion=canReplaceAdminProof&txId=${txId}`)
                     .then(r => r.json())
                     .then(data => {
@@ -862,12 +878,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 replaceWarning.textContent = 'El comprobante ya no puede reemplazarse (venció el plazo de 1 hora).';
                                 replaceWarning.classList.remove('d-none');
                             }
-                        } else {
-                            submitBtn.disabled = false;
-                            if (replaceWarning) replaceWarning.classList.add('d-none');
                         }
                     })
-                    .catch(() => {});
+                    .catch(() => {
+                        // Fail-open a propósito: el backend revalida el plazo de
+                        // 1h y devuelve 403, así que dejar el botón habilitado no
+                        // es un agujero. Se avisa para que no sorprenda el rechazo.
+                        if (replaceWarning) {
+                            replaceWarning.textContent = 'No se pudo verificar el plazo de reemplazo; el servidor lo validará al enviar.';
+                            replaceWarning.classList.remove('d-none');
+                        }
+                    });
             }
 
             if (comisionInput) {
@@ -1002,6 +1023,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (adminUploadModalEl) {
             adminUploadModalEl.addEventListener('hidden.bs.modal', () => {
                 clearPreviewBtn.click();
+                // Defensa extra: que el estado del botón/aviso no sobreviva al
+                // cierre y contamine la próxima orden que se abra.
+                const submitBtn = adminUploadModalEl.querySelector('form button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.title = '';
+                }
+                const replaceWarning = document.getElementById('replace-proof-warning');
+                if (replaceWarning) replaceWarning.classList.add('d-none');
             });
         }
     }

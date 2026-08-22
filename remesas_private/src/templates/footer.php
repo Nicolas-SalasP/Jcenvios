@@ -209,10 +209,15 @@
 $jsUtilsPath = '/assets/js/utils/modalUtils.js';
 $jsUtilsFilePath = __DIR__ . '/../../../public_html' . $jsUtilsPath;
 $jsUtilsVersion = file_exists($jsUtilsFilePath) ? hash_file('md5', $jsUtilsFilePath) : '1.0.0';
+
+$domUtilsPath = '/assets/js/utils/domUtils.js';
+$domUtilsFilePath = __DIR__ . '/../../../public_html' . $domUtilsPath;
+$domUtilsVersion = file_exists($domUtilsFilePath) ? hash_file('md5', $domUtilsFilePath) : '1.0.0';
 ?>
 <script src="<?php echo BASE_URL; ?>/assets/js/system-lock.js"></script>
 <script src="<?php echo BASE_URL; ?>/assets/js/session-watch.js"></script>
 <script src="<?php echo BASE_URL . $jsUtilsPath; ?>?v=<?php echo $jsUtilsVersion; ?>" charset="UTF-8"></script>
+<script src="<?php echo BASE_URL . $domUtilsPath; ?>?v=<?php echo $domUtilsVersion; ?>" charset="UTF-8"></script>
 <script src="<?php echo BASE_URL; ?>/assets/js/csrf-interceptor.js"></script>
 
 <?php
