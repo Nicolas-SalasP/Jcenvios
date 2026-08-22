@@ -21,6 +21,11 @@ if (php_sapi_name() !== 'cli' && !isset($_GET['manual_run'])) {
 use App\Database\Database;
 use App\Services\LogService;
 
+if (!\App\Support\CronLock::acquire('purge_logs')) {
+    echo "[" . date('Y-m-d H:i:s') . "] Ya hay una instancia de cron_purge_logs.php en ejecución. Saliendo sin hacer nada.\n";
+    exit(0);
+}
+
 try {
     $db = Database::getInstance();
     $logService = new LogService($db);
@@ -33,7 +38,8 @@ try {
     } else {
         echo "[{$ts}] Sin registros de bitácora para purgar.\n";
     }
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
+    // \Throwable: un Error de PHP 8 no es Exception y se escaparía del catch.
     error_log("CRON PURGE_LOGS ERROR: " . $e->getMessage());
     echo "Error: " . $e->getMessage() . "\n";
     exit(1);

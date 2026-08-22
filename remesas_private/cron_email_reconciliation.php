@@ -27,6 +27,13 @@ use App\Services\ContabilidadService;
 use App\Services\TransactionService;
 use App\Services\EmailReconciliationService;
 
+// Sin lock, dos instancias solapadas pueden leer el mismo mensaje UNSEEN antes
+// de que la primera haga imap_setflag_full y procesarlo dos veces.
+if (!\App\Support\CronLock::acquire('email_reconciliation')) {
+    echo "[" . date('Y-m-d H:i:s') . "] Ya hay una instancia de cron_email_reconciliation.php en ejecución. Saliendo sin hacer nada.\n";
+    exit(0);
+}
+
 try {
     echo "Iniciando conciliación de pagos por correo...\n";
 

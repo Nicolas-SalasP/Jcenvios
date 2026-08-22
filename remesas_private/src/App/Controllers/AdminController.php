@@ -763,7 +763,11 @@ class AdminController extends BaseController
         $this->ensureAdmin();
         $data = $this->getJsonInput();
 
-        $newValue = (float) ($data['rate'] ?? 0);
+        if (!isset($data['rate']) || !is_numeric($data['rate'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Debes indicar un valor numérico para la tasa BCV.'], 400);
+            return;
+        }
+        $newValue = (float) $data['rate'];
 
         try {
             $this->pricingService->updateBcvRate($adminId, $newValue);
@@ -778,16 +782,34 @@ class AdminController extends BaseController
         $adminId = $this->ensureLoggedIn();
         $this->ensureAdmin();
         $data = $this->getJsonInput();
-        $percent = (float)($data['percent'] ?? 0);
+        if (!isset($data['percent']) || !is_numeric($data['percent'])) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Debes indicar un porcentaje de ajuste válido.'], 400);
+            return;
+        }
+        $percent = (float) $data['percent'];
+
+        // Cota de rango: sin esto, percent = -100 dejaba TODAS las tasas en 0 y
+        // valores menores las dejaban negativas. PricingService valida igual
+        // (es la fuente de verdad, también la usa el cron); acá se corta antes
+        // para devolver 400 en vez de 500.
+        $max = \App\Services\PricingService::MAX_AJUSTE_PORCENTUAL;
+        if ($percent == 0.0 || abs($percent) > $max) {
+            $this->sendJsonResponse([
+                'success' => false,
+                'error' => "El porcentaje de ajuste debe ser distinto de 0 y estar entre -{$max}% y {$max}%."
+            ], 400);
+            return;
+        }
 
         try {
             $count = $this->pricingService->applyGlobalAdjustment($adminId, $percent);
             $this->sendJsonResponse([
-                'success' => true, 
+                'success' => true,
                 'message' => "Ajuste del {$percent}% aplicado correctamente a {$count} rutas activas."
             ]);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            $codigo = ($e->getCode() >= 400 && $e->getCode() < 500) ? (int) $e->getCode() : 500;
+            $this->sendJsonResponse(['success' => false, 'error' => $e->getMessage()], $codigo);
         }
     }
 

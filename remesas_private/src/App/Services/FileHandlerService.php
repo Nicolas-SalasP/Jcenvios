@@ -318,15 +318,87 @@ class FileHandlerService
         return 'banco_emails' . DIRECTORY_SEPARATOR . $filename;
     }
 
-    public function deleteOrderPdf(int $transactionId): void
+    /**
+     * Borra los PDF temporales de una orden.
+     *
+     * savePdfTemporarily() los guarda como 'orden_{id}_{32 hex}.pdf', así que hay
+     * que buscar por patrón: una misma orden puede tener varios PDF en disco
+     * (se regenera cada vez que el cliente lo vuelve a descargar).
+     *
+     * @return int Cantidad de archivos efectivamente eliminados.
+     */
+    public function deleteOrderPdf(int $transactionId): int
     {
-        $filename = 'orden_' . $transactionId . '.pdf';
-        $filePath = $this->publicTempDir . DIRECTORY_SEPARATOR . $filename;
+        // $transactionId ya es int por firma, pero lo normalizamos igual: el
+        // patrón se concatena a una ruta, no puede contener metacaracteres de
+        // glob ni '..'.
+        $id = (int) $transactionId;
+        if ($id <= 0) {
+            error_log("deleteOrderPdf: ID de transacción inválido ({$transactionId}).");
+            return 0;
+        }
 
-        if (file_exists($filePath)) {
-            if (!@unlink($filePath)) {
+        $patron = $this->publicTempDir . DIRECTORY_SEPARATOR . 'orden_' . $id . '_*.pdf';
+        $archivos = glob($patron) ?: [];
+
+        if (empty($archivos)) {
+            error_log("deleteOrderPdf: no se encontró ningún PDF temporal para la orden {$id} (patrón: {$patron}).");
+            return 0;
+        }
+
+        $borrados = 0;
+        foreach ($archivos as $filePath) {
+            if (@unlink($filePath)) {
+                $borrados++;
+            } else {
                 error_log("No se pudo eliminar el PDF temporal: " . $filePath);
             }
         }
+
+        return $borrados;
+    }
+
+    /**
+     * Purga los PDF de órdenes con más de $dias días de antigüedad.
+     *
+     * Los PDF contienen datos personales (nombre, tipo y número de documento,
+     * email del remitente y cuenta bancaria completa del beneficiario) y se
+     * sirven por URL directa, así que no pueden quedarse en disco para siempre.
+     *
+     * Idempotente y seguro ante ejecuciones solapadas: si otro proceso ya borró
+     * un archivo entre el glob() y el unlink(), simplemente no se cuenta.
+     *
+     * @return array{borrados:int, fallidos:int, revisados:int}
+     */
+    public function purgeOldOrderPdfs(int $dias = 7): array
+    {
+        if ($dias < 1) {
+            $dias = 1;
+        }
+        $limite = time() - ($dias * 86400);
+
+        $archivos = glob($this->publicTempDir . DIRECTORY_SEPARATOR . 'orden_*.pdf') ?: [];
+
+        $borrados = 0;
+        $fallidos = 0;
+        foreach ($archivos as $filePath) {
+            $mtime = @filemtime($filePath);
+            if ($mtime === false || $mtime > $limite) {
+                continue;
+            }
+            if (@unlink($filePath)) {
+                $borrados++;
+            } elseif (file_exists($filePath)) {
+                $fallidos++;
+                error_log("purgeOldOrderPdfs: no se pudo eliminar " . $filePath);
+            }
+        }
+
+        return ['borrados' => $borrados, 'fallidos' => $fallidos, 'revisados' => count($archivos)];
+    }
+
+    public function getPublicTempDir(): string
+    {
+        return $this->publicTempDir;
     }
 }
