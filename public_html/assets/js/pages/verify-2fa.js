@@ -75,15 +75,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ method })
             });
-            const res = await response.json();
-            
+            // parseJsonResponse corta en !response.ok con un mensaje legible;
+            // un 500 con HTML ya no llega como "Unexpected token '<'".
+            const res = await window.parseJsonResponse(response);
+
             if (!res.success) {
                 window.showInfoModal('Error', res.error || 'No se pudo enviar el código de seguridad.', false);
                 return false;
             }
             return true;
         } catch (e) {
-            window.showInfoModal('Error', 'Error de red. Verifica tu conexión.', false);
+            console.error('Error enviando código 2FA:', e);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'Error de red. Verifica tu conexión.'), false);
             return false;
         }
     }
@@ -107,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ code })
             });
 
-            const result = await response.json();
+            const result = await window.parseJsonResponse(response);
 
             if (result.success) {
                 window.location.href = result.redirect;
@@ -120,7 +123,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             console.error('Error:', error);
-            window.showInfoModal('Error', 'Fallo crítico al verificar.', false);
+            window.showInfoModal('Error', window.formatNetworkError(error, 'Fallo crítico al verificar.'), false);
             btnSubmit.disabled = false;
             btnSubmit.innerHTML = 'Verificar y Entrar';
         }

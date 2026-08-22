@@ -54,6 +54,10 @@
 
     try {
       const response = await fetch(baseUrl + '/api/?accion=checkSessionStatus');
+      // Polling en segundo plano: si el servidor tose (500 con HTML, 502 del
+      // proxy) se sale en silencio y se reintenta en 60s. Nunca desloguear al
+      // usuario por una respuesta que ni siquiera se pudo leer.
+      if (!response.ok) return;
       const data = await response.json();
 
       if (!data.logged_in) {
@@ -121,6 +125,26 @@
     }[c]));
   }
 
+  // global-ui.js se carga en TODAS las páginas, incluso en las que por alguna
+  // razón no tengan el #infoModal genérico de footer.php cargado todavía.
+  // Sin este fallback un `window.showInfoModal(...)` sería `undefined(...)` →
+  // TypeError que corta el resto del handler. Mismo criterio que system-lock.js
+  // con `window.escapeHtml`.
+  function notify(title, message, isSuccess) {
+    if (typeof window.showInfoModal === 'function') {
+      window.showInfoModal(title, message, isSuccess);
+      return;
+    }
+    console.warn('[global-ui] showInfoModal no disponible:', title, message);
+  }
+
+  function netError(err, fallback) {
+    if (typeof window.formatNetworkError === 'function') {
+      return window.formatNetworkError(err, fallback);
+    }
+    return (err && err.message) ? err.message : fallback;
+  }
+
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.view-prev-sends-btn');
     if (!btn) return;
@@ -133,10 +157,18 @@
 
     try {
       const res = await fetch(baseUrl + '/api/?accion=getPreviousSendsToSameAccount&txId=' + encodeURIComponent(txId));
+
+      if (!res.ok) {
+        // Un 500 devuelve HTML: sin este corte, res.json() tira
+        // "SyntaxError: Unexpected token '<'" y el usuario no ve nada útil.
+        notify('Error', 'El servidor respondió con un error (' + res.status + '). Intenta de nuevo.', false);
+        return;
+      }
+
       const data = await res.json();
 
       if (!data.success) {
-        alert(data.error || 'No se pudo cargar la información');
+        notify('Error', data.error || 'No se pudo cargar la información', false);
         return;
       }
 
@@ -196,12 +228,12 @@
 
       document.body.insertAdjacentHTML('beforeend', modalHtml);
       const modalEl = document.getElementById(modalId);
-      const modal = new bootstrap.Modal(modalEl);
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
       modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove());
       modal.show();
     } catch (err) {
       console.error('Error cargando envíos previos:', err);
-      alert('Error de red al cargar los envíos previos.');
+      notify('Error', netError(err, 'Error de red al cargar los envíos previos.'), false);
     } finally {
       delete btn.dataset.loading;
     }

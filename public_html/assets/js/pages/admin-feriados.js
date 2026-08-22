@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // VARIABLES PARA EL MODAL
     let holidayIdToDelete = null;
     const deleteModalEl = document.getElementById('modalEliminar');
-    const deleteModal = new bootstrap.Modal(deleteModalEl);
+    const deleteModal = bootstrap.Modal.getOrCreateInstance(deleteModalEl);
     const btnConfirmDelete = document.getElementById('btnConfirmarEliminar');
 
     // DETECTAR MÓVIL
@@ -55,9 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchHolidaysForCalendar(fetchInfo, successCallback, failureCallback) {
         try {
             const res = await fetch('../api/?accion=getHolidays');
-            const data = await res.json();
+            const data = await window.parseJsonResponse(res);
 
-            if (!data.success) throw new Error(data.error);
+            if (!data.success) throw new Error(data.error || 'No se pudieron cargar los feriados.');
 
             updateSideList(data.holidays);
 
@@ -102,7 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
             successCallback(events);
 
         } catch (error) {
+            // FullCalendar no muestra nada al fallar: sin este modal el
+            // calendario quedaba vacio como si no hubiera feriados.
             console.error(error);
+            window.showInfoModal('Error', window.formatNetworkError(error, 'No se pudieron cargar los feriados.'), false);
             failureCallback(error);
         }
     }
@@ -190,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: holidayIdToDelete })
             });
-            const data = await res.json();
+            const data = await window.parseJsonResponse(res);
 
             if (data.success) {
                 deleteModal.hide();
@@ -199,7 +202,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.showInfoModal('Error', 'Error al eliminar: ' + data.error, false);
             }
         } catch (err) {
-            window.showInfoModal('Error', 'Error de conexión.', false);
+            console.error(err);
+            window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión.'), false);
         } finally {
             btnConfirmDelete.disabled = false;
             btnConfirmDelete.innerHTML = originalText;
@@ -229,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         bloqueo: isLocked
                     })
                 });
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
 
                 if (data.success) {
                     form.reset();
@@ -244,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error(err);
-                window.showInfoModal('Error', 'Error de conexión.', false);
+                window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión.'), false);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalHTML;
@@ -300,9 +304,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchHorarioOverrideStatus = async () => {
         try {
             const res = await fetch('../api/?accion=getHorarioOverrideStatusAdmin');
-            const data = await res.json();
+            const data = await window.parseJsonResponse(res);
             if (data.success) renderHorarioOverride(data);
         } catch (err) {
+            // Re-sincronizacion en segundo plano (tambien se llama desde los
+            // catch de abajo): un modal aca se apilaria sobre el de error real.
+            // Mismo criterio que operador-pendientes.js.
             console.error('Error al consultar el override de horario:', err);
         }
     };
@@ -316,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ activo: horarioSwitch.checked })
                 });
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
                 if (data.success) {
                     renderHorarioOverride(data);
                 } else {
@@ -325,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error(err);
-                window.showInfoModal('Error', 'Error de conexión.', false);
+                window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión.'), false);
                 fetchHorarioOverrideStatus();
             }
         });
@@ -340,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({})
                 });
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
                 if (data.success) {
                     renderHorarioOverride({ active: null });
                 } else {
@@ -348,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error(err);
-                window.showInfoModal('Error', 'Error de conexión.', false);
+                window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión.'), false);
             } finally {
                 btnLimpiarOverride.disabled = false;
             }
@@ -369,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ mensaje })
                 });
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
                 if (data.success) {
                     renderHorarioOverride(data);
                 } else {
@@ -377,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error(err);
-                window.showInfoModal('Error', 'Error de conexión.', false);
+                window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión.'), false);
             } finally {
                 btnGuardarMensajeHorario.disabled = false;
             }

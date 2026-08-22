@@ -34,8 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initResellerAccountSelector() {
         try {
             const res = await fetch('../api/?accion=getReferrerAccounts');
-            const data = await res.json();
-            if (!data.success || !data.referred || !data.data.length) return;
+            const data = await window.parseJsonResponse(res);
+            // `data.data` puede no venir: sin este guard, .length tiraba TypeError.
+            if (!data.success || !data.referred || !Array.isArray(data.data) || !data.data.length) return;
 
             resellerAccounts = data.data;
 
@@ -48,12 +49,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 </label>
                 <select id="reseller-account-select" class="form-select">
                     <option value="">Usar cuenta del negocio (por defecto)</option>
-                    ${resellerAccounts.map(c => `<option value="${c.CuentaID}">${c.Banco} - ${c.TipoCuenta} - ${c.NumeroCuenta}</option>`).join('')}
+                    ${resellerAccounts.map(c => `<option value="${window.escapeAttr(c.CuentaID)}">${window.escapeHtml(c.Banco)} - ${window.escapeHtml(c.TipoCuenta)} - ${window.escapeHtml(c.NumeroCuenta)}</option>`).join('')}
                 </select>
             `;
             formaDePagoSelect.parentNode.appendChild(wrapper);
             resellerAccountSelect = document.getElementById('reseller-account-select');
         } catch (e) {
+            // Degradacion silenciosa a proposito: es un metodo de pago OPCIONAL.
+            // Si falla, el flujo sigue con la cuenta del negocio por defecto.
             console.error('No se pudieron cargar las cuentas del revendedor:', e);
         }
     }
@@ -218,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tasaPas1Text) tasaPas1Text.textContent = "Obteniendo tasa...";
             try {
                 const res = await fetch(`../api/?accion=getCurrentRate&origen=${origen}&destino=${destino}&monto=0`);
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
                 if (data.success && data.tasa) {
                     const valor = parseFloat(data.tasa.ValorTasa).toFixed(5);
                     const moneda = paisDestinoSelect.options[paisDestinoSelect.selectedIndex].dataset.currency || 'VES';
@@ -226,7 +229,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     tasaPas1Text.textContent = "Tasa no disponible.";
                 }
-            } catch (e) { tasaPas1Text.textContent = "Error al cargar tasa."; }
+            } catch (e) {
+                console.error('tasa referencial:', e);
+                tasaPas1Text.textContent = window.formatNetworkError(e, 'Error al cargar tasa.');
+            }
         } else {
             tasaPas1Container?.classList.add('d-none');
         }
@@ -236,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tasaComercialDisplay.textContent = 'Calculando tasa...';
         try {
             const respRate = await fetch(`../api/?accion=getCurrentRate&origen=${origenID}&destino=${destinoID}&monto=${monto}`);
-            const dataRate = await respRate.json();
+            const dataRate = await window.parseJsonResponse(respRate);
             if (dataRate.success && dataRate.tasa) {
                 commercialRate = parseFloat(dataRate.tasa.ValorTasa);
                 selectedTasaIdInput.value = dataRate.tasa.TasaID;
@@ -264,7 +270,9 @@ document.addEventListener('DOMContentLoaded', () => {
             commercialRate = 0;
             isRiskyRoute = false;
             isRouteDisabled = false;
-            tasaComercialDisplay.textContent = 'Error de conexión.';
+            console.error('performRateFetch:', e);
+            tasaComercialDisplay.textContent = window.formatNetworkError(e, 'Error de conexión.');
+            tasaComercialDisplay.className = 'form-text text-end fw-bold text-danger';
         }
     };
 
@@ -304,12 +312,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (parseInt(destinoID) === C_VENEZUELA) {
             try {
                 const resBcv = await fetch('../api/?accion=getBcvRate');
-                const dataBcv = await resBcv.json();
+                const dataBcv = await window.parseJsonResponse(resBcv);
                 if (dataBcv.success && dataBcv.rate > 0) {
                     bcvRate = parseFloat(dataBcv.rate);
                     bcvRateDisplay.textContent = `1 USD = ${formatDisplay(bcvRate)} VES`;
                 } else { bcvRate = 0; bcvRateDisplay.textContent = 'No disponible'; }
-            } catch (e) { console.error("Error BCV", e); }
+            } catch (e) {
+                console.error("Error BCV", e);
+                bcvRate = 0;
+                if (bcvRateDisplay) bcvRateDisplay.textContent = 'No disponible';
+            }
         } else { bcvRate = 0; }
 
         let montoParaTasa = 0;
@@ -395,7 +407,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 res = JSON.parse(textResp);
             } catch (jsonErr) {
                 console.error("Error parseando respuesta del servidor:", textResp);
-                throw new Error("El servidor devolvió una respuesta inválida. Revisa la consola.");
+                // Si ademas el status era de error, el mensaje por codigo dice
+                // mucho mas que "respuesta invalida" (un 500 con HTML de PHP,
+                // un 403 de CSRF vencido, un 429 de rate limit).
+                throw new Error(resp.ok
+                    ? "El servidor devolvió una respuesta inválida. Revisa la consola."
+                    : window.httpStatusMessage(resp.status));
+            }
+            if (!resp.ok && !res.error) {
+                throw new Error(window.httpStatusMessage(resp.status));
             }
 
             if (res.success) {
@@ -624,7 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             const upResp = await fetch('../api/?accion=uploadReceipt', { method: 'POST', body: fd });
-                            const upJson = await upResp.json();
+                            // Subida de archivo: el 413 del servidor por archivo
+                            // demasiado grande viene en HTML, no en JSON. Sin este
+                            // corte reventaba dentro de .json().
+                            const upJson = await window.parseJsonResponse(upResp);
 
                             if (upJson.success) {
                                 Swal.fire({ icon: 'success', title: '¡Éxito!', text: 'Comprobante validado y recibido.' })
@@ -645,13 +668,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             } else {
-                window.showInfoModal('Error', res.error, false);
+                window.showInfoModal('Error', res.error || 'No se pudo crear la orden.', false);
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Confirmar Orden';
                 isSubmitting = false;
             }
         } catch (e) {
-            window.showInfoModal('Error', 'Hubo un problema. Revisa la consola.', false);
+            console.error('createTransaccion:', e);
+            window.showInfoModal('Error', window.formatNetworkError(e, 'Hubo un problema. Revisa la consola.'), false);
             submitBtn.disabled = false;
             isSubmitting = false;
         }
@@ -689,7 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const myReq = ++formasReqId;
         try {
             const respF = await fetch(`../api/?accion=getFormasDePago&origenId=${origenId}`);
-            const opts = await respF.json();
+            const opts = await window.parseJsonResponse(respF, 'No se pudieron cargar las formas de pago.');
             if (myReq !== formasReqId) return; // llegó tarde, ya hay otra en curso
 
             if (Array.isArray(opts)) {
@@ -718,7 +742,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             if (myReq !== formasReqId) return; // no pisar con un error viejo
             console.error(e);
-            formaDePagoSelect.innerHTML = '<option value="">Error conexión</option>';
+            formaDePagoSelect.innerHTML = '<option value="">Error de conexión</option>';
+            formaPagoHelper.textContent = window.formatNetworkError(e, 'No se pudieron cargar las formas de pago.');
             formaDePagoSelect.disabled = false;
             formaDePagoSelect.style.backgroundImage = '';
             formaPagoHelper.textContent = '';
@@ -747,7 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadPaises = async (rol, selectElement) => {
         try {
             const responseP = await fetch(`../api/?accion=getPaises&rol=${rol}`);
-            const paises = await responseP.json();
+            const paises = await window.parseJsonResponse(responseP, 'No se pudo cargar la lista de países.');
             // createElement y no innerHTML: NombrePais y CodigoMoneda los edita el
             // admin y aca irian dentro de un atributo, donde escapeHtml no alcanza
             // (no escapa comillas). Es el mismo tratamiento que ya recibio home.js.
@@ -763,14 +788,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 opciones.push(opt);
             });
             selectElement.replaceChildren(...opciones);
-        } catch (error) { console.error('Error loadPaises', error); }
+        } catch (error) {
+            // Un <select> de paises vacio deja el formulario de envio
+            // inutilizable, y antes fallaba en absoluto silencio.
+            console.error('Error loadPaises', error);
+            const errOpt = document.createElement('option');
+            errOpt.value = '';
+            errOpt.textContent = 'Error al cargar países';
+            selectElement.replaceChildren(errOpt);
+            window.showInfoModal('Error', window.formatNetworkError(error, 'No se pudo cargar la lista de países. Recarga la página.'), false);
+        }
     };
 
     const loadBeneficiaries = async (paisID) => {
         beneficiaryListDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Cargando...';
         try {
             const respC = await fetch(`../api/?accion=getCuentas&paisID=${paisID}`);
-            const cuentas = await respC.json();
+            const cuentas = await window.parseJsonResponse(respC, 'No se pudo cargar la lista de beneficiarios.');
             beneficiaryListDiv.innerHTML = '';
 
             if (cuentas.length > 0) {
@@ -806,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error("Error renderizando beneficiarios:", e);
-            beneficiaryListDiv.innerHTML = '<div class="alert alert-danger">Error al cargar listado. Por favor recarga la página.</div>';
+            beneficiaryListDiv.innerHTML = `<div class="alert alert-danger">${window.escapeHtml(window.formatNetworkError(e, 'Error al cargar listado. Por favor recarga la página.'))}</div>`;
         }
     };
 
@@ -839,7 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
         const modalEl = document.getElementById('modalRequestPermission');
-        const modal = new bootstrap.Modal(modalEl);
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
         document.getElementById('btnConfirmRequest').addEventListener('click', async function () {
             const btn = this;
@@ -852,7 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ cuentaId: btn.dataset.id, state: 1 })
                 });
-                const data = await res.json();
+                const data = await window.parseJsonResponse(res);
 
                 if (data.success) {
                     modal.hide();
@@ -860,13 +894,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (paisId) loadBeneficiaries(paisId); // Recargar
                     if (window.showInfoModal) window.showInfoModal("Autorizado", "Has autorizado la edición temporalmente.", true);
                 } else {
-                    window.showInfoModal('Error', data.error, false);
+                    window.showInfoModal('Error', data.error || 'No se pudo autorizar la edición.', false);
                     btn.disabled = false;
                     btn.innerHTML = 'Reintentar';
                 }
             } catch (e) {
-                window.showInfoModal('Error', 'Error de conexión', false);
+                console.error('toggleBeneficiaryPermission:', e);
+                window.showInfoModal('Error', window.formatNetworkError(e, 'Error de conexión'), false);
                 btn.disabled = false;
+                btn.innerHTML = 'Reintentar';
             }
         });
 
@@ -903,7 +939,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // que el usuario ya haya hecho mientras esperaba la otra respuesta.
                 if (!documentTypesFetchPromise) {
                     documentTypesFetchPromise = fetch(`../api/?accion=getDocumentTypes`)
-                        .then(r => r.json())
+                        .then(r => window.parseJsonResponse(r, 'No se pudieron cargar los tipos de documento.'))
                         .catch(err => { documentTypesFetchPromise = null; throw err; });
                 }
                 allDocumentTypes = await documentTypesFetchPromise;
@@ -955,7 +991,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 benefDocTypeSelect.value = previousValue;
             }
             updateDocumentValidation();
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            // Sin tipos de documento no se puede completar el beneficiario:
+            // dejarlo en silencio daba un <select> vacio sin explicacion.
+            console.error('getDocumentTypes:', e);
+            if (benefDocTypeSelect) {
+                benefDocTypeSelect.innerHTML = '<option value="">Error al cargar</option>';
+            }
+            window.showInfoModal('Error', window.formatNetworkError(e, 'No se pudieron cargar los tipos de documento. Recarga la página.'), false);
+        }
     };
     if (benefDocTypeSelect) benefDocTypeSelect.addEventListener('change', updateDocumentValidation);
 
@@ -963,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let addAccountModalInstance = null;
 
     if (addAccountModalElement) {
-        addAccountModalInstance = new bootstrap.Modal(addAccountModalElement);
+        addAccountModalInstance = bootstrap.Modal.getOrCreateInstance(addAccountModalElement);
         const addAccountBtn = document.getElementById('add-account-btn');
         const addBeneficiaryForm = document.getElementById('add-beneficiary-form');
         const benefPaisIdInput = document.getElementById('benef-pais-id');
@@ -1362,13 +1406,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const res = await fetch('../api/?accion=addCuenta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(formData.entries())) });
-                const result = await res.json();
+                const result = await window.parseJsonResponse(res);
                 if (result.success) {
                     addAccountModalInstance.hide();
                     window.showInfoModal('Éxito', 'Beneficiario guardado.', true);
                     loadBeneficiaries(paisDestinoSelect.value);
-                } else { window.showInfoModal('Error', result.error, false); }
-            } catch (err) { window.showInfoModal('Error', 'Error de conexión.', false); }
+                } else { window.showInfoModal('Error', result.error || 'No se pudo guardar el beneficiario.', false); }
+            } catch (err) {
+                console.error('addCuenta:', err);
+                window.showInfoModal('Error', window.formatNetworkError(err, 'Error de conexión.'), false);
+            }
             finally { if (btn) { btn.disabled = false; btn.textContent = originalText; } }
         });
 
@@ -1492,7 +1539,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const checkPendingBeneficiaryRequests = async () => {
         try {
             const resp = await fetch('../api/?accion=getPendingBeneficiaryRequests');
-            const data = await resp.json();
+            // Chequeo en segundo plano: si falla se calla y se reintenta en la
+            // proxima pasada (mismo criterio que operador-pendientes.js).
+            const data = await window.parseJsonResponse(resp);
 
             if (data.success && data.requests && data.requests.length > 0) {
                 showZeroTrustAuthorizationModal(data.requests[0]);
@@ -1545,7 +1594,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
         const modalEl = document.getElementById('modalZeroTrustAuth');
-        const modal = new bootstrap.Modal(modalEl);
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
         modalEl.querySelectorAll('.auth-response-btn').forEach(btn => {
             btn.addEventListener('click', async function () {
@@ -1561,7 +1610,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ solicitudId: reqId, respuesta: responseType })
                     });
-                    const data = await res.json();
+                    const data = await window.parseJsonResponse(res);
 
                     if (data.success) {
                         modal.hide();
@@ -1578,12 +1627,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         setTimeout(checkPendingBeneficiaryRequests, 1000);
 
                     } else {
-                        window.showInfoModal('Error', data.error, false);
                         modal.hide();
+                        window.showInfoModal('Error', data.error || 'No se pudo registrar tu respuesta.', false);
                     }
                 } catch (e) {
-                    window.showInfoModal('Error', 'Error de conexión al registrar respuesta.', false);
+                    console.error('respondBeneficiaryRequest:', e);
+                    // hide() ANTES de showInfoModal: al reves quedaban dos
+                    // modales encimados y un backdrop huerfano.
                     modal.hide();
+                    modalEl.querySelectorAll('.auth-response-btn').forEach(b => b.disabled = false);
+                    window.showInfoModal('Error', window.formatNetworkError(e, 'Error de conexión al registrar respuesta.'), false);
                 }
             });
         });

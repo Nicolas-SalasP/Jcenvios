@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ transactionId: parseInt(txId, 10), received })
             });
-            const data = await resp.json();
+            const data = await window.parseJsonResponse(resp);
 
             if (!data.success) {
                 window.showInfoModal('Error', data.error || 'No se pudo actualizar.', false);
@@ -56,12 +56,19 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (err) {
             console.error(err);
-            window.showInfoModal('Error', 'Error de red. Intenta de nuevo.', false);
+            window.showInfoModal('Error', window.formatNetworkError(err, 'Error de red. Intenta de nuevo.'), false);
             btn.disabled = false;
             btn.innerHTML = originalHtml;
         }
     }
 
+    /**
+     * Devuelve null si salió bien, o el mensaje de error a mostrar.
+     *
+     * No abre el modal de error acá: el llamador todavía tiene abierto el modal
+     * de confirmación y encimar uno sobre otro deja backdrops huérfanos. El
+     * mensaje se muestra recién cuando ese modal terminó de cerrarse.
+     */
     async function handleConfirmReceiptById(txId, received) {
         try {
             const resp = await fetch('../api/?accion=confirmReceipt', {
@@ -69,12 +76,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ transactionId: txId, received })
             });
-            const data = await resp.json();
-            if (data.success) {
-                loadHistorial();
+            const data = await window.parseJsonResponse(resp);
+            if (!data.success) {
+                return data.error || 'No se pudo registrar tu confirmación.';
             }
+            loadHistorial();
+            return null;
         } catch (err) {
             console.error('confirmReceipt error:', err);
+            return window.formatNetworkError(err, 'No se pudo registrar tu confirmación.');
         }
     }
 
@@ -229,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ txId: txId, nuevoMonto: nuevoMonto })
                         });
-                        const dataAmount = await resAmount.json();
+                        const dataAmount = await window.parseJsonResponse(resAmount);
                         if (!dataAmount.success) {
                             throw new Error(dataAmount.error || 'Error al actualizar el monto.');
                         }
@@ -243,7 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const res = await fetch('../api/?accion=resumeOrder', {
                         method: 'POST', body: formData
                     });
-                    const result = await res.json();
+                    const result = await window.parseJsonResponse(res);
 
                     if (!result.success) throw new Error(result.error || 'Error al reanudar orden.');
 
@@ -253,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                 } catch (err) {
-                    window.showInfoModal('Error', err.message, false);
+                    window.showInfoModal('Error', window.formatNetworkError(err), false);
                 } finally {
                     btn.disabled = false;
                     btn.innerHTML = originalText;
@@ -265,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadHistorial = async () => {
         try {
             const response = await fetch('../api/?accion=getHistorialTransacciones');
-            const data = await response.json();
+            const data = await window.parseJsonResponse(response);
             if (!data.success) throw new Error(data.error || 'Error desconocido');
             allTransactions = data.transacciones || [];
             filterData();
@@ -274,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const hayAutoCancelados = allTransactions.some(tx => parseInt(tx.AutoCancelado, 10) === 1);
             if (hayAutoCancelados) {
                 const modalEl = document.getElementById('autoCanceladoModal');
-                if (modalEl) new bootstrap.Modal(modalEl).show();
+                if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
 
             // Muestra modal de confirmación de recepción 2h después del pago
@@ -292,16 +302,39 @@ document.addEventListener('DOMContentLoaded', () => {
                         const txIdLabel = document.getElementById('confirm-modal-tx-id');
                         if (txIdLabel) txIdLabel.textContent = `#${pendienteConf.TransaccionID}`;
 
-                        const bsModal = new bootstrap.Modal(modalEl);
+                        // getOrCreateInstance: loadHistorial() corre varias veces
+                        // por sesión y crear una instancia nueva sobre el MISMO
+                        // elemento apila instancias con sus propios listeners.
+                        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
-                        document.getElementById('confirm-received-yes')?.addEventListener('click', async () => {
-                            await handleConfirmReceiptById(pendienteConf.TransaccionID, true);
+                        const confirmarRecepcion = async (btn, received) => {
+                            if (btn.dataset.loading === '1') return;
+                            btn.dataset.loading = '1';
+                            const yesBtn = document.getElementById('confirm-received-yes');
+                            const noBtn = document.getElementById('confirm-received-no');
+                            if (yesBtn) yesBtn.disabled = true;
+                            if (noBtn) noBtn.disabled = true;
+
+                            const errorMsg = await handleConfirmReceiptById(pendienteConf.TransaccionID, received);
+
+                            if (errorMsg) {
+                                modalEl.addEventListener('hidden.bs.modal', () => {
+                                    window.showInfoModal('Error', errorMsg, false);
+                                }, { once: true });
+                            }
+
+                            if (yesBtn) yesBtn.disabled = false;
+                            if (noBtn) noBtn.disabled = false;
+                            delete btn.dataset.loading;
                             bsModal.hide();
+                        };
+
+                        document.getElementById('confirm-received-yes')?.addEventListener('click', function () {
+                            confirmarRecepcion(this, true);
                         }, { once: true });
 
-                        document.getElementById('confirm-received-no')?.addEventListener('click', async () => {
-                            await handleConfirmReceiptById(pendienteConf.TransaccionID, false);
-                            bsModal.hide();
+                        document.getElementById('confirm-received-no')?.addEventListener('click', function () {
+                            confirmarRecepcion(this, false);
                         }, { once: true });
 
                         bsModal.show();
@@ -476,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const reasonModalEl = document.getElementById('viewReasonModal');
                 if (reasonText && reasonModalEl) {
                     reasonText.textContent = btn.dataset.reason;
-                    new bootstrap.Modal(reasonModalEl).show();
+                    bootstrap.Modal.getOrCreateInstance(reasonModalEl).show();
                 }
             } else if (btn.classList.contains('confirm-receipt-btn')) {
                 handleConfirmReceipt(btn);
@@ -488,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (txIdField) txIdField.value = btn.dataset.id;
                 if (txLabel) txLabel.textContent = btn.dataset.id;
-                if (modalEl) new bootstrap.Modal(modalEl).show();
+                if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
             } else if (btn.classList.contains('resume-order-btn')) {
                 const resumeField = document.getElementById('resume-tx-id');
                 if (resumeField) resumeField.value = btn.dataset.txId;

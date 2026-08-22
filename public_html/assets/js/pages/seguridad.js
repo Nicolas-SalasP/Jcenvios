@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const disableBtn = document.getElementById('disable-2fa-btn');
     
     const backupCodesModalEl = document.getElementById('backupCodesModal');
-    const backupCodesModal = backupCodesModalEl ? new bootstrap.Modal(backupCodesModalEl) : null;
+    const backupCodesModal = backupCodesModalEl ? bootstrap.Modal.getOrCreateInstance(backupCodesModalEl) : null;
     const backupCodesList = document.getElementById('backup-codes-list');
 
     if (typeof QRCode === 'undefined') {
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const inputEl = modalEl.querySelector('[data-role="input"]');
             const errorEl = modalEl.querySelector('[data-role="error"]');
             const confirmBtn = modalEl.querySelector('[data-role="confirm"]');
-            const modal = new bootstrap.Modal(modalEl);
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
             let resolvedValue = null;
 
@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const getProfileStatus = async () => {
         try {
             const response = await fetch('../api/?accion=getUserProfile');
-            const result = await response.json();
+            const result = await window.parseJsonResponse(response);
             if (result.success && result.profile) {
                 is2FAEnabled = result.profile.twofa_enabled || false;
             } else {
@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         secretKeyDisplay.textContent = 'Cargando...';
         try {
             const response = await fetch('../api/?accion=generate2FASecret', { method: 'POST' });
-            const result = await response.json();
+            const result = await window.parseJsonResponse(response);
             if (!result.success) throw new Error(result.error || "Error desconocido al generar secreto");
 
             qrContainer.innerHTML = '';
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code })
             });
-            const result = await response.json();
+            const result = await window.parseJsonResponse(response);
             
             if (result.success) {
                 is2FAEnabled = true;
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error(e);
-            window.showInfoModal('Error', e.message, false);
+            window.showInfoModal('Error', window.formatNetworkError(e), false);
         } finally {
             submitButton.disabled = false;
             submitButton.textContent = 'Activar y Verificar';
@@ -246,8 +246,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ code: code, password: password })
             });
             
-            const result = await response.json();
-            
+            const result = await window.parseJsonResponse(response);
+
             if (!result.success) {
                 throw new Error(result.error || "Código incorrecto o error desconocido");
             }
@@ -259,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (e) {
             console.error(e);
-            window.showInfoModal('Error al Desactivar', e.message, false);
+            window.showInfoModal('Error al Desactivar', window.formatNetworkError(e), false);
         } finally {
             disableBtn.disabled = false;
             disableBtn.textContent = 'Confirmar y Desactivar';
