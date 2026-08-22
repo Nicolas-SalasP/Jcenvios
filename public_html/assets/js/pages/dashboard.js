@@ -6,6 +6,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const C_VENEZUELA = 3;
     const C_PERU = 4;
 
+    // Escapa texto libre ingresado por un Revendedor (Banco, TitularNombre,
+    // Instrucciones, etc. de su cuenta) antes de mostrarlo al cliente
+    // referido — sin esto, un revendedor malicioso podía inyectar JS que
+    // corre en la sesión de sus propios clientes (XSS almacenado, hallado
+    // en auditoría 2026-08-21).
+    const escapeHtml = (str) => {
+        const div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
+    };
+
     // =========================================================
     // 2. REFERENCIAS DOM GENERALES
     // =========================================================
@@ -437,11 +448,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const cr = res.cuentaRevendedor;
                         htmlCuentaRevendedor = `
                             <div class="text-center mb-4 p-3 bg-white rounded border border-primary shadow-sm">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-bank"></i> Deposita directamente a tu asesor: ${cr.Banco}</h6>
-                                <div class="small text-muted">Tipo de cuenta: <strong>${cr.TipoCuenta}</strong></div>
-                                <div class="small text-muted">Número: <strong>${cr.NumeroCuenta}</strong></div>
-                                <div class="small text-muted">Titular: <strong>${cr.TitularNombre}</strong> (${cr.TitularDocumento})</div>
-                                ${cr.Instrucciones ? `<div class="small text-muted mt-2">${cr.Instrucciones}</div>` : ''}
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-bank"></i> Deposita directamente a tu asesor: ${escapeHtml(cr.Banco)}</h6>
+                                <div class="small text-muted">Tipo de cuenta: <strong>${escapeHtml(cr.TipoCuenta)}</strong></div>
+                                <div class="small text-muted">Número: <strong>${escapeHtml(cr.NumeroCuenta)}</strong></div>
+                                <div class="small text-muted">Titular: <strong>${escapeHtml(cr.TitularNombre)}</strong> (${escapeHtml(cr.TitularDocumento)})</div>
+                                ${cr.Instrucciones ? `<div class="small text-muted mt-2">${escapeHtml(cr.Instrucciones)}</div>` : ''}
                             </div>
                         `;
                     }

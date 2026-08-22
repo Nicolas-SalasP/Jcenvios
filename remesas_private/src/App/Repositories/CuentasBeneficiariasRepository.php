@@ -193,19 +193,31 @@ class CuentasBeneficiariasRepository
         return $res;
     }
 
-    public function softDelete(int $cuentaId): bool
+    // IDOR corregido: antes no filtraba por UserID, cualquier usuario logueado
+    // podía desactivar el beneficiario de cualquier otro usuario enumerando
+    // CuentaID. $userId=null solo lo usa adminUpdateBeneficiary-style flows
+    // internos que ya validaron ownership por otro lado (ninguno hoy) — para
+    // cualquier caller nuevo, pasar userId siempre.
+    public function softDelete(int $cuentaId, ?int $userId = null): bool
     {
-        $sql = "UPDATE cuentas_beneficiarias SET Activo = 0 WHERE CuentaID = ?";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param("i", $cuentaId);
-        $res = $stmt->execute();
+        if ($userId !== null) {
+            $sql = "UPDATE cuentas_beneficiarias SET Activo = 0 WHERE CuentaID = ? AND UserID = ?";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bind_param("ii", $cuentaId, $userId);
+        } else {
+            $sql = "UPDATE cuentas_beneficiarias SET Activo = 0 WHERE CuentaID = ?";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bind_param("i", $cuentaId);
+        }
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
         $stmt->close();
-        return $res;
+        return $affected > 0;
     }
 
     public function delete(int $cuentaId, int $userId): bool
     {
-        return $this->softDelete($cuentaId);
+        return $this->softDelete($cuentaId, $userId);
     }
 
     public function adminUpdateBeneficiary(int $cuentaId, array $data): bool

@@ -214,7 +214,15 @@ class TransactionService
         // ruta real (FK a `tasas`, tasas_especiales_cliente no tiene fila
         // propia ahí) — lo que cambia es el valor con el que se calcula y
         // se guarda en TasaCapturada.
+        // Reclamar (claim) ANTES de usar su valor para el cálculo, no después
+        // de crear la orden: si dos requests llegan casi simultáneas, solo una
+        // logra el UPDATE atómico (Activa=1 -> 0); la otra sigue con la tasa
+        // pública. Evita que la misma tasa especial de uso único se aplique a
+        // 2 órdenes (hallado en auditoría 2026-08-21).
         $tasaEspecial = $this->tasaEspecialRepo->findActiveForUserAndRoute((int) $data['userID'], $paisOrigenID, $paisDestinoID);
+        if ($tasaEspecial && !$this->tasaEspecialRepo->claim((int) $tasaEspecial['TasaEspecialID'])) {
+            $tasaEspecial = null;
+        }
         if ($tasaEspecial) {
             $tasaInfo['ValorTasa'] = $tasaEspecial['ValorTasa'];
         }
@@ -299,7 +307,9 @@ class TransactionService
             $transactionId = $this->txRepository->create($data);
 
             if ($tasaEspecial) {
-                $this->tasaEspecialRepo->markUsed((int) $tasaEspecial['TasaEspecialID'], $transactionId);
+                // Ya se reclamó (Activa=0) antes de calcular el monto; acá solo
+                // se asocia el TransaccionID resultante para el historial.
+                $this->tasaEspecialRepo->attachTransaccion((int) $tasaEspecial['TasaEspecialID'], $transactionId);
             }
 
             if ($statusKey === 'requires_approval') {
@@ -610,9 +620,11 @@ class TransactionService
         }
 
         if ($cuentaSalidaId && $cuentaAdmin) {
-            $nuevoSaldo = (float) $cuentaAdmin['SaldoActual'] - (float) $txData['MontoDestino'];
-            $this->cuentasAdminRepo->updateSaldo($cuentaSalidaId, $nuevoSaldo);
-
+            // NO restar el saldo acá manualmente: registrarEgresoPago() ya lee el
+            // saldo actual y lo descuenta + registra el movimiento contable. Restarlo
+            // acá TAMBIÉN causaba doble descuento en CADA pago con cuenta de salida
+            // (bug real, no una race condition — pasaba siempre, no solo bajo
+            // concurrencia). Ver auditoría 2026-08-21.
             $this->txRepository->updateCuentaSalida($txId, $cuentaSalidaId);
 
             $this->contabilidadService->registrarEgresoPago(

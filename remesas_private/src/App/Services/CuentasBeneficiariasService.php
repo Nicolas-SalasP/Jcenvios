@@ -215,7 +215,7 @@ class CuentasBeneficiariasService
 
                 if ($newCuentaId > 0) {
                     $this->txRepo->migratePendingOrdersToNewAccount($cuentaId, $newCuentaId);
-                    $this->cuentasRepo->softDelete($cuentaId);
+                    $this->cuentasRepo->softDelete($cuentaId, $userId);
                     $this->regeneratePdfsForPendingOrders($newCuentaId);
                     return true;
                 }
@@ -235,7 +235,7 @@ class CuentasBeneficiariasService
 
     public function deleteAccount(int $userId, int $cuentaId): bool
     {
-        return $this->cuentasRepo->softDelete($cuentaId);
+        return $this->cuentasRepo->softDelete($cuentaId, $userId);
     }
 
     private function validateCommonFields(array $data): void

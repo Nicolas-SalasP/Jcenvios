@@ -211,6 +211,7 @@ $jsUtilsFilePath = __DIR__ . '/../../../public_html' . $jsUtilsPath;
 $jsUtilsVersion = file_exists($jsUtilsFilePath) ? hash_file('md5', $jsUtilsFilePath) : '1.0.0';
 ?>
 <script src="<?php echo BASE_URL; ?>/assets/js/system-lock.js"></script>
+<script src="<?php echo BASE_URL; ?>/assets/js/session-watch.js"></script>
 <script src="<?php echo BASE_URL . $jsUtilsPath; ?>?v=<?php echo $jsUtilsVersion; ?>" charset="UTF-8"></script>
 <script src="<?php echo BASE_URL; ?>/assets/js/csrf-interceptor.js"></script>
 

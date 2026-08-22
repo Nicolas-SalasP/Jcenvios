@@ -217,10 +217,13 @@ class ContabilidadService
 
     public function registrarIngresoVenta(int $cuentaAdminId, float $monto, int $adminId, int $txId): void
     {
+        $this->dbConnection->begin_transaction();
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
-            if (!$cuenta)
+            if (!$cuenta) {
+                $this->dbConnection->rollback();
                 return;
+            }
 
             $saldoAnt = (float) $cuenta['SaldoActual'];
             $saldoNew = $saldoAnt + $monto;
@@ -237,7 +240,9 @@ class ContabilidadService
             );
 
             $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNew);
+            $this->dbConnection->commit();
         } catch (Exception $e) {
+            $this->dbConnection->rollback();
             error_log("Error ingreso venta: " . $e->getMessage());
         }
     }
@@ -327,10 +332,13 @@ class ContabilidadService
 
     public function registrarEgresoPago(int $cuentaAdminId, float $monto, int $adminId, int $txId): void
     {
+        $this->dbConnection->begin_transaction();
         try {
             $cuenta = $this->cuentasAdminRepo->getById($cuentaAdminId);
-            if (!$cuenta)
+            if (!$cuenta) {
+                $this->dbConnection->rollback();
                 return;
+            }
 
             $saldoAnt = (float) $cuenta['SaldoActual'];
             $saldoNew = $saldoAnt - $monto;
@@ -345,7 +353,9 @@ class ContabilidadService
                 "Pago a beneficiario TX #$txId"
             );
             $this->cuentasAdminRepo->updateSaldo($cuentaAdminId, $saldoNew);
+            $this->dbConnection->commit();
         } catch (Exception $e) {
+            $this->dbConnection->rollback();
             error_log("Error egreso pago: " . $e->getMessage());
         }
     }

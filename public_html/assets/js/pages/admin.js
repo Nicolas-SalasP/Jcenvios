@@ -11,6 +11,16 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // Escapa texto libre ingresado por usuarios (nombre, alias, cuenta, etc.)
+    // antes de insertarlo como HTML — sin esto, un beneficiario/cuenta con
+    // "<img src=x onerror=...>" como nombre corre JS en la sesión del admin
+    // que lo ve (XSS almacenado, encontrado en auditoría 2026-08-21).
+    const escapeHtml = (str) => {
+        const div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
+    };
+
     window.refreshAdminTable = async () => {
         const tbody = document.getElementById('transactionsTableBody');
         if (tbody) {
@@ -1638,27 +1648,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // Teléfono (Pago Móvil, Yape, Plin)
                             if (ben.NumeroTelefono) {
-                                detallesCuenta += `<div class="mb-1 text-nowrap"><i class="bi bi-phone-vibrate text-success me-1"></i> ${ben.NumeroTelefono}</div>`;
+                                detallesCuenta += `<div class="mb-1 text-nowrap"><i class="bi bi-phone-vibrate text-success me-1"></i> ${escapeHtml(ben.NumeroTelefono)}</div>`;
                             }
                             // Cuenta Bancaria tradicional
                             if (ben.NumeroCuenta) {
-                                detallesCuenta += `<div class="mb-1 text-nowrap"><i class="bi bi-credit-card-2-front text-secondary me-1"></i> <span class="fw-bold text-dark">${ben.NumeroCuenta}</span></div>`;
+                                detallesCuenta += `<div class="mb-1 text-nowrap"><i class="bi bi-credit-card-2-front text-secondary me-1"></i> <span class="fw-bold text-dark">${escapeHtml(ben.NumeroCuenta)}</span></div>`;
                             }
                             // Documento (Cédula/DNI)
                             if (ben.TitularNumeroDocumento) {
-                                detallesCuenta += `<div class="text-muted small"><i class="bi bi-person-vcard me-1"></i> ${ben.TitularNumeroDocumento}</div>`;
+                                detallesCuenta += `<div class="text-muted small"><i class="bi bi-person-vcard me-1"></i> ${escapeHtml(ben.TitularNumeroDocumento)}</div>`;
                             }
                             // CCI
                             if (ben.CCI) {
-                                detallesCuenta += `<div class="text-muted small">CCI: ${ben.CCI}</div>`;
+                                detallesCuenta += `<div class="text-muted small">CCI: ${escapeHtml(ben.CCI)}</div>`;
                             }
 
-                            const bancoInfo = `<div class="fw-bold text-dark">${ben.NombreBanco}</div>
-                                             <small class="text-primary"><i class="bi bi-globe-americas"></i> ${ben.NombrePais} <span class="text-muted">(${ben.CodigoMoneda || ''})</span></small>
-                                             ${ben.Alias ? `<br><span class="badge bg-light text-dark border mt-1"><i class="bi bi-tag"></i> ${ben.Alias}</span>` : ''}`;
+                            const bancoInfo = `<div class="fw-bold text-dark">${escapeHtml(ben.NombreBanco)}</div>
+                                             <small class="text-primary"><i class="bi bi-globe-americas"></i> ${escapeHtml(ben.NombrePais)} <span class="text-muted">(${escapeHtml(ben.CodigoMoneda || '')})</span></small>
+                                             ${ben.Alias ? `<br><span class="badge bg-light text-dark border mt-1"><i class="bi bi-tag"></i> ${escapeHtml(ben.Alias)}</span>` : ''}`;
 
-                            const titularInfo = `<div class="fw-bold text-dark">${ben.BeneficiarioNombre}</div>
-                                               <small class="text-muted">${ben.TipoBeneficiarioNombre || 'Destinatario'}</small>`;
+                            const titularInfo = `<div class="fw-bold text-dark">${escapeHtml(ben.BeneficiarioNombre)}</div>
+                                               <small class="text-muted">${escapeHtml(ben.TipoBeneficiarioNombre || 'Destinatario')}</small>`;
 
                             let actionBtns = '';
                             if (ben.PermitirEdicion == 1) {

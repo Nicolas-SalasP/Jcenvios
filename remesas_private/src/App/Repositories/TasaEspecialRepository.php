@@ -42,11 +42,29 @@ class TasaEspecialRepository
         return $id;
     }
 
-    public function markUsed(int $tasaEspecialId, int $transaccionId): void
+    /**
+     * Reclama atómicamente la tasa especial (uso único). Devuelve false si
+     * otra request ya la reclamó/desactivó en la ventana entre el SELECT de
+     * findActiveForUserAndRoute() y este UPDATE — el caller debe entonces
+     * seguir con la tasa pública en vez de la especial (no aplicarla sin
+     * haberla podido reclamar). Sin el "AND Activa = 1" acá, dos requests
+     * concurrentes del mismo cliente podían usar la misma tasa especial 2
+     * veces (hallado en auditoría 2026-08-21).
+     */
+    public function claim(int $tasaEspecialId): bool
     {
-        $sql = "UPDATE tasas_especiales_cliente
-                SET Activa = 0, FechaUso = NOW(), TransaccionID = ?
-                WHERE TasaEspecialID = ?";
+        $sql = "UPDATE tasas_especiales_cliente SET Activa = 0, FechaUso = NOW() WHERE TasaEspecialID = ? AND Activa = 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $tasaEspecialId);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+        return $affected > 0;
+    }
+
+    public function attachTransaccion(int $tasaEspecialId, int $transaccionId): void
+    {
+        $sql = "UPDATE tasas_especiales_cliente SET TransaccionID = ? WHERE TasaEspecialID = ?";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param("ii", $transaccionId, $tasaEspecialId);
         $stmt->execute();
