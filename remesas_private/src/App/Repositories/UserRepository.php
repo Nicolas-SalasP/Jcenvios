@@ -519,6 +519,18 @@ class UserRepository
         $stmt->execute();
         $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
+
+        // El SELECT usa U.*, así que arrastra el hash de contraseña y los secretos de
+        // 2FA. Se quitan acá para que ningún consumidor pueda serializarlos por error:
+        // este arreglo viaja entero a la respuesta JSON en getApprovedUsers().
+        $camposSensibles = ['PasswordHash', 'twofa_secret', 'twofa_backup_codes'];
+        foreach ($result as &$fila) {
+            foreach ($camposSensibles as $campo) {
+                unset($fila[$campo]);
+            }
+        }
+        unset($fila);
+
         return $result;
     }
 
