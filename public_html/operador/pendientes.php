@@ -331,76 +331,7 @@ $isOperator = ($_SESSION['user_rol_name'] === 'Operador');
     </div>
 </div>
 
-<div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content" id="modal-content-visor">
-            <div class="modal-header py-2 bg-dark text-white">
-                <h5 class="modal-title fs-6"><i class="bi bi-eye"></i> Revisión de Pago</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-
-            <div class="modal-body p-0 d-flex flex-column flex-lg-row">
-                <div class="bg-light p-3 border-bottom border-lg-bottom-0 border-lg-end overflow-auto sidebar-datos">
-                    <h6 class="text-primary border-bottom pb-2 mb-3">Datos del Titular (Origen)</h6>
-                    <div class="mb-3">
-                        <label class="small text-muted fw-bold">Nombre Titular</label>
-                        <div class="fs-6 text-dark text-break" id="visor-nombre-titular">Cargando...</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="small text-muted fw-bold">RUT / Documento</label>
-                        <div class="fs-6 text-dark" id="visor-rut-titular">Cargando...</div>
-                    </div>
-                    <div class="alert alert-info small mt-3 mb-0">
-                        <i class="bi bi-info-circle-fill"></i> Verifique que estos datos coincidan con la imagen del
-                        comprobante.
-                    </div>
-                </div>
-
-                <div class="flex-grow-1 bg-dark d-flex align-items-center justify-content-center position-relative visor-container">
-                    <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-                    <div id="comprobante-content" class="w-100 h-100 d-flex align-items-center justify-content-center p-2">
-                        <img id="comprobante-img-full" class="d-none shadow rounded"
-                            style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
-                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none rounded border-0"></iframe>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-    #modal-content-visor {
-        height: auto;
-        min-height: 80vh;
-    }
-    .sidebar-datos {
-        width: 100%;
-        max-height: 300px;
-    }
-    .visor-container {
-        min-height: 50vh;
-        background-color: #333;
-    }
-    @media (min-width: 992px) {
-        #modal-content-visor {
-            height: 90vh;
-        }
-        .modal-body {
-            height: 100%;
-            overflow: hidden;
-        }
-        .sidebar-datos {
-            width: 320px;
-            min-width: 320px;
-            height: 100%;
-            max-height: none;
-        }
-        .visor-container {
-            height: 100%;
-        }
-    }
-</style>
+<?php require __DIR__ . '/../../remesas_private/src/templates/partials/visor_comprobante.php'; ?>
 
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>

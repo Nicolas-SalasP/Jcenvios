@@ -3,17 +3,14 @@
  * Modales que necesita la tabla de órdenes (orden_row.php).
  * Compartidos por Admin y Operador.
  *
- * IMPORTANTE: incluir SIEMPRE antes de footer.php. footer.php define su propio
- * #viewComprobanteModal y getElementById() se queda con el primero del DOM, así
- * que este debe ir antes para ganar. Ver el aviso de ids duplicados en CLAUDE.md.
+ * IMPORTANTE: incluir SIEMPRE antes de footer.php. El visor que trae este partial
+ * (visor_comprobante.php) comparte el id #viewComprobanteModal con el que define
+ * footer.php, y getElementById() se queda con el primero del DOM. Ver el aviso de
+ * ids duplicados en CLAUDE.md.
  *
  * Espera $ordenRowCtx en scope; solo usa la clave 'puedePagar' para decidir si
  * renderiza #adminUploadModal.
  */
-
-// Le avisa a footer.php que el visor de comprobantes ya está en la página,
-// para que no emita el suyo y no se dupliquen los ids.
-$GLOBALS['visorComprobanteYaRenderizado'] = true;
 
 $modalesPuedePagar = !empty(($ordenRowCtx ?? [])['puedePagar']);
 ?>
@@ -47,55 +44,7 @@ $modalesPuedePagar = !empty(($ordenRowCtx ?? [])['puedePagar']);
     </div>
 </div>
 
-<div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0" style="height: 85vh;">
-            <div class="modal-header bg-dark text-white py-2">
-                <h5 class="modal-title fs-6">Comprobante</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-0 d-flex flex-column flex-lg-row h-100 flex-grow-1 overflow-hidden">
-                <div class="bg-light p-3 border-end overflow-auto" style="min-width: 250px; max-width: 300px;">
-                    <h6 class="text-primary border-bottom pb-2 mb-3">Datos del Titular (Origen)</h6>
-                    <div class="mb-3">
-                        <label class="small text-muted fw-bold">Nombre Titular</label>
-                        <div class="fs-6 text-dark" id="visor-nombre-titular">Cargando...</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="small text-muted fw-bold">RUT / Documento</label>
-                        <div class="fs-6 text-dark" id="visor-rut-titular">Cargando...</div>
-                    </div>
-                    <hr>
-                    <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary active" id="tab-btn-user">Pago
-                            Cliente</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="tab-btn-admin">Envío
-                            Admin</button>
-                    </div>
-                </div>
-
-                <div class="flex-grow-1 bg-dark position-relative d-flex align-items-center justify-content-center"
-                    style="background-color: #333;">
-                    <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-
-                    <div id="comprobante-content"
-                        class="w-100 h-100 d-flex align-items-center justify-content-center p-3">
-                        <img id="comprobante-img-full" src="" class="img-fluid d-none"
-                            style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
-                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none border-0" style="background:white;"
-                            loading="lazy"></iframe>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center py-1 bg-light">
-                <a href="#" id="download-comprobante-btn" class="btn btn-sm btn-dark" download target="_blank">
-                    <i class="bi bi-download me-2"></i>Descargar
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
+<?php require __DIR__ . '/visor_comprobante.php'; ?>
 
 <div class="modal fade" id="viewPauseReasonModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">

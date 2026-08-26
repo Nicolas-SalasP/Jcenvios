@@ -234,9 +234,26 @@ foreach ($transacciones as $tx):
                 <?php endif; ?>
 
                 <?php if (!empty($tx['ComprobanteURL'])): ?>
+                    <?php
+                        // Datos del titular y del comprobante de envío: el visor compartido
+                        // (partials/visor_comprobante.php) los muestra en el panel lateral y
+                        // en el tab "Envío Admin". Sin estos atributos el sidebar quedaba en
+                        // "No registrado" y ese tab abría vacío.
+                        $nombreTitularOp = !empty($tx['NombreTitularOrigen'])
+                            ? $tx['NombreTitularOrigen']
+                            : trim(($tx['PrimerNombre'] ?? '') . ' ' . ($tx['PrimerApellido'] ?? ''));
+                        $rutTitularOp = !empty($tx['RutTitularOrigen']) ? $tx['RutTitularOrigen'] : 'N/A';
+                        $urlEnvioOp = !empty($tx['ComprobanteEnvioURL'])
+                            ? BASE_URL . '/admin/view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL'])
+                            : '';
+                    ?>
                     <button class="btn btn-sm btn-info text-white view-comprobante-btn-admin" data-bs-toggle="modal"
                         data-bs-target="#viewComprobanteModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>"
+                        data-nombre-titular="<?php echo htmlspecialchars($nombreTitularOp, ENT_QUOTES, 'UTF-8'); ?>"
+                        data-rut-titular="<?php echo htmlspecialchars($rutTitularOp, ENT_QUOTES, 'UTF-8'); ?>"
                         data-comprobante-url="<?php echo BASE_URL . '/admin/view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']); ?>"
+                        data-envio-url="<?php echo htmlspecialchars($urlEnvioOp, ENT_QUOTES, 'UTF-8'); ?>"
+                        data-start-type="user"
                         title="Ver Comprobante Cliente">
                         <i class="bi bi-eye"></i>
                     </button>
