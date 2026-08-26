@@ -530,22 +530,39 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             // 5. Gestión de Tabs (Cliente vs Admin)
-            const btnUser = document.getElementById('tab-btn-user');
-            const btnAdmin = document.getElementById('tab-btn-admin');
+            //
+            // setTab busca los botones en cada llamada en vez de usar referencias
+            // capturadas antes: más abajo se los clona para limpiar listeners, y unas
+            // referencias tomadas antes del clonado apuntarían a nodos ya
+            // reemplazados. Ese era el motivo de que el archivo sí cambiara al pulsar
+            // los tabs pero el resaltado se quedara siempre en "Pago Cliente".
+            const marcarActivo = (activo, inactivo) => {
+                if (activo) {
+                    activo.classList.add('btn-primary');
+                    activo.classList.remove('btn-outline-primary', 'btn-outline-secondary');
+                }
+                if (inactivo) {
+                    inactivo.classList.remove('btn-primary');
+                    inactivo.classList.add('btn-outline-primary');
+                }
+            };
 
             const setTab = (type) => {
+                const elUser = document.getElementById('tab-btn-user');
+                const elAdmin = document.getElementById('tab-btn-admin');
+
                 if (type === 'admin') {
                     loadFile(urlAdmin);
-                    if (btnAdmin) { btnAdmin.classList.add('btn-primary'); btnAdmin.classList.remove('btn-outline-primary', 'btn-outline-secondary'); }
-                    if (btnUser) { btnUser.classList.remove('btn-primary'); btnUser.classList.add('btn-outline-primary'); }
+                    marcarActivo(elAdmin, elUser);
                 } else {
                     loadFile(urlUser);
-                    if (btnUser) { btnUser.classList.add('btn-primary'); btnUser.classList.remove('btn-outline-primary', 'btn-outline-secondary'); }
-                    if (btnAdmin) { btnAdmin.classList.remove('btn-primary'); btnAdmin.classList.add('btn-outline-primary'); }
+                    marcarActivo(elUser, elAdmin);
                 }
             };
 
             // Asignar eventos a los botones (Clonamos para limpiar listeners previos)
+            const btnUser = document.getElementById('tab-btn-user');
+            const btnAdmin = document.getElementById('tab-btn-admin');
             if (btnUser) {
                 const newBtn = btnUser.cloneNode(true);
                 btnUser.parentNode.replaceChild(newBtn, btnUser);
@@ -557,7 +574,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 newBtn.addEventListener('click', () => setTab('admin'));
             }
 
-            // Iniciar vista por defecto
+            // Iniciar vista por defecto (después del clonado, para que marque el nodo real)
             setTab(startType);
         });
     }

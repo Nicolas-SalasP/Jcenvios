@@ -186,6 +186,13 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
+<?php
+// Esta página trae su propio visor, que es el completo del lado cliente: es el
+// único con #share-comprobante, que historial-visor.js necesita. Se avisa para
+// que footer.php no emita el suyo y no quede el id #viewComprobanteModal
+// duplicado (getElementById se queda con el primero del DOM).
+$GLOBALS['visorComprobanteYaRenderizado'] = true;
+?>
 <div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content" style="height: 90vh;">

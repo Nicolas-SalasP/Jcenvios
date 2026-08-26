@@ -222,6 +222,10 @@ class ClientController extends BaseController
 
     public function getAssignableRoles(): void
     {
+        // Esta acción está ruteada pero no figura en PUBLIC_ACTIONS: sin esta guarda
+        // respondía a cualquiera sin sesión.
+        $this->ensureLoggedIn();
+
         $roles = $this->rolRepo->findAssignableUserRoles();
         $this->sendJsonResponse($roles);
     }
@@ -810,7 +814,15 @@ class ClientController extends BaseController
         $this->ensureIsAdminOrOperator();
         
         $cuentaId = (int)($_GET['cuentaId'] ?? 0);
-        
+
+        // Sin esto, un cuentaId ausente, 0 o negativo llegaba igual a la consulta.
+        // El historial devuelve snapshots completos del beneficiario (documento,
+        // cuenta, CCI, teléfono), así que no se atiende una petición sin id válido.
+        if ($cuentaId <= 0) {
+            $this->sendJsonResponse(['success' => false, 'error' => 'Identificador de cuenta inválido.'], 400);
+            return;
+        }
+
         try {
             $history = $this->auditService->getBeneficiaryHistory($cuentaId);
             $this->sendJsonResponse(['success' => true, 'history' => $history]);

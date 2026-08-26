@@ -277,9 +277,26 @@ jobs:
   # JOB 4: Deploy a producción — solo si los 3 jobs anteriores pasaron.
   # Espera además APROBACIÓN MANUAL (environment "production").
   # ─────────────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────────────
+  # JOB 4: Despliegue a cPanel. SOLO se ejecuta con disparo manual
+  # (workflow_dispatch), nunca con un push a main.
+  #
+  # Por qué: la aprobación manual antes se apoyaba en el "required reviewer"
+  # del environment `production`, pero esa protección NO está activa — la API
+  # la rechaza con 422 ("Please ensure the billing plan supports the required
+  # reviewers protection rule") porque el repositorio es privado y la cuenta
+  # está en el plan Free. Es decir: durante semanas los push a main
+  # desplegaron solos aunque se creyera lo contrario.
+  #
+  # Con este `if`, un push a main corre los cuatro jobs de verificación y se
+  # detiene ahí. Para publicar: pestaña Actions -> "CI/CD (tests + deploy a
+  # cPanel)" -> "Run workflow" sobre la rama main. Eso vuelve a correr los
+  # tests y recién entonces despliega.
+  # ─────────────────────────────────────────────────────────────────────────
   deploy:
     name: Sync a cPanel (SSH multiplexado)
     needs: e2e-smoke
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment:
       name: production

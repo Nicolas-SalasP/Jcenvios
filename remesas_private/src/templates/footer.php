@@ -77,6 +77,13 @@
     </div>
   </div>
 </div>
+<?php
+// Solo se emite si la página no trajo ya su propio visor. Sin este guard, el id
+// #viewComprobanteModal (y sus internos #comprobante-content / #comprobante-placeholder)
+// queda duplicado y getElementById() se queda con el primero del DOM.
+// Lo setea remesas_private/src/templates/partials/orden_modals.php.
+if (empty($GLOBALS['visorComprobanteYaRenderizado'])):
+?>
 <div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-labelledby="viewComprobanteModalLabel"
   aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -109,6 +116,7 @@
     </div>
   </div>
 </div>
+<?php endif; ?>
 
 <div class="modal fade" id="userDetailsModal" tabindex="-1" aria-labelledby="userDetailsModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">

@@ -14,7 +14,7 @@
  * Uso:
  *   $pageScripts = require __DIR__ . '/../../remesas_private/src/templates/admin_page_scripts.php';
  * o, para sumar el script propio de la página:
- *   $pageScripts = array_merge(require ..., ['operador-index.js']);
+ *   $pageScripts = array_merge(require ..., ['operador-pendientes.js']);
  *
  * Todas las páginas cargan el set completo a propósito: cada sección ya está
  * guardada por un `if (!elemento) return;`, así que sobrar un módulo es

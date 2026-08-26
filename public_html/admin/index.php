@@ -14,6 +14,9 @@ if (!isset($_SESSION['twofa_enabled']) || $_SESSION['twofa_enabled'] === false) 
     exit();
 }
 
+// Helpers compartidos con el panel de operador (saneo de filtros, badges, paginación).
+require_once __DIR__ . '/../../remesas_private/src/templates/partials/orden_helpers.php';
+
 $listaEstados = [];
 $listaPaises = [];
 if (!isset($_GET['ajax'])) {
@@ -23,21 +26,24 @@ if (!isset($_GET['ajax'])) {
     $listaPaises = $paisesDb ? $paisesDb->fetch_all(MYSQLI_ASSOC) : [];
 }
 
-$f_id = $_GET['f_id'] ?? '';
-$f_user = $_GET['f_user'] ?? '';
-$f_date = $_GET['f_date'] ?? '';
-$f_status = $_GET['f_status'] ?? '';
-$f_origen = $_GET['f_origen'] ?? '';
-$f_confirm = $_GET['f_confirm'] ?? '';
-$f_destino = $_GET['f_destino'] ?? '';
-$f_emision_desde = $_GET['f_emision_desde'] ?? '';
-$f_emision_hasta = $_GET['f_emision_hasta'] ?? '';
-$f_comprobante_desde = $_GET['f_comprobante_desde'] ?? '';
-$f_comprobante_hasta = $_GET['f_comprobante_hasta'] ?? '';
-$f_completado_desde = $_GET['f_completado_desde'] ?? '';
-$f_completado_hasta = $_GET['f_completado_hasta'] ?? '';
-$f_moneda_origen = $_GET['f_moneda_origen'] ?? '';
-$f_moneda_destino = $_GET['f_moneda_destino'] ?? '';
+// Todos los filtros se sanean acá: un valor inválido queda en '' y el `if (!empty(...))`
+// que sigue lo descarta, en vez de viajar al bind. Rechaza arrays (?f_status[]=1),
+// fechas imposibles y strings tipo "3a" que MySQL convertiría en silencio.
+$f_id = ordenFiltroEntero($_GET['f_id'] ?? '');
+$f_user = ordenFiltroTexto($_GET['f_user'] ?? '');
+$f_date = ordenFiltroFecha($_GET['f_date'] ?? '');
+$f_status = ordenFiltroEntero($_GET['f_status'] ?? '');
+$f_origen = ordenFiltroEntero($_GET['f_origen'] ?? '');
+$f_confirm = ordenFiltroTexto($_GET['f_confirm'] ?? '', 20);
+$f_destino = ordenFiltroEntero($_GET['f_destino'] ?? '');
+$f_emision_desde = ordenFiltroFecha($_GET['f_emision_desde'] ?? '');
+$f_emision_hasta = ordenFiltroFecha($_GET['f_emision_hasta'] ?? '');
+$f_comprobante_desde = ordenFiltroFecha($_GET['f_comprobante_desde'] ?? '');
+$f_comprobante_hasta = ordenFiltroFecha($_GET['f_comprobante_hasta'] ?? '');
+$f_completado_desde = ordenFiltroFecha($_GET['f_completado_desde'] ?? '');
+$f_completado_hasta = ordenFiltroFecha($_GET['f_completado_hasta'] ?? '');
+$f_moneda_origen = ordenFiltroMoneda($_GET['f_moneda_origen'] ?? '');
+$f_moneda_destino = ordenFiltroMoneda($_GET['f_moneda_destino'] ?? '');
 
 $whereClause = "WHERE 1=1";
 $params = [];
@@ -205,242 +211,29 @@ $sqlCuentas = "
 $cuentasDestino = $conexion->query($sqlCuentas)->fetch_all(MYSQLI_ASSOC);
 
 
-// Helpers
-function getStatusBadgeClass($statusName)
-{
-    switch ($statusName) {
-        case 'Exitoso':
-        case 'Pagado':
-            return 'bg-success';
-        case 'En Proceso':
-            return 'bg-primary';
-        case 'En Verificación':
-            return 'bg-info text-dark';
-        case 'Cancelado':
-        case 'Rechazado':
-            return 'bg-danger';
-        case 'Pendiente de Pago':
-            return 'bg-warning text-dark';
-        case 'Pausado':
-            return 'bg-warning text-dark';
-        case 'Riesgo':
-            return 'bg-danger';
-        default:
-            return 'bg-secondary';
-    }
-}
+// Contexto de render de la fila de ordenes. El admin tiene todas las acciones.
+$ordenRowCtx = [
+    'puedePagar'          => true,
+    'puedeEditarComision' => true,
+    'secureFileBase'      => BASE_URL . '/admin/view_secure_file.php',
+    'ordenUrl'            => BASE_URL . '/admin/orden.php',
+    'facturaUrl'          => BASE_URL . '/generar-factura.php',
+];
 
-// --- MODO AJAX (SOLO TABLA) ---
+$ordenRowPartial = __DIR__ . '/../../remesas_private/src/templates/partials/orden_row.php';
+
+// --- MODO AJAX (SOLO FILAS) ---
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     if (empty($transacciones)) {
         echo '<tr><td colspan="11" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>';
     } else {
         foreach ($transacciones as $tx) {
-            $nombreTitular = !empty($tx['NombreTitularOrigen']) ? $tx['NombreTitularOrigen'] : ($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']);
-            $rutTitular = !empty($tx['RutTitularOrigen']) ? $tx['RutTitularOrigen'] : ($tx['UsuarioDocumento'] ?? 'N/A');
-            ?>
-            <tr>
-                <td>
-                    <button type="button" class="btn btn-link btn-sm p-0 btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
-                        #<?php echo $tx['TransaccionID']; ?>
-                    </button>
-                </td>
-                <td class="search-user">
-                    <button type="button" class="btn btn-link btn-sm p-0 text-start btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
-                        <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
-                    </button>
-                </td>
-                <td class="search-beneficiary">
-                    <?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?>
-                    <?php
-                        $previos = (int)($tx['EnviosPreviosMismaCuenta'] ?? 0);
-                        if ($previos > 0):
-                            $color = $previos >= 5 ? 'bg-warning text-dark' : 'bg-info text-white';
-                    ?>
-                        <button type="button"
-                                class="badge <?php echo $color; ?> border-0 view-prev-sends-btn ms-1"
-                                data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                title="Ver envíos previos exitosos a esta misma cuenta"
-                                style="cursor:pointer;font-size:0.7rem;">
-                            <i class="bi bi-arrow-repeat"></i> Envío #<?php echo $previos + 1; ?>
-                        </button>
-                    <?php endif; ?>
-                </td>
-                <td><?php echo number_format($tx['MontoOrigen'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaOrigen'] ?? ''); ?></span></td>
-                <td><?php echo number_format($tx['MontoDestino'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?></span></td>
-                <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
-                <td><?php echo !empty($tx['FechaSubidaComprobante']) ? date("d/m/y H:i", strtotime($tx['FechaSubidaComprobante'])) : '—'; ?></td>
-                <td>
-                    <?php if (!empty($tx['FechaCompletado'])): ?>
-                        <span class="text-success small">Completada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCompletado'])); ?></span>
-                    <?php elseif (!empty($tx['FechaCancelacion'])): ?>
-                        <span class="text-danger small">Cancelada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCancelacion'])); ?></span>
-                    <?php else: ?>
-                        <span class="text-muted">—</span>
-                    <?php endif; ?>
-                </td>
-                <td>
-                    <span class="badge <?php echo getStatusBadgeClass($tx['EstadoNombre'] ?? ''); ?>">
-                        <?php echo htmlspecialchars($tx['EstadoNombre'] ?? 'Desconocido'); ?>
-                    </span>
-                    <?php if (($tx['EstadoNombre'] ?? '') === 'Pausado' && !empty($tx['MotivoPausa'])): ?>
-                        <div class="mt-1">
-                            <button type="button" class="btn btn-sm py-0 px-2 rounded-pill view-pause-reason-btn"
-                                data-reason="<?php echo htmlspecialchars($tx['MotivoPausa']); ?>"
-                                style="font-size: 0.7rem; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba;">
-                                <i class="bi bi-eye-fill me-1"></i> Ver Motivo
-                            </button>
-                        </div>
-                    <?php endif; ?>
-                    <?php
-                        $conf = $tx['ConfirmacionRecepcion'] ?? 'pendiente';
-                        if (($tx['EstadoNombre'] ?? '') === 'Exitoso'):
-                            $fechaConf = !empty($tx['FechaConfirmacionRecepcion'])
-                                ? date('d/m/Y H:i', strtotime($tx['FechaConfirmacionRecepcion']))
-                                : '';
-                            if ($conf === 'recibido'):
-                    ?>
-                        <div class="mt-1">
-                            <span class="badge bg-success" title="Cliente confirmó recepción<?php echo $fechaConf ? ' el ' . $fechaConf : ''; ?>">
-                                <i class="bi bi-check2-all"></i> Cliente recibió
-                            </span>
-                        </div>
-                    <?php elseif ($conf === 'no_recibido'): ?>
-                        <div class="mt-1">
-                            <span class="badge bg-danger" title="¡Atención! Cliente reportó no recibir<?php echo $fechaConf ? ' el ' . $fechaConf : ''; ?>">
-                                <i class="bi bi-exclamation-triangle-fill"></i> Cliente NO recibió
-                            </span>
-                        </div>
-                    <?php else: ?>
-                        <div class="mt-1">
-                            <span class="badge bg-secondary opacity-75" title="El cliente aún no ha confirmado la recepción">
-                                <i class="bi bi-hourglass-split"></i> Sin confirmar
-                            </span>
-                        </div>
-                    <?php
-                            endif;
-                        endif;
-                    ?>
-                </td>
-                <td>
-                    <div class="d-flex align-items-center justify-content-between">
-                        <span><?php echo number_format($tx['ComisionDestino'], 2); ?></span>
-                        <?php if (in_array($tx['EstadoNombre'], ['Exitoso', 'Pagado', 'En Proceso'])): ?>
-                            <button class="btn btn-sm btn-outline-primary edit-commission-btn ms-2 border-0"
-                                data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                data-current-val="<?php echo $tx['ComisionDestino']; ?>" title="Editar">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                        <?php endif; ?>
-                    </div>
-                </td>
-                <td class="text-center">
-                    <?php
-                        // Botón "Copiar datos generales" para admin (idéntico al de operador, con fecha).
-                        $hasCuenta_a   = !empty(trim($tx['BeneficiarioNumeroCuenta'] ?? ''));
-                        $hasTelefono_a = !empty(trim($tx['BeneficiarioTelefono'] ?? ''));
-                        $fechaGen_a    = !empty($tx['FechaTransaccion'])
-                            ? date('d/m/Y H:i', strtotime($tx['FechaTransaccion']))
-                            : '';
-
-                        $textoCopiado_a  = "ORDEN #{$tx['TransaccionID']}\n";
-                        if ($fechaGen_a) $textoCopiado_a .= "Fecha: {$fechaGen_a}\n";
-                        $textoCopiado_a .= "Banco: " . ($tx['BeneficiarioBanco'] ?? '') . "\n";
-                        $textoCopiado_a .= "Beneficiario: " . ($tx['BeneficiarioNombre'] ?? '') . "\n";
-                        if ($hasCuenta_a)   $textoCopiado_a .= "Cuenta: {$tx['BeneficiarioNumeroCuenta']}\n";
-                        if ($hasTelefono_a) $textoCopiado_a .= "Teléfono: {$tx['BeneficiarioTelefono']}\n";
-                        $textoCopiado_a .= "Doc: " . ($tx['BeneficiarioDocumento'] ?? '') . "\n";
-                        $textoCopiado_a .= "Monto: " . number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '');
-
-                        $textoBase64_a = base64_encode($textoCopiado_a);
-
-                        $jsonData_a = htmlspecialchars(json_encode([
-                            'id'         => $tx['TransaccionID'],
-                            'banco'      => $tx['BeneficiarioBanco'] ?? '',
-                            'nombre'     => $tx['BeneficiarioNombre'] ?? '',
-                            'doc'        => $tx['BeneficiarioDocumento'] ?? '',
-                            'cuenta'     => $tx['BeneficiarioNumeroCuenta'] ?? '',
-                            'telefono'   => $tx['BeneficiarioTelefono'] ?? '',
-                            'hasCuenta'  => $hasCuenta_a,
-                            'hasTelefono'=> $hasTelefono_a,
-                            'monto'      => number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '')
-                        ]), ENT_QUOTES, 'UTF-8');
-                    ?>
-                    <div class="d-flex gap-1 justify-content-center align-items-center">
-                        <!-- Primario: Abrir orden -->
-                        <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>" class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
-                            <i class="bi bi-window-split"></i>
-                        </a>
-
-                        <!-- Primario contextual: Pagar (solo En Proceso) -->
-                        <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
-                            <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal" data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-monto-destino="<?php echo $tx['MontoDestino']; ?>" data-pais-id="<?php echo $tx['PaisDestinoID'] ?? ''; ?>" data-moneda-destino="<?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?>" title="Pagar">
-                                <i class="bi bi-currency-dollar"></i>
-                            </button>
-                        <?php endif; ?>
-
-                        <!-- Menú con el resto -->
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Más acciones">
-                                <i class="bi bi-three-dots-vertical"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                <li>
-                                    <button class="dropdown-item js-copy-b64-btn" type="button" data-copy-b64="<?php echo $textoBase64_a; ?>">
-                                        <i class="bi bi-clipboard-check me-2"></i> Copiar datos
-                                    </button>
-                                </li>
-                                <li>
-                                    <button class="dropdown-item copy-data-btn" type="button" data-datos="<?php echo $jsonData_a; ?>">
-                                        <i class="bi bi-eye me-2"></i> Copiar por partes
-                                    </button>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank">
-                                        <i class="bi bi-file-earmark-pdf me-2"></i> Descargar PDF
-                                    </a>
-                                </li>
-                                <?php if (!empty($tx['ComprobanteURL'])): ?>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <button class="dropdown-item view-comprobante-btn-admin" type="button" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
-                                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        data-nombre-titular="<?php echo htmlspecialchars($nombreTitular); ?>"
-                                        data-rut-titular="<?php echo htmlspecialchars($rutTitular); ?>"
-                                        data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
-                                        data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>"
-                                        data-start-type="user">
-                                        <i class="bi bi-eye me-2"></i> Ver comprobante cliente
-                                    </button>
-                                </li>
-                                <?php endif; ?>
-                                <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
-                                <li>
-                                    <button class="dropdown-item view-comprobante-btn-admin" type="button" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
-                                        data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                        data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']) : ''; ?>"
-                                        data-envio-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
-                                        data-start-type="admin">
-                                        <i class="bi bi-receipt me-2"></i> Ver comprobante envío
-                                    </button>
-                                </li>
-                                <?php endif; ?>
-                            </ul>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-            <?php
+            include $ordenRowPartial;
         }
     }
     exit();
 }
 
-function getPaginationUrl($page, $filters)
-{
-    $params = array_merge($filters, ['pagina' => $page]);
-    return '?' . http_build_query($params);
-}
 $currentFilters = [
     'f_id' => $f_id, 'f_user' => $f_user, 'f_date' => $f_date, 'f_status' => $f_status,
     'f_origen' => $f_origen, 'f_destino' => $f_destino, 'f_confirm' => $f_confirm,
@@ -593,178 +386,15 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
 
     <div class="table-responsive position-relative">
         <table class="table table-bordered table-hover align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>ID</th>
-                    <th>Cliente</th>
-                    <th>Beneficiario</th>
-                    <th>Monto Origen</th>
-                    <th>Monto Destino</th>
-                    <th>F. Emisión</th>
-                    <th>F. Comprobante</th>
-                    <th>F. Completado/Cancelado</th>
-                    <th>Estado</th>
-                    <th>Comisión</th>
-                    <th class="text-center">Acciones</th>
-                </tr>
-            </thead>
+                <?php require __DIR__ . '/../../remesas_private/src/templates/partials/orden_thead.php'; ?>
             <tbody id="transactionsTableBody">
                 <?php if (empty($transacciones)): ?>
                     <tr>
                         <td colspan="11" class="text-center py-4 text-muted">No se encontraron resultados.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($transacciones as $tx):
-                        $nombreTitular = !empty($tx['NombreTitularOrigen']) ? $tx['NombreTitularOrigen'] : ($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']);
-                        $rutTitular = !empty($tx['RutTitularOrigen']) ? $tx['RutTitularOrigen'] : ($tx['UsuarioDocumento'] ?? 'N/A');
-                        ?>
-                        <tr>
-                            <td>
-                                <button type="button" class="btn btn-link btn-sm p-0 btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
-                                    #<?php echo $tx['TransaccionID']; ?>
-                                </button>
-                            </td>
-                            <td class="search-user">
-                                <button type="button" class="btn btn-link btn-sm p-0 text-start btn-cliente-info" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-nombre="<?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>" data-telefono="<?php echo htmlspecialchars($tx['ClienteTelefono'] ?? ''); ?>" data-doc="<?php echo htmlspecialchars($tx['UsuarioDocumento'] ?? ''); ?>">
-                                    <?php echo htmlspecialchars($tx['PrimerNombre'] . ' ' . $tx['PrimerApellido']); ?>
-                                </button>
-                            </td>
-                            <td class="search-beneficiary"><?php echo htmlspecialchars($tx['BeneficiarioNombreCompleto']); ?>
-                            </td>
-                            <td><?php echo number_format($tx['MontoOrigen'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaOrigen'] ?? ''); ?></span></td>
-                            <td><?php echo number_format($tx['MontoDestino'] ?? 0, 2, ',', '.'); ?> <span class="text-muted small"><?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?></span></td>
-                            <td><?php echo date("d/m/y H:i", strtotime($tx['FechaTransaccion'])); ?></td>
-                            <td><?php echo !empty($tx['FechaSubidaComprobante']) ? date("d/m/y H:i", strtotime($tx['FechaSubidaComprobante'])) : '—'; ?></td>
-                            <td>
-                                <?php if (!empty($tx['FechaCompletado'])): ?>
-                                    <span class="text-success small">Completada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCompletado'])); ?></span>
-                                <?php elseif (!empty($tx['FechaCancelacion'])): ?>
-                                    <span class="text-danger small">Cancelada<br><?php echo date("d/m/y H:i", strtotime($tx['FechaCancelacion'])); ?></span>
-                                <?php else: ?>
-                                    <span class="text-muted">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <span class="badge <?php echo getStatusBadgeClass($tx['EstadoNombre'] ?? ''); ?>">
-                                    <?php echo htmlspecialchars($tx['EstadoNombre'] ?? 'Desconocido'); ?>
-                                </span>
-                                <?php if (($tx['EstadoNombre'] ?? '') === 'Pausado' && !empty($tx['MotivoPausa'])): ?>
-                                    <div class="mt-1">
-                                        <button type="button" class="btn btn-sm py-0 px-2 rounded-pill view-pause-reason-btn"
-                                            data-reason="<?php echo htmlspecialchars($tx['MotivoPausa']); ?>"
-                                            style="font-size: 0.7rem; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba;">
-                                            <i class="bi bi-eye-fill me-1"></i> Ver Motivo
-                                        </button>
-                                    </div>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center justify-content-between">
-                                    <span><?php echo number_format($tx['ComisionDestino'], 2); ?></span>
-                                    <?php if (in_array($tx['EstadoNombre'], ['Exitoso', 'Pagado', 'En Proceso'])): ?>
-                                        <button class="btn btn-sm btn-outline-primary edit-commission-btn ms-2 border-0"
-                                            data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                            data-current-val="<?php echo $tx['ComisionDestino']; ?>" title="Editar">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td class="text-center">
-                                <?php
-                                    $hasCuenta_a   = !empty(trim($tx['BeneficiarioNumeroCuenta'] ?? ''));
-                                    $hasTelefono_a = !empty(trim($tx['BeneficiarioTelefono'] ?? ''));
-                                    $fechaGen_a    = !empty($tx['FechaTransaccion'])
-                                        ? date('d/m/Y H:i', strtotime($tx['FechaTransaccion']))
-                                        : '';
-
-                                    $textoCopiado_a  = "ORDEN #{$tx['TransaccionID']}\n";
-                                    if ($fechaGen_a) $textoCopiado_a .= "Fecha: {$fechaGen_a}\n";
-                                    $textoCopiado_a .= "Banco: " . ($tx['BeneficiarioBanco'] ?? '') . "\n";
-                                    $textoCopiado_a .= "Beneficiario: " . ($tx['BeneficiarioNombre'] ?? '') . "\n";
-                                    if ($hasCuenta_a)   $textoCopiado_a .= "Cuenta: {$tx['BeneficiarioNumeroCuenta']}\n";
-                                    if ($hasTelefono_a) $textoCopiado_a .= "Teléfono: {$tx['BeneficiarioTelefono']}\n";
-                                    $textoCopiado_a .= "Doc: " . ($tx['BeneficiarioDocumento'] ?? '') . "\n";
-                                    $textoCopiado_a .= "Monto: " . number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '');
-
-                                    $textoBase64_a = base64_encode($textoCopiado_a);
-
-                                    $jsonData_a = htmlspecialchars(json_encode([
-                                        'id'         => $tx['TransaccionID'],
-                                        'banco'      => $tx['BeneficiarioBanco'] ?? '',
-                                        'nombre'     => $tx['BeneficiarioNombre'] ?? '',
-                                        'doc'        => $tx['BeneficiarioDocumento'] ?? '',
-                                        'cuenta'     => $tx['BeneficiarioNumeroCuenta'] ?? '',
-                                        'telefono'   => $tx['BeneficiarioTelefono'] ?? '',
-                                        'hasCuenta'  => $hasCuenta_a,
-                                        'hasTelefono'=> $hasTelefono_a,
-                                        'monto'      => number_format($tx['MontoDestino'] ?? 0, 2, ',', '.') . ' ' . ($tx['MonedaDestino'] ?? '')
-                                    ]), ENT_QUOTES, 'UTF-8');
-                                ?>
-                                <div class="d-flex gap-1 justify-content-center align-items-center">
-                                    <!-- Primario: Abrir orden -->
-                                    <a href="orden.php?id=<?php echo $tx['TransaccionID']; ?>" class="btn btn-sm btn-dark" title="Abrir orden (pantalla dividida)">
-                                        <i class="bi bi-window-split"></i>
-                                    </a>
-
-                                    <!-- Primario contextual: Pagar (solo En Proceso) -->
-                                    <?php if ($tx['EstadoNombre'] === 'En Proceso'): ?>
-                                        <button class="btn btn-sm btn-primary admin-upload-btn" data-bs-toggle="modal" data-bs-target="#adminUploadModal" data-tx-id="<?php echo $tx['TransaccionID']; ?>" data-monto-destino="<?php echo $tx['MontoDestino']; ?>" data-pais-id="<?php echo $tx['PaisDestinoID'] ?? ''; ?>" data-moneda-destino="<?php echo htmlspecialchars($tx['MonedaDestino'] ?? ''); ?>" title="Pagar">
-                                            <i class="bi bi-currency-dollar"></i>
-                                        </button>
-                                    <?php endif; ?>
-
-                                    <!-- Menú con el resto -->
-                                    <div class="dropdown">
-                                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Más acciones">
-                                            <i class="bi bi-three-dots-vertical"></i>
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                            <li>
-                                                <button class="dropdown-item js-copy-b64-btn" type="button" data-copy-b64="<?php echo $textoBase64_a; ?>">
-                                                    <i class="bi bi-clipboard-check me-2"></i> Copiar datos
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item copy-data-btn" type="button" data-datos="<?php echo $jsonData_a; ?>">
-                                                    <i class="bi bi-eye me-2"></i> Copiar por partes
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <a class="dropdown-item" href="<?php echo BASE_URL; ?>/generar-factura.php?id=<?php echo $tx['TransaccionID']; ?>" target="_blank">
-                                                    <i class="bi bi-file-earmark-pdf me-2"></i> Descargar PDF
-                                                </a>
-                                            </li>
-                                            <?php if (!empty($tx['ComprobanteURL'])): ?>
-                                            <li><hr class="dropdown-divider"></li>
-                                            <li>
-                                                <button class="dropdown-item view-comprobante-btn-admin" type="button" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
-                                                    data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                                    data-nombre-titular="<?php echo htmlspecialchars($nombreTitular); ?>"
-                                                    data-rut-titular="<?php echo htmlspecialchars($rutTitular); ?>"
-                                                    data-comprobante-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteURL']); ?>"
-                                                    data-envio-url="<?php echo !empty($tx['ComprobanteEnvioURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteEnvioURL']) : ''; ?>"
-                                                    data-start-type="user">
-                                                    <i class="bi bi-eye me-2"></i> Ver comprobante cliente
-                                                </button>
-                                            </li>
-                                            <?php endif; ?>
-                                            <?php if (!empty($tx['ComprobanteEnvioURL'])): ?>
-                                            <li>
-                                                <button class="dropdown-item view-comprobante-btn-admin" type="button" data-bs-toggle="modal" data-bs-target="#viewComprobanteModal"
-                                                    data-tx-id="<?php echo $tx['TransaccionID']; ?>"
-                                                    data-comprobante-url="<?php echo !empty($tx['ComprobanteURL']) ? 'view_secure_file.php?file=' . urlencode($tx['ComprobanteURL']) : ''; ?>"
-                                                    data-envio-url="view_secure_file.php?file=<?php echo urlencode($tx['ComprobanteEnvioURL']); ?>"
-                                                    data-start-type="admin">
-                                                    <i class="bi bi-receipt me-2"></i> Ver comprobante envío
-                                                </button>
-                                            </li>
-                                            <?php endif; ?>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
+                    <?php foreach ($transacciones as $tx): ?>
+                        <?php include $ordenRowPartial; ?>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
@@ -855,236 +485,6 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
     </div>
 </div>
 
-<div class="modal fade" id="editCommissionModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Editar Comisión</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Estás editando la comisión para la Orden <strong id="modal-commission-tx-id-label"></strong></p>
-                <form id="edit-commission-form">
-                    <input type="hidden" id="commission-tx-id" name="transactionId">
-                    <div class="mb-3">
-                        <label for="new-commission-input" class="form-label">Monto de la Comisión</label>
-                        <input type="number" step="0.01" min="0" class="form-control" id="new-commission-input"
-                            name="newCommission" required>
-                    </div>
-                    <div class="alert alert-warning small">
-                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                        Al guardar, el saldo contable de la caja se ajustará automáticamente.
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="viewComprobanteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0" style="height: 85vh;">
-            <div class="modal-header bg-dark text-white py-2">
-                <h5 class="modal-title fs-6">Comprobante</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-0 d-flex flex-column flex-lg-row h-100 flex-grow-1 overflow-hidden">
-                <div class="bg-light p-3 border-end overflow-auto" style="min-width: 250px; max-width: 300px;">
-                    <h6 class="text-primary border-bottom pb-2 mb-3">Datos del Titular (Origen)</h6>
-                    <div class="mb-3">
-                        <label class="small text-muted fw-bold">Nombre Titular</label>
-                        <div class="fs-6 text-dark" id="visor-nombre-titular">Cargando...</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="small text-muted fw-bold">RUT / Documento</label>
-                        <div class="fs-6 text-dark" id="visor-rut-titular">Cargando...</div>
-                    </div>
-                    <hr>
-                    <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary active" id="tab-btn-user">Pago
-                            Cliente</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="tab-btn-admin">Envío
-                            Admin</button>
-                    </div>
-                </div>
-
-                <div class="flex-grow-1 bg-dark position-relative d-flex align-items-center justify-content-center"
-                    style="background-color: #333;">
-                    <div id="comprobante-placeholder" class="spinner-border text-light"></div>
-
-                    <div id="comprobante-content"
-                        class="w-100 h-100 d-flex align-items-center justify-content-center p-3">
-                        <img id="comprobante-img-full" src="" class="img-fluid d-none"
-                            style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="Comprobante">
-                        <iframe id="comprobante-pdf-full" class="w-100 h-100 d-none border-0" style="background:white;"
-                            loading="lazy"></iframe>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-center py-1 bg-light">
-                <a href="#" id="download-comprobante-btn" class="btn btn-sm btn-dark" download target="_blank">
-                    <i class="bi bi-download me-2"></i>Descargar
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="viewPauseReasonModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content shadow">
-            <div class="modal-header bg-warning py-2">
-                <h6 class="modal-title fw-bold text-dark"><i class="bi bi-pause-circle-fill me-2"></i>Motivo de Pausa
-                </h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body text-center p-4">
-                <i class="bi bi-info-circle text-warning display-4 mb-3 d-block"></i>
-                <p class="mb-0 fw-medium" id="pause-reason-text" style="font-size: 1.1rem;"></p>
-            </div>
-            <div class="modal-footer justify-content-center py-2 bg-light border-0">
-                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cerrar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="clienteInfoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content shadow">
-            <div class="modal-header bg-primary text-white py-2">
-                <h6 class="modal-title fw-bold"><i class="bi bi-person-badge me-2"></i>Datos del Cliente</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <dl class="row mb-0 small">
-                    <dt class="col-5">Orden ID</dt><dd class="col-7" id="cliente-info-tx-id"></dd>
-                    <dt class="col-5">Nombre</dt><dd class="col-7" id="cliente-info-nombre"></dd>
-                    <dt class="col-5">Teléfono</dt><dd class="col-7" id="cliente-info-telefono"></dd>
-                    <dt class="col-5">Documento</dt><dd class="col-7" id="cliente-info-doc"></dd>
-                </dl>
-            </div>
-            <div class="modal-footer justify-content-center py-2 bg-light border-0">
-                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cerrar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="adminUploadModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title">Finalizar Orden #<span id="modal-admin-tx-id"></span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="admin-upload-form" enctype="multipart/form-data">
-                    <input type="hidden" id="adminTransactionIdField" name="transactionId">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Cuenta de Salida (Desde dónde pagas)</label>
-                        <select class="form-select" name="cuentaSalidaID" id="cuentaSalidaSelect" required>
-                            <option value="">-- Cargando Bancos... --</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Comprobante de Pago</label>
-                        <input class="form-control" type="file" name="receiptFile" required
-                            accept="image/*,application/pdf">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Comisión</label>
-                        <input type="number" step="0.01" class="form-control" id="adminComisionDestino"
-                            name="comisionDestino" value="0">
-                    </div>
-                    <div id="replace-proof-warning" class="alert alert-warning d-none mb-2" role="alert"></div>
-                    <button type="submit" class="btn btn-success w-100">Confirmar y Finalizar</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- El modal global #infoModal ya viene de footer.php — antes había uno
-     duplicado acá sin id="infoModalHeader" en el modal-header, que colisionaba
-     por id="infoModal" repetido. getElementById() se quedaba con este (primero
-     en el DOM) y modalUtils.js tiraba TypeError al buscar infoModalHeader,
-     rompiendo showInfoModal() en silencio en toda la página. -->
-
-<div class="modal fade" id="copyDataModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">Datos para Transferencia - Orden #<span id="copy-tx-id"></span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-light border d-flex justify-content-between align-items-center mb-4 shadow-sm">
-                    <strong class="fs-5 text-muted">Monto a Pagar:</strong>
-                    <div class="d-flex align-items-center">
-                        <span class="fs-3 fw-bold text-success me-3" id="copy-monto-display"></span>
-                        <button class="btn btn-outline-success btn-sm js-copy-btn"
-                            data-copy-target="copy-monto-value"><i class="bi bi-clipboard"></i></button>
-                        <input type="hidden" id="copy-monto-value">
-                    </div>
-                </div>
-
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="small text-muted fw-bold">Banco / Billetera</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control fw-bold" id="copy-banco" readonly>
-                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-banco"><i
-                                    class="bi bi-clipboard"></i></button>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6" id="container-cuenta" style="display: none;">
-                        <label class="small text-muted fw-bold">Cuenta Bancaria</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control fw-bold" id="copy-cuenta" readonly>
-                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-cuenta"><i
-                                    class="bi bi-clipboard"></i></button>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6" id="container-telefono" style="display: none;">
-                        <label class="small text-muted fw-bold">Teléfono (Pago Móvil/Billetera)</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control fw-bold" id="copy-telefono" readonly>
-                            <button class="btn btn-outline-secondary js-copy-btn"
-                                data-copy-target="copy-telefono"><i
-                                    class="bi bi-clipboard"></i></button>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="small text-muted fw-bold">Documento</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="copy-doc" readonly>
-                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-doc"><i
-                                    class="bi bi-clipboard"></i></button>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <label class="small text-muted fw-bold">Beneficiario</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="copy-nombre" readonly>
-                            <button class="btn btn-outline-secondary js-copy-btn" data-copy-target="copy-nombre"><i
-                                    class="bi bi-clipboard"></i></button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-            </div>
-        </div>
-    </div>
-</div>
+<?php require __DIR__ . '/../../remesas_private/src/templates/partials/orden_modals.php'; ?>
 
 <?php require_once __DIR__ . '/../../remesas_private/src/templates/footer.php'; ?>
