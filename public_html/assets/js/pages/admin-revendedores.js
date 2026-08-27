@@ -143,8 +143,9 @@
         const tbody = document.getElementById('resellers-body');
         try {
             const res  = await fetch('../api/?accion=getResellerList');
-            if (!res.ok) throw new Error(`El servidor respondió con un error (${res.status}).`);
-            const data = await res.json();
+            let data = null;
+            try { data = await res.json(); } catch (_) { /* respuesta no-JSON */ }
+            if (!res.ok) throw new Error((data && data.error) || `El servidor respondió con un error (${res.status}).`);
             if (!data.success) throw new Error(data.error || 'No se pudo obtener la lista de revendedores.');
             if (!data.data.length) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No hay revendedores registrados.</td></tr>';

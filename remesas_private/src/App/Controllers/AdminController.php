@@ -940,8 +940,12 @@ class AdminController extends BaseController
     public function getResellerList(): void
     {
         $this->ensureAdmin();
-        $data = $this->txRepository->getResellersSummary();
-        $this->sendJsonResponse(['success' => true, 'data' => $data]);
+        try {
+            $data = $this->txRepository->getResellersSummary();
+            $this->sendJsonResponse(['success' => true, 'data' => $data]);
+        } catch (Exception $e) {
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 500);
+        }
     }
 
     /**
