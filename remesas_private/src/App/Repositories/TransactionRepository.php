@@ -1261,7 +1261,11 @@ class TransactionRepository
                 WHERE U.RolID = 4 AND U.Eliminado = 0
                 GROUP BY U.UserID
                 ORDER BY U.PrimerNombre, U.PrimerApellido";
-        $resellers = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
+        $result = $conn->query($sql);
+        if ($result === false) {
+            throw new \Exception('Error al consultar revendedores: ' . $conn->error);
+        }
+        $resellers = $result->fetch_all(MYSQLI_ASSOC);
         if (!$resellers) {
             return [];
         }
@@ -1279,7 +1283,11 @@ class TransactionRepository
                            AND T.EstadoID = 4 AND T.ComisionRevendedor > 0
                          GROUP BY T.UserID, T.MonedaOrigen
                          ORDER BY T.MonedaOrigen";
-        $breakdown = $conn->query($breakdownSql)->fetch_all(MYSQLI_ASSOC);
+        $breakdownResult = $conn->query($breakdownSql);
+        if ($breakdownResult === false) {
+            throw new \Exception('Error al consultar comisiones de revendedores: ' . $conn->error);
+        }
+        $breakdown = $breakdownResult->fetch_all(MYSQLI_ASSOC);
 
         $ganado    = [];
         $pendiente = [];
