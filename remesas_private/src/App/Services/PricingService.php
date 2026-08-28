@@ -132,6 +132,17 @@ class PricingService
         }
 
         try {
+            // El freeze por feriado/sistema bloqueado aplica SOLO al cron: el
+            // admin puede seguir editando tasas a mano (BCV, individuales o
+            // ajuste global manual) aunque el sistema esté bloqueado — es su
+            // propia acción, no la automática. Por eso el chequeo vive acá y
+            // no dentro de applyGlobalAdjustment(), que también usa el botón
+            // "Aplicar ahora" del panel.
+            $status = $this->systemService->checkSystemAvailability();
+            if (!$status['available']) {
+                throw new Exception("Operación Bloqueada: El sistema está en modo '{$status['reason']}' ({$status['message']}). Las tasas están congeladas.", 403);
+            }
+
             $aplicado = $this->applyGlobalAdjustment(1, $settings['percent']) > 0;
         } catch (Throwable $e) {
             // Falló de entrada (feriado, sistema bloqueado, porcentaje inválido):
@@ -191,11 +202,6 @@ class PricingService
         }
 
         $this->validateAdjustmentPercentage($percentage);
-
-        $status = $this->systemService->checkSystemAvailability();
-        if (!$status['available']) {
-            throw new Exception("Operación Bloqueada: El sistema está en modo '{$status['reason']}' ({$status['message']}). Las tasas están congeladas.", 403);
-        }
 
         $tasasRef = $this->rateRepository->findAllReferentialRates();
         $count = 0;
@@ -539,11 +545,9 @@ class PricingService
             );
         }
 
-        $status = $this->systemService->checkSystemAvailability();
-        if (!$status['available']) {
-            throw new Exception("BLOQUEO AUTOMÁTICO: El sistema está en feriado ({$status['message']}). No se permite actualizar la tasa BCV.", 403);
-        }
-
+        // Sin chequeo de feriado/bloqueo a propósito: el admin puede seguir
+        // ajustando la tasa BCV aunque haya bloqueado el sistema — es su
+        // propia acción, no queda congelada como el ajuste automático.
         $success = $this->settingsRepository->updateValue('tasa_dolar_bcv', (string) $newValue);
         if ($success)
             $this->notificationService->logAdminAction($adminId, 'Actualización Tasa BCV', "Nuevo: " . $newValue);
