@@ -775,7 +775,8 @@ class AdminController extends BaseController
             $this->pricingService->updateBcvRate($adminId, $newValue);
             $this->sendJsonResponse(['success' => true, 'message' => 'Tasa BCV actualizada.']);
         } catch (Exception $e) {
-            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], 400);
+            $code = $e->getCode() ?: 400;
+            $this->sendJsonResponse(['success' => false, 'error' => ErrorPresenter::publicMessage($e, __METHOD__)], $code);
         }
     }
 

@@ -290,8 +290,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ rate: parseInput(bcvRateInput.value) })
                 });
-                if (!response.ok) throw new Error(`El servidor respondió con un error (${response.status}).`);
-                const result = await response.json();
+                let result = null;
+                try { result = await response.json(); } catch (_) { /* respuesta no-JSON */ }
+                if (!response.ok && !result) throw new Error(`El servidor respondió con un error (${response.status}).`);
                 if (result.success) {
                     bcvFeedback.innerHTML = '<div class="alert alert-success py-1 small">Actualizada.</div>';
                     setTimeout(() => bcvFeedback.innerHTML = '', 3000);
