@@ -274,7 +274,7 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                     </div>
                     <dl class="row mb-3 small">
                         <dt class="col-5">Tasa</dt>
-                        <dd class="col-7"><?php echo number_format((float) $tasaMostrar, 2); ?></dd>
+                        <dd class="col-7"><?php echo \App\Support\RateFormatter::format((float) $tasaMostrar); ?></dd>
                         <dt class="col-5">Comisión</dt>
                         <dd class="col-7"><?php echo number_format((float) ($orden['ComisionDestino'] ?? 0), 2); ?></dd>
                     </dl>
