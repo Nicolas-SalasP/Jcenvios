@@ -214,7 +214,7 @@ class PDFService
             ? $tx['TasaCapturada']
             : $tx['ValorTasa'];
 
-        $pdf->Cell($cellWidths[1], 10, number_format($tasaAUsar, 5, ',', '.'), 1, 0, 'C');
+        $pdf->Cell($cellWidths[1], 10, \App\Support\RateFormatter::format((float) $tasaAUsar), 1, 0, 'C');
 
         $pdf->Cell($cellWidths[2], 10, number_format($tx['MontoDestino'], 2, ',', '.') . ' ' . $this->cleanText($tx['MonedaDestino']), 1, 1, 'C');
         $pdf->Ln(10);
