@@ -57,16 +57,22 @@ class TransactionProofRepository
     }
 
     /**
-     * Máximo de órdenes distintas que pueden usar el mismo hash de archivo,
-     * contando canceladas. 2 = el intento original + 1 reintento legítimo
-     * tras cancelación. Sin este tope, cancelar repetidamente libera el
-     * hash cada vez y el mismo comprobante se puede reciclar sin límite.
+     * ¿Este comprobante ya está en uso por una orden VIVA?
+     *
+     * Solo bloquea mientras exista una orden no cancelada (EstadoID != 5) con
+     * el mismo archivo: eso es lo que impide pagar dos órdenes con un único
+     * comprobante, que es el fraude real a evitar.
+     *
+     * NO hay tope de reusos históricos. Antes existía uno (máximo 2 órdenes
+     * distintas por hash, contando canceladas): la idea era frenar el reciclaje
+     * por cancelaciones repetidas, pero en la práctica castigaba al cliente
+     * honesto —el que se equivoca de orden, cancela y quiere volver a subir el
+     * mismo comprobante en la correcta— que es el caso frecuente. Se retiró por
+     * decisión del usuario el 2026-09-01. Una orden cancelada libera su
+     * comprobante sin límite de veces.
      */
-    private const MAX_USOS_POR_HASH = 2;
-
     public function findByHash(string $hash): ?array
     {
-        // 1) ¿Hay una orden activa (no cancelada) usando este hash ahora mismo?
         $stmt = $this->db->prepare(
             "SELECT tp.ProofID, tp.TransaccionID, tp.Tipo
              FROM transaction_proofs tp
@@ -77,32 +83,7 @@ class TransactionProofRepository
         $stmt->execute();
         $active = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if ($active) {
-            return $active;
-        }
 
-        // 2) Sin orden activa: ¿ya se usó este hash el máximo de veces permitido
-        // en total (contando canceladas)? Si sí, sigue bloqueado aunque todas
-        // las órdenes previas estén canceladas.
-        $stmtCount = $this->db->prepare(
-            "SELECT COUNT(DISTINCT TransaccionID) AS total FROM transaction_proofs WHERE FileHash = ?"
-        );
-        $stmtCount->bind_param("s", $hash);
-        $stmtCount->execute();
-        $total = (int) ($stmtCount->get_result()->fetch_assoc()['total'] ?? 0);
-        $stmtCount->close();
-
-        if ($total < self::MAX_USOS_POR_HASH) {
-            return null;
-        }
-
-        $stmtLast = $this->db->prepare(
-            "SELECT ProofID, TransaccionID, Tipo FROM transaction_proofs WHERE FileHash = ? ORDER BY ProofID DESC LIMIT 1"
-        );
-        $stmtLast->bind_param("s", $hash);
-        $stmtLast->execute();
-        $last = $stmtLast->get_result()->fetch_assoc();
-        $stmtLast->close();
-        return $last ?: null;
+        return $active ?: null;
     }
 }
