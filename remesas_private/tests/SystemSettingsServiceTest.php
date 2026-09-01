@@ -200,6 +200,50 @@ class SystemSettingsServiceTest extends TestCase
         $this->assertTrue($result['active']);
     }
 
+    /**
+     * Regresión del bug reportado el 2026-08-29: fuera del horario laboral (y
+     * los domingos) el override nacía con ExpiraEn = "ahora", así que el
+     * getHorarioOverrideStatus() inmediatamente posterior ya lo daba por
+     * vencido y el switch del panel "se destildaba solo" al hacerle click.
+     *
+     * La invariante que se prueba no depende de la hora en que corra la suite:
+     * la expiración SIEMPRE tiene que quedar por delante del instante actual.
+     */
+    public function testToggleHorarioOverrideGuardaUnaExpiracionFutura()
+    {
+        $capturado = null;
+
+        $horarioRepo = $this->createMock(HorarioOverrideRepository::class);
+        $horarioRepo->method('setOverride')->willReturnCallback(
+            function ($activo, $adminId, $expiraEn) use (&$capturado) {
+                $capturado = $expiraEn;
+                return true;
+            }
+        );
+        $horarioRepo->method('getStatus')->willReturn(null);
+
+        $service = $this->buildService(['horarioOverrideRepo' => $horarioRepo]);
+
+        foreach ([true, false] as $activo) {
+            $capturado = null;
+            $service->toggleHorarioOverride(1, $activo);
+
+            $this->assertNotNull($capturado, 'No se guardó ninguna expiración.');
+
+            $tz    = new DateTimeZone('America/Santiago');
+            $ahora = new DateTime('now', $tz);
+            $exp   = DateTime::createFromFormat('Y-m-d H:i:s', $capturado, $tz);
+
+            $this->assertInstanceOf(DateTime::class, $exp, "ExpiraEn con formato inválido: {$capturado}");
+            $this->assertGreaterThan(
+                $ahora,
+                $exp,
+                'El override nació vencido: con activo=' . var_export($activo, true) .
+                " la expiración quedó en {$capturado}, que ya pasó."
+            );
+        }
+    }
+
     public function testClearHorarioOverrideFallaSiRepoNoLimpia()
     {
         $horarioRepo = $this->createMock(HorarioOverrideRepository::class);
