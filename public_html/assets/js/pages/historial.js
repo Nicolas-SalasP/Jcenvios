@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (montoInput && montoInput.dataset.original) {
                     originalMonto = parseFloat(montoInput.dataset.original);
                     nuevoMonto = parseFloat(montoInput.value);
-                    
+
                     if (montoInput.dataset.moneda !== 'USD') {
                         nuevoMonto = Math.floor(nuevoMonto);
                     }
@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         hasNewAmount = true;
                     }
                 }
-            
+
                 const beneficiaryData = {
                     nombre: document.getElementById('edit-benef-name').value.trim(),
                     documento: document.getElementById('edit-benef-doc').value.trim(),
@@ -281,10 +281,26 @@ document.addEventListener('DOMContentLoaded', () => {
             filterData();
 
             // Muestra modal si hay órdenes canceladas automáticamente
-            const hayAutoCancelados = allTransactions.some(tx => parseInt(tx.AutoCancelado, 10) === 1);
+            const canceladasVistas = JSON.parse(localStorage.getItem('jc_canceladas_vistas') || '[]');
+            const nuevasCanceladas = allTransactions.filter(tx =>
+                parseInt(tx.AutoCancelado, 10) === 1 && !canceladasVistas.includes(tx.TransaccionID)
+            );
+
+            const hayAutoCancelados = nuevasCanceladas.length > 0;
             if (hayAutoCancelados) {
                 const modalEl = document.getElementById('autoCanceladoModal');
-                if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                if (modalEl) {
+                    const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    bsModal.show();
+                    const btnEntendido = modalEl.querySelector('[data-bs-dismiss="modal"]');
+                    if (btnEntendido) {
+                        btnEntendido.onclick = function () {
+                            const nuevosIds = nuevasCanceladas.map(tx => tx.TransaccionID);
+                            const actualizados = [...new Set([...canceladasVistas, ...nuevosIds])];
+                            localStorage.setItem('jc_canceladas_vistas', JSON.stringify(actualizados));
+                        };
+                    }
+                }
             }
 
             // Muestra modal de confirmación de recepción 2h después del pago
@@ -412,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ext = getFileExt(tx.ComprobanteURL);
                 // Mostrar fecha y hora de subida del comprobante en el tooltip y como sub-texto
                 const fechaSubida = tx.FechaSubidaComprobante
-                    ? new Date(tx.FechaSubidaComprobante.replace(' ', 'T')).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+                    ? new Date(tx.FechaSubidaComprobante.replace(' ', 'T')).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                     : null;
                 const tituloPago = fechaSubida ? `Ver Pago (subido ${fechaSubida})` : 'Ver Pago';
                 btns += ` <button class="btn btn-sm btn-outline-secondary view-comprobante-btn" 
@@ -447,7 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tx.EstadoNombre === 'Exitoso') {
                 const conf = (tx.ConfirmacionRecepcion || 'pendiente');
                 const fechaConf = tx.FechaConfirmacionRecepcion
-                    ? new Date(tx.FechaConfirmacionRecepcion.replace(' ', 'T')).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+                    ? new Date(tx.FechaConfirmacionRecepcion.replace(' ', 'T')).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                     : '';
 
                 if (conf === 'pendiente') {
