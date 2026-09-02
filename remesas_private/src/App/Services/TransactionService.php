@@ -572,8 +572,9 @@ class TransactionService
 
         $this->txRepository->clearComprobanteHash($txId);
         // No hace falta liberar transaction_proofs.FileHash acá: TransactionProofRepository::
-        // findByHash() ya resuelve la reutilización tras cancelar (EstadoID != 5) con tope de
-        // MAX_USOS_POR_HASH, sin necesidad de destruir el hash original del registro de auditoría.
+        // findByHash() solo bloquea mientras haya una orden viva usando el archivo
+        // (EstadoID != 5), así que cancelar ya lo libera, sin destruir el hash original
+        // del registro de auditoría.
 
         // Incondicional, cubre tanto el rechazo duro (-> Cancelado) como el
         // soft-reject (-> Pendiente de Pago). El soft-reject importa: la orden

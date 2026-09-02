@@ -380,9 +380,11 @@ require_once __DIR__ . '/../../remesas_private/src/templates/header.php';
                             </div>
 
                         <?php elseif ($estadoId === 1): ?>
-                            <div class="alert alert-warning mb-0 w-100 py-2">
+                            <div class="alert alert-warning mb-2 w-100 py-2">
                                 <i class="bi bi-hourglass-split"></i> El cliente aún no ha pagado esta orden.
                             </div>
+                            <button class="btn btn-sm btn-danger reject-btn"
+                                data-tx-id="<?php echo $txId; ?>">Cancelar orden</button>
 
                         <?php else: ?>
                             <div class="alert alert-light border mb-0 w-100 py-2">Sin acciones disponibles para este estado.</div>

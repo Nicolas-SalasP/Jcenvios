@@ -115,43 +115,59 @@ class SystemSettingsService
     // --- OVERRIDE MANUAL DE HORARIO LABORAL (ADMIN) ---
 
     /**
-     * Calcula el fin del horario laboral normal para "ahora" (America/Santiago).
-     * Lunes-Viernes 19:30, Sábado 16:00. Domingo no tiene horario laboral,
-     * por lo que el fin "efectivo" es el propio instante actual (el override
-     * de supresión no tiene sentido más allá de ahora mismo ese día).
-     * Si "ahora" ya pasó el fin de horario del día, retorna "ahora" (ya vencido).
+     * Próximo fin de horario laboral a partir de "ahora" (America/Santiago):
+     * el de hoy si todavía no pasó, si no el del siguiente día hábil.
+     * Lunes-Viernes 19:30, Sábado 16:00, domingo no tiene horario laboral.
+     *
+     * BUG QUE ARREGLA (reportado 2026-08-29): antes esto devolvía "ahora" cuando
+     * el día ya había cerrado o era domingo, así que el override nacía vencido:
+     * toggleHorarioOverride lo guardaba con ExpiraEn = ese instante y el
+     * getHorarioOverrideStatus() siguiente ya lo daba por expirado (active =>
+     * null). En pantalla se veía como que el switch "se destildaba solo" al
+     * hacerle click, y justo en el momento en que el admin más lo necesita:
+     * fuera de horario. Ahora el override siempre nace con una expiración real
+     * por delante, y sigue caducando solo como estaba pensado.
      */
-    private function getBusinessHoursEndForToday(DateTime $now): DateTime
+    private function getNextBusinessHoursEnd(DateTime $now): DateTime
     {
-        $dayOfWeek = (int)$now->format('N'); // 1 (Lunes) .. 7 (Domingo)
-        $end = clone $now;
+        $cursor = clone $now;
 
-        if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-            $end->setTime(19, 30, 0);
-        } elseif ($dayOfWeek === 6) {
-            $end->setTime(16, 0, 0);
-        } else {
-            // Domingo: sin horario laboral, el override expira de inmediato.
-            return $now;
+        // 8 vueltas alcanzan para cruzar cualquier domingo y volver a un hábil.
+        for ($i = 0; $i < 8; $i++) {
+            $dayOfWeek = (int) $cursor->format('N'); // 1 (Lunes) .. 7 (Domingo)
+
+            if ($dayOfWeek >= 1 && $dayOfWeek <= 6) {
+                $end = clone $cursor;
+                if ($dayOfWeek === 6) {
+                    $end->setTime(16, 0, 0);
+                } else {
+                    $end->setTime(19, 30, 0);
+                }
+
+                if ($end > $now) {
+                    return $end;
+                }
+            }
+
+            $cursor->modify('+1 day')->setTime(0, 0, 0);
         }
 
-        if ($end < $now) {
-            return $now;
-        }
-
-        return $end;
+        // Inalcanzable con el calendario actual; red de seguridad para no
+        // devolver nunca una fecha ya vencida.
+        return (clone $now)->modify('+1 day');
     }
 
     /**
      * Activa (fuerza aviso) o desactiva (suprime aviso) manualmente el
-     * override de "fuera de horario". El override queda vigente solo hasta
-     * el fin del horario laboral normal del día actual (ExpiraEn); pasada
-     * esa hora se considera vencido automáticamente sin acción del admin.
+     * override de "fuera de horario". El override queda vigente hasta el
+     * PRÓXIMO fin de horario laboral (hoy si aún no pasó, si no el del
+     * siguiente día hábil); pasada esa hora se considera vencido
+     * automáticamente sin acción del admin.
      */
     public function toggleHorarioOverride(int $adminId, bool $activo): array
     {
         $now = new DateTime('now', new DateTimeZone(self::TZ));
-        $expiraEn = $this->getBusinessHoursEndForToday($now)->format('Y-m-d H:i:s');
+        $expiraEn = $this->getNextBusinessHoursEnd($now)->format('Y-m-d H:i:s');
 
         if (!$this->horarioOverrideRepo->setOverride($activo, $adminId, $expiraEn)) {
             throw new Exception("Error al guardar el override de horario en la base de datos.", 409);

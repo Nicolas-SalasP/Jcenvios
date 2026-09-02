@@ -388,9 +388,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         title="Modificar Datos"><i class="bi bi-pencil-square"></i> Corregir</button>
                 `;
             }
-            if (estadoId === 1) {
+            // Cancelable por el propio cliente en Pendiente de Pago (1) y en
+            // Verificación (2): si subió el comprobante equivocado, cancelar es
+            // la única salida —el backend libera el hash al cancelar, así que
+            // ese mismo comprobante queda disponible para la orden correcta.
+            // El backend (cancelTransaction) ya admitía ambos estados.
+            if (estadoId === 1 || estadoId === 2) {
                 btns += `<button class="btn btn-sm btn-outline-danger cancel-btn" data-tx-id="${tx.TransaccionID}" title="Cancelar Orden"><i class="bi bi-x-circle"></i> Cancelar</button>`;
-
+            }
+            if (estadoId === 1) {
                 const extensionesUsadas = parseInt(tx.ExtensionesPlazoUsadas || 0);
                 if (extensionesUsadas < 2) {
                     btns += ` <button class="btn btn-sm btn-outline-success extend-deadline-btn" data-tx-id="${tx.TransaccionID}" title="Confirmar que vas a pagar y obtener 4 horas más de plazo"><i class="bi bi-clock-history"></i> Sí, voy a pagar</button>`;
