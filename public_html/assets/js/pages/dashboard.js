@@ -1120,6 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (paisId === C_VENEZUELA) {
                 if (containerBankSelect) containerBankSelect.classList.remove('d-none');
                 const opsVe = [
+                    { val: 'Banco de Venezuela', text: 'Banco de Venezuela' },
                     { val: 'Banesco', text: 'Banesco' },
                     { val: 'Provincial', text: 'Provincial' },
                     { val: 'Mercantil', text: 'Mercantil' },
