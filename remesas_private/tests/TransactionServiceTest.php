@@ -381,6 +381,41 @@ class TransactionServiceTest extends TestCase
         $this->assertTrue($service->adminRejectPayment(1, 123, 'corregir', true));
     }
 
+    /**
+     * Regresión (2026-09-05): el soft-reject devuelve la orden a Pendiente de
+     * Pago pero solo limpiaba el hash del comprobante, no la URL ni la fecha.
+     * autoCancelExpired() exige ComprobanteURL IS NULL para actuar, así que
+     * una orden "Solicitar Corrección" donde el cliente nunca vuelve a subir
+     * nada quedaba invisible para el cron de auto-cancelación para siempre.
+     * Encontrado en producción: órdenes de mayo/agosto seguían "Pendiente de
+     * Pago" pese al cron corriendo.
+     */
+    public function testAdminRejectPaymentSoftBorraComprobanteEnteroNoSoloElHash()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(1);
+        $txRepo->expects($this->once())->method('clearComprobanteUpload')->with(123);
+        $txRepo->expects($this->never())->method('clearComprobanteHash');
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->assertTrue($service->adminRejectPayment(1, 123, 'corregir', true));
+    }
+
+    public function testAdminRejectPaymentDuroConservaElComprobanteComoEvidencia()
+    {
+        $txRepo = $this->createMock(TransactionRepository::class);
+        $txRepo->method('getFullTransactionDetails')->willReturn(['TransaccionID' => 123, 'Email' => 'a@a.com', 'PrimerNombre' => 'Juan']);
+        $txRepo->method('updateStatus')->willReturn(1);
+        $txRepo->expects($this->once())->method('clearComprobanteHash')->with(123);
+        $txRepo->expects($this->never())->method('clearComprobanteUpload');
+
+        $service = $this->buildService(['txRepo' => $txRepo]);
+
+        $this->assertTrue($service->adminRejectPayment(1, 123, 'motivo', false));
+    }
+
     public function testAdminRejectPaymentNoRevierteSiElEstadoNoLoPermite()
     {
         $txRepo = $this->createMock(TransactionRepository::class);

@@ -570,7 +570,17 @@ class TransactionService
             throw new Exception("No se pudo rechazar. El estado actual no permite esta acción.", 409);
         }
 
-        $this->txRepository->clearComprobanteHash($txId);
+        // Soft-reject: la orden vuelve a Pendiente de Pago pidiendo un comprobante
+        // NUEVO, así que hay que borrar el viejo entero (URL + fecha), no solo el
+        // hash — si no, autoCancelExpired() nunca la toca (exige ComprobanteURL
+        // NULL) y queda invisible para el cron si el cliente no vuelve a subir nada.
+        // Rechazo duro: la orden queda Cancelada, se conserva el comprobante
+        // rechazado como evidencia (mismo criterio que el visor de admin/orden.php).
+        if ($isSoftReject) {
+            $this->txRepository->clearComprobanteUpload($txId);
+        } else {
+            $this->txRepository->clearComprobanteHash($txId);
+        }
         // No hace falta liberar transaction_proofs.FileHash acá: TransactionProofRepository::
         // findByHash() solo bloquea mientras haya una orden viva usando el archivo
         // (EstadoID != 5), así que cancelar ya lo libera, sin destruir el hash original

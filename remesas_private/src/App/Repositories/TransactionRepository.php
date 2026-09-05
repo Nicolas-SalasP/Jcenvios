@@ -912,6 +912,26 @@ class TransactionRepository
         $stmt->close();
     }
 
+    /**
+     * Borra el comprobante entero (URL, hash y fecha de subida), no solo el
+     * hash. Se usa en el soft-reject ("Solicitar Corrección"): la orden vuelve
+     * a Pendiente de Pago pidiéndole al cliente un comprobante NUEVO, así que
+     * el viejo no puede seguir ahí. Si solo se limpiara el hash (como hacía
+     * antes), autoCancelExpired() nunca la tocaba —su WHERE exige
+     * ComprobanteURL IS NULL— y la orden quedaba invisible para el cron de
+     * auto-cancelación para siempre si el cliente nunca volvía a subir nada.
+     * Encontrado en producción 2026-09-05: órdenes de mayo/agosto seguían
+     * "Pendiente de Pago" pese al cron corriendo.
+     */
+    public function clearComprobanteUpload(int $txId): void
+    {
+        $sql = "UPDATE transacciones SET ComprobanteURL = NULL, ComprobanteHash = NULL, FechaSubidaComprobante = NULL WHERE TransaccionID = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param("i", $txId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
     // =======================================================
     // NOTIFICACIONES ADMINISTRADOR
     // =======================================================
