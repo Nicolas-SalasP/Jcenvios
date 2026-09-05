@@ -1,4 +1,16 @@
-const CACHE_NAME = 'jcenvios-v1';
+// __BUILD_ID__ lo reemplaza el pipeline de deploy (ver deploy-production.yml,
+// paso "Forzar actualización del Service Worker") con el SHA del commit antes
+// de subir public_html/. Sin esto CACHE_NAME quedaba fijo en 'jcenvios-v1'
+// para siempre: como el propio archivo sw.js nunca cambiaba de bytes entre
+// despliegues, el navegador jamás detectaba una versión nueva del worker, y
+// STATIC_ASSETS (bootstrap, style.css, el logo) quedaban cacheados de por
+// vida para cualquiera que hubiera instalado la PWA — ni Ctrl+F5 lo arregla,
+// porque el service worker vive fuera del ciclo normal de caché del navegador.
+// Al cambiar CACHE_NAME en cada deploy, el archivo cambia de bytes, el
+// navegador SÍ detecta la actualización, y el 'activate' de abajo borra el
+// caché con el nombre viejo. En local (placeholder sin reemplazar) sigue
+// funcionando igual, solo que sin ese forzado entre corridas.
+const CACHE_NAME = 'jcenvios-__BUILD_ID__';
 const STATIC_ASSETS = [
   '/assets/vendor/bootstrap.min.css',
   '/assets/vendor/bootstrap-icons.min.css',
