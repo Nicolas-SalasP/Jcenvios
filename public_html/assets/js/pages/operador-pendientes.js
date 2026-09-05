@@ -1,15 +1,18 @@
 /**
  * Recarga el cuerpo de la tabla de pendientes.
  *
- * @param {{auto?: boolean}} opts  auto=true cuando viene del polling de 10s.
- *        En ese caso NO se refresca si el operador tiene un modal de trabajo
- *        abierto: reemplazar el <tbody> le borraba de abajo la fila con la que
- *        estaba operando (mismo bug ya arreglado en admin.js). El refresh
- *        manual y el de los filtros siempre corren.
+ * Antes: se saltaba ENTERO el refresh automático mientras hubiera cualquier
+ * modal de Bootstrap abierto ("Rechazar", "Ver motivo de pausa", "Copiar
+ * datos", etc — no solo uno relacionado a la tabla). El operador que dejaba
+ * un modal abierto unos segundos revisando una orden se comía varios ciclos
+ * de 10s sin refrescar, y al cerrarlo tenía que esperar hasta el próximo tick
+ * — de ahí el reporte de "tarda mucho" y "a veces no recarga". Mismo bug ya
+ * encontrado y arreglado en admin-transacciones.js (ver su comentario en
+ * startAutoRefresh): los modales viven fuera de #tablaPendientesBody, así que
+ * reemplazar el <tbody> no les afecta, no hace falta saltarse el refresh.
  */
 function cargarTablaPendientes(opts) {
     const isAuto = !!(opts && opts.auto);
-    if (isAuto && document.querySelector('.modal.show')) return;
 
     const btn = document.getElementById('btnRefresh');
     const icon = btn ? btn.querySelector('i') : null;
@@ -27,7 +30,7 @@ function cargarTablaPendientes(opts) {
         .then(html => { document.getElementById('tablaPendientesBody').innerHTML = html; })
         .catch(e => {
             console.error('Error recargando tabla:', e);
-            // El refresh automático falla en silencio (reintenta en 10s); el
+            // El refresh automático falla en silencio (reintenta en 5s); el
             // manual sí avisa, porque el operador está esperando el resultado.
             if (!isAuto && window.showInfoModal) {
                 window.showInfoModal(
@@ -56,7 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     cargarTablaPendientes();
-    setInterval(() => cargarTablaPendientes({ auto: true }), 10000);
+    setInterval(() => cargarTablaPendientes({ auto: true }), 5000);
+    // Refresco inmediato apenas se cierra cualquier modal, para no esperar
+    // hasta el próximo ciclo si el operador justo actuó sobre una orden
+    // mientras el modal estaba abierto (mismo patrón que admin-transacciones.js).
+    document.addEventListener('hidden.bs.modal', () => cargarTablaPendientes({ auto: true }));
 
     const opForm = document.getElementById('op-filter-form');
     if (opForm) {
