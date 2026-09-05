@@ -366,6 +366,21 @@ jobs:
       - name: Correr migraciones de BD pendientes
         run: ssh deploy 'php ~/remesas_private/scripts/migrate.php'
 
+      # Fuerza la actualización del Service Worker (PWA) en cada deploy.
+      #
+      # sw.js nunca cambiaba de bytes entre despliegues (CACHE_NAME era un
+      # string fijo), así que el navegador nunca detectaba una versión nueva
+      # del worker: los activos precacheados (bootstrap, style.css, el logo)
+      # quedaban servidos desde caché para siempre en cualquiera que tuviera
+      # la PWA instalada — ni Ctrl+F5 lo soluciona, el service worker vive
+      # fuera del ciclo normal de caché del navegador. Se sustituye acá, en el
+      # checkout del runner, NUNCA en el repo (evita el problema de "el commit
+      # que agrega su propio SHA no puede conocerlo de antemano").
+      - name: Forzar actualización del Service Worker
+        run: |
+          sed -i "s/__BUILD_ID__/${GITHUB_SHA:0:12}/" public_html/sw.js
+          grep -n "CACHE_NAME = " public_html/sw.js
+
       - name: Desplegar public_html/  (document root)
         run: |
           rsync -rltvz --no-perms --no-owner --no-group \
